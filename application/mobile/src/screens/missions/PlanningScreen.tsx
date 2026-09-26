@@ -1,0 +1,722 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LayoutChangeEvent, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import NetInfo from "@react-native-community/netinfo";
+import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
+import { ScreenContainer } from "../../components/ScreenContainer";
+import { StateView } from "../../components/StateView";
+import { MissionCard } from "../../components/MissionCard";
+import { OfflineBanner } from "../../components/OfflineBanner";
+import { PressableScale } from "../../components/PressableScale";
+import { AssigneeAvatar } from "../../components/AssigneeAvatar";
+import { useTheme } from "../../theme/ThemeProvider";
+import { fontFamily } from "../../theme/typography";
+import { useResponsive } from "../../hooks/useResponsive";
+import { useAuth } from "../../auth/AuthContext";
+import { listMissions } from "../../api/missions.api";
+import type { Mission, MissionAssignee } from "../../api/missions.api";
+import type { PlanningStackParamList } from "../../navigation/PlanningStack";
+
+type Route = RouteProp<PlanningStackParamList, "PlanningHome">;
+import {
+  WEEKDAY_LABELS,
+  addDays,
+  dateKey,
+  formatMissionDay,
+  formatMissionTimeRange,
+  formatWeekRange,
+  isSameLocalDay,
+  mondayOf,
+  toLocalDateKey,
+} from "../../utils/missionFormat";
+import { readCache, writeCache } from "../../offline/cache";
+import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
+
+// Vue "planning" : la semaine en cours (lundi → dimanche) s'affiche directement
+// à l'ouverture de l'app — tâches et lieu du jour en un coup d'œil, conforme
+// au cahier des charges ("où dois-je aller, quand, que dois-je faire ?").
+// Le périmètre exact (personnel / chantiers gérés / vue globale) est déterminé
+// côté serveur selon le rôle — aucune logique de portée n'est dupliquée ici.
+//
+// Mode hors connexion : sert les dernières missions connues de la semaine
+// depuis le cache local si le réseau est indisponible (lecture seule).
+export function PlanningScreen() {
+  const { colors, spacing, radius, type, isDark } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<PlanningStackParamList>>();
+  const route = useRoute<Route>();
+  const { isDesktopWeb } = useResponsive();
+  const { user } = useAuth();
+  // Superviseur, RH et Direction pilotent l'équipe au global : ils ont besoin
+  // de voir qui travaille sur quoi chaque jour, pas seulement ce qui se passe
+  // par chantier — demande explicite du client (voir TeamWeekGrid ci-dessous).
+  // Le chef d'équipe garde la grille par jour : il ne suit que ses propres
+  // chantiers, l'organisation par personnel n'y ajoute rien.
+  const showTeamGrid = isDesktopWeb && !!user && ["SUPERVISOR", "HR", "DIRECTOR"].includes(user.role);
+
+  const today = useMemo(() => new Date(), []);
+  // Jour ciblé explicitement (ex. depuis le mini-calendrier du tableau de
+  // bord) : détermine la semaine ET le jour sélectionné à l'ouverture,
+  // plutôt que de rester sur le dernier jour déjà sélectionné dans cet onglet.
+  const targetDay = useMemo(() => (route.params?.day ? new Date(`${route.params.day}T00:00:00`) : null), [route.params?.day]);
+
+  function weekOffsetFor(day: Date): number {
+    const diffDays = Math.round((mondayOf(day).getTime() - mondayOf(today).getTime()) / (24 * 60 * 60 * 1000));
+    return Math.round(diffDays / 7);
+  }
+
+  const [weekOffset, setWeekOffset] = useState(() => (targetDay ? weekOffsetFor(targetDay) : 0));
+  const weekStart = useMemo(() => addDays(mondayOf(today), weekOffset * 7), [today, weekOffset]);
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+
+  const [selectedDay, setSelectedDay] = useState<Date>(targetDay ?? today);
+  // Repère le dernier `day` ciblé déjà appliqué, pour ne réagir qu'aux VRAIS
+  // changements (ex. un nouveau tap sur le mini-calendrier du tableau de
+  // bord alors que Planning est déjà monté) — jamais à un remount normal.
+  const lastAppliedTargetKey = useRef<string | undefined>(route.params?.day);
+  // Le tout premier passage de l'effet "changement de semaine" ne doit rien
+  // réinitialiser (l'état initial est déjà correct via les useState
+  // ci-dessus) ; pareil juste après avoir appliqué un nouveau `day` ciblé,
+  // qui a déjà positionné `selectedDay` lui-même.
+  const isFirstWeekEffect = useRef(true);
+  const justAppliedTarget = useRef(false);
+
+  // Un nouveau `day` ciblé : repositionne à la fois la semaine et le jour
+  // sélectionné sur ce jour précis, plutôt que de rester sur le dernier jour
+  // déjà affiché dans cet onglet.
+  useEffect(() => {
+    if (targetDay && route.params?.day !== lastAppliedTargetKey.current) {
+      setWeekOffset(weekOffsetFor(targetDay));
+      setSelectedDay(targetDay);
+      lastAppliedTargetKey.current = route.params?.day;
+      justAppliedTarget.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.day]);
+
+  // Changement de semaine par la flèche précédente/suivante : on retombe sur
+  // aujourd'hui si elle en fait partie, sinon lundi.
+  useEffect(() => {
+    if (isFirstWeekEffect.current) {
+      isFirstWeekEffect.current = false;
+      return;
+    }
+    if (justAppliedTarget.current) {
+      justAppliedTarget.current = false;
+      return;
+    }
+    const containsToday = days.some((d) => isSameLocalDay(d, today));
+    setSelectedDay(containsToday ? today : days[0]!);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekOffset]);
+
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [refreshing, setRefreshing] = useState(false);
+  const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
+
+  const cacheKey = `planning.week.${toLocalDateKey(weekStart)}`;
+
+  const load = useCallback(async () => {
+    try {
+      setState("loading");
+      const res = await listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) });
+      setMissions(res.items);
+      setOfflineCachedAt(null);
+      setState("ready");
+      void writeCache(cacheKey, res.items);
+    } catch {
+      const net = await NetInfo.fetch();
+      const cached = net.isConnected === false ? await readCache<Mission[]>(cacheKey) : null;
+      if (cached) {
+        setMissions(cached.data);
+        setOfflineCachedAt(cached.cachedAt);
+        setState("ready");
+      } else {
+        setState("error");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  const missionsByDay = useMemo(() => {
+    const map = new Map<string, Mission[]>();
+    for (const mission of missions) {
+      const key = dateKey(mission.date);
+      const list = map.get(key) ?? [];
+      list.push(mission);
+      map.set(key, list);
+    }
+    return map;
+  }, [missions]);
+
+  // Personnel apparaissant au moins une fois cette semaine, dédupliqué —
+  // et missions de chaque employé réparties par jour, pour TeamWeekGrid.
+  // Dérivé de `missions` déjà chargé : aucun appel réseau supplémentaire.
+  const teamMembers = useMemo(() => {
+    const map = new Map<string, MissionAssignee["user"]>();
+    for (const mission of missions) {
+      for (const assignment of mission.assignments) {
+        if (!map.has(assignment.userId)) map.set(assignment.userId, assignment.user);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)
+    );
+  }, [missions]);
+
+  const missionsByUserAndDay = useMemo(() => {
+    const map = new Map<string, Map<string, Mission[]>>();
+    for (const mission of missions) {
+      const key = dateKey(mission.date);
+      for (const assignment of mission.assignments) {
+        let userMap = map.get(assignment.userId);
+        if (!userMap) {
+          userMap = new Map();
+          map.set(assignment.userId, userMap);
+        }
+        const list = userMap.get(key) ?? [];
+        list.push(mission);
+        userMap.set(key, list);
+      }
+    }
+    return map;
+  }, [missions]);
+
+  const selectedDayMissions = missionsByDay.get(toLocalDateKey(selectedDay)) ?? [];
+  const isCurrentWeek = weekOffset === 0;
+  const selectedIndex = days.findIndex((d) => isSameLocalDay(d, selectedDay));
+
+  // Pastille d'arrière-plan qui glisse sous le jour sélectionné plutôt que de
+  // réapparaître brutalement à chaque tap — le sélecteur de jour est l'élément
+  // le plus manipulé de l'écran d'atterrissage de l'app, il mérite ce soin.
+  const [rowWidth, setRowWidth] = useState(0);
+  const slotWidth = rowWidth / 7;
+  const pillX = useSharedValue(0);
+  // Le tout premier positionnement doit être instantané (pas de ressort) :
+  // animer depuis 0 dès la toute première mesure de largeur peut, sur web,
+  // se figer visuellement à mi-course selon le timing de la mise en page —
+  // seuls les changements de sélection ULTÉRIEURS doivent glisser.
+  const hasPositionedOnce = useRef(false);
+
+  useEffect(() => {
+    if (slotWidth > 0 && selectedIndex >= 0) {
+      const target = selectedIndex * slotWidth;
+      if (!hasPositionedOnce.current) {
+        pillX.value = target;
+        hasPositionedOnce.current = true;
+      } else {
+        pillX.value = withSpring(target, { damping: 18, stiffness: 220 });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIndex, slotWidth]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: pillX.value }],
+    width: slotWidth,
+  }));
+
+  function handleRowLayout(e: LayoutChangeEvent) {
+    setRowWidth(e.nativeEvent.layout.width);
+  }
+
+  return (
+    // fullBleed : la grille (7 jours, +1 colonne personnel sur desktop) a
+    // besoin de toute la largeur disponible — le plafond par défaut de
+    // ScreenContainer (pensé pour du texte/formulaire) la rendait cramée,
+    // avec une grosse bande vide à droite sur un écran large.
+    <ScreenContainer fullBleed>
+      <View style={[styles.heroBleed, { marginHorizontal: -spacing.lg }]}>
+        <LinearGradient
+          colors={isDark ? [colors.background, colors.surfaceAlt] : [colors.background, colors.surface]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <OnboardingTarget
+          id="planning.week"
+          style={{ paddingTop: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <PressableScale pressedScale={0.85} hitSlop={10} onPress={() => setWeekOffset((w) => w - 1)}>
+              <Ionicons name="chevron-back" size={22} color={colors.ink} />
+            </PressableScale>
+            <PressableScale pressedScale={0.96} onPress={() => setWeekOffset(0)} disabled={isCurrentWeek}>
+              <Text style={[type.headline, { color: colors.ink }]}>Semaine du {formatWeekRange(weekStart, weekEnd)}</Text>
+              {!isCurrentWeek && (
+                <Text style={[type.caption, { color: colors.accent, textAlign: "center", marginTop: 2 }]}>
+                  Revenir à aujourd'hui
+                </Text>
+              )}
+            </PressableScale>
+            <PressableScale pressedScale={0.85} hitSlop={10} onPress={() => setWeekOffset((w) => w + 1)}>
+              <Ionicons name="chevron-forward" size={22} color={colors.ink} />
+            </PressableScale>
+          </View>
+
+          {/* Sélecteur d'un seul jour : inutile sur desktop web, où la grille
+              ci-dessous montre déjà les 7 jours de la semaine côte à côte. */}
+          {!isDesktopWeb && (
+          <View style={{ marginTop: spacing.lg }}>
+            <View style={{ flexDirection: "row" }} onLayout={handleRowLayout}>
+              {rowWidth > 0 && (
+                // Conteneur externe : porte le glow (l'overflow hidden du dégradé
+                // interne couperait l'ombre s'il était sur la même vue).
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    {
+                      position: "absolute",
+                      top: 0,
+                      bottom: 0,
+                      // zIndex explicite : sur web, les chips voisins (position: relative,
+                      // z-index: 0 par défaut via react-native-web) peignent après cette
+                      // pastille dans l'ordre du DOM et la recouvriraient sans ce réglage.
+                      zIndex: -1,
+                      marginHorizontal: 2,
+                      borderRadius: radius.md,
+                      shadowColor: colors.accentBright,
+                      shadowOpacity: 0.45,
+                      shadowRadius: 12,
+                      shadowOffset: { width: 0, height: 4 },
+                      elevation: 6,
+                    },
+                    pillStyle,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={colors.accentGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[StyleSheet.absoluteFill, { borderRadius: radius.md }]}
+                  />
+                </Animated.View>
+              )}
+              {days.map((day, index) => {
+                const key = toLocalDateKey(day);
+                const isSelected = index === selectedIndex;
+                const isToday = isSameLocalDay(day, today);
+                const count = missionsByDay.get(key)?.length ?? 0;
+                return (
+                  <PressableScale
+                    key={key}
+                    pressedScale={0.94}
+                    onPress={() => setSelectedDay(day)}
+                    style={{ flex: 1, paddingVertical: spacing.xs, alignItems: "center" }}
+                  >
+                    <Text
+                      style={[
+                        type.caption,
+                        {
+                          color: isSelected ? colors.onAccent : colors.inkTertiary,
+                          fontFamily: fontFamily.semibold,
+                          fontWeight: "600",
+                        },
+                      ]}
+                    >
+                      {WEEKDAY_LABELS[index]}
+                    </Text>
+                    <Text
+                      style={[
+                        type.headline,
+                        { color: isSelected ? colors.onAccent : isToday ? colors.accent : colors.ink, marginTop: 2 },
+                      ]}
+                    >
+                      {day.getDate()}
+                    </Text>
+                    <View
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: 3,
+                        marginTop: 4,
+                        backgroundColor: count > 0 ? (isSelected ? colors.onAccent : colors.accent) : "transparent",
+                      }}
+                    />
+                  </PressableScale>
+                );
+              })}
+            </View>
+          </View>
+          )}
+        </OnboardingTarget>
+      </View>
+
+      {state === "loading" && <StateView kind="loading" />}
+      {state === "error" && <StateView kind="error" onRetry={load} />}
+
+      {state === "ready" && isDesktopWeb && (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: spacing.xxxl }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
+        >
+          {/* Plafond généreux plutôt qu'un fullBleed strict : la grille profite du
+              gain de largeur (fullBleed sur ScreenContainer ci-dessus) sans
+              s'étirer jusqu'à devenir illisible sur un très grand écran. */}
+          <View style={{ maxWidth: 1680, width: "100%", alignSelf: "center" }}>
+            {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+            {showTeamGrid ? (
+              <TeamWeekGrid
+                days={days}
+                teamMembers={teamMembers}
+                missionsByUserAndDay={missionsByUserAndDay}
+                today={today}
+                onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
+              />
+            ) : (
+              <DesktopWeekGrid
+                days={days}
+                missionsByDay={missionsByDay}
+                today={today}
+                onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
+              />
+            )}
+          </View>
+        </ScrollView>
+      )}
+
+      {state === "ready" && !isDesktopWeb && (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: spacing.xxxl }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
+        >
+          {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+
+          <Text
+            style={[
+              type.subhead,
+              { color: colors.inkSecondary, marginBottom: spacing.md, fontFamily: fontFamily.semibold, fontWeight: "600" },
+            ]}
+          >
+            {formatMissionDay(selectedDay.toISOString())}
+          </Text>
+
+          {selectedDayMissions.length === 0 ? (
+            <StateView kind="empty" icon="calendar-outline" message="Aucune mission ce jour-là." />
+          ) : (
+            <View style={{ gap: spacing.sm }}>
+              {selectedDayMissions.map((mission, index) => (
+                <Animated.View key={mission.id} entering={FadeInUp.delay(index * 50).duration(300)}>
+                  <MissionCard
+                    mission={mission}
+                    onPress={() => navigation.navigate("MissionDetail", { missionId: mission.id })}
+                  />
+                </Animated.View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
+    </ScreenContainer>
+  );
+}
+
+const MISSION_DOT_COLOR: Record<Mission["status"], (c: ReturnType<typeof useTheme>["colors"]) => string> = {
+  SCHEDULED: (c) => c.accent,
+  IN_PROGRESS: (c) => c.warning,
+  COMPLETED: (c) => c.success,
+  CANCELLED: (c) => c.danger,
+};
+
+// Puces "pastel" (fond teinté + texte de la même teinte) pour TeamWeekGrid —
+// plus coloré/premium que le simple point + carte neutre de DesktopWeekGrid,
+// et le statut reste lisible sans avoir à décoder une couleur de pastille.
+const MISSION_SOFT_BG: Record<Mission["status"], (c: ReturnType<typeof useTheme>["colors"]) => string> = {
+  SCHEDULED: (c) => c.accentSoft,
+  IN_PROGRESS: (c) => c.warningSoft,
+  COMPLETED: (c) => c.successSoft,
+  CANCELLED: (c) => c.dangerSoft,
+};
+const MISSION_SOFT_TEXT: Record<Mission["status"], (c: ReturnType<typeof useTheme>["colors"]) => string> = {
+  SCHEDULED: (c) => c.accentDeep,
+  IN_PROGRESS: (c) => c.warning,
+  COMPLETED: (c) => c.success,
+  CANCELLED: (c) => c.danger,
+};
+
+// Vue "semaine complète" du planning, desktop web uniquement : les 7 jours
+// côte à côte au lieu d'un seul jour à la fois — c'est l'écran où l'écart
+// entre une app mobile étirée et un vrai outil de bureau se voyait le plus.
+// Réutilise `missionsByDay`, déjà calculé par PlanningScreen — aucun appel
+// réseau supplémentaire.
+function DesktopWeekGrid({
+  days,
+  missionsByDay,
+  today,
+  onPressMission,
+}: {
+  days: Date[];
+  missionsByDay: Map<string, Mission[]>;
+  today: Date;
+  onPressMission: (mission: Mission) => void;
+}) {
+  const { colors, spacing, radius, type } = useTheme();
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+      {days.map((day, index) => {
+        const key = toLocalDateKey(day);
+        const dayMissions = missionsByDay.get(key) ?? [];
+        const isToday = isSameLocalDay(day, today);
+
+        return (
+          <View key={key} style={{ flex: 1, minWidth: 0, paddingHorizontal: spacing.xxs }}>
+            <View
+              style={{
+                alignItems: "center",
+                paddingVertical: spacing.xs,
+                marginBottom: spacing.sm,
+                borderRadius: radius.sm,
+                backgroundColor: isToday ? colors.accentSoft : "transparent",
+              }}
+            >
+              <Text style={[type.caption, { color: isToday ? colors.accentDeep : colors.inkTertiary, fontWeight: "700" }]}>
+                {WEEKDAY_LABELS[index]}
+              </Text>
+              <Text style={[type.headline, { color: isToday ? colors.accentDeep : colors.ink, marginTop: 1 }]}>
+                {day.getDate()}
+              </Text>
+            </View>
+
+            <View style={{ gap: spacing.xxs }}>
+              {dayMissions.map((mission) => (
+                <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
+                  <View
+                    style={{
+                      backgroundColor: colors.backgroundElevated,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: radius.md,
+                      padding: spacing.xs,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          marginRight: 5,
+                          backgroundColor: MISSION_DOT_COLOR[mission.status](colors),
+                        }}
+                      />
+                      <Text style={[type.caption, { color: colors.ink, fontWeight: "700", flex: 1 }]} numberOfLines={1}>
+                        {mission.site.name}
+                      </Text>
+                    </View>
+                    <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]} numberOfLines={1}>
+                      {formatMissionTimeRange(mission.startTime, mission.endTime)}
+                    </Text>
+                  </View>
+                </PressableScale>
+              ))}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// Vue "personnel × semaine" du planning, réservée au Superviseur, à la RH et
+// à la Direction (demande explicite du client) : chaque ligne est un membre
+// de l'équipe (photo, nom, statut) avec ses missions de la semaine alignées
+// en face des jours correspondants — le chef d'équipe garde DesktopWeekGrid
+// ci-dessus, organisée par jour, puisqu'il ne suit que ses propres chantiers.
+function TeamWeekGrid({
+  days,
+  teamMembers,
+  missionsByUserAndDay,
+  today,
+  onPressMission,
+}: {
+  days: Date[];
+  teamMembers: MissionAssignee["user"][];
+  missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
+  today: Date;
+  onPressMission: (mission: Mission) => void;
+}) {
+  const { colors, spacing, radius, type } = useTheme();
+  const NAME_COL_WIDTH = 210;
+
+  if (teamMembers.length === 0) {
+    return <StateView kind="empty" icon="people-outline" message="Aucune mission cette semaine." />;
+  }
+
+  return (
+    // Rendu "bento" plutôt qu'un simple quadrillage de tableur : chaque
+    // employé est une carte flottante à part entière, et la case du jour
+    // courant devient une zone arrondie mise en évidence (au lieu d'une
+    // simple teinte de fond) — on la repère d'un coup d'œil en descendant le
+    // regard le long de la semaine, sans que ça ressemble à un tableau Excel.
+    <View>
+      <View style={{ flexDirection: "row", marginBottom: spacing.sm }}>
+        <View style={{ width: NAME_COL_WIDTH }} />
+        {days.map((day, index) => {
+          const isToday = isSameLocalDay(day, today);
+          return (
+            <View key={toLocalDateKey(day)} style={{ flex: 1, minWidth: 0, alignItems: "center", marginHorizontal: spacing.xxs }}>
+              {isToday ? (
+                <LinearGradient
+                  colors={colors.accentGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{
+                    minWidth: 44,
+                    alignItems: "center",
+                    borderRadius: radius.md,
+                    paddingVertical: spacing.xs,
+                    paddingHorizontal: spacing.sm,
+                    shadowColor: colors.accentBright,
+                    shadowOpacity: 0.35,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 4 },
+                    elevation: 4,
+                  }}
+                >
+                  <Text style={[type.caption, { color: colors.onAccent, fontWeight: "700" }]}>{WEEKDAY_LABELS[index]}</Text>
+                  <Text style={[type.headline, { color: colors.onAccent, marginTop: 1 }]}>{day.getDate()}</Text>
+                </LinearGradient>
+              ) : (
+                <View style={{ alignItems: "center", paddingVertical: spacing.xs }}>
+                  <Text style={[type.caption, { color: colors.inkTertiary, fontWeight: "700" }]}>{WEEKDAY_LABELS[index]}</Text>
+                  <Text style={[type.headline, { color: colors.ink, marginTop: 1 }]}>{day.getDate()}</Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+
+      <View style={{ gap: spacing.sm }}>
+        {teamMembers.map((member) => {
+          const userMissions = missionsByUserAndDay.get(member.id);
+          const isActive = member.isActive !== false;
+
+          return (
+            <View
+              key={member.id}
+              style={{
+                flexDirection: "row",
+                alignItems: "stretch",
+                backgroundColor: colors.backgroundElevated,
+                borderRadius: radius.lg,
+                padding: spacing.sm,
+                shadowColor: colors.shadow,
+                shadowOpacity: 0.5,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 1,
+              }}
+            >
+              <View style={{ width: NAME_COL_WIDTH, flexDirection: "row", alignItems: "center", paddingRight: spacing.sm }}>
+                <AssigneeAvatar assignee={{ userId: member.id, isLead: false, user: member }} size={36} />
+                <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                  <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]} numberOfLines={1}>
+                    {member.firstName} {member.lastName}
+                  </Text>
+                  <View
+                    style={{
+                      alignSelf: "flex-start",
+                      marginTop: 3,
+                      paddingVertical: 2,
+                      paddingHorizontal: 6,
+                      borderRadius: 6,
+                      backgroundColor: isActive ? colors.successSoft : colors.neutralSoft,
+                    }}
+                  >
+                    <Text style={[type.caption, { color: isActive ? colors.success : colors.neutral }]}>
+                      {isActive ? "Actif" : "Désactivé"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {days.map((day, index) => {
+                const key = toLocalDateKey(day);
+                const dayMissions = userMissions?.get(key) ?? [];
+                const isToday = isSameLocalDay(day, today);
+                return (
+                  <View
+                    key={key}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      minHeight: 52,
+                      marginHorizontal: spacing.xxs,
+                      padding: spacing.xxs,
+                      gap: spacing.xxs,
+                      justifyContent: "center",
+                      borderRadius: radius.md,
+                      // Séparation discrète entre les jours d'une même ligne — sans
+                      // elle, les cases voisines se confondaient visuellement dès
+                      // qu'aucune n'était teintée (aujourd'hui) ou remplie.
+                      borderLeftWidth: index > 0 ? 1 : 0,
+                      borderLeftColor: colors.border,
+                      // Accent (pas gris neutre) : même famille de couleur que le
+                      // badge dégradé de l'en-tête — une case vide se lit comme
+                      // "c'est aujourd'hui" plutôt que comme un bloc oublié/cassé.
+                      backgroundColor: isToday ? colors.accentSoft : "transparent",
+                    }}
+                  >
+                    {dayMissions.map((mission) => (
+                      <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
+                        <View
+                          style={{
+                            backgroundColor: MISSION_SOFT_BG[mission.status](colors),
+                            borderRadius: radius.sm,
+                            paddingVertical: 5,
+                            paddingHorizontal: 7,
+                          }}
+                        >
+                          <Text style={[type.caption, { color: MISSION_SOFT_TEXT[mission.status](colors), fontWeight: "700" }]} numberOfLines={1}>
+                            {mission.site.name}
+                          </Text>
+                          <Text
+                            style={[type.caption, { color: MISSION_SOFT_TEXT[mission.status](colors), opacity: 0.8, marginTop: 1 }]}
+                            numberOfLines={1}
+                          >
+                            {formatMissionTimeRange(mission.startTime, mission.endTime)}
+                          </Text>
+                        </View>
+                      </PressableScale>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  // Bande "hero" en plein-bord : la ScreenContainer applique un padding
+  // horizontal uniforme à tout l'écran, on le neutralise ici pour créer une
+  // rupture visuelle nette avec la liste de missions en dessous.
+  heroBleed: {
+    overflow: "hidden",
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+});

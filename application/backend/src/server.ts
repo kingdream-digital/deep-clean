@@ -1,0 +1,48 @@
+import cron from "node-cron";
+import { createApp } from "./app";
+import { env } from "./config/env";
+import { logger } from "./config/logger";
+import { prisma } from "./db/prisma";
+import { runPhotoRetentionJob } from "./jobs/photoRetention";
+
+const app = createApp();
+
+const server = app.listen(env.PORT, () => {
+  logger.info(`Deep Clean API démarrée sur le port ${env.PORT} (${env.NODE_ENV})`);
+});
+
+// Rappel + purge automatique des photos de signalement (voir jobs/photoRetention.ts).
+// Tous les jours à 3h du matin (heure serveur, période creuse), PLUS une
+// exécution au démarrage pour rattraper une échéance manquée pendant que le
+// serveur était endormi (hébergement gratuit qui se met en veille en cas
+// d'inactivité — sans effet sur un serveur qui tourne en continu).
+if (!env.isTest) {
+  void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (démarrage)"));
+  cron.schedule("0 3 * * *", () => {
+    void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (planifiée)"));
+  });
+}
+
+async function shutdown(signal: string) {
+  logger.info(`Signal ${signal} reçu, arrêt propre du serveur...`);
+  server.close(async () => {
+    await prisma.$disconnect();
+    logger.info("Serveur arrêté proprement.");
+    process.exit(0);
+  });
+
+  // Filet de sécurité si la fermeture propre bloque trop longtemps.
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+process.on("unhandledRejection", (reason) => {
+  logger.error({ reason }, "Promesse rejetée non gérée");
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Exception non interceptée");
+  process.exit(1);
+});

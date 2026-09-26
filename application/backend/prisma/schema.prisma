@@ -1,0 +1,566 @@
+// Deep Clean — schema de base de données
+// Couvre l'ensemble des entités prévues par le cahier des charges (section 19).
+// Seuls les modules Auth / Users / Notifications / ActivityLog ont une API pour le moment.
+// Les autres modèles (Site, Mission, Problem, Validation, Photo...) posent les fondations
+// pour les prochaines itérations sans être exposés par des endpoints encore.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Comptes & rôles
+// ---------------------------------------------------------------------------
+
+enum Role {
+  EMPLOYEE // Employé
+  SITE_MANAGER // Chef d'équipe
+  SUPERVISOR // Superviseur : valide les pointages (avant transmission à la RH) et gère le planning
+  HR // RH
+  DIRECTOR // Directeur
+  ADMIN // Administrateur technique
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  // Identifiant de connexion — jamais l'email (retour explicite du client) :
+  // généré côté serveur à la création du compte, à partir de la première
+  // lettre du prénom suivie du nom (ex. "Jean Dupont" -> "jdupont"), avec un
+  // suffixe numérique en cas de collision (voir utils/username.ts). RH le
+  // communique à l'utilisateur comme son identifiant, au même titre que le
+  // mot de passe temporaire.
+  username           String    @unique
+  // Conservé comme coordonnée de contact (annuaire, export PDF) mais n'a plus
+  // aucun rôle dans l'authentification — optionnel désormais, RH n'a plus à
+  // en fournir un à la création du compte.
+  email              String?   @unique
+  passwordHash       String
+  role               Role      @default(EMPLOYEE)
+  firstName          String
+  lastName           String
+  phone              String?
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true) // vrai tant que le mot de passe temporaire fourni par la RH n'a pas été changé
+  // Photo de profil facultative (retour explicite du client : l'utilisateur
+  // doit pouvoir en mettre une, en changer, ou ne pas en avoir du tout) —
+  // clé opaque vers utils/storage.ts, jamais une URL publique permanente ;
+  // l'image est servie via une route authentifiée comme les autres photos.
+  avatarKey          String?
+  lastLoginAt        DateTime?
+  createdById        String? // RH ayant créé le compte
+  createdBy          User?     @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers       User[]    @relation("UserCreatedBy")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  sessions           Session[]
+  pushTokens         PushToken[]
+  notifications      Notification[]
+  managedSites       Site[]              @relation("SiteManager")
+  siteMemberships    SiteMember[]
+  missionAssignments MissionAssignment[]
+  createdMissions    Mission[]           @relation("MissionCreatedBy")
+  uploadedMissionStandardDocuments Mission[] @relation("MissionStandardDocumentUploadedBy")
+  uploadedStandardDocuments CleaningStandard[] @relation("StandardDocumentUploadedBy")
+  reportedProblems   Problem[]           @relation("ProblemReportedBy")
+  problemComments    ProblemComment[]
+  uploadedPhotos     Photo[]
+  validations        Validation[]
+  activityLogs       ActivityLog[]
+  timeEntries        TimeEntry[]         @relation("TimeEntryUser")
+  validatedTimeEntries TimeEntry[]       @relation("TimeEntryValidatedBy")
+  createdJobSheets   JobSheet[]          @relation("JobSheetCreatedBy")
+  createdStandards   CleaningStandard[]  @relation("StandardCreatedBy")
+  sentMessages       Message[]           @relation("MessageSender")
+  receivedMessages   Message[]           @relation("MessageRecipient")
+  absences           Absence[]           @relation("AbsenceUser")
+  decidedAbsences    Absence[]           @relation("AbsenceDecidedBy")
+  postedAnnouncements Announcement[]     @relation("AnnouncementAuthor")
+
+  @@index([role])
+  @@map("users")
+}
+
+/// Sessions / refresh tokens — permet "Rester connecté" et une déconnexion réelle (invalidation serveur)
+model Session {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique // le refresh token n'est jamais stocké en clair
+  userAgent        String?
+  ipAddress        String?
+  rememberMe       Boolean   @default(false)
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Chantiers / équipes
+// ---------------------------------------------------------------------------
+
+model Site {
+  id          String   @id @default(uuid())
+  name        String
+  address     String
+  description String?
+  managerId   String?
+  manager     User?    @relation("SiteManager", fields: [managerId], references: [id], onDelete: SetNull)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members           SiteMember[]
+  missions          Mission[]
+  problems          Problem[]
+  cleaningStandards CleaningStandard[]
+
+  @@map("sites")
+}
+
+/// Standard de nettoyage réutilisable pour un chantier/client donné — préparé
+/// à l'avance par le superviseur ou la RH, puis appliqué en un clic à la
+/// création d'une mission sur ce chantier (copie son contenu dans la fiche de
+/// poste de la mission, voir `missions.service.ts` / `createMission`).
+model CleaningStandard {
+  id                 String   @id @default(uuid())
+  siteId             String
+  site               Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name               String
+  tasks              String[]
+  equipment          String[]
+  safetyInstructions String?
+  notes              String?
+  createdById        String
+  createdBy          User     @relation("StandardCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Document PDF déposé directement sur le standard (retour explicite du
+  // client : il a déjà son propre standard en PDF, pas besoin de le retaper
+  // dans tasks/equipment) — même mécanique que Mission.standardDocumentKey
+  // ci-dessus : jamais exposé au client (route authentifiée dédiée), un seul
+  // document à la fois, le redéposer remplace le précédent.
+  documentKey          String?
+  documentFileName     String?
+  documentSizeBytes    Int?
+  documentUploadedById String?
+  documentUploadedBy   User?     @relation("StandardDocumentUploadedBy", fields: [documentUploadedById], references: [id], onDelete: SetNull)
+  documentUploadedAt   DateTime?
+
+  missions Mission[]
+
+  @@map("cleaning_standards")
+}
+
+model SiteMember {
+  id       String   @id @default(uuid())
+  siteId   String
+  site     Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([siteId, userId])
+  @@map("site_members")
+}
+
+// ---------------------------------------------------------------------------
+// Planning / missions
+// ---------------------------------------------------------------------------
+
+enum MissionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Mission {
+  id           String        @id @default(uuid())
+  siteId       String
+  site         Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  title        String
+  date         DateTime      @db.Date
+  startTime    DateTime
+  endTime      DateTime
+  instructions String?
+  status       MissionStatus @default(SCHEDULED)
+  createdById  String
+  createdBy    User          @relation("MissionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  // Standard de nettoyage appliqué à la création (traçabilité) — son contenu
+  // a été copié dans `JobSheet` au moment de la création, donc conservé même
+  // si le standard est modifié ou supprimé depuis (onDelete: SetNull).
+  standardId   String?
+  standard     CleaningStandard? @relation(fields: [standardId], references: [id], onDelete: SetNull)
+  // Document PDF déposé directement sur la mission (ex. standard de nettoyage
+  // du client, fiche technique produit) — distinct du `CleaningStandard`
+  // structuré ci-dessus (`standard`/`standardId`) : un fichier tel quel,
+  // visible par l'équipe affectée en plus de la consigne (`instructions`),
+  // jamais de contenu structuré à maintenir. Un seul document par mission :
+  // le déposer à nouveau remplace le précédent (voir missions.service.ts
+  // `attachStandardDocument`). `standardDocumentKey` n'est jamais exposé au
+  // client (mêmes règles que `Photo.storageKey`) — seule une route
+  // authentifiée dédiée sert le fichier.
+  standardDocumentKey          String?
+  standardDocumentFileName     String?
+  standardDocumentSizeBytes    Int?
+  standardDocumentUploadedById String?
+  standardDocumentUploadedBy   User?     @relation("MissionStandardDocumentUploadedBy", fields: [standardDocumentUploadedById], references: [id], onDelete: SetNull)
+  standardDocumentUploadedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  assignments MissionAssignment[]
+  problems    Problem[]
+  validations Validation[]
+  jobSheet    JobSheet?
+
+  @@index([siteId, date])
+  @@map("missions")
+}
+
+/// Fiche de poste : document standard décrivant comment réaliser la mission
+/// (étapes, matériel, consignes de sécurité) — créé par le superviseur (ou
+/// tout rôle habilité à gérer le planning), consultable par les employés
+/// affectés. Un seul par mission : sert de référence standardisée plutôt que
+/// les instructions libres du champ `Mission.instructions`.
+model JobSheet {
+  id                 String   @id @default(uuid())
+  missionId          String   @unique
+  mission            Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  tasks              String[]
+  equipment          String[]
+  safetyInstructions String?
+  notes              String?
+  createdById        String
+  createdBy          User     @relation("JobSheetCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("job_sheets")
+}
+
+model MissionAssignment {
+  id        String   @id @default(uuid())
+  missionId String
+  mission   Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isLead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([missionId, userId])
+  @@index([userId])
+  @@map("mission_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Signalements de problèmes
+// ---------------------------------------------------------------------------
+
+enum ProblemStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  VALIDATED
+}
+
+enum ProblemType {
+  ISSUE // problème général (dégât, sécurité, accès...)
+  MISSING_MATERIAL // matériel manquant
+}
+
+model Problem {
+  id           String        @id @default(uuid())
+  siteId       String
+  site         Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  missionId    String?
+  mission      Mission?      @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  reportedById String
+  reportedBy   User          @relation("ProblemReportedBy", fields: [reportedById], references: [id], onDelete: Restrict)
+  type         ProblemType   @default(ISSUE)
+  description  String
+  status       ProblemStatus @default(NEW)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  photos      Photo[]
+  comments    ProblemComment[]
+  validations Validation[]
+
+  @@map("problems")
+}
+
+model ProblemComment {
+  id        String   @id @default(uuid())
+  problemId String
+  problem   Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  comment   String
+  createdAt DateTime @default(now())
+
+  @@map("problem_comments")
+}
+
+// ---------------------------------------------------------------------------
+// Fichiers / photos — accès contrôlé, jamais d'URL publique permanente
+// ---------------------------------------------------------------------------
+
+model Photo {
+  id           String   @id @default(uuid())
+  storageKey   String   @unique // clé privée dans le stockage objet (jamais exposée telle quelle)
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  problemId    String?
+  problem      Problem? @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  // Horodatage du rappel envoyé à la RH avant suppression automatique — évite
+  // de renvoyer le même rappel chaque jour (voir jobs/photoRetention.ts).
+  purgeWarnedAt DateTime?
+
+  @@map("photos")
+}
+
+// ---------------------------------------------------------------------------
+// Validations
+// ---------------------------------------------------------------------------
+
+enum ValidationType {
+  MISSION_COMPLETION
+  SITE_CLOSURE
+  PROBLEM_RESOLUTION
+  ACCOUNT_CHANGE
+  OTHER
+}
+
+model Validation {
+  id            String         @id @default(uuid())
+  type          ValidationType
+  missionId     String?
+  mission       Mission?       @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  problemId     String?
+  problem       Problem?       @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  validatedById String
+  validatedBy   User           @relation(fields: [validatedById], references: [id], onDelete: Restrict)
+  comment       String?
+  createdAt     DateTime       @default(now())
+
+  // Empêche au niveau base deux validations concurrentes du même type pour
+  // la même mission (double-clic, retry réseau, ou deux validateurs qui
+  // valident au même instant) — Postgres traite les NULL comme distincts,
+  // donc les validations de type "problème" (missionId toujours NULL)
+  // ne sont pas concernées par cette contrainte.
+  @@unique([missionId, type])
+  @@map("validations")
+}
+
+// ---------------------------------------------------------------------------
+// Pointage (feuilles d'heures)
+// ---------------------------------------------------------------------------
+
+enum TimeEntryStatus {
+  PENDING // en attente de validation
+  VALIDATED
+  REJECTED
+}
+
+/// Un pointage = une session travaillée (arrivée -> départ). `clockOut` est
+/// null tant que l'utilisateur n'a pas pointé sa sortie ; un utilisateur ne
+/// peut avoir qu'un seul pointage ouvert à la fois (voir timesheets.service.ts).
+model TimeEntry {
+  id            String          @id @default(uuid())
+  userId        String
+  user          User            @relation("TimeEntryUser", fields: [userId], references: [id], onDelete: Cascade)
+  clockIn       DateTime
+  clockOut      DateTime?
+  status        TimeEntryStatus @default(PENDING)
+  validatedById String?
+  validatedBy   User?           @relation("TimeEntryValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
+  validatedAt   DateTime?
+  comment       String?
+  isRetroactive Boolean         @default(false) // pointage saisi après coup (oubli), signalé pour le validateur
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([userId, clockIn])
+  @@map("time_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Congés & absences
+// ---------------------------------------------------------------------------
+
+enum AbsenceType {
+  PAID_LEAVE // Congé payé
+  SICK_LEAVE // Arrêt maladie
+  UNPAID_LEAVE // Congé sans solde
+  OTHER
+}
+
+enum AbsenceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Demande d'absence planifiée (congé, maladie...) — distincte du pointage
+/// (TimeEntry, qui constate une présence réelle) : ceci est une INDISPONIBILITÉ
+/// à venir ou en cours, décidée par la RH, et croisée avec le planning des
+/// missions pour détecter automatiquement les conflits (voir
+/// absences.service.ts `decideAbsence` et missions.service.ts
+/// `getAssignmentConflicts`).
+model Absence {
+  id           String        @id @default(uuid())
+  userId       String
+  user         User          @relation("AbsenceUser", fields: [userId], references: [id], onDelete: Cascade)
+  type         AbsenceType   @default(PAID_LEAVE)
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  status       AbsenceStatus @default(PENDING)
+  decidedById  String?
+  decidedBy    User?         @relation("AbsenceDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId, startDate, endDate])
+  @@index([status])
+  @@map("absences")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  MISSION_ASSIGNED
+  MISSION_UNASSIGNED
+  MISSION_TIME_CHANGED
+  MISSION_SITE_CHANGED
+  MISSION_CANCELLED
+  MISSION_INSTRUCTION_ADDED
+  PROBLEM_UPDATE
+  PHOTO_EXPIRING_SOON
+  VALIDATION_REQUESTED
+  TIMESHEET_VALIDATED
+  ACCOUNT_UPDATE
+  // Envoyée à la RH/direction/admin quand un employé demande une absence
+  // (voir absences.service.ts::notifyAbsenceManagers) — distincte de
+  // ABSENCE_DECIDED (envoyée à l'employé une fois la décision prise) pour
+  // que l'appui sur la notification puisse amener au bon endroit : la fiche
+  // de l'employé pour valider/refuser ici, "Mes absences" là.
+  ABSENCE_REQUESTED
+  ABSENCE_DECIDED
+  ABSENCE_CONFLICT
+  // Diffusée à toute l'entreprise quand la RH, un superviseur, la direction
+  // ou l'admin publie une actualité (retour explicite du client) — jamais
+  // envoyée à l'auteur lui-même.
+  ANNOUNCEMENT_POSTED
+  GENERAL
+}
+
+/// Actualités internes (retour explicite du client) — publiées par la RH, un
+/// superviseur, la direction ou l'admin, visibles par toute l'entreprise.
+/// Diffuse une notification à tous les comptes actifs à la création (voir
+/// announcements.service.ts) ; pas de brouillon ni d'édition dans cette
+/// première version — publier, c'est notifier immédiatement.
+model Announcement {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("announcements")
+}
+
+model Notification {
+  id                String           @id @default(uuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              NotificationType
+  title             String
+  body              String
+  relatedEntityType String?
+  relatedEntityId   String?
+  isRead            Boolean          @default(false)
+  readAt            DateTime?
+  createdAt         DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+/// Jetons push (Expo/FCM/APNs) — la logique d'envoi sera branchée dans une itération suivante
+model PushToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  platform   String // "ios" | "android"
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@map("push_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Messagerie interne
+// ---------------------------------------------------------------------------
+
+/// Message direct entre deux comptes de l'entreprise — pas de notion de
+/// "conversation" en base : un fil entre deux utilisateurs se déduit en
+/// filtrant sur (senderId, recipientId) dans les deux sens (voir
+/// messages.service.ts), plutôt qu'une entité séparée à maintenir en plus.
+model Message {
+  id          String    @id @default(uuid())
+  senderId    String
+  sender      User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User      @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  body        String
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([senderId, recipientId, createdAt])
+  @@index([recipientId, senderId, isRead])
+  @@map("messages")
+}
+
+// ---------------------------------------------------------------------------
+// Journal d'activité
+// ---------------------------------------------------------------------------
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("activity_logs")
+}

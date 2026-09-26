@@ -1,0 +1,122 @@
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useTheme } from "../theme/ThemeProvider";
+import { InboxHomeScreen } from "../screens/inbox/InboxHomeScreen";
+import { ConversationThreadScreen } from "../screens/inbox/ConversationThreadScreen";
+import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
+import { NewMessageScreen } from "../screens/inbox/NewMessageScreen";
+import { MissionDetailScreen } from "../screens/missions/MissionDetailScreen";
+import { MissionFormScreen } from "../screens/missions/MissionFormScreen";
+import { JobSheetFormScreen } from "../screens/missions/JobSheetFormScreen";
+import { ReportProblemScreen } from "../screens/missions/ReportProblemScreen";
+import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
+import { TimeEntryDetailScreen } from "../screens/timesheets/TimeEntryDetailScreen";
+import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
+import { MyAbsencesScreen } from "../screens/absences/MyAbsencesScreen";
+import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
+import { UserDetailScreen } from "../screens/users/UserDetailScreen";
+import { UserFormScreen } from "../screens/users/UserFormScreen";
+import { AnnouncementDetailScreen } from "../screens/announcements/AnnouncementDetailScreen";
+
+// Un seul onglet "Messagerie" pour Notifications + Messages directs (voir
+// InboxHomeScreen) — les écrans de détail de mission/pointage/standard sont
+// dupliqués ici depuis MissionsStack/PlanningStack (même convention déjà en
+// place) pour qu'une notification ou un message pousse son détail SUR cette
+// pile plutôt que de changer d'onglet, avec une vraie flèche retour native.
+export type InboxStackParamList = {
+  InboxHome: undefined;
+  ConversationThread: { userId: string };
+  ContactProfile: { userId: string };
+  NewMessage: undefined;
+  MissionDetail: { missionId: string };
+  MissionForm: { missionId?: string } | undefined;
+  JobSheetForm: { missionId: string };
+  ReportProblem: { missionId: string };
+  ProblemDetail: { problemId: string };
+  TimeEntryDetail: { entryId: string };
+  StandardDetail: { standardId: string };
+  // Ajoutés (audit notifications) : ABSENCE_DECIDED pointe vers relatedEntityType
+  // "Absence", qui n'avait aucun écran cible sur cette pile jusqu'ici — la
+  // notification ne menait nulle part. AbsenceForm est dupliqué en plus de
+  // MyAbsences car ce dernier navigue lui-même vers "AbsenceForm" en interne
+  // (bouton "Demander une absence"), même convention que les autres écrans
+  // dupliqués ci-dessus.
+  MyAbsences: undefined;
+  AbsenceForm: undefined;
+  // ABSENCE_REQUESTED (RH/direction/admin, retour explicite du client) doit
+  // amener sur la fiche de l'employé pour décider — jamais "Mes absences",
+  // qui n'a de sens que pour l'intéressé lui-même. UserForm est dupliqué en
+  // plus car UserDetail y navigue elle-même ("Modifier le compte").
+  UserDetail: { userId: string; temporaryPassword?: string };
+  UserForm: { userId?: string } | undefined;
+  // ANNOUNCEMENT_POSTED (retour explicite du client) doit amener directement
+  // sur l'actualité concernée.
+  AnnouncementDetail: { announcementId: string };
+};
+
+const Stack = createNativeStackNavigator<InboxStackParamList>();
+
+export function InboxStack() {
+  const { colors } = useTheme();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.backgroundElevated },
+        headerTintColor: colors.ink,
+        headerShadowVisible: false,
+        headerTitleStyle: { color: colors.ink },
+        // Juste la flèche au retour — jamais le titre de l'écran précédent
+        // affiché à côté (ex. "InboxHome"), qui n'a aucun sens pour l'utilisateur.
+        headerBackButtonDisplayMode: "minimal",
+      }}
+    >
+      <Stack.Screen name="InboxHome" component={InboxHomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ConversationThread" component={ConversationThreadScreen} options={{ title: "" }} />
+      <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ title: "Profil" }} />
+      <Stack.Screen
+        name="NewMessage"
+        component={NewMessageScreen}
+        options={{ title: "Nouveau message", presentation: "modal" }}
+      />
+      <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />
+      <Stack.Screen
+        name="MissionForm"
+        component={MissionFormScreen}
+        options={({ route }) => ({
+          title: route.params?.missionId ? "Modifier la mission" : "Nouvelle mission",
+          presentation: "modal",
+        })}
+      />
+      <Stack.Screen
+        name="JobSheetForm"
+        component={JobSheetFormScreen}
+        options={{ title: "Fiche de poste", presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="ReportProblem"
+        component={ReportProblemScreen}
+        options={{ title: "Signaler un problème", presentation: "modal" }}
+      />
+      <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
+      <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
+      <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
+      <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: "Mes absences" }} />
+      <Stack.Screen
+        name="AbsenceForm"
+        component={AbsenceFormScreen}
+        options={{ title: "Demander une absence", presentation: "modal" }}
+      />
+      <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: "Compte" }} />
+      <Stack.Screen
+        name="UserForm"
+        component={UserFormScreen}
+        options={({ route }) => ({
+          title: route.params?.userId ? "Modifier le compte" : "Nouveau compte",
+          presentation: "modal",
+        })}
+      />
+      <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} options={{ title: "Actualité" }} />
+    </Stack.Navigator>
+  );
+}

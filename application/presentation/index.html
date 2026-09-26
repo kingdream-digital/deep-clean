@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>Deep Clean · Présentation</title>
+<style>
+  @font-face { font-family: 'Inter'; src: url('fonts/Inter_400Regular.ttf'); font-weight: 400; }
+  @font-face { font-family: 'Inter'; src: url('fonts/Inter_500Medium.ttf'); font-weight: 500; }
+  @font-face { font-family: 'Inter'; src: url('fonts/Inter_600SemiBold.ttf'); font-weight: 600; }
+  @font-face { font-family: 'Inter'; src: url('fonts/Inter_700Bold.ttf'); font-weight: 700; }
+  @font-face { font-family: 'Inter'; src: url('fonts/Inter_800ExtraBold.ttf'); font-weight: 800; }
+
+  :root{
+    --ink:#101322; --ink2:#5B6472; --ink3:#94A0AF;
+    --bg:#F4F6F9; --white:#FFFFFF;
+    --deep:#0B5A70; --accent:#0E7490; --bright:#22D3EE;
+    --soft:#EAF6F8; --border:#E6E9EF;
+    --success:#16A34A; --successSoft:rgba(22,163,74,.10);
+    --warning:#D97706; --warningSoft:rgba(217,119,6,.13);
+    --danger:#DC2626; --dangerSoft:rgba(220,38,38,.10);
+    --info:#2563EB; --infoSoft:rgba(37,99,235,.10);
+    --purple:#7C3AED; --purpleSoft:rgba(124,58,237,.10);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  @page{ size:210mm 297mm; margin:0; }
+  .page{
+    width:210mm; height:297mm;
+    position:relative;
+    overflow:hidden;
+    page-break-after:always;
+    background:var(--bg);
+  }
+  .page:last-child{ page-break-after:auto; }
+
+  .eyebrow{
+    font-size:10.5px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+    color:var(--accent);
+  }
+  h1.title{ font-size:33px; font-weight:800; letter-spacing:-.5px; line-height:1.18; margin:8px 0 0; color:var(--ink); }
+  p.lede{ font-size:14.5px; line-height:1.65; color:var(--ink2); font-weight:400; margin:12px 0 0; max-width:640px; }
+
+  .pad{ padding:18mm 18mm 14mm; height:100%; position:relative; display:flex; flex-direction:column; }
+  .wm{ position:absolute; right:-70px; bottom:-70px; width:360px; height:360px; opacity:.045; pointer-events:none; z-index:0; }
+  .footer{
+    position:absolute; left:18mm; right:18mm; bottom:9mm;
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:8.5px; color:var(--ink3); letter-spacing:.3px;
+    border-top:1px solid var(--border); padding-top:6px;
+    z-index:1;
+  }
+  .footer .num{ font-weight:700; color:var(--ink2); }
+
+  /* ---------- shared bits ---------- */
+  .pill{ display:inline-flex; align-items:center; gap:5px; background:var(--soft); color:var(--accent); font-weight:700; font-size:9px; letter-spacing:1px; text-transform:uppercase; padding:5px 11px; border-radius:99px; }
+  .card{ background:var(--white); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+
+  svg.ic{ display:block; flex-shrink:0; }
+
+  /* ---------- phone mockup ---------- */
+  .phone{
+    width:272px; padding:11px; border-radius:40px; background:#0A0F14;
+    /* Aucune ombre floutée (même un flou resserré à 28px rebasculait encore
+       sur un rendu rasterisé grossier — bloc gris plein — sur plusieurs
+       visionneuses PDF). Un simple liseré fait le même travail de séparation
+       du fond blanc, en rendu vectoriel fiable partout, sans exception. */
+    border:1px solid var(--border);
+    position:relative;
+  }
+  .phone .notch{ position:absolute; top:11px; left:50%; transform:translateX(-50%); width:84px; height:18px; background:#0A0F14; border-radius:0 0 14px 14px; z-index:2; }
+  .phone img{ width:100%; display:block; aspect-ratio:9/19.5; object-fit:cover; object-position:top; border-radius:25px; background:#fff; }
+
+  /* ---------- browser mockup (web, vu en grand) ---------- */
+  .browser{
+    width:100%; border-radius:14px; overflow:hidden; background:#fff;
+    /* Même correction que .phone : liseré plutôt qu'ombre floutée. */
+    border:1px solid var(--border);
+  }
+  .browser .bar{ height:32px; background:#EDEEF2; display:flex; align-items:center; padding:0 13px; gap:6px; border-bottom:1px solid var(--border); }
+  .browser .bar .dot{ width:9px; height:9px; border-radius:50%; }
+  .browser .bar .url{ margin-left:14px; background:#fff; border:1px solid var(--border); border-radius:7px; padding:4px 12px; font-size:9.5px; color:var(--ink3); flex:1; max-width:260px; }
+  .browser img{ width:100%; display:block; }
+  /* Paire d'écrans "étape 1 / étape 2" (ex. le suivi du mois, puis l'export) —
+     empilés en pleine largeur plutôt que côte à côte : deux captures
+     desktop réduites de moitié deviendraient illisibles. */
+  .step-label{ font-size:11px; font-weight:700; color:var(--accent); letter-spacing:.2px; margin-bottom:6px; }
+
+  /* ================= COVER ================= */
+  /* Fond blanc (demande explicite du client) : plus de dégradé sombre — les
+     éléments qui portaient du texte blanc sur fond sombre (labels, tagline,
+     pastille) repassent donc en encre foncée / teinte accent, comme sur les
+     pages de contenu. */
+  .cover{ background:var(--white); color:var(--ink); }
+  .cover .pad{ display:flex; flex-direction:column; height:100%; }
+  .cover .brandrow{ display:flex; align-items:center; justify-content:space-between; position:relative; z-index:2; }
+  .cover .brandrow .kd{ font-size:11px; font-weight:700; letter-spacing:3px; color:var(--ink3); text-transform:uppercase; }
+  /* Glows très discrets (teinte accent, pas le cyan vif pensé pour un fond
+     sombre) : juste assez pour éviter une page totalement plate. */
+  .cover .glow{ position:absolute; width:620px; height:620px; border-radius:50%; background:radial-gradient(circle, rgba(14,116,144,.07), rgba(14,116,144,0) 70%); top:-220px; right:-180px; }
+  .cover .glow2{ position:absolute; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle, rgba(34,211,238,.06), rgba(34,211,238,0) 70%); bottom:-160px; left:-160px; }
+  .cover .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; position:relative; z-index:2; }
+  /* Lockup KingDream (texte : aucun fichier logo fourni — à remplacer par le
+     vrai logo dès qu'il est disponible, voir <img class="kd-logo"> plus bas). */
+  .kd-brand{ display:flex; align-items:center; gap:9px; }
+  .kd-mono{ width:24px; height:24px; border-radius:7px; background:var(--ink); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; color:#fff; }
+  .kd-word{ font-size:11px; font-weight:700; letter-spacing:2px; color:var(--ink); text-transform:uppercase; }
+  .kd-word span{ font-weight:500; opacity:.55; margin-left:6px; letter-spacing:1.5px; }
+  .kd-logo{ height:22px; display:block; }
+
+  /* Icône d'app (badge arrondi noir + mark centré) plutôt que le mark seul :
+     lisible comme une vraie icône d'app, sur fond clair comme sur fond sombre. */
+  .app-icon{
+    width:104px; height:104px; border-radius:27px; background:#0A0F14;
+    display:flex; align-items:center; justify-content:center; margin-bottom:24px;
+    /* Liseré plutôt qu'ombre floutée — même correction que .phone/.browser. */
+    border:1px solid var(--border);
+  }
+  .app-icon img{ width:56%; height:56%; object-fit:contain; }
+  .by-kd{ font-size:11.5px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent); margin-top:12px; }
+  .cover h1{ font-size:52px; font-weight:800; letter-spacing:-1.5px; margin:0; color:var(--ink); }
+  .cover .tag{ font-size:16px; font-weight:500; color:var(--ink2); margin-top:18px; max-width:430px; line-height:1.5; }
+  .cover .baseline{ margin-top:34px; display:inline-flex; align-items:center; gap:10px; background:var(--soft); border:1px solid var(--border); color:var(--deep); padding:9px 20px; border-radius:99px; font-size:11.5px; font-weight:600; letter-spacing:.3px; }
+  .cover .bottomrow{ display:flex; justify-content:space-between; align-items:flex-end; position:relative; z-index:2; }
+  .cover .bottomrow .sub{ font-size:10px; color:var(--ink3); line-height:1.6; }
+  .cover .bottomrow .client{ text-align:right; font-size:10px; color:var(--ink2); font-weight:600; }
+
+  /* ================= SECTION HEADER (generic) ================= */
+  .kicker-row{ display:flex; align-items:center; gap:10px; }
+  .kicker-row .dot{ width:7px; height:7px; border-radius:50%; background:var(--bright); box-shadow:0 0 0 4px var(--soft); }
+
+  /* ================= PROBLEM PAGE — badge chiffré + liste à puces badges (rouge) ================= */
+  .constat-stat{ display:flex; align-items:center; gap:24px; margin-top:32px; padding-bottom:26px; border-bottom:1px solid var(--border); }
+  .constat-stat .badge{ width:86px; height:86px; border-radius:22px; background:linear-gradient(150deg,#FEE2E2,var(--dangerSoft)); border:1px solid rgba(220,38,38,.18); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .constat-stat .badge .num{ font-size:32px; font-weight:800; color:var(--danger); letter-spacing:-1px; }
+  .constat-stat .cap{ font-size:12.5px; color:var(--ink2); line-height:1.6; max-width:560px; }
+  .constat-stat .cap b{ color:var(--ink); font-weight:700; }
+  .constat-list{ margin-top:6px; }
+  .constat-item{ display:flex; gap:16px; align-items:flex-start; padding:17px 0; border-bottom:1px solid var(--border); }
+  .constat-item:first-child{ padding-top:0; }
+  .constat-item .no{ width:30px; height:30px; border-radius:10px; background:var(--dangerSoft); color:var(--danger); font-size:12.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+  .constat-item .t{ font-size:13.6px; font-weight:700; color:var(--ink); line-height:1.4; }
+  .constat-item .d{ font-size:11.2px; color:var(--ink2); line-height:1.5; margin-top:3px; }
+  .callout{ margin-top:26px; background:linear-gradient(120deg,var(--deep),var(--accent)); color:#fff; border-radius:18px; padding:24px 28px; font-size:14.5px; font-weight:600; line-height:1.6; }
+
+  /* ================= PILLARS PAGE — liste éditoriale, chiffres suspendus dans la marge ================= */
+  .sol-edit{ margin-top:44px; }
+  .sol-edit-row{ position:relative; padding:20px 0; border-bottom:1px solid var(--border); }
+  .sol-edit-row:first-child{ padding-top:0; }
+  .sol-edit-row .num{ position:absolute; left:-54px; top:22px; width:40px; text-align:right; font-size:26px; font-weight:800; color:var(--accent); line-height:1; }
+  .sol-edit-row .tag{ font-size:9.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--accent); margin-bottom:5px; }
+  .sol-edit-row .t{ font-size:14.2px; font-weight:700; color:var(--ink); line-height:1.35; }
+  .sol-edit-row .d{ font-size:11.4px; color:var(--ink2); line-height:1.55; margin-top:4px; }
+
+  /* ================= FEATURE (screenshot) PAGE ================= */
+  .feat{ display:flex; align-items:center; gap:34px; margin-top:56px; }
+  .feat .col-text{ flex:1.15; }
+  .feat .col-phone{ flex:.85; display:flex; justify-content:center; }
+  .feat.reverse{ flex-direction:row-reverse; }
+  .feat-bul{ display:flex; gap:12px; margin-top:16px; align-items:flex-start; }
+  .feat-bul .chk{ width:21px; height:21px; border-radius:50%; background:var(--successSoft); color:var(--success); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+  .feat-bul .txt{ font-size:13px; color:var(--ink); line-height:1.55; font-weight:500; }
+  .feat-bul .txt b{ font-weight:700; }
+  .stat-strip{ display:flex; gap:12px; margin-top:22px; }
+  .stat-chip{ background:var(--soft); border-radius:13px; padding:13px 15px; flex:1; }
+  .stat-chip .n{ font-size:18px; font-weight:800; color:var(--deep); }
+  .stat-chip .l{ font-size:9.5px; color:var(--ink2); font-weight:600; line-height:1.35; margin-top:3px; }
+
+  /* ================= ROLE MATRIX ================= */
+  table.matrix{ width:100%; border-collapse:collapse; margin-top:28px; font-size:11.6px; }
+  table.matrix th{ text-align:left; font-size:9.6px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink3); font-weight:700; padding:11px 9px; border-bottom:2px solid var(--ink); }
+  table.matrix th.rolecol{ text-align:center; }
+  table.matrix td{ padding:13px 9px; border-bottom:1px solid var(--border); color:var(--ink2); font-weight:500; }
+  table.matrix td.rolecol{ text-align:center; }
+  table.matrix tr td:first-child{ color:var(--ink); font-weight:600; }
+  .yes{ display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--successSoft); color:var(--success); align-items:center; justify-content:center; font-weight:800; font-size:12px; }
+  .partial{ display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--warningSoft); color:var(--warning); align-items:center; justify-content:center; font-weight:800; font-size:11px; }
+  .no{ display:inline-flex; width:22px; height:22px; border-radius:50%; background:#F1F2F5; color:var(--ink3); align-items:center; justify-content:center; font-weight:800; font-size:12px; }
+
+  /* ================= ROLE CARDS (détail) ================= */
+  .role-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:26px; }
+  .role-card{ background:var(--white); border:1px solid var(--border); border-radius:18px; padding:18px 20px; }
+  .role-card .head{ display:flex; align-items:center; gap:12px; }
+  .role-card .ico{ width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .role-card .name{ font-size:14.5px; font-weight:800; color:var(--ink); line-height:1.2; }
+  .role-card .tagline{ font-size:10.3px; color:var(--accent); font-weight:700; margin-top:1px; }
+  .role-card ul{ list-style:none; margin:12px 0 0; padding:0; }
+  .role-card li{ font-size:10.6px; color:var(--ink2); line-height:1.5; padding-left:14px; position:relative; margin-bottom:5px; }
+  .role-card li::before{ content:'–'; position:absolute; left:0; color:var(--accent); font-weight:700; }
+
+  /* ================= TIME TABLE ================= */
+  table.timetab{ width:100%; border-collapse:collapse; margin-top:26px; }
+  table.timetab th{ text-align:left; font-size:9.8px; text-transform:uppercase; letter-spacing:.6px; color:#fff; font-weight:700; padding:14px 15px; background:var(--deep); }
+  table.timetab th:first-child{ border-radius:12px 0 0 0; }
+  table.timetab th:last-child{ border-radius:0 12px 0 0; text-align:right; }
+  table.timetab td{ padding:16px 15px; border-bottom:1px solid var(--border); font-size:11.8px; color:var(--ink2); vertical-align:top; line-height:1.45; }
+  table.timetab tr:nth-child(even) td{ background:#FAFBFC; }
+  table.timetab td:first-child{ color:var(--ink); font-weight:700; }
+  table.timetab td.gain{ text-align:right; font-weight:800; color:var(--deep); white-space:nowrap; font-size:12.5px; }
+  .before-after{ display:flex; gap:6px; align-items:center; }
+  .before-after .b{ color:var(--danger); }
+  .before-after .a{ color:var(--success); font-weight:600; }
+
+  .bigwin{ margin-top:30px; background:var(--ink); color:#fff; border-radius:20px; padding:30px 34px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
+  .bigwin .n{ font-size:42px; font-weight:800; letter-spacing:-1px; color:var(--bright); }
+  .bigwin .l{ font-size:12.5px; font-weight:500; color:rgba(255,255,255,.82); line-height:1.55; max-width:340px; }
+
+  /* ================= SECURITY ================= */
+  .sec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:30px; }
+  .sec-item{ display:flex; gap:14px; align-items:flex-start; background:var(--white); border:1px solid var(--border); border-radius:16px; padding:18px 19px; }
+  .sec-item .ico{ width:38px; height:38px; border-radius:11px; background:var(--soft); color:var(--deep); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .sec-item .t{ font-size:12.8px; font-weight:700; color:var(--ink); }
+  .sec-item .d{ font-size:11px; color:var(--ink2); line-height:1.5; margin-top:4px; }
+
+  /* ================= SECURITY — liste d'audit (pas de cartes) ================= */
+  /* Volontairement différent de .sec-grid : une checklist dense à puces rondes
+     et filets horizontaux, plutôt que des encadrés — pour que Sécurité et
+     Sous le capot, juste après, ne se ressemblent plus. */
+  .audit-grid{ display:grid; grid-template-columns:1fr 1fr; gap:0 34px; margin-top:28px; }
+  .audit-row{ display:flex; gap:13px; align-items:flex-start; padding:15px 0; border-bottom:1px solid var(--border); }
+  .audit-row:nth-child(-n+2){ padding-top:0; }
+  .audit-row .ico{ width:30px; height:30px; border-radius:50%; background:var(--soft); color:var(--deep); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .audit-row .t{ font-size:12.3px; font-weight:700; color:var(--ink); }
+  .audit-row .d{ font-size:10.8px; color:var(--ink2); line-height:1.5; margin-top:3px; }
+
+  /* ================= TECHNOLOGIE — badges de stack + checklist ================= */
+  /* Encore une autre composition : une rangée de badges pour les briques
+     nommées, une checklist aérée pour les pratiques qui les entourent. */
+  .stack-row{ display:flex; gap:12px; margin-top:28px; flex-wrap:wrap; }
+  .stack-chip{ flex:1 1 220px; display:flex; align-items:center; gap:12px; background:var(--white); border:1px solid var(--border); border-radius:14px; padding:15px 17px; }
+  .stack-chip .ico{ width:36px; height:36px; border-radius:10px; background:var(--soft); color:var(--deep); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .stack-chip .t{ font-size:12.3px; font-weight:700; color:var(--ink); line-height:1.3; }
+  .stack-chip .d{ font-size:9.8px; color:var(--ink2); line-height:1.35; margin-top:2px; }
+  .tech-checks{ margin-top:8px; }
+
+  /* ================= WHY KINGDREAM (parcours, pas une grille de cartes) ================= */
+  /* Volontairement différent des pages Sécurité/Technologie juste avant (grilles
+     de cartes) : un chemin vertical, sans encadrés, pour casser la répétition
+     visuelle quand on feuillette le document. */
+  .why-path{ position:relative; margin-top:34px; padding-left:4px; }
+  .why-path::before{ content:''; position:absolute; left:26px; top:10px; bottom:10px; width:2px; background:var(--border); }
+  .why-step{ position:relative; padding-left:64px; padding-bottom:30px; }
+  .why-step:last-child{ padding-bottom:0; }
+  .why-step .dot{ position:absolute; left:0; top:0; width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--white); border:2px solid var(--border); z-index:1; }
+  .why-step .t{ font-size:15px; font-weight:700; color:var(--ink); padding-top:12px; }
+  .why-step .d{ font-size:12px; color:var(--ink2); line-height:1.6; margin-top:5px; max-width:600px; }
+  .why-step.brand .dot{ background:var(--deep); border-color:var(--deep); }
+  .why-step.brand .t{ font-size:15.5px; }
+
+  /* ================= CLOSING ================= */
+  /* Fond blanc (demande explicite du client), même principe que .cover. */
+  .closing{ background:var(--white); color:var(--ink); }
+  .closing .pad{ display:flex; flex-direction:column; height:100%; position:relative; z-index:2; }
+  .check-list{ margin-top:26px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .check-list .ci{ display:flex; gap:10px; align-items:center; background:var(--white); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .check-list .ci .chk{ width:20px; height:20px; border-radius:50%; background:var(--successSoft); color:var(--success); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:11px; flex-shrink:0; }
+  .check-list .ci span{ font-size:11px; font-weight:600; color:var(--ink); }
+  .closing .cta{ margin-top:auto; padding-top:28px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-end; }
+  .closing .cta h2{ font-size:22px; font-weight:800; margin:0; letter-spacing:-.3px; color:var(--ink); }
+  .closing .cta p{ font-size:11.5px; color:var(--ink2); margin-top:6px; max-width:360px; line-height:1.5; }
+  .closing .contact{ text-align:right; font-size:11px; line-height:1.7; color:var(--ink2); }
+  .closing .contact b{ font-size:13px; color:var(--ink); }
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================ PAGE 1 — COVER ============================================================ -->
+<section class="page cover">
+  <div class="glow"></div>
+  <div class="glow2"></div>
+  <div class="pad">
+    <div class="brandrow">
+      <div class="kd-brand">
+        <div class="kd-mono">K</div>
+        <div class="kd-word">KingDream<span>Digital</span></div>
+      </div>
+      <div class="kd" style="letter-spacing:2px;">Présentation</div>
+    </div>
+    <div class="center">
+      <div class="app-icon"><img src="assets/mark-white.png" /></div>
+      <h1>Deep Clean</h1>
+      <div class="by-kd">Développé par KingDream</div>
+      <div class="tag" style="margin-top:16px;">L'application qui remplace le papier, les groupes WhatsApp et les tableurs Excel, pour de bon.</div>
+      <div class="baseline">Une seule app · Tous les métiers · Temps réel</div>
+    </div>
+    <div class="bottomrow">
+      <div class="sub">Application mobile et web de gestion pour entreprise de nettoyage<br/>Employés · Chefs d'équipe · Superviseurs · RH · Direction</div>
+      <div class="client">Conçue et développée par KingDream Digital<br/>kingdreamdigital@gmail.com</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ PAGE 2 — LE CONSTAT ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Le constat</div>
+    <h1 class="title">Gérer une entreprise de nettoyage prend aujourd'hui deux fois plus de temps qu'il ne le faudrait.</h1>
+    <p class="lede">Pas parce que les équipes travaillent mal, mais parce que les outils qu'elles utilisent n'ont pas été pensés pour ce métier. Résultat : du temps perdu chaque semaine, des informations qui se perdent, et une direction qui découvre les problèmes trop tard.</p>
+
+    <div class="constat-stat">
+      <div class="badge"><div class="num">2×</div></div>
+      <div class="cap"><b>Deux fois plus de temps perdu</b> chaque semaine sur des tâches qui devraient se régler en quelques minutes, pas en plusieurs allers-retours.</div>
+    </div>
+    <div class="constat-list">
+      <div class="constat-item"><div class="no">01</div><div><div class="t">Le planning change, et la moitié de l'équipe l'apprend trop tard</div><div class="d">Il vit encore dans un Excel envoyé par SMS ou WhatsApp, jamais à jour pour tout le monde en même temps.</div></div></div>
+      <div class="constat-item"><div class="no">02</div><div><div class="t">Chaque fiche de paie ressaisit les mêmes heures trois fois</div><div class="d">Papier → tableur → logiciel de paie : à chaque étape, une nouvelle occasion de se tromper.</div></div></div>
+      <div class="constat-item"><div class="no">03</div><div><div class="t">Un problème signalé aujourd'hui est oublié dès demain</div><div class="d">La photo part sur WhatsApp, se noie dans la conversation, et personne ne sait plus si elle a été traitée.</div></div></div>
+      <div class="constat-item"><div class="no">04</div><div><div class="t">En cas de désaccord, impossible de prouver qui a validé quoi</div><div class="d">Aucune trace horodatée sur une mission ou un chantier, seulement des souvenirs qui se contredisent.</div></div></div>
+      <div class="constat-item"><div class="no">05</div><div><div class="t">Un nouvel employé apprend le métier en se trompant</div><div class="d">Tout passe à l'oral, les erreurs des premiers jours ne sont pas rares, et personne n'est toujours là pour répondre.</div></div></div>
+      <div class="constat-item"><div class="no">06</div><div><div class="t">La direction découvre les problèmes un mois trop tard</div><div class="d">Aucune vue d'ensemble en temps réel sur les chantiers, les équipes, les incidents.</div></div></div>
+    </div>
+
+    <div class="callout" style="margin-top:auto;">Ce temps perdu chaque semaine n'est pas du temps pour vos clients. Deep Clean vise à le récupérer, pas à ajouter un outil de plus.</div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">02</div></div>
+</section>
+
+<!-- ============================================================ PAGE 3 — LA SOLUTION ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">La solution</div>
+    <h1 class="title">Une seule application. Tous les métiers de l'entreprise. Tout en temps réel.</h1>
+    <p class="lede">Deep Clean centralise ce qui se passait avant dans cinq outils différents, et l'adapte automatiquement à qui la consulte : un employé, un chef d'équipe, un superviseur, la RH ou la direction n'y voient jamais la même chose.</p>
+
+    <div class="sol-edit">
+      <div class="sol-edit-row"><div class="num">01</div><div><div class="tag">Planning intelligent</div><div class="t">Le planning s'organise en quelques minutes, et tout le monde le sait au même instant</div><div class="d">Missions, équipes et chantiers organisés en quelques clics ; les conflits sont détectés avant qu'ils ne posent problème.</div></div></div>
+      <div class="sol-edit-row"><div class="num">02</div><div><div class="tag">Suivi terrain en direct</div><div class="t">Le pointage se fait une seule fois, jamais trois</div><div class="d">Démarrage et fin de mission enregistrés sur le terrain, équipe visible d'un coup d'œil, sans ressaisie avant la paie.</div></div></div>
+      <div class="sol-edit-row"><div class="num">03</div><div><div class="tag">Signalements avec photo</div><div class="t">Un problème se suit jusqu'à sa résolution, pas jusqu'au bas d'une conversation</div><div class="d">Photo, commentaire, statut : tout reste attaché au signalement, jamais perdu dans un message.</div></div></div>
+      <div class="sol-edit-row"><div class="num">04</div><div><div class="tag">Notifications ciblées</div><div class="t">Personne n'est prévenu pour rien, ni oublié par erreur</div><div class="d">Chacun ne reçoit que ce qui le concerne réellement, jamais noyé dans le bruit d'un groupe.</div></div></div>
+      <div class="sol-edit-row"><div class="num">05</div><div><div class="tag">RH centralisée</div><div class="t">Un compte se crée, se bloque et se récupère en un instant</div><div class="d">Comptes, rôles, accès : tout est créé, activé et retiré par la RH, jamais laissé au hasard.</div></div></div>
+      <div class="sol-edit-row"><div class="num">06</div><div><div class="tag">Sécurité de bout en bout</div><div class="t">Ce que chacun voit correspond exactement à ce qu'il a le droit de voir</div><div class="d">Chaque rôle ne peut faire que ce qui le concerne, vérifié sur le serveur, jamais seulement dans l'écran.</div></div></div>
+    </div>
+
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">6</div><div class="l">RÔLES DISTINCTS, CHACUN AVEC SON PROPRE ESPACE</div></div>
+      <div class="stat-chip"><div class="n">100%</div><div class="l">DES PERMISSIONS VÉRIFIÉES CÔTÉ SERVEUR</div></div>
+      <div class="stat-chip"><div class="n">1</div><div class="l">SEULE APPLICATION POUR TOUTE L'ENTREPRISE</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">03</div></div>
+</section>
+
+<!-- ============================================================ PAGE 4 — ACCUEIL ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Chaque rôle, dès l'ouverture</div>
+    <h1 class="title" style="font-size:25px;">Chacun ouvre l'application et sait immédiatement : où aller, quoi faire, et si quelque chose l'attend.</h1>
+
+    <div class="feat" style="margin-top:8px;">
+      <div class="col-text">
+        <p class="lede" style="margin-top:0;">L'écran d'accueil se réorganise entièrement selon qui est connecté. Un employé voit sa mission du jour. Un chef d'équipe voit ses chantiers et son équipe. La direction voit l'activité de toute l'entreprise. Personne ne cherche l'information : elle est déjà là.</p>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Mission en cours ou à venir</b> affichée en priorité, avec photo et prénom de chaque personne affectée.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Pointage en un geste</b>, accessible en permanence sans jamais ouvrir un autre écran.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Notifications et activité récente</b> visibles immédiatement, jamais à chercher.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Accès rapide</b> vers les outils propres à chaque rôle, sans menu à apprendre par cœur.</div></div>
+      </div>
+      <div class="col-phone"><div class="phone"><div class="notch"></div><img src="shots/home.png"/></div></div>
+    </div>
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">1</div><div class="l">SEUL ÉCRAN À OUVRIR, QUEL QUE SOIT LE RÔLE</div></div>
+      <div class="stat-chip"><div class="n">0</div><div class="l">CLIC POUR VOIR SA MISSION DU JOUR</div></div>
+      <div class="stat-chip"><div class="n">100%</div><div class="l">ADAPTÉ AUTOMATIQUEMENT À QUI CONSULTE</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">04</div></div>
+</section>
+
+<!-- ============================================================ PAGE 5 — PLANNING ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Planning</div>
+    <h1 class="title" style="font-size:25px;">Le planning ne dépend plus d'une seule personne qui garde tout en tête.</h1>
+
+    <div class="feat reverse" style="margin-top:8px;">
+      <div class="col-text">
+        <p class="lede" style="margin-top:0;">Le superviseur construit le planning de toute l'entreprise en quelques minutes : chantier, horaires, équipe et chef de mission. Dès qu'une mission change, les bonnes personnes, et seulement elles, sont prévenues instantanément.</p>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Vue par <b>semaine, par chantier ou par personne</b>, identique sur tous les appareils.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Conflits détectés automatiquement</b> : une absence approuvée qui chevauche une mission déclenche une alerte, jamais un oubli silencieux.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Changement d'horaire, de chantier ou de consigne : <b>notification immédiate</b> à l'équipe concernée, sans aucune option pour la désactiver.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Chaque mission terminée est <b>validée</b> par un responsable, avec date, heure et auteur conservés.</div></div>
+      </div>
+      <div class="col-phone"><div class="phone"><div class="notch"></div><img src="shots/planning-tour.png"/></div></div>
+    </div>
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">Auto</div><div class="l">DÉTECTION DES CONFLITS D'ABSENCE</div></div>
+      <div class="stat-chip"><div class="n">Instant</div><div class="l">NOTIFICATION GARANTIE, SANS EXCEPTION</div></div>
+      <div class="stat-chip"><div class="n">100%</div><div class="l">DES VALIDATIONS HORODATÉES ET TRACÉES</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">05</div></div>
+</section>
+
+<!-- ============================================================ PAGE 6 — TERRAIN / MISSIONS ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Sur le terrain</div>
+    <h1 class="title" style="font-size:25px;">L'équipe sait exactement qui fait quoi, sans avoir besoin d'appeler personne.</h1>
+
+    <div class="feat" style="margin-top:8px;">
+      <div class="col-text">
+        <p class="lede" style="margin-top:0;">Chaque mission affiche la photo et le prénom de chaque personne affectée : plus besoin d'ouvrir le détail pour savoir qui est sur le chantier. Démarrer, terminer, ou signaler un problème se fait en quelques secondes, directement depuis le terrain.</p>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Photo + prénom</b> de chaque assigné, visibles d'un coup d'œil sur la carte de mission.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Démarrage et fin de mission <b>en un geste</b>, avec suivi automatique du temps.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Signalement d'un problème avec <b>photo à l'appui</b>, suivi du statut jusqu'à sa résolution complète.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Consignes toujours à jour, visibles avant même d'arriver sur le chantier.</div></div>
+      </div>
+      <div class="col-phone"><div class="phone"><div class="notch"></div><img src="shots/missions.png"/></div></div>
+    </div>
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">10 sec</div><div class="l">POUR SIGNALER UN PROBLÈME AVEC PHOTO</div></div>
+      <div class="stat-chip"><div class="n">1 geste</div><div class="l">POUR DÉMARRER OU TERMINER UNE MISSION</div></div>
+      <div class="stat-chip"><div class="n">0</div><div class="l">APPEL NÉCESSAIRE POUR SAVOIR QUI EST LÀ</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">06</div></div>
+</section>
+
+<!-- ============================================================ PAGE 7 — MESSAGERIE ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Messagerie</div>
+    <h1 class="title" style="font-size:25px;">Toute l'équipe se parle depuis l'application, plus besoin de WhatsApp.</h1>
+
+    <div class="feat" style="margin-top:8px;">
+      <div class="col-text">
+        <p class="lede" style="margin-top:0;">Chaque collaborateur peut écrire directement à n'importe quel collègue de l'entreprise, sans quitter l'application : plus de groupe WhatsApp externe à gérer, plus de messages de travail mélangés aux conversations personnelles.</p>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Conversation directe avec <b>n'importe quel collègue</b> de l'entreprise, en un tap.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Notifications et messages <b>regroupés au même endroit</b>, sous un seul onglet.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Fiche contact accessible depuis chaque conversation : <b>rôle et coordonnées</b> en un coup d'œil.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Compteur de <b>messages non lus</b> toujours visible, où que l'on soit dans l'application.</div></div>
+      </div>
+      <div class="col-phone"><div class="phone"><div class="notch"></div><img src="shots/messaging-thread.png"/></div></div>
+    </div>
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">100%</div><div class="l">DE L'ENTREPRISE JOIGNABLE DEPUIS UN SEUL ANNUAIRE</div></div>
+      <div class="stat-chip"><div class="n">0</div><div class="l">GROUPE WHATSAPP EXTERNE NÉCESSAIRE</div></div>
+      <div class="stat-chip"><div class="n">Auto</div><div class="l">CONVERSATIONS TOUJOURS À JOUR</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">07</div></div>
+</section>
+
+<!-- ============================================================ PAGE 8 — RH ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Ressources humaines</div>
+    <h1 class="title" style="font-size:25px;">La RH garde la main sur qui a accès à quoi, à tout moment, sans exception.</h1>
+
+    <div class="feat reverse" style="margin-top:8px;">
+      <div class="col-text">
+        <p class="lede" style="margin-top:0;">Aucun compte ne se crée seul. C'est la RH, et elle seule, qui ouvre un accès, attribue un rôle, ou le retire. Un départ, un souci d'accès, un mot de passe oublié : tout se règle en quelques secondes, sans jamais voir le mot de passe personnel de qui que ce soit.</p>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Création de compte réservée à la RH</b> : impossible de s'inscrire soi-même, par conception.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Désactivation immédiate</b> d'un accès en cas de départ, effet instantané sur l'application.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Réinitialisation de l'accès</b> sans jamais connaître le mot de passe personnel de l'utilisateur.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Un <b>journal d'activité</b> conserve qui a fait quoi, et quand, sur toutes les actions sensibles.</div></div>
+      </div>
+      <div class="col-phone"><div class="phone"><div class="notch"></div><img src="shots/menu-direction.png"/></div></div>
+    </div>
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">1</div><div class="l">SEULE ÉQUIPE HABILITÉE À CRÉER UN COMPTE</div></div>
+      <div class="stat-chip"><div class="n">0</div><div class="l">MOT DE PASSE JAMAIS VISIBLE PAR LA RH</div></div>
+      <div class="stat-chip"><div class="n">Immédiat</div><div class="l">EFFET D'UNE DÉSACTIVATION DE COMPTE</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">08</div></div>
+</section>
+
+<!-- ============================================================ PAGE 9 — RH : POINTAGES & CONGÉS ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Ressources humaines, pointages</div>
+    <h1 class="title" style="font-size:25px;">Les pointages sont déjà prêts pour la paie : plus besoin de tout ressaisir.</h1>
+
+    <p class="lede">Chaque arrivée et départ pointés depuis le terrain sont suivis, validés puis exportés en un clic : la RH n'a plus jamais à ressaisir une seule ligne dans un tableur avant de les transmettre au logiciel de paie.</p>
+
+    <div style="margin-top:14px;">
+      <div class="step-label">1 · Le mois de la personne, d'un coup d'œil</div>
+      <div class="browser">
+        <div class="bar">
+          <div class="dot" style="background:#ED6A5E;"></div>
+          <div class="dot" style="background:#F4BF4F;"></div>
+          <div class="dot" style="background:#61C554;"></div>
+          <div class="url">deepclean.app</div>
+        </div>
+        <img src="shots/staff-hours-web-clean.png" />
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <div class="step-label">2 · Export en un clic</div>
+      <div class="browser">
+        <div class="bar">
+          <div class="dot" style="background:#ED6A5E;"></div>
+          <div class="dot" style="background:#F4BF4F;"></div>
+          <div class="dot" style="background:#61C554;"></div>
+          <div class="url">deepclean.app</div>
+        </div>
+        <img src="shots/staff-hours-web.png" />
+      </div>
+    </div>
+
+    <div class="feat-bul" style="margin-top:12px;"><div class="chk">✓</div><div class="txt">Export en un clic en <b>Excel, PDF ou CSV</b> : le dossier du mois, prêt à transmettre au logiciel de paie.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Congés et absences</b> approuvés ou refusés directement dans l'app : un conflit avec une mission déjà planifiée est détecté automatiquement.</div></div>
+
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">3 formats</div><div class="l">EXCEL, PDF, CSV EN UN CLIC</div></div>
+      <div class="stat-chip"><div class="n">0</div><div class="l">RESSAISIE MANUELLE AVANT LA PAIE</div></div>
+      <div class="stat-chip"><div class="n">Auto</div><div class="l">DÉTECTION DES CONFLITS DE CONGÉS</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">09</div></div>
+</section>
+
+<!-- ============================================================ PAGE 10 — ONBOARDING ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Prise en main</div>
+    <h1 class="title" style="font-size:25px;">Un nouvel employé n'a besoin de personne pour apprendre à s'en servir.</h1>
+
+    <div class="feat reverse" style="margin-top:8px;">
+      <div class="col-text">
+        <p class="lede" style="margin-top:0;">Dès sa première connexion, une visite guidée déplace elle-même la personne dans l'application et met en surbrillance les vrais boutons, les vrais écrans, jamais une simple image expliquée dans le vide. Le contenu s'adapte automatiquement à son rôle : un employé et une RH n'apprennent pas la même chose.</p>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Tutoriel <b>immersif</b> : l'application se déplace elle-même d'écran en écran.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Contenu <b>adapté au rôle</b> : chacun n'apprend que ce qui le concerne.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Déclenché automatiquement après la première définition du mot de passe.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Consultable à nouveau à tout moment depuis le profil, en un tap.</div></div>
+      </div>
+      <div class="col-phone"><div class="phone"><div class="notch"></div><img src="shots/onboarding-employee.png"/></div></div>
+    </div>
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">6</div><div class="l">PARCOURS DIFFÉRENTS, UN PAR RÔLE</div></div>
+      <div class="stat-chip"><div class="n">Auto</div><div class="l">DÉCLENCHÉ DÈS LA PREMIÈRE CONNEXION</div></div>
+      <div class="stat-chip"><div class="n">∞</div><div class="l">CONSULTABLE À NOUVEAU, À TOUT MOMENT</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">10</div></div>
+</section>
+
+<!-- ============================================================ PAGE 11 — WEB, VU EN GRAND ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Et sur ordinateur</div>
+    <h1 class="title">Le planning de toute l'équipe, d'un seul coup d'œil.</h1>
+    <p class="lede">La RH, les superviseurs et la direction passent souvent leur journée derrière un ordinateur. Deep Clean s'y adapte automatiquement. Ici, le planning de la semaine : chaque personne à gauche, ses missions alignées jour par jour à droite. Un simple coup d'œil remplace le tableau Excel partagé par e-mail.</p>
+
+    <div class="browser" style="margin-top:22px;">
+      <div class="bar">
+        <div class="dot" style="background:#ED6A5E;"></div>
+        <div class="dot" style="background:#F4BF4F;"></div>
+        <div class="dot" style="background:#61C554;"></div>
+        <div class="url">deepclean.app</div>
+      </div>
+      <img src="shots/web-planning.png" />
+    </div>
+
+    <div class="feat-bul" style="margin-top:20px;"><div class="chk">✓</div><div class="txt"><b>Toute l'équipe, une seule vue</b> : qui travaille où, chaque jour de la semaine, sans ouvrir un fichier par personne.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Mêmes données, en temps réel</b> : ce qui se passe sur le mobile terrain apparaît instantanément côté bureau.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt">Le <b>même compte</b> qu'en mobile : aucune installation, aucun second mot de passe à retenir.</div></div>
+
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">1</div><div class="l">SEUL COMPTE, MOBILE ET ORDINATEUR</div></div>
+      <div class="stat-chip"><div class="n">0</div><div class="l">LOGICIEL SÉPARÉ À INSTALLER</div></div>
+      <div class="stat-chip"><div class="n">Temps réel</div><div class="l">SYNCHRONISATION AVEC LE TERRAIN</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">11</div></div>
+</section>
+
+<!-- ============================================================ PAGE 12 — ROLE MATRIX ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Les rôles</div>
+    <h1 class="title">Chacun voit midi à sa porte, jamais plus, jamais moins.</h1>
+    <p class="lede">Six rôles, six espaces distincts, une seule application. Les permissions ne sont pas qu'une question d'affichage : elles sont vérifiées à chaque action, sur le serveur : un employé ne peut techniquement pas accéder aux données d'un collègue, même en essayant.</p>
+
+    <table class="matrix">
+      <tr>
+        <th>Fonctionnalité</th>
+        <th class="rolecol">Employé</th>
+        <th class="rolecol">Chef<br/>d'équipe</th>
+        <th class="rolecol">Superviseur</th>
+        <th class="rolecol">RH</th>
+        <th class="rolecol">Direction</th>
+      </tr>
+      <tr><td>Consulter son planning et ses missions</td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Pointer ses heures</td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Signaler un problème avec photo</td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Démarrer / terminer une mission (suivi terrain)</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Créer / modifier le planning de tous les chantiers</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Valider une mission terminée</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Approuver congés et absences</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Valider les pointages avant la paie</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Créer un compte utilisateur</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="no">–</span></td></tr>
+      <tr><td>Gérer un compte existant (modifier, activer/désactiver, réinitialiser)</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Vue globale, statistiques de l'entreprise</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Journal d'activité de toute l'entreprise</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+    </table>
+    <p style="font-size:10px; color:var(--ink3); margin-top:12px;">✓ accès complet · • accès partiel, limité à son propre périmètre (son chantier, sa mission) · – non applicable à ce rôle</p>
+
+    <div class="callout" style="margin-top:auto;">Un septième rôle, <b>Administrateur technique</b>, existe en coulisses pour la maintenance de l'application, jamais pour la gestion quotidienne du personnel.</div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">12</div></div>
+</section>
+
+<!-- ============================================================ PAGE 13 — RÔLES EN DÉTAIL ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Les rôles, en détail</div>
+    <h1 class="title">Six rôles, six façons différentes d'utiliser la même application.</h1>
+    <p class="lede">Chaque personne se connecte, et retrouve exactement ce qui la concerne, jamais un écran générique à trier soi-même.</p>
+
+    <div class="role-grid">
+      <div class="role-card">
+        <div class="head">
+          <div class="ico" style="background:var(--infoSoft);color:var(--info);">
+            <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 21v-1a8 8 0 0 1 16 0v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div><div class="name">Employé</div><div class="tagline">Sait quoi faire, où, et quand</div></div>
+        </div>
+        <ul>
+          <li>Consulte son planning et ses missions à venir</li>
+          <li>Pointe son arrivée et son départ en un geste</li>
+          <li>Signale un problème avec une photo</li>
+          <li>Reçoit des notifications qui le concernent réellement</li>
+          <li>Consulte son historique de pointages</li>
+        </ul>
+      </div>
+
+      <div class="role-card">
+        <div class="head">
+          <div class="ico" style="background:var(--warningSoft);color:var(--warning);">
+            <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" stroke="currentColor" stroke-width="2"/></svg>
+          </div>
+          <div><div class="name">Chef d'équipe</div><div class="tagline">Pilote le terrain, sur ses chantiers</div></div>
+        </div>
+        <ul>
+          <li>Consulte les chantiers dont il a la responsabilité</li>
+          <li>Démarre et termine une mission sur le terrain</li>
+          <li>Ajoute ou modifie la consigne d'une mission</li>
+          <li>Valide une mission terminée sur ses chantiers</li>
+          <li>Suit son équipe et les problèmes en cours</li>
+        </ul>
+      </div>
+
+      <div class="role-card">
+        <div class="head">
+          <div class="ico" style="background:var(--soft);color:var(--deep);">
+            <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m9 16 2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div><div class="name">Superviseur</div><div class="tagline">Organise le planning, valide les heures</div></div>
+        </div>
+        <ul>
+          <li>Crée, modifie et annule les missions de tous les chantiers</li>
+          <li>Affecte les employés et désigne un chef par mission</li>
+          <li>Signale un problème, comme tout le monde</li>
+          <li>Approuve ou refuse les congés et absences</li>
+          <li>Valide les pointages avant transmission à la RH</li>
+        </ul>
+      </div>
+
+      <div class="role-card">
+        <div class="head">
+          <div class="ico" style="background:var(--successSoft);color:var(--success);">
+            <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div><div class="name">Ressources humaines</div><div class="tagline">Gère les comptes et les personnes</div></div>
+        </div>
+        <ul>
+          <li>Seule habilitée à créer un compte utilisateur</li>
+          <li>Active, désactive, réinitialise l'accès d'un compte</li>
+          <li>Gère les chantiers, congés et absences</li>
+          <li>Prépare les dossiers d'heures pour la paie</li>
+          <li>Consulte le journal d'activité de toute l'entreprise</li>
+        </ul>
+      </div>
+
+      <div class="role-card">
+        <div class="head">
+          <div class="ico" style="background:var(--purpleSoft);color:var(--purple);">
+            <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 3v18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 17V9M13 17V5M8 17v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div><div class="name">Direction</div><div class="tagline">Tous les pouvoirs, sauf créer un compte</div></div>
+        </div>
+        <ul>
+          <li>Peut tout faire comme le superviseur sur le planning</li>
+          <li>Signale un problème, démarre/termine une mission</li>
+          <li>Approuve les congés, valide les pointages avant la paie</li>
+          <li>Modifie, active, désactive ou réinitialise un compte existant</li>
+          <li>Seule exception : ne peut pas créer de compte (réservé à la RH)</li>
+        </ul>
+      </div>
+
+      <div class="role-card">
+        <div class="head">
+          <div class="ico" style="background:#F1F2F5;color:#5B6472;">
+            <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.6"/></svg>
+          </div>
+          <div><div class="name">Administrateur technique</div><div class="tagline">Maintenance, en coulisses</div></div>
+        </div>
+        <ul>
+          <li>Gestion technique des comptes et des chantiers</li>
+          <li>N'intervient jamais dans le planning quotidien</li>
+          <li>Rôle réservé à la maintenance de l'application</li>
+          <li>Jamais dans la gestion RH courante du personnel</li>
+        </ul>
+      </div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">13</div></div>
+</section>
+
+<!-- ============================================================ PAGE 14 — TEMPS GAGNÉ ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">L'essentiel</div>
+    <h1 class="title">Le temps gagné, très concrètement.</h1>
+    <p class="lede">Deep Clean ne se contente pas d'être agréable à utiliser : elle retire des tâches entières du quotidien de vos équipes d'encadrement. Voici ce que ça change, semaine après semaine.</p>
+
+    <table class="timetab">
+      <tr><th>Tâche</th><th>Avant</th><th>Avec Deep Clean</th><th style="text-align:right;">Temps gagné</th></tr>
+      <tr>
+        <td>Construire le planning<br/>de la semaine</td>
+        <td>2 à 3h, souvent refait plusieurs fois par des allers-retours téléphoniques</td>
+        <td>Quelques minutes, conflits d'absence détectés automatiquement</td>
+        <td class="gain">≈ 3h / semaine</td>
+      </tr>
+      <tr>
+        <td>Rassembler les pointages<br/>pour la paie</td>
+        <td>Papier ressaisi à la main, erreurs fréquentes à corriger</td>
+        <td>Export en un clic, écarts déjà repérés automatiquement</td>
+        <td class="gain">2 à 4h / paie</td>
+      </tr>
+      <tr>
+        <td>Retrouver un signalement<br/>et sa photo</td>
+        <td>Fouiller dans des messages WhatsApp ou des e-mails</td>
+        <td>Historique complet, recherche immédiate, photo toujours attachée</td>
+        <td class="gain">Quasi immédiat</td>
+      </tr>
+      <tr>
+        <td>Former un nouvel employé</td>
+        <td>Explications à l'oral, erreurs fréquentes les premiers jours</td>
+        <td>Tutoriel guidé automatique, adapté à son rôle</td>
+        <td class="gain">Plusieurs heures / recrue</td>
+      </tr>
+      <tr>
+        <td>Réinitialiser un accès</td>
+        <td>Dépend de qui est disponible, parfois plusieurs heures d'attente</td>
+        <td>La RH le fait elle-même, en quelques secondes</td>
+        <td class="gain">Immédiat</td>
+      </tr>
+      <tr>
+        <td>Avoir une vue d'ensemble<br/>de l'entreprise</td>
+        <td>Appels téléphoniques, rapports de fin de mois</td>
+        <td>Tableau de bord en temps réel, à tout moment</td>
+        <td class="gain">Continu</td>
+      </tr>
+    </table>
+
+    <div class="bigwin" style="margin-top:auto;">
+      <div><div class="n">5 à 8h</div><div class="l" style="color:var(--bright); font-weight:700;">récupérées chaque semaine</div></div>
+      <div class="l">Rien que sur l'encadrement : planning, pointages et suivi administratif. Un temps réinvesti dans vos chantiers, pas dans la paperasse.</div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">14</div></div>
+</section>
+
+<!-- ============================================================ PAGE 15 — SÉCURITÉ ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Sécurité</div>
+    <h1 class="title">Vos données protégées comme dans une vraie application d'entreprise, pas comme dans un prototype.</h1>
+    <p class="lede">La sécurité n'a pas été ajoutée à la fin : elle fait partie de chaque ligne de code, dès le premier jour. Voici ce qui protège concrètement votre entreprise et vos employés.</p>
+
+    <div class="audit-grid">
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4.5 8-11V5l-8-3-8 3v6c0 6.5 8 11 8 11Z" stroke="currentColor" stroke-width="2"/></svg></div><div><div class="t">Connexion chiffrée (HTTPS)</div><div class="d">Toutes les données échangées entre l'application et le serveur sont chiffrées, de bout en bout.</div></div></div>
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2 4 6v6c0 5.5 3.8 8 8 10 4.2-2 8-4.5 8-10V6l-8-4Z" stroke="currentColor" stroke-width="2"/><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="t">Mots de passe jamais en clair</div><div class="d">Hashés de façon irréversible : même la RH ou l'équipe technique ne peut jamais les consulter.</div></div></div>
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2"/></svg></div><div><div class="t">Permissions vérifiées côté serveur</div><div class="d">Jamais seulement dans l'écran : impossible de contourner une restriction en modifiant l'application.</div></div></div>
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="2"/></svg></div><div><div class="t">Protection contre les intrusions</div><div class="d">Limitation des tentatives de connexion pour bloquer les attaques automatisées.</div></div></div>
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="t">Sessions sécurisées et expirables</div><div class="d">Une session inactive se ferme automatiquement ; une déconnexion invalide immédiatement l'accès.</div></div></div>
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" stroke="currentColor" stroke-width="2"/><path d="M8 13h8M8 17h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="t">Journal d'activité complet</div><div class="d">Chaque action sensible (compte, planning, validation) reste tracée : qui, quoi, quand.</div></div></div>
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="2"/><path d="m9 9 6 6M15 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="t">Aucune inscription publique</div><div class="d">Impossible de créer un compte soi-même : uniquement la RH, uniquement en interne.</div></div></div>
+      <div class="audit-row"><div class="ico"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z" stroke="currentColor" stroke-width="2"/></svg></div><div><div class="t">Photos stockées de façon sécurisée</div><div class="d">Aucune image accessible par une URL publique permanente : accès toujours contrôlé et authentifié.</div></div></div>
+    </div>
+
+    <div class="callout" style="margin-top:auto;">Un compte désactivé par la RH perd l'accès <b>immédiatement</b>, sur tous ses appareils, sans exception.</div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">15</div></div>
+</section>
+
+<!-- ============================================================ PAGE 16 — TECHNOLOGIE ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Sous le capot</div>
+    <h1 class="title">Une technologie moderne, choisie pour durer, pas la plus rapide à assembler.</h1>
+    <p class="lede">Chaque brique a été choisie pour sa fiabilité et sa longévité, pas pour aller vite au détriment de la solidité. Voici ce qui fait tourner Deep Clean, en langage clair.</p>
+
+    <div class="stack-row">
+      <div class="stack-chip"><div class="ico"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="5" y="2" width="14" height="20" rx="2" stroke="currentColor" stroke-width="2"/><path d="M12 18h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="t">React Native</div><div class="d">Une seule app, deux plateformes</div></div></div>
+      <div class="stack-chip"><div class="ico"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 9h6v6H9z" stroke="currentColor" stroke-width="2"/><path d="M4 4h16v16H4z" stroke="currentColor" stroke-width="2"/></svg></div><div><div class="t">TypeScript</div><div class="d">Les erreurs détectées avant les équipes</div></div></div>
+      <div class="stack-chip"><div class="ico"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="2"/><path d="M3 5v14a9 3 0 0 0 18 0V5" stroke="currentColor" stroke-width="2"/><path d="M3 12a9 3 0 0 0 18 0" stroke="currentColor" stroke-width="2"/></svg></div><div><div class="t">PostgreSQL</div><div class="d">Base de données professionnelle</div></div></div>
+      <div class="stack-chip"><div class="ico"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M3 9v10a2 2 0 0 0 2 2h4m10-12v10a2 2 0 0 1-2 2H9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="t">Node.js</div><div class="d">Serveur modulaire, un bloc par fonction</div></div></div>
+    </div>
+
+    <p class="lede" style="margin-top:24px; font-size:13px;">Autour de cette base, les mêmes exigences que sur toutes les autres pages de ce document :</p>
+    <div class="tech-checks">
+      <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Chaque donnée vérifiée avant d'être écrite</b> : l'ORM Prisma type et valide chaque requête, impossible d'enregistrer une donnée incohérente par accident.</div></div>
+      <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Interface fluide, animations natives</b> : aucun ralentissement perçu, même sur un téléphone d'entrée de gamme.</div></div>
+      <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Trois briques indépendantes</b> : application mobile, serveur et base de données séparés, chacun évolue sans risquer de casser les autres.</div></div>
+      <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Une suite de tests automatisés</b> : les fonctions sensibles (connexion, permissions, planning) sont vérifiées avant chaque mise à jour.</div></div>
+    </div>
+
+    <div class="callout" style="margin-top:auto;">Le même niveau d'exigence technique que les applications professionnelles que vous utilisez déjà tous les jours.</div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">16</div></div>
+</section>
+
+<!-- ============================================================ PAGE 17 — POURQUOI KINGDREAM ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Pourquoi KingDream</div>
+    <h1 class="title">Une application construite comme une vraie entreprise en a besoin, pas comme une démonstration.</h1>
+
+    <div class="why-path">
+      <div class="why-step"><div class="dot" style="border-color:var(--info);color:var(--info);"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="t">Testée en conditions réelles, pas seulement conçue sur écran</div><div class="d">Chaque fonctionnalité a été vérifiée avec de vrais scénarios, de vrais rôles, de vraies données, jamais livrée sur la seule base d'une maquette.</div></div>
+      <div class="why-step"><div class="dot" style="border-color:var(--purple);color:var(--purple);"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><div class="t">Un design pensé jusqu'au moindre écran</div><div class="d">Hiérarchie visuelle, animations et cohérence appliquées de la même façon sur chaque écran de l'application, pas seulement sur ceux mis en avant dans cette présentation.</div></div>
+      <div class="why-step"><div class="dot" style="border-color:var(--success);color:var(--success);"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="t">La sécurité pensée dès la première ligne de code</div><div class="d">Jamais ajoutée après coup : chaque permission, chaque donnée sensible a été protégée dès la conception.</div></div>
+      <div class="why-step"><div class="dot" style="border-color:var(--warning);color:var(--warning);"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div><div class="t">Une architecture prête à évoluer</div><div class="d">Chaque nouvelle idée (géolocalisation, facturation, signature client) s'ajoute sans tout reconstruire.</div></div>
+      <div class="why-step brand"><div class="dot"><svg class="ic" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div><div class="t">Publication sur les stores et mises à jour incluses</div><div class="d">La publication sur l'App Store et le Google Play Store, ainsi que chaque mise à jour, sont assurées par KingDream dans le cadre de l'accompagnement mensuel : pas besoin d'une équipe technique en interne.</div></div>
+    </div>
+    <div class="callout" style="margin-top:auto;">Les choix techniques de cette page se vérifient dans le code déjà écrit ; le suivi après la mise en ligne, dans l'accompagnement mensuel.</div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">17</div></div>
+</section>
+
+<!-- ============================================================ PAGE 18 — CLOSING ============================================================ -->
+<section class="page closing">
+  <div class="glow"></div>
+  <div class="pad">
+    <div class="kd" style="font-size:11px; font-weight:700; letter-spacing:3px; color:var(--ink3); text-transform:uppercase;">KingDream Digital</div>
+    <h1 class="title" style="margin-top:18px; font-size:28px;">Deep Clean est prête. Votre équipe peut commencer dès aujourd'hui.</h1>
+
+    <div class="check-list">
+      <div class="ci"><div class="chk">✓</div><span>Application fonctionnelle et testée sur tous les rôles</span></div>
+      <div class="ci"><div class="chk">✓</div><span>Sécurité des comptes et des données en place</span></div>
+      <div class="ci"><div class="chk">✓</div><span>Tous les métiers de l'entreprise couverts</span></div>
+      <div class="ci"><div class="chk">✓</div><span>Tutoriel de prise en main intégré</span></div>
+      <div class="ci"><div class="chk">✓</div><span>Prête pour le déploiement Android & iOS</span></div>
+      <div class="ci"><div class="chk">✓</div><span>Architecture prête pour les évolutions futures</span></div>
+    </div>
+
+    <div class="cta">
+      <div>
+        <h2>La suite ? On lance ensemble.</h2>
+        <p>Une dernière relecture, une validation de votre part, et Deep Clean accompagne vos équipes dès la semaine prochaine.</p>
+      </div>
+      <div class="contact">
+        <b>KingDream Digital</b><br/>
+        kingdreamdigital@gmail.com<br/>
+        Deep Clean · Application mobile & web
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

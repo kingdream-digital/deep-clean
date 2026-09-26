@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: deep_clean
+    ports:
+      - "5432:5432"
+    volumes:
+      - deep_clean_db_data:/var/lib/postgresql/data
+
+  db_test:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: deep_clean_test
+    ports:
+      - "5433:5432"
+
+volumes:
+  deep_clean_db_data:
