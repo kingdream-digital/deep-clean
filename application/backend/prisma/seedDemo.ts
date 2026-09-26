@@ -1,5 +1,6 @@
 import { PrismaClient, Role, MissionStatus } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
+import { generateUsername } from "../src/utils/username";
 import { env } from "../src/config/env";
 
 const prisma = new PrismaClient();
@@ -44,10 +45,16 @@ async function upsertUser(params: {
   createdById?: string | null;
 }) {
   const passwordHash = await hashPassword(DEMO_PASSWORD);
+  // `username` est requis et unique (voir prisma/schema.prisma) — c'est
+  // l'identifiant de connexion réel, jamais l'email. Généré ici de la même
+  // façon que la RH le fait depuis l'application (users.service.ts::createUser)
+  // pour que les comptes de démo se connectent exactement comme un vrai compte.
+  const username = await generateUsername(params.firstName, params.lastName);
   return prisma.user.upsert({
     where: { email: params.email },
     update: {},
     create: {
+      username,
       email: params.email,
       firstName: params.firstName,
       lastName: params.lastName,
@@ -124,7 +131,7 @@ async function main() {
 
   console.log("Comptes démo prêts (mot de passe commun : " + DEMO_PASSWORD + ") :");
   for (const u of [rh, directeur, karim, sophie, lucas, emma, nathan, chloe]) {
-    console.log(`  - ${u.email} (${u.role})`);
+    console.log(`  - ${u.username} (${u.role})`);
   }
 
   let siteTilleuls = await prisma.site.findFirst({ where: { name: "Résidence Les Tilleuls" } });
