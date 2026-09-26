@@ -1,5 +1,6 @@
 import { PrismaClient, Role } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
+import { generateUsername } from "../src/utils/username";
 import { env } from "../src/config/env";
 
 const prisma = new PrismaClient();
@@ -20,10 +21,14 @@ async function main() {
 
   const rh = await prisma.user.findUniqueOrThrow({ where: { email: "rh@deepclean.fr" } });
   const passwordHash = await hashPassword("Clean2026!");
+  // `username` est requis et unique (voir prisma/schema.prisma) — jamais
+  // l'email, voir seedDemo.ts::upsertUser pour le même correctif.
+  const username = await generateUsername("Farid", "Haddad");
   const supervisor = await prisma.user.upsert({
     where: { email: "superviseur@deepclean.fr" },
     update: {},
     create: {
+      username,
       email: "superviseur@deepclean.fr",
       firstName: "Farid",
       lastName: "Haddad",
@@ -34,7 +39,7 @@ async function main() {
       createdById: rh.id,
     },
   });
-  console.log(`Superviseur créé : ${supervisor.email}`);
+  console.log(`Superviseur créé : ${supervisor.username}`);
 }
 
 main()
