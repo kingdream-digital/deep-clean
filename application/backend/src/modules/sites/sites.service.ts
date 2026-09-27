@@ -2,6 +2,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
+import { geocodeAddress } from "../../utils/geocoding";
 
 interface Actor {
   userId: string;
@@ -68,7 +69,7 @@ async function assertCanView(actor: Actor, siteId: string, site: { managerId: st
 
 export async function createSite(
   actorId: string,
-  input: { name: string; address: string; description?: string; managerId?: string; latitude?: number; longitude?: number }
+  input: { name: string; address: string; description?: string; managerId?: string }
 ) {
   if (input.managerId) {
     const manager = await prisma.user.findUnique({ where: { id: input.managerId } });
@@ -80,7 +81,18 @@ export async function createSite(
     }
   }
 
-  const site = await prisma.site.create({ data: input, select: siteSelect });
+  // Position GPS déduite automatiquement de l'adresse tapée (retour explicite
+  // du client : il tape l'adresse à la main, jamais de capture GPS manuelle
+  // sur place) — best-effort, ne bloque jamais la création si l'adresse n'est
+  // pas reconnue (voir utils/geocoding.ts) : le chantier est alors créé sans
+  // position, et la vérification de distance des pointages ne s'applique
+  // simplement pas pour lui.
+  const position = await geocodeAddress(input.address);
+
+  const site = await prisma.site.create({
+    data: { ...input, latitude: position?.latitude, longitude: position?.longitude },
+    select: siteSelect,
+  });
   await logActivity({ userId: actorId, action: "SITE_CREATED", entityType: "Site", entityId: site.id });
   return site;
 }
@@ -164,12 +176,10 @@ interface UpdateSiteInput {
   description?: string | null;
   managerId?: string | null;
   isActive?: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
 }
 
 export async function updateSite(actor: Actor, id: string, input: UpdateSiteInput) {
-  await findSiteOrThrow(id);
+  const existing = await findSiteOrThrow(id);
   await assertCanManage(actor);
 
   if (input.managerId) {
@@ -182,7 +192,16 @@ export async function updateSite(actor: Actor, id: string, input: UpdateSiteInpu
     }
   }
 
-  const updated = await prisma.site.update({ where: { id }, data: input, select: siteSelect });
+  // Ne re-géocode que si l'adresse change réellement — inutile de refaire
+  // l'appel à chaque modification de la fiche (nom, description, statut...)
+  // qui ne touche pas l'adresse.
+  let geo: { latitude?: number | null; longitude?: number | null } = {};
+  if (input.address && input.address !== existing.address) {
+    const position = await geocodeAddress(input.address);
+    geo = { latitude: position?.latitude ?? null, longitude: position?.longitude ?? null };
+  }
+
+  const updated = await prisma.site.update({ where: { id }, data: { ...input, ...geo }, select: siteSelect });
   await logActivity({ userId: actor.userId, action: "SITE_UPDATED", entityType: "Site", entityId: id, metadata: input as Record<string, unknown> });
   return updated;
 }

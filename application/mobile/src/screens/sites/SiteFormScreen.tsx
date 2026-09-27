@@ -16,7 +16,6 @@ import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
-import { capturePosition } from "../../utils/geolocation";
 import { createSite, getSite, updateSite } from "../../api/sites.api";
 import { listUsers } from "../../api/users.api";
 import type { DirectoryUser } from "../../api/users.api";
@@ -49,11 +48,11 @@ export function SiteFormScreen() {
   const [isActive, setIsActive] = useState(true);
   // Position GPS de référence du chantier (retour explicite du client :
   // vérifier automatiquement, en interne, que les pointages sont faits à
-  // proximité — voir docs/DEPLOYMENT.md) : capturée depuis le téléphone sur
-  // place, jamais devinée depuis l'adresse texte.
+  // proximité) — calculée par le serveur à partir de l'adresse tapée (voir
+  // sites.service.ts::geocodeAddress), jamais saisie ici : purement
+  // informatif, pour savoir si la vérification de distance sera active.
   const [siteLatitude, setSiteLatitude] = useState<number | null>(null);
   const [siteLongitude, setSiteLongitude] = useState<number | null>(null);
-  const [capturingPosition, setCapturingPosition] = useState(false);
   // Standard PDF importable directement à la création (retour explicite du
   // client : le chantier n'a pas besoin d'un chef d'équipe à la création,
   // juste ses infos + le standard qu'il fournit déjà en PDF) — jamais
@@ -88,22 +87,6 @@ export function SiteFormScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId, isEdit]);
-
-  async function handleCapturePosition() {
-    setCapturingPosition(true);
-    try {
-      const position = await capturePosition(
-        "Localisation refusée : autorisez l'accès à votre position dans les réglages pour enregistrer celle du chantier.",
-        "Position GPS indisponible pour le moment. Réessayez dans un instant, idéalement à l'extérieur."
-      );
-      setSiteLatitude(position.latitude);
-      setSiteLongitude(position.longitude);
-    } catch (err) {
-      Alert.alert("Position indisponible", extractErrorMessage(err));
-    } finally {
-      setCapturingPosition(false);
-    }
-  }
 
   async function handlePickPdf() {
     if (Platform.OS === "web") {
@@ -142,14 +125,27 @@ export function SiteFormScreen() {
         address: address.trim(),
         description: description.trim() || undefined,
         managerId: managerId === NONE ? undefined : managerId,
-        latitude: siteLatitude ?? undefined,
-        longitude: siteLongitude ?? undefined,
       };
+      // La position GPS n'est jamais envoyée : le serveur la déduit lui-même
+      // de l'adresse tapée (voir sites.service.ts::geocodeAddress). On
+      // prévient seulement si elle n'a pas pu être trouvée, sans jamais
+      // bloquer l'enregistrement pour autant.
+      const warnIfNoPosition = (site: { latitude: number | null }) => {
+        if (site.latitude == null) {
+          Alert.alert(
+            "Position GPS non trouvée",
+            "L'adresse n'a pas été reconnue automatiquement : la vérification de distance des pointages ne sera pas active pour ce chantier. Vérifiez l'orthographe de l'adresse si besoin."
+          );
+        }
+      };
+
       if (isEdit && siteId) {
-        await updateSite(siteId, { ...payload, managerId: managerId === NONE ? null : managerId, isActive });
+        const updated = await updateSite(siteId, { ...payload, managerId: managerId === NONE ? null : managerId, isActive });
+        warnIfNoPosition(updated);
         navigation.goBack();
       } else {
         const created = await createSite(payload);
+        warnIfNoPosition(created);
 
         if (pdfAsset) {
           // Le chantier existe déjà à ce stade : un échec ici ne doit jamais
@@ -204,6 +200,13 @@ export function SiteFormScreen() {
       >
         <TextField label="Nom du chantier" placeholder="Tour Horizon" value={name} onChangeText={setName} />
         <TextField label="Adresse" placeholder="12 rue des Fleurs, 04100 Manosque" value={address} onChangeText={setAddress} />
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.sm, marginBottom: spacing.md }]}>
+          {isEdit
+            ? siteLatitude != null
+              ? "Position GPS trouvée automatiquement à partir de cette adresse — les pointages de l'équipe seront comparés à cette position."
+              : "Position GPS non trouvée pour cette adresse : la vérification de distance des pointages ne sera pas active pour ce chantier."
+            : "La position GPS du chantier sera calculée automatiquement à partir de cette adresse, pour vérifier les pointages de l'équipe."}
+        </Text>
         <TextField
           label="Description (optionnel)"
           placeholder="Informations complémentaires"
@@ -212,39 +215,6 @@ export function SiteFormScreen() {
           multiline
           numberOfLines={3}
         />
-
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>
-            Position GPS du chantier
-          </Text>
-          <Card>
-            {siteLatitude != null && siteLongitude != null ? (
-              <>
-                <Text style={[type.callout, { color: colors.ink }]}>Position enregistrée</Text>
-                <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>
-                  {siteLatitude.toFixed(5)}, {siteLongitude.toFixed(5)}
-                </Text>
-              </>
-            ) : (
-              <Text style={[type.footnote, { color: colors.inkTertiary }]}>
-                Aucune position enregistrée pour le moment.
-              </Text>
-            )}
-            <View style={{ marginTop: spacing.sm }}>
-              <Button
-                label={siteLatitude != null ? "Mettre à jour depuis ma position actuelle" : "Utiliser ma position actuelle"}
-                variant="secondary"
-                size="md"
-                loading={capturingPosition}
-                onPress={handleCapturePosition}
-              />
-            </View>
-          </Card>
-          <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
-            À faire une fois, sur place : permet de vérifier automatiquement (sans service en ligne) que les pointages
-            de l'équipe sont bien faits à proximité du chantier.
-          </Text>
-        </View>
 
         {isEdit && (
           <View style={{ marginBottom: spacing.md }}>

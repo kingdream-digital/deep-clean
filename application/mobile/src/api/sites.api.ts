@@ -8,10 +8,11 @@ export interface Site {
   isActive: boolean;
   managerId: string | null;
   manager: { id: string; firstName: string; lastName: string; email: string | null } | null;
-  // Position GPS de référence du chantier (voir utils/geolocation.ts) —
-  // absente tant que personne ne l'a capturée depuis la fiche chantier ;
-  // permet de vérifier automatiquement, en interne, la distance d'un
-  // pointage par rapport au chantier prévu (voir timesheets.api.ts).
+  // Position GPS de référence du chantier — calculée automatiquement par le
+  // serveur à partir de `address` (géocodage, voir sites.service.ts), jamais
+  // envoyée par le client. Absente si l'adresse n'a pas été reconnue ; permet
+  // de vérifier automatiquement, en interne, la distance d'un pointage par
+  // rapport au chantier prévu (voir timesheets.api.ts).
   latitude: number | null;
   longitude: number | null;
   createdAt: string;
@@ -42,8 +43,6 @@ export interface CreateSiteInput {
   address: string;
   description?: string;
   managerId?: string;
-  latitude?: number;
-  longitude?: number;
 }
 
 // Réservé RH / Direction / Admin (voir backend/src/modules/sites/sites.routes.ts).
