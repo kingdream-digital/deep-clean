@@ -32,10 +32,16 @@ export interface TimeEntry {
   clockInLongitude: number | null;
   clockInAccuracy: number | null;
   hasClockInPhoto: boolean;
+  // Adresse lisible résolue à partir des coordonnées (géocodage inverse en
+  // arrière-plan côté serveur, voir utils/geocoding.ts) — peut rester `null`
+  // un court instant après le pointage, ou définitivement si le service de
+  // géocodage échoue ; afficher les coordonnées brutes en repli dans ce cas.
+  clockInAddress: string | null;
   clockOutLatitude: number | null;
   clockOutLongitude: number | null;
   clockOutAccuracy: number | null;
   hasClockOutPhoto: boolean;
+  clockOutAddress: string | null;
   // Chantier/mission auquel ce pointage correspond le mieux (recoupement
   // horaire, voir timesheets.service.ts::attachMatchedMissions) — absent
   // (null) tant que le pointage n'est pas clôturé, ou si aucune mission ne

@@ -5,6 +5,8 @@ import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
 import { MISSION_TIME_ENTRY_BUFFER_MS } from "../missions/missions.service";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
+import { reverseGeocode } from "../../utils/geocoding";
+import { logger } from "../../config/logger";
 
 export interface ClockPosition {
   latitude: number;
@@ -76,10 +78,12 @@ export const timeEntrySelect = {
   clockInLongitude: true,
   clockInAccuracy: true,
   clockInPhotoKey: true,
+  clockInAddress: true,
   clockOutLatitude: true,
   clockOutLongitude: true,
   clockOutAccuracy: true,
   clockOutPhotoKey: true,
+  clockOutAddress: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -125,6 +129,24 @@ function presentEntry<T extends { clockInPhotoKey?: string | null; clockOutPhoto
   return { ...rest, hasClockInPhoto: Boolean(clockInPhotoKey), hasClockOutPhoto: Boolean(clockOutPhotoKey) };
 }
 
+// Résout l'adresse en arrière-plan et met à jour le pointage une fois trouvée
+// — jamais attendu par clockIn/clockOut (voir utils/geocoding.ts) : l'employé
+// ne doit jamais être ralenti pour pointer par un service tiers, l'adresse
+// n'a de toute façon d'intérêt que plus tard, quand un validateur consulte le
+// justificatif. Toute erreur reste ici (jamais propagée) : cette fonction
+// n'est délibérément jamais `await`ée par son appelant.
+function geocodeInBackground(entryId: string, moment: "in" | "out", position: ClockPosition): void {
+  reverseGeocode(position.latitude, position.longitude)
+    .then(async (address) => {
+      if (!address) return;
+      await prisma.timeEntry.update({
+        where: { id: entryId },
+        data: moment === "in" ? { clockInAddress: address } : { clockOutAddress: address },
+      });
+    })
+    .catch((err) => logger.warn({ err, entryId, moment }, "Échec de l'enregistrement de l'adresse géocodée"));
+}
+
 export async function clockIn(actor: Actor, position: ClockPosition, photoBuffer: Buffer) {
   // Stocké HORS transaction (I/O disque, pas de verrou à tenir pendant ce
   // temps) ; si la transaction échoue ensuite (pointage déjà ouvert), le
@@ -157,6 +179,7 @@ export async function clockIn(actor: Actor, position: ClockPosition, photoBuffer
     });
 
     await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_IN", entityType: "TimeEntry", entityId: entry.id });
+    geocodeInBackground(entry.id, "in", position);
     return presentEntry(entry);
   } catch (err) {
     await deleteStoredImage(stored.storageKey);
@@ -193,6 +216,7 @@ export async function clockOut(actor: Actor, position: ClockPosition, photoBuffe
     });
 
     await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_OUT", entityType: "TimeEntry", entityId: entry.id });
+    geocodeInBackground(entry.id, "out", position);
     return presentEntry(entry);
   } catch (err) {
     await deleteStoredImage(stored.storageKey);

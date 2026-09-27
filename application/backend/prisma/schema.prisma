@@ -402,10 +402,18 @@ model TimeEntry {
   clockInLongitude  Float?
   clockInAccuracy   Float? // précision GPS en mètres fournie par l'appareil, pour que le validateur juge la fiabilité du point
   clockInPhotoKey   String?
+  // Adresse lisible résolue à partir de clockInLatitude/Longitude (géocodage
+  // inverse, voir utils/geocoding.ts) — renseignée en arrière-plan juste après
+  // le pointage, jamais bloquante pour celui-ci (retour explicite du client :
+  // il veut l'adresse affichée directement à côté de la photo, sans avoir à
+  // cliquer sur un lien vers une carte). Reste `null` si le géocodage échoue
+  // ou n'a pas encore eu le temps de répondre.
+  clockInAddress    String?
   clockOutLatitude  Float?
   clockOutLongitude Float?
   clockOutAccuracy  Float?
   clockOutPhotoKey  String?
+  clockOutAddress   String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 

@@ -32,24 +32,32 @@ function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap;
   );
 }
 
-// Justificatif anti-fraude (photo + position GPS pris au moment du pointage) —
-// affiché uniquement quand ces informations existent, pour rester compatible
-// avec les pointages saisis avant l'introduction de cette fonctionnalité.
+// Justificatif anti-fraude (photo + adresse + position GPS pris au moment du
+// pointage) — affiché uniquement quand ces informations existent, pour rester
+// compatible avec les pointages saisis avant l'introduction de cette
+// fonctionnalité. L'adresse s'affiche directement en texte, sans nécessiter
+// de clic (retour explicite du client) ; elle reste tapable pour ouvrir la
+// carte, en plus. Tant que le géocodage en arrière-plan n'a pas encore
+// répondu (ou a échoué), on retombe sur les coordonnées brutes — jamais rien
+// d'affiché quand aucune position n'a été capturée.
 function ProofSection({
   title,
   photoUrl,
   latitude,
   longitude,
   accuracy,
+  address,
 }: {
   title: string;
   photoUrl: string;
   latitude?: number | null;
   longitude?: number | null;
   accuracy?: number | null;
+  address?: string | null;
 }) {
   const { colors, spacing, type, radius } = useTheme();
   const hasPosition = latitude != null && longitude != null;
+  const locationLabel = address ?? (hasPosition ? `${latitude!.toFixed(5)}, ${longitude!.toFixed(5)}` : null);
 
   return (
     <View style={{ marginTop: spacing.md }}>
@@ -58,14 +66,17 @@ function ProofSection({
         uri={photoUrl}
         style={{ width: "100%", height: 200, marginTop: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceAlt }}
       />
-      {hasPosition && (
+      {locationLabel && (
         <PressableScale
-          onPress={() => Linking.openURL(`https://www.google.com/maps?q=${latitude},${longitude}`)}
-          style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}
+          onPress={() => {
+            if (hasPosition) Linking.openURL(`https://www.google.com/maps?q=${latitude},${longitude}`);
+          }}
+          style={{ flexDirection: "row", alignItems: "flex-start", marginTop: spacing.sm }}
         >
-          <Ionicons name="location-outline" size={16} color={colors.accent} />
-          <Text style={[type.callout, { color: colors.accent, marginLeft: spacing.xs }]}>
-            Voir sur la carte{accuracy != null ? ` (précision ${Math.round(accuracy)} m)` : ""}
+          <Ionicons name="location-outline" size={16} color={colors.accent} style={{ marginTop: 2 }} />
+          <Text style={[type.callout, { color: colors.accent, marginLeft: spacing.xs, flex: 1 }]}>
+            {locationLabel}
+            {accuracy != null ? ` (précision ${Math.round(accuracy)} m)` : ""}
           </Text>
         </PressableScale>
       )}
@@ -179,6 +190,7 @@ export function TimeEntryDetailScreen() {
                 latitude={entry.clockInLatitude}
                 longitude={entry.clockInLongitude}
                 accuracy={entry.clockInAccuracy}
+                address={entry.clockInAddress}
               />
             )}
             {entry.hasClockOutPhoto && (
@@ -188,6 +200,7 @@ export function TimeEntryDetailScreen() {
                 latitude={entry.clockOutLatitude}
                 longitude={entry.clockOutLongitude}
                 accuracy={entry.clockOutAccuracy}
+                address={entry.clockOutAddress}
               />
             )}
           </Card>
