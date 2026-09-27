@@ -18,6 +18,8 @@ const siteSelect = {
   isActive: true,
   managerId: true,
   manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+  latitude: true,
+  longitude: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -64,7 +66,10 @@ async function assertCanView(actor: Actor, siteId: string, site: { managerId: st
   throw ApiError.notFound("Chantier introuvable.");
 }
 
-export async function createSite(actorId: string, input: { name: string; address: string; description?: string; managerId?: string }) {
+export async function createSite(
+  actorId: string,
+  input: { name: string; address: string; description?: string; managerId?: string; latitude?: number; longitude?: number }
+) {
   if (input.managerId) {
     const manager = await prisma.user.findUnique({ where: { id: input.managerId } });
     if (!manager || manager.role !== Role.SITE_MANAGER) {
@@ -159,6 +164,8 @@ interface UpdateSiteInput {
   description?: string | null;
   managerId?: string | null;
   isActive?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export async function updateSite(actor: Actor, id: string, input: UpdateSiteInput) {

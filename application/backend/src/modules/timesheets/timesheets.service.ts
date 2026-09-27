@@ -5,8 +5,6 @@ import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
 import { MISSION_TIME_ENTRY_BUFFER_MS } from "../missions/missions.service";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
-import { reverseGeocode } from "../../utils/geocoding";
-import { logger } from "../../config/logger";
 
 export interface ClockPosition {
   latitude: number;
@@ -78,12 +76,10 @@ export const timeEntrySelect = {
   clockInLongitude: true,
   clockInAccuracy: true,
   clockInPhotoKey: true,
-  clockInAddress: true,
   clockOutLatitude: true,
   clockOutLongitude: true,
   clockOutAccuracy: true,
   clockOutPhotoKey: true,
-  clockOutAddress: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -129,24 +125,6 @@ function presentEntry<T extends { clockInPhotoKey?: string | null; clockOutPhoto
   return { ...rest, hasClockInPhoto: Boolean(clockInPhotoKey), hasClockOutPhoto: Boolean(clockOutPhotoKey) };
 }
 
-// Résout l'adresse en arrière-plan et met à jour le pointage une fois trouvée
-// — jamais attendu par clockIn/clockOut (voir utils/geocoding.ts) : l'employé
-// ne doit jamais être ralenti pour pointer par un service tiers, l'adresse
-// n'a de toute façon d'intérêt que plus tard, quand un validateur consulte le
-// justificatif. Toute erreur reste ici (jamais propagée) : cette fonction
-// n'est délibérément jamais `await`ée par son appelant.
-function geocodeInBackground(entryId: string, moment: "in" | "out", position: ClockPosition): void {
-  reverseGeocode(position.latitude, position.longitude)
-    .then(async (address) => {
-      if (!address) return;
-      await prisma.timeEntry.update({
-        where: { id: entryId },
-        data: moment === "in" ? { clockInAddress: address } : { clockOutAddress: address },
-      });
-    })
-    .catch((err) => logger.warn({ err, entryId, moment }, "Échec de l'enregistrement de l'adresse géocodée"));
-}
-
 export async function clockIn(actor: Actor, position: ClockPosition, photoBuffer: Buffer) {
   // Stocké HORS transaction (I/O disque, pas de verrou à tenir pendant ce
   // temps) ; si la transaction échoue ensuite (pointage déjà ouvert), le
@@ -179,7 +157,6 @@ export async function clockIn(actor: Actor, position: ClockPosition, photoBuffer
     });
 
     await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_IN", entityType: "TimeEntry", entityId: entry.id });
-    geocodeInBackground(entry.id, "in", position);
     return presentEntry(entry);
   } catch (err) {
     await deleteStoredImage(stored.storageKey);
@@ -216,7 +193,6 @@ export async function clockOut(actor: Actor, position: ClockPosition, photoBuffe
     });
 
     await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_OUT", entityType: "TimeEntry", entityId: entry.id });
-    geocodeInBackground(entry.id, "out", position);
     return presentEntry(entry);
   } catch (err) {
     await deleteStoredImage(stored.storageKey);
@@ -439,10 +415,33 @@ export interface MatchedMissionInfo {
   date: Date;
   startTime: Date;
   endTime: Date;
-  site: { name: string };
+  site: { name: string; address: string; latitude: number | null; longitude: number | null };
 }
 
-type MissionMatchSource = { id: string; userId: string; clockIn: Date; clockOut: Date | null };
+type MissionMatchSource = {
+  id: string;
+  userId: string;
+  clockIn: Date;
+  clockOut: Date | null;
+  clockInLatitude: number | null;
+  clockInLongitude: number | null;
+  clockOutLatitude: number | null;
+  clockOutLongitude: number | null;
+};
+
+// Distance à vol d'oiseau (formule de Haversine) — calcul purement local, sans
+// aucun service externe (retour explicite du client : "faut pas que tu
+// prennes sur internet, je veux faire tourner ça en interne"), pour vérifier
+// qu'un pointage a bien été fait à proximité du chantier prévu.
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6_371_000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 function matchOverlapMinutes(entry: MissionMatchSource, mission: { startTime: Date; endTime: Date }): number {
   const entryEnd = entry.clockOut ?? new Date();
@@ -470,10 +469,10 @@ function matchDistanceMinutes(entry: MissionMatchSource, mission: { startTime: D
 // pas de total agrégé à protéger d'un double comptage.
 async function attachMatchedMissions<T extends MissionMatchSource>(
   entries: T[]
-): Promise<(T & { matchedMission: MatchedMissionInfo | null })[]> {
+): Promise<(T & { matchedMission: MatchedMissionInfo | null; clockInDistanceMeters: number | null; clockOutDistanceMeters: number | null })[]> {
   const closed = entries.filter((e) => e.clockOut !== null);
   if (closed.length === 0) {
-    return entries.map((e) => ({ ...e, matchedMission: null }));
+    return entries.map((e) => ({ ...e, matchedMission: null, clockInDistanceMeters: null, clockOutDistanceMeters: null }));
   }
 
   const userIds = Array.from(new Set(closed.map((e) => e.userId)));
@@ -493,20 +492,22 @@ async function attachMatchedMissions<T extends MissionMatchSource>(
       date: true,
       startTime: true,
       endTime: true,
-      site: { select: { name: true } },
+      site: { select: { name: true, address: true, latitude: true, longitude: true } },
       assignments: { select: { userId: true } },
     },
   });
 
   return entries.map((e) => {
-    if (e.clockOut === null) return { ...e, matchedMission: null };
+    if (e.clockOut === null) return { ...e, matchedMission: null, clockInDistanceMeters: null, clockOutDistanceMeters: null };
 
     const windowStart = new Date(e.clockIn.getTime() - MISSION_TIME_ENTRY_BUFFER_MS);
     const windowEnd = new Date(e.clockOut.getTime() + MISSION_TIME_ENTRY_BUFFER_MS);
     const candidates = missions.filter(
       (m) => m.assignments.some((a) => a.userId === e.userId) && m.startTime < windowEnd && m.endTime > windowStart
     );
-    if (candidates.length === 0) return { ...e, matchedMission: null };
+    if (candidates.length === 0) {
+      return { ...e, matchedMission: null, clockInDistanceMeters: null, clockOutDistanceMeters: null };
+    }
 
     let best = candidates[0]!;
     let bestOverlap = matchOverlapMinutes(e, best);
@@ -522,7 +523,17 @@ async function attachMatchedMissions<T extends MissionMatchSource>(
     }
 
     const { assignments, ...missionInfo } = best;
-    return { ...e, matchedMission: missionInfo };
+    const site = missionInfo.site;
+    const clockInDistanceMeters =
+      site.latitude != null && site.longitude != null && e.clockInLatitude != null && e.clockInLongitude != null
+        ? Math.round(haversineMeters(e.clockInLatitude, e.clockInLongitude, site.latitude, site.longitude))
+        : null;
+    const clockOutDistanceMeters =
+      site.latitude != null && site.longitude != null && e.clockOutLatitude != null && e.clockOutLongitude != null
+        ? Math.round(haversineMeters(e.clockOutLatitude, e.clockOutLongitude, site.latitude, site.longitude))
+        : null;
+
+    return { ...e, matchedMission: missionInfo, clockInDistanceMeters, clockOutDistanceMeters };
   });
 }
 

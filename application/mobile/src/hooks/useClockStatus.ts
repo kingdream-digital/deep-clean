@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import NetInfo from "@react-native-community/netinfo";
-import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import { useSharedValue, withSpring } from "react-native-reanimated";
 import { clockIn, clockOut, getMyTimesheetStatus } from "../api/timesheets.api";
-import type { ClockPhotoAsset, ClockPosition, TimeEntry } from "../api/timesheets.api";
+import type { ClockPhotoAsset, TimeEntry } from "../api/timesheets.api";
 import { extractErrorMessage } from "../api/client";
 import { pickWebImages } from "../utils/webImagePicker";
+import { capturePosition } from "../utils/geolocation";
 
 // Le pointage exige toujours une position GPS + une photo prise sur l'instant
 // (justificatif anti-fraude, retour explicite du client — voir
@@ -18,39 +18,6 @@ import { pickWebImages } from "../utils/webImagePicker";
 // l'action sans toucher au serveur, mais seule la vraie erreur doit
 // s'afficher comme un message d'échec.
 class CaptureAborted extends Error {}
-
-const LOCATION_TIMEOUT_MS = 8000;
-
-async function capturePosition(): Promise<ClockPosition> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (permission.status !== "granted") {
-    throw new Error("Localisation refusée : autorisez l'accès à votre position dans les réglages pour pointer.");
-  }
-
-  // Une position fraîche peut prendre du temps à l'intérieur d'un bâtiment
-  // (signal GPS faible) — on retombe sur la dernière position connue plutôt
-  // que de bloquer indéfiniment le pointage, tout en gardant une vraie
-  // position (jamais une valeur inventée) : soit l'une, soit l'autre, jamais
-  // aucune.
-  const fresh = new Promise<Location.LocationObject>((resolve, reject) => {
-    Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then(resolve, reject);
-  });
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS));
-
-  let position = await Promise.race([fresh, timeout]);
-  if (!position) {
-    position = await Location.getLastKnownPositionAsync();
-  }
-  if (!position) {
-    throw new Error("Position GPS indisponible pour le moment. Réessayez dans un instant, idéalement à l'extérieur.");
-  }
-
-  return {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-    accuracy: position.coords.accuracy ?? undefined,
-  };
-}
 
 // Toujours l'appareil photo, jamais la galerie : une photo choisie dans la
 // pellicule pourrait dater de n'importe quand, ce qui viderait le
@@ -153,7 +120,10 @@ export function useClockStatus() {
         throw new Error("Vous êtes hors connexion : le pointage nécessite une vraie connexion pour envoyer la photo justificative. Réessayez dès que possible.");
       }
 
-      const position = await capturePosition();
+      const position = await capturePosition(
+        "Localisation refusée : autorisez l'accès à votre position dans les réglages pour pointer.",
+        "Position GPS indisponible pour le moment. Réessayez dans un instant, idéalement à l'extérieur."
+      );
       const photo = await capturePhoto();
 
       const entry = wasClockingOut ? await clockOut(position, photo) : await clockIn(position, photo);

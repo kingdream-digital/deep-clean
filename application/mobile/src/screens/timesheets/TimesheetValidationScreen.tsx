@@ -20,6 +20,7 @@ import { listTimeEntries, validateTimeEntry } from "../../api/timesheets.api";
 import type { TimeEntry } from "../../api/timesheets.api";
 import { formatDuration } from "../../utils/duration";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
+import { DISTANCE_ALERT_METERS, formatDistance } from "../../utils/distance";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
 type Tab = "pending" | "done";
@@ -222,6 +223,19 @@ export function TimesheetValidationScreen() {
                         </Text>
                       </View>
                     )}
+                    {(() => {
+                      const farDistance = [item.clockInDistanceMeters, item.clockOutDistanceMeters]
+                        .filter((d): d is number => d != null && d > DISTANCE_ALERT_METERS)
+                        .sort((a, b) => b - a)[0];
+                      return farDistance != null ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
+                          <Ionicons name="warning-outline" size={12} color={colors.warning} />
+                          <Text style={[type.caption, { color: colors.warning, marginLeft: 3 }]}>
+                            Pointé à {formatDistance(farDistance)} du chantier prévu
+                          </Text>
+                        </View>
+                      ) : null;
+                    })()}
                     {item.isRetroactive && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="time-outline" size={12} color={colors.purple} />

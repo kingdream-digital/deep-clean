@@ -6,6 +6,11 @@ export const createSiteSchema = {
     address: z.string().trim().min(1).max(300),
     description: z.string().trim().max(2000).optional(),
     managerId: z.string().uuid().optional(),
+    // Position GPS du chantier, capturée depuis le téléphone sur place (voir
+    // mobile/utils/geolocation.ts) — jamais issue d'un service de géocodage,
+    // toujours la position réelle de l'appareil au moment de la saisie.
+    latitude: z.coerce.number().min(-90).max(90).optional(),
+    longitude: z.coerce.number().min(-180).max(180).optional(),
   }),
 };
 
@@ -18,6 +23,8 @@ export const updateSiteSchema = {
       description: z.string().trim().max(2000).nullable().optional(),
       managerId: z.string().uuid().nullable().optional(),
       isActive: z.boolean().optional(),
+      latitude: z.coerce.number().min(-90).max(90).nullable().optional(),
+      longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),
 };

@@ -115,6 +115,15 @@ model Site {
   managerId   String?
   manager     User?    @relation("SiteManager", fields: [managerId], references: [id], onDelete: SetNull)
   isActive    Boolean  @default(true)
+  // Position GPS du chantier, enregistrée une fois sur place (bouton "Utiliser
+  // ma position actuelle" à la création/édition de la fiche) — retour explicite
+  // du client : permet de vérifier automatiquement, EN INTERNE (aucun service
+  // de géocodage tiers), qu'un pointage a bien été fait à proximité du
+  // chantier prévu (voir timesheets.service.ts, calcul de distance à vol
+  // d'oiseau). Optionnelle : les chantiers créés avant cette fonctionnalité
+  // n'en ont pas, et la vérification de distance ne s'applique alors pas.
+  latitude    Float?
+  longitude   Float?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -402,18 +411,10 @@ model TimeEntry {
   clockInLongitude  Float?
   clockInAccuracy   Float? // précision GPS en mètres fournie par l'appareil, pour que le validateur juge la fiabilité du point
   clockInPhotoKey   String?
-  // Adresse lisible résolue à partir de clockInLatitude/Longitude (géocodage
-  // inverse, voir utils/geocoding.ts) — renseignée en arrière-plan juste après
-  // le pointage, jamais bloquante pour celui-ci (retour explicite du client :
-  // il veut l'adresse affichée directement à côté de la photo, sans avoir à
-  // cliquer sur un lien vers une carte). Reste `null` si le géocodage échoue
-  // ou n'a pas encore eu le temps de répondre.
-  clockInAddress    String?
   clockOutLatitude  Float?
   clockOutLongitude Float?
   clockOutAccuracy  Float?
   clockOutPhotoKey  String?
-  clockOutAddress   String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 

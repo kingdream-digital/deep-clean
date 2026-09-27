@@ -13,6 +13,7 @@ import { getTimeEntry, clockInPhotoUrl, clockOutPhotoUrl } from "../../api/times
 import type { TimeEntry } from "../../api/timesheets.api";
 import { formatDuration } from "../../utils/duration";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
+import { DISTANCE_ALERT_METERS, formatDistance } from "../../utils/distance";
 
 type Route = RouteProp<{ TimeEntryDetail: { entryId: string } }, "TimeEntryDetail">;
 
@@ -32,32 +33,33 @@ function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap;
   );
 }
 
-// Justificatif anti-fraude (photo + adresse + position GPS pris au moment du
-// pointage) — affiché uniquement quand ces informations existent, pour rester
+// Justificatif anti-fraude (photo + position GPS pris au moment du pointage)
+// — affiché uniquement quand ces informations existent, pour rester
 // compatible avec les pointages saisis avant l'introduction de cette
-// fonctionnalité. L'adresse s'affiche directement en texte, sans nécessiter
-// de clic (retour explicite du client) ; elle reste tapable pour ouvrir la
-// carte, en plus. Tant que le géocodage en arrière-plan n'a pas encore
-// répondu (ou a échoué), on retombe sur les coordonnées brutes — jamais rien
-// d'affiché quand aucune position n'a été capturée.
+// fonctionnalité. La comparaison avec le chantier prévu (adresse + distance)
+// est calculée entièrement en interne, côté serveur, sans aucun service de
+// géocodage tiers (retour explicite du client) — elle reste absente si le
+// chantier n'a pas encore de position GPS enregistrée.
 function ProofSection({
   title,
   photoUrl,
   latitude,
   longitude,
   accuracy,
-  address,
+  siteAddress,
+  distanceMeters,
 }: {
   title: string;
   photoUrl: string;
   latitude?: number | null;
   longitude?: number | null;
   accuracy?: number | null;
-  address?: string | null;
+  siteAddress?: string | null;
+  distanceMeters?: number | null;
 }) {
   const { colors, spacing, type, radius } = useTheme();
   const hasPosition = latitude != null && longitude != null;
-  const locationLabel = address ?? (hasPosition ? `${latitude!.toFixed(5)}, ${longitude!.toFixed(5)}` : null);
+  const isFar = distanceMeters != null && distanceMeters > DISTANCE_ALERT_METERS;
 
   return (
     <View style={{ marginTop: spacing.md }}>
@@ -66,17 +68,31 @@ function ProofSection({
         uri={photoUrl}
         style={{ width: "100%", height: 200, marginTop: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceAlt }}
       />
-      {locationLabel && (
+
+      {distanceMeters != null && (
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}>
+          <Ionicons
+            name={isFar ? "warning-outline" : "checkmark-circle-outline"}
+            size={16}
+            color={isFar ? colors.warning : colors.success}
+          />
+          <Text style={[type.callout, { color: isFar ? colors.warning : colors.success, marginLeft: spacing.xs, flex: 1 }]}>
+            Pointé à {formatDistance(distanceMeters)} du chantier prévu
+          </Text>
+        </View>
+      )}
+      {siteAddress && (
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>Chantier prévu : {siteAddress}</Text>
+      )}
+
+      {hasPosition && (
         <PressableScale
-          onPress={() => {
-            if (hasPosition) Linking.openURL(`https://www.google.com/maps?q=${latitude},${longitude}`);
-          }}
-          style={{ flexDirection: "row", alignItems: "flex-start", marginTop: spacing.sm }}
+          onPress={() => Linking.openURL(`https://www.google.com/maps?q=${latitude},${longitude}`)}
+          style={{ flexDirection: "row", alignItems: "flex-start", marginTop: spacing.xs }}
         >
-          <Ionicons name="location-outline" size={16} color={colors.accent} style={{ marginTop: 2 }} />
-          <Text style={[type.callout, { color: colors.accent, marginLeft: spacing.xs, flex: 1 }]}>
-            {locationLabel}
-            {accuracy != null ? ` (précision ${Math.round(accuracy)} m)` : ""}
+          <Ionicons name="location-outline" size={14} color={colors.accent} style={{ marginTop: 2 }} />
+          <Text style={[type.footnote, { color: colors.accent, marginLeft: spacing.xs, flex: 1 }]}>
+            Voir la position pointée sur la carte{accuracy != null ? ` (précision ${Math.round(accuracy)} m)` : ""}
           </Text>
         </PressableScale>
       )}
@@ -190,7 +206,8 @@ export function TimeEntryDetailScreen() {
                 latitude={entry.clockInLatitude}
                 longitude={entry.clockInLongitude}
                 accuracy={entry.clockInAccuracy}
-                address={entry.clockInAddress}
+                siteAddress={entry.matchedMission?.site.address}
+                distanceMeters={entry.clockInDistanceMeters}
               />
             )}
             {entry.hasClockOutPhoto && (
@@ -200,7 +217,8 @@ export function TimeEntryDetailScreen() {
                 latitude={entry.clockOutLatitude}
                 longitude={entry.clockOutLongitude}
                 accuracy={entry.clockOutAccuracy}
-                address={entry.clockOutAddress}
+                siteAddress={entry.matchedMission?.site.address}
+                distanceMeters={entry.clockOutDistanceMeters}
               />
             )}
           </Card>
