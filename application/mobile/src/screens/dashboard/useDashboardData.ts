@@ -9,6 +9,8 @@ import { getStatsOverview } from "../../api/stats.api";
 import type { StatsOverview } from "../../api/stats.api";
 import { listNotifications } from "../../api/notifications.api";
 import type { AppNotification } from "../../api/notifications.api";
+import { listAnnouncements } from "../../api/announcements.api";
+import type { Announcement } from "../../api/announcements.api";
 import type { AuthUser } from "../../api/auth.api";
 import { addDays, mondayOf, toLocalDateKey } from "../../utils/missionFormat";
 
@@ -29,6 +31,10 @@ export interface DashboardData {
   // l'appli, sans avoir à taper jusqu'au Planning (cahier des charges §13/§16).
   currentMission: Mission | null;
   nextMission: Mission | null;
+  // Dernière actualité publiée (RH/Superviseur/Direction/Admin) — même
+  // logique que "mission en cours" ci-dessus : visible dès l'accueil, sans
+  // avoir à aller jusqu'à l'écran "Actualités" dédié.
+  latestAnnouncement: Announcement | null;
 }
 
 const EMPTY: DashboardData = {
@@ -38,6 +44,7 @@ const EMPTY: DashboardData = {
   recentActivity: [],
   currentMission: null,
   nextMission: null,
+  latestAnnouncement: null,
 };
 
 function findCurrentAndNextMission(missions: Mission[]): { currentMission: Mission | null; nextMission: Mission | null } {
@@ -62,17 +69,19 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
   const weekStart = mondayOf(new Date());
   const weekEnd = addDays(weekStart, 6);
   const notifPromise = listNotifications(1, 5);
+  const announcementPromise = listAnnouncements(1, 1);
 
   if (user.role === "HR") {
     // La RH crée et gère le planning au même titre que la direction — vue
     // hebdomadaire globale (tous chantiers), plus ses indicateurs de gestion
     // des comptes.
-    const [total, active, openProblems, weekRes, notifRes] = await Promise.all([
+    const [total, active, openProblems, weekRes, notifRes, announcementRes] = await Promise.all([
       listUsers(),
       listUsers({ isActive: true }),
       countOpenProblems(),
       listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) }),
       notifPromise,
+      announcementPromise,
     ]);
     const today = toLocalDateKey(new Date());
     const todayCount = weekRes.items.filter((m) => m.date.slice(0, 10) === today).length;
@@ -82,6 +91,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       recentActivity: notifRes.items,
       currentMission: null,
       nextMission: null,
+      latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: [
         { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent" },
         { key: "active", label: `Actifs sur ${total.total}`, value: String(active.total), tone: "info" },
@@ -91,10 +101,11 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
   }
 
   if (user.role === "DIRECTOR" || user.role === "ADMIN") {
-    const [overview, weekRes, notifRes] = await Promise.all([
+    const [overview, weekRes, notifRes, announcementRes] = await Promise.all([
       getStatsOverview(),
       listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) }),
       notifPromise,
+      announcementPromise,
     ]);
     return {
       weekMissions: weekRes.items,
@@ -102,16 +113,18 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       recentActivity: notifRes.items,
       currentMission: null,
       nextMission: null,
+      latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: statsToKpis(overview),
     };
   }
 
   if (user.role === "SITE_MANAGER") {
-    const [weekRes, sitesRes, openProblems, notifRes] = await Promise.all([
+    const [weekRes, sitesRes, openProblems, notifRes, announcementRes] = await Promise.all([
       listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) }),
       listSites({ isActive: true }),
       countOpenProblems(),
       notifPromise,
+      announcementPromise,
     ]);
     const today = toLocalDateKey(new Date());
     const todayCount = weekRes.items.filter((m) => m.date.slice(0, 10) === today).length;
@@ -122,6 +135,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       recentActivity: notifRes.items,
       currentMission: null,
       nextMission: null,
+      latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: [
         { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent" },
         { key: "team", label: "Employés mobilisés", value: String(teamSize), tone: "info" },
@@ -132,11 +146,12 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
   }
 
   // EMPLOYEE
-  const [weekRes, upcomingRes, openProblems, notifRes] = await Promise.all([
+  const [weekRes, upcomingRes, openProblems, notifRes, announcementRes] = await Promise.all([
     listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) }),
     listMissions({ from: toLocalDateKey(new Date()), to: toLocalDateKey(addDays(new Date(), 7)) }),
     countOpenProblems(),
     notifPromise,
+    announcementPromise,
   ]);
   const today = toLocalDateKey(new Date());
   const todayCount = weekRes.items.filter((m) => m.date.slice(0, 10) === today).length;
@@ -147,6 +162,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
     recentActivity: notifRes.items,
     currentMission,
     nextMission,
+    latestAnnouncement: announcementRes.items[0] ?? null,
     kpis: [
       { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent" },
       { key: "upcoming", label: "À venir (7 jours)", value: String(upcomingRes.total), tone: "info" },

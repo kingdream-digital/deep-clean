@@ -355,6 +355,19 @@ async function main() {
   }
 
   console.log(`${missionSeeds.length} missions démo créées.`);
+
+  const welcomeTitle = "Bienvenue sur Deep Clean";
+  const existingAnnouncement = await prisma.announcement.findFirst({ where: { title: welcomeTitle } });
+  if (!existingAnnouncement) {
+    await prisma.announcement.create({
+      data: {
+        authorId: directeur.id,
+        title: welcomeTitle,
+        body: "Bienvenue à toutes et à tous sur la nouvelle application Deep Clean ! Vous y retrouverez votre planning, vos missions, vos chantiers et toutes les informations utiles à votre travail au quotidien. N'hésitez pas à contacter la RH pour toute question.",
+      },
+    });
+    console.log("Actualité de bienvenue créée.");
+  }
 }
 
 main()

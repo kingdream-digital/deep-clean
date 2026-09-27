@@ -215,6 +215,42 @@ export function HomeScreen() {
               </View>
             ) : null}
 
+            {/* Dernière actualité (RH/Superviseur/Direction/Admin) — visible dès
+                l'accueil comme la mission en cours ci-dessus, en plus de son
+                écran dédié "Actualités" (cahier des charges §13 : "informations
+                importantes" visibles sans avoir à cliquer). */}
+            {data.latestAnnouncement && (
+              <>
+                <SectionTitle
+                  action={
+                    <PressableScale onPress={() => navigation.navigate("AnnouncementsList")}>
+                      <Text style={[type.caption, { color: colors.accent, fontWeight: "700" }]}>Voir tout</Text>
+                    </PressableScale>
+                  }
+                >
+                  ACTUALITÉS DE L'ENTREPRISE
+                </SectionTitle>
+                <PressableScale
+                  onPress={() =>
+                    navigation.navigate("AnnouncementDetail", { announcementId: data.latestAnnouncement!.id })
+                  }
+                >
+                  <Card>
+                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                      {data.latestAnnouncement.title}
+                    </Text>
+                    <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]} numberOfLines={2}>
+                      {data.latestAnnouncement.body}
+                    </Text>
+                    <Text style={[type.caption, { color: colors.inkTertiary, marginTop: spacing.sm }]}>
+                      {data.latestAnnouncement.author.firstName} {data.latestAnnouncement.author.lastName} ·{" "}
+                      {timeAgo(data.latestAnnouncement.createdAt)}
+                    </Text>
+                  </Card>
+                </PressableScale>
+              </>
+            )}
+
             {data.weekMissions.length > 0 && (
               <>
                 <SectionTitle
