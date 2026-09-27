@@ -4,6 +4,13 @@ import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
 import { MISSION_TIME_ENTRY_BUFFER_MS } from "../missions/missions.service";
+import { deleteStoredImage, storeImage } from "../../utils/storage";
+
+export interface ClockPosition {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}
 
 export interface Actor {
   userId: string;
@@ -65,6 +72,14 @@ export const timeEntrySelect = {
   validatedAt: true,
   comment: true,
   isRetroactive: true,
+  clockInLatitude: true,
+  clockInLongitude: true,
+  clockInAccuracy: true,
+  clockInPhotoKey: true,
+  clockOutLatitude: true,
+  clockOutLongitude: true,
+  clockOutAccuracy: true,
+  clockOutPhotoKey: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -98,48 +113,91 @@ async function lockTimeEntryRow(tx: Prisma.TransactionClient, id: string): Promi
   await tx.$queryRaw`SELECT id FROM "time_entries" WHERE id = ${id} FOR UPDATE`;
 }
 
-export async function clockIn(actor: Actor) {
-  const entry = await prisma.$transaction(async (tx) => {
-    await lockUserRow(tx, actor.userId);
-
-    const open = await tx.timeEntry.findFirst({
-      where: { userId: actor.userId, clockOut: null },
-    });
-    if (open) {
-      throw ApiError.conflict("Vous êtes déjà pointé — pointez d'abord votre sortie.");
-    }
-
-    return tx.timeEntry.create({
-      data: { userId: actor.userId, clockIn: new Date() },
-      select: timeEntrySelect,
-    });
-  });
-
-  await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_IN", entityType: "TimeEntry", entityId: entry.id });
-  return entry;
+// Enlève la clé de stockage brute de la réponse API (même principe que
+// Photo.storageKey, jamais exposée telle quelle — voir schema.prisma) au
+// profit d'un simple booléen : le client récupère le fichier via la route
+// authentifiée dédiée (GET /:id/clock-in-photo ou /clock-out-photo), jamais
+// par la clé elle-même.
+function presentEntry<T extends { clockInPhotoKey?: string | null; clockOutPhotoKey?: string | null }>(
+  entry: T
+): Omit<T, "clockInPhotoKey" | "clockOutPhotoKey"> & { hasClockInPhoto: boolean; hasClockOutPhoto: boolean } {
+  const { clockInPhotoKey, clockOutPhotoKey, ...rest } = entry;
+  return { ...rest, hasClockInPhoto: Boolean(clockInPhotoKey), hasClockOutPhoto: Boolean(clockOutPhotoKey) };
 }
 
-export async function clockOut(actor: Actor) {
-  const entry = await prisma.$transaction(async (tx) => {
-    await lockUserRow(tx, actor.userId);
+export async function clockIn(actor: Actor, position: ClockPosition, photoBuffer: Buffer) {
+  // Stocké HORS transaction (I/O disque, pas de verrou à tenir pendant ce
+  // temps) ; si la transaction échoue ensuite (pointage déjà ouvert), le
+  // fichier orphelin est supprimé dans le catch, même principe que
+  // problems.service.ts::addPhoto.
+  const stored = await storeImage(photoBuffer);
 
-    const open = await tx.timeEntry.findFirst({
-      where: { userId: actor.userId, clockOut: null },
-      orderBy: { clockIn: "desc" },
+  try {
+    const entry = await prisma.$transaction(async (tx) => {
+      await lockUserRow(tx, actor.userId);
+
+      const open = await tx.timeEntry.findFirst({
+        where: { userId: actor.userId, clockOut: null },
+      });
+      if (open) {
+        throw ApiError.conflict("Vous êtes déjà pointé — pointez d'abord votre sortie.");
+      }
+
+      return tx.timeEntry.create({
+        data: {
+          userId: actor.userId,
+          clockIn: new Date(),
+          clockInLatitude: position.latitude,
+          clockInLongitude: position.longitude,
+          clockInAccuracy: position.accuracy,
+          clockInPhotoKey: stored.storageKey,
+        },
+        select: timeEntrySelect,
+      });
     });
-    if (!open) {
-      throw ApiError.conflict("Aucun pointage en cours à clôturer.");
-    }
 
-    return tx.timeEntry.update({
-      where: { id: open.id },
-      data: { clockOut: new Date() },
-      select: timeEntrySelect,
+    await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_IN", entityType: "TimeEntry", entityId: entry.id });
+    return presentEntry(entry);
+  } catch (err) {
+    await deleteStoredImage(stored.storageKey);
+    throw err;
+  }
+}
+
+export async function clockOut(actor: Actor, position: ClockPosition, photoBuffer: Buffer) {
+  const stored = await storeImage(photoBuffer);
+
+  try {
+    const entry = await prisma.$transaction(async (tx) => {
+      await lockUserRow(tx, actor.userId);
+
+      const open = await tx.timeEntry.findFirst({
+        where: { userId: actor.userId, clockOut: null },
+        orderBy: { clockIn: "desc" },
+      });
+      if (!open) {
+        throw ApiError.conflict("Aucun pointage en cours à clôturer.");
+      }
+
+      return tx.timeEntry.update({
+        where: { id: open.id },
+        data: {
+          clockOut: new Date(),
+          clockOutLatitude: position.latitude,
+          clockOutLongitude: position.longitude,
+          clockOutAccuracy: position.accuracy,
+          clockOutPhotoKey: stored.storageKey,
+        },
+        select: timeEntrySelect,
+      });
     });
-  });
 
-  await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_OUT", entityType: "TimeEntry", entityId: entry.id });
-  return entry;
+    await logActivity({ userId: actor.userId, action: "TIME_ENTRY_CLOCK_OUT", entityType: "TimeEntry", entityId: entry.id });
+    return presentEntry(entry);
+  } catch (err) {
+    await deleteStoredImage(stored.storageKey);
+    throw err;
+  }
 }
 
 // Pointage différé : l'employé a oublié de pointer et saisit après coup une
@@ -201,7 +259,7 @@ export async function createRetroactiveTimeEntry(
     entityType: "TimeEntry",
     entityId: entry.id,
   });
-  return entry;
+  return presentEntry(entry);
 }
 
 export async function getMyStatus(actor: Actor) {
@@ -209,7 +267,7 @@ export async function getMyStatus(actor: Actor) {
     where: { userId: actor.userId, clockOut: null },
     select: timeEntrySelect,
   });
-  return { clockedIn: open !== null, openEntry: open };
+  return { clockedIn: open !== null, openEntry: open ? presentEntry(open) : null };
 }
 
 export interface ListFilters {
@@ -294,7 +352,8 @@ export async function listTimeEntries(actor: Actor, filters: ListFilters & { pag
     prisma.timeEntry.count({ where }),
   ]);
 
-  return { items: await attachOvertimeInfo(items), total, page: filters.page, pageSize: filters.pageSize };
+  const withOvertime = await attachOvertimeInfo(items);
+  return { items: withOvertime.map(presentEntry), total, page: filters.page, pageSize: filters.pageSize };
 }
 
 // Au-delà de cette marge, un pointage validé plus long que les missions
@@ -428,19 +487,37 @@ async function findEntryOrThrow(id: string) {
 
 // Un employé ne voit que ses propres pointages ; un chef d'équipe, les
 // siens et ceux de son équipe ; superviseur/RH/direction/admin, tous — même
-// portée que `listTimeEntries`. 404 (jamais 403) hors périmètre, pour ne pas
-// révéler l'existence du pointage.
-export async function getTimeEntryById(actor: Actor, id: string) {
-  const entry = await findEntryOrThrow(id);
-
-  const allowed =
+// portée que `listTimeEntries`. Partagée avec l'accès aux photos justificatives
+// (voir `getTimeEntryPhoto`), qui doit suivre exactement la même règle.
+async function assertCanViewEntry(actor: Actor, entry: { userId: string }): Promise<boolean> {
+  return (
     actor.userId === entry.userId ||
     GLOBAL_VALIDATE_ROLES.includes(actor.role) ||
-    (actor.role === Role.SITE_MANAGER && (await isTeamMemberOf(actor.userId, entry.userId)));
-  if (!allowed) throw ApiError.notFound("Pointage introuvable.");
+    (actor.role === Role.SITE_MANAGER && (await isTeamMemberOf(actor.userId, entry.userId)))
+  );
+}
+
+// 404 (jamais 403) hors périmètre, pour ne pas révéler l'existence du pointage.
+export async function getTimeEntryById(actor: Actor, id: string) {
+  const entry = await findEntryOrThrow(id);
+  if (!(await assertCanViewEntry(actor, entry))) throw ApiError.notFound("Pointage introuvable.");
 
   const [withOvertime] = await attachOvertimeInfo([entry]);
-  return withOvertime;
+  return presentEntry(withOvertime!);
+}
+
+// Sert le justificatif photo d'un pointage (arrivée ou sortie) — jamais d'URL
+// publique, même principe que problems.service.ts::getPhotoFile : la
+// permission est revérifiée ici, pas seulement au moment de l'affichage de la
+// liste/fiche.
+export async function getTimeEntryPhoto(actor: Actor, id: string, moment: "in" | "out") {
+  const entry = await findEntryOrThrow(id);
+  if (!(await assertCanViewEntry(actor, entry))) throw ApiError.notFound("Pointage introuvable.");
+
+  const storageKey = moment === "in" ? entry.clockInPhotoKey : entry.clockOutPhotoKey;
+  if (!storageKey) throw ApiError.notFound("Aucune photo pour ce pointage.");
+
+  return { storageKey, mimeType: "image/jpeg" };
 }
 
 // Fenêtre lisible "20/09 09:00–17:00" pour les messages de notification —
@@ -497,7 +574,7 @@ export async function validateTimeEntry(actor: Actor, id: string, comment?: stri
   // listTimeEntries/getTimeEntryById) : le badge "heures supp." n'apparaissait
   // qu'après avoir quitté puis rouvert l'écran de validation.
   const [withOvertime] = await attachOvertimeInfo([updated]);
-  return withOvertime;
+  return presentEntry(withOvertime!);
 }
 
 export async function rejectTimeEntry(actor: Actor, id: string, comment: string) {
@@ -537,7 +614,7 @@ export async function rejectTimeEntry(actor: Actor, id: string, comment: string)
   // client porte `overtimeMinutes` (jamais absent), même si un pointage
   // refusé vaudra toujours `null` ici (voir `attachOvertimeInfo`).
   const [withOvertime] = await attachOvertimeInfo([updated]);
-  return withOvertime;
+  return presentEntry(withOvertime!);
 }
 
 // --- Rapprochement pointage <-> mission (menu RH "qui a un écart à examiner") ---

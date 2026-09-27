@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/auth.middleware";
 import { validate } from "../../middleware/validate.middleware";
+import { uploadPhoto } from "../../middleware/upload.middleware";
 import {
+  clockPositionSchema,
   exportTimeEntriesQuerySchema,
   listTimeEntriesQuerySchema,
   reconciliationDetailSchema,
@@ -20,8 +22,23 @@ export const timesheetsRouter = Router();
 // est entièrement vérifiée dans timesheets.service.ts.
 timesheetsRouter.use(authenticate());
 
-timesheetsRouter.post("/clock-in", timesheetsController.clockInHandler);
-timesheetsRouter.post("/clock-out", timesheetsController.clockOutHandler);
+// `uploadPhoto` (multer) avant `validate` : multer doit d'abord parser le
+// multipart pour peupler req.body (champs texte) et req.file (la photo) —
+// validate() lirait un req.body vide s'il passait en premier. Photo et
+// position requises pour pointer (justificatif anti-fraude, retour explicite
+// du client) : voir timesheets.controller.ts::requirePhoto.
+timesheetsRouter.post("/clock-in", uploadPhoto, validate(clockPositionSchema), timesheetsController.clockInHandler);
+timesheetsRouter.post("/clock-out", uploadPhoto, validate(clockPositionSchema), timesheetsController.clockOutHandler);
+timesheetsRouter.get(
+  "/:id/clock-in-photo",
+  validate(timeEntryIdParamSchema),
+  timesheetsController.getClockInPhotoHandler
+);
+timesheetsRouter.get(
+  "/:id/clock-out-photo",
+  validate(timeEntryIdParamSchema),
+  timesheetsController.getClockOutPhotoHandler
+);
 timesheetsRouter.post(
   "/retroactive",
   validate(retroactiveTimeEntrySchema),

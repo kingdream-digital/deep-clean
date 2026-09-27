@@ -1,4 +1,5 @@
-import { apiClient } from "./client";
+import { Platform } from "react-native";
+import { apiClient, API_URL } from "./client";
 import type { Role } from "./auth.api";
 
 export type TimeEntryStatus = "PENDING" | "VALIDATED" | "REJECTED";
@@ -21,6 +22,54 @@ export interface TimeEntry {
   // de la ou des missions auxquelles il se rattache (recoupement horaire) —
   // voir timesheets.service.ts `attachOvertimeInfo`.
   overtimeMinutes: number | null;
+  // Justificatif anti-fraude (retour explicite du client) : position GPS et
+  // photo capturées sur le terrain au moment du pointage — absentes seulement
+  // sur un pointage différé (`isRetroactive`, saisi après coup, personne sur
+  // place pour les capturer). La photo elle-même n'est jamais dans cette
+  // réponse (voir clockInPhotoUrl/clockOutPhotoUrl) : seul un indicateur de
+  // présence, même principe que Photo.storageKey côté serveur.
+  clockInLatitude: number | null;
+  clockInLongitude: number | null;
+  clockInAccuracy: number | null;
+  hasClockInPhoto: boolean;
+  clockOutLatitude: number | null;
+  clockOutLongitude: number | null;
+  clockOutAccuracy: number | null;
+  hasClockOutPhoto: boolean;
+}
+
+export interface ClockPosition {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}
+
+// Même forme que LocalPhotoAsset (api/problems.api.ts) — un justificatif de
+// pointage est capturé exactement de la même façon qu'une photo de
+// signalement (voir hooks/useClockStatus.ts).
+export interface ClockPhotoAsset {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  file?: File;
+}
+
+function buildClockFormData(position: ClockPosition, photo: ClockPhotoAsset): FormData {
+  const formData = new FormData();
+  formData.append("latitude", String(position.latitude));
+  formData.append("longitude", String(position.longitude));
+  if (position.accuracy !== undefined) formData.append("accuracy", String(position.accuracy));
+
+  if (Platform.OS === "web" && photo.file) {
+    formData.append("photo", photo.file, photo.fileName ?? photo.file.name);
+  } else {
+    formData.append("photo", {
+      uri: photo.uri,
+      name: photo.fileName ?? `pointage-${Date.now()}.jpg`,
+      type: photo.mimeType ?? "image/jpeg",
+    } as unknown as Blob);
+  }
+  return formData;
 }
 
 interface ListTimeEntriesResponse {
@@ -30,14 +79,25 @@ interface ListTimeEntriesResponse {
   pageSize: number;
 }
 
-export async function clockIn(): Promise<TimeEntry> {
-  const { data } = await apiClient.post<{ entry: TimeEntry }>("/time-entries/clock-in");
+export async function clockIn(position: ClockPosition, photo: ClockPhotoAsset): Promise<TimeEntry> {
+  // Ne jamais fixer Content-Type manuellement : le client doit générer
+  // lui-même l'en-tête "multipart/form-data; boundary=..." (même remarque que
+  // uploadProblemPhoto, api/problems.api.ts).
+  const { data } = await apiClient.post<{ entry: TimeEntry }>("/time-entries/clock-in", buildClockFormData(position, photo));
   return data.entry;
 }
 
-export async function clockOut(): Promise<TimeEntry> {
-  const { data } = await apiClient.post<{ entry: TimeEntry }>("/time-entries/clock-out");
+export async function clockOut(position: ClockPosition, photo: ClockPhotoAsset): Promise<TimeEntry> {
+  const { data } = await apiClient.post<{ entry: TimeEntry }>("/time-entries/clock-out", buildClockFormData(position, photo));
   return data.entry;
+}
+
+export function clockInPhotoUrl(timeEntryId: string): string {
+  return `${API_URL}/time-entries/${timeEntryId}/clock-in-photo`;
+}
+
+export function clockOutPhotoUrl(timeEntryId: string): string {
+  return `${API_URL}/time-entries/${timeEntryId}/clock-out-photo`;
 }
 
 export async function getMyTimesheetStatus(): Promise<{ clockedIn: boolean; openEntry: TimeEntry | null }> {

@@ -10,6 +10,7 @@ import { StateView } from "../../components/StateView";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
+import { PressableScale } from "../../components/PressableScale";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { DataTable, DataTableColumn } from "../../components/DataTable";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -116,6 +117,22 @@ export function TimesheetValidationScreen() {
       label: "Statut",
       render: (item) => <TimeEntryStatusBadge status={item.status} />,
     },
+    {
+      key: "proof",
+      label: "Justificatif",
+      render: (item) =>
+        item.hasClockInPhoto || item.hasClockOutPhoto ? (
+          <PressableScale
+            onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })}
+            style={{ flexDirection: "row", alignItems: "center" }}
+          >
+            <Ionicons name="camera-outline" size={16} color={colors.accent} />
+            <Text style={[type.footnote, { color: colors.accent, marginLeft: 4 }]}>Voir</Text>
+          </PressableScale>
+        ) : (
+          <Text style={[type.footnote, { color: colors.inkTertiary }]}>—</Text>
+        ),
+    },
     ...(tab === "pending"
       ? [
           {
@@ -206,6 +223,17 @@ export function TimesheetValidationScreen() {
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]} numberOfLines={2}>
                         {item.comment}
                       </Text>
+                    )}
+                    {(item.hasClockInPhoto || item.hasClockOutPhoto) && (
+                      <PressableScale
+                        onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })}
+                        style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}
+                      >
+                        <Ionicons name="camera-outline" size={14} color={colors.accent} />
+                        <Text style={[type.footnote, { color: colors.accent, marginLeft: 4 }]}>
+                          Voir le justificatif (photo + position)
+                        </Text>
+                      </PressableScale>
                     )}
                   </View>
                   <TimeEntryStatusBadge status={item.status} />

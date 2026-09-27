@@ -2,7 +2,7 @@ import request from "supertest";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
-import { createTestSite, createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+import { clockInViaApi, clockOutViaApi, createTestSite, createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
 
 const app = createApp();
 
@@ -739,8 +739,8 @@ describe("Pointages rattachés à une mission (récapitulatif, recoupement horai
     // Pointage réel de l'employé (pas nécessairement le même jour que "demain" dans le test,
     // mais le rapprochement se fait par recoupement horaire avec le créneau de la mission —
     // ici on pointe simplement pour vérifier que l'employé lui-même voit son propre pointage).
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${employeeToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${employeeToken}`);
+    await clockInViaApi(app, employeeToken);
+    await clockOutViaApi(app, employeeToken);
 
     const res = await request(app)
       .get(`/api/v1/missions/${created.body.mission.id}/time-entries`)

@@ -2,7 +2,7 @@ import request from "supertest";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
-import { createTestSite, createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+import { clockInViaApi, clockOutViaApi, createTestSite, createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
 
 const app = createApp();
 
@@ -24,7 +24,7 @@ describe("Pointage — arrivée / sortie", () => {
     const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-clock1@deepclean.test" });
     const token = await loginAs(employee);
 
-    const in1 = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${token}`);
+    const in1 = await clockInViaApi(app, token);
     expect(in1.status).toBe(201);
     expect(in1.body.entry.clockOut).toBeNull();
     expect(in1.body.entry.status).toBe("PENDING");
@@ -32,7 +32,7 @@ describe("Pointage — arrivée / sortie", () => {
     const status = await request(app).get("/api/v1/time-entries/me/status").set("Authorization", `Bearer ${token}`);
     expect(status.body.clockedIn).toBe(true);
 
-    const out1 = await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${token}`);
+    const out1 = await clockOutViaApi(app, token);
     expect(out1.status).toBe(200);
     expect(out1.body.entry.clockOut).not.toBeNull();
   });
@@ -41,8 +41,8 @@ describe("Pointage — arrivée / sortie", () => {
     const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-clock2@deepclean.test" });
     const token = await loginAs(employee);
 
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${token}`);
-    const second = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${token}`);
+    await clockInViaApi(app, token);
+    const second = await clockInViaApi(app, token);
     expect(second.status).toBe(409);
   });
 
@@ -50,7 +50,7 @@ describe("Pointage — arrivée / sortie", () => {
     const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-clock3@deepclean.test" });
     const token = await loginAs(employee);
 
-    const out = await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${token}`);
+    const out = await clockOutViaApi(app, token);
     expect(out.status).toBe(409);
   });
 
@@ -59,8 +59,8 @@ describe("Pointage — arrivée / sortie", () => {
     const token = await loginAs(employee);
 
     const [res1, res2] = await Promise.all([
-      request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${token}`),
-      request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${token}`),
+      clockInViaApi(app, token),
+      clockInViaApi(app, token),
     ]);
 
     const statuses = [res1.status, res2.status].sort();
@@ -78,8 +78,8 @@ describe("Pointage — visibilité et validation", () => {
     const tokenA = await loginAs(employeeA);
     const tokenB = await loginAs(employeeB);
 
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${tokenA}`);
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${tokenB}`);
+    await clockInViaApi(app, tokenA);
+    await clockInViaApi(app, tokenB);
 
     const list = await request(app).get("/api/v1/time-entries").set("Authorization", `Bearer ${tokenA}`);
     expect(list.status).toBe(200);
@@ -98,10 +98,10 @@ describe("Pointage — visibilité et validation", () => {
     const teamToken = await loginAs(teamEmployee);
     const outsideToken = await loginAs(outsideEmployee);
 
-    const teamIn = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${teamToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${teamToken}`);
-    const outsideIn = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${outsideToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${outsideToken}`);
+    const teamIn = await clockInViaApi(app, teamToken);
+    await clockOutViaApi(app, teamToken);
+    const outsideIn = await clockInViaApi(app, outsideToken);
+    await clockOutViaApi(app, outsideToken);
 
     const validateTeam = await request(app)
       .post(`/api/v1/time-entries/${teamIn.body.entry.id}/validate`)
@@ -121,8 +121,8 @@ describe("Pointage — visibilité et validation", () => {
     const hr = await createTestUser({ role: Role.HR, email: "hr-ts@deepclean.test" });
     const hrToken = await loginAs(hr);
 
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${hrToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${hrToken}`);
+    const entry = await clockInViaApi(app, hrToken);
+    await clockOutViaApi(app, hrToken);
 
     const res = await request(app)
       .post(`/api/v1/time-entries/${entry.body.entry.id}/validate`)
@@ -137,7 +137,7 @@ describe("Pointage — visibilité et validation", () => {
     const hrToken = await loginAs(hr);
     const employeeToken = await loginAs(employee);
 
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${employeeToken}`);
+    const entry = await clockInViaApi(app, employeeToken);
 
     const res = await request(app)
       .post(`/api/v1/time-entries/${entry.body.entry.id}/validate`)
@@ -152,8 +152,8 @@ describe("Pointage — visibilité et validation", () => {
     const supervisorToken = await loginAs(supervisor);
     const employeeToken = await loginAs(employee);
 
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${employeeToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${employeeToken}`);
+    const entry = await clockInViaApi(app, employeeToken);
+    await clockOutViaApi(app, employeeToken);
 
     const validate = await request(app)
       .post(`/api/v1/time-entries/${entry.body.entry.id}/validate`)
@@ -161,8 +161,8 @@ describe("Pointage — visibilité et validation", () => {
       .send({});
     expect(validate.status).toBe(200);
 
-    const ownEntry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${supervisorToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${supervisorToken}`);
+    const ownEntry = await clockInViaApi(app, supervisorToken);
+    await clockOutViaApi(app, supervisorToken);
     const selfValidate = await request(app)
       .post(`/api/v1/time-entries/${ownEntry.body.entry.id}/validate`)
       .set("Authorization", `Bearer ${supervisorToken}`)
@@ -176,8 +176,8 @@ describe("Pointage — visibilité et validation", () => {
     const directorToken = await loginAs(director);
     const employeeToken = await loginAs(employee);
 
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${employeeToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${employeeToken}`);
+    const entry = await clockInViaApi(app, employeeToken);
+    await clockOutViaApi(app, employeeToken);
 
     const res = await request(app)
       .post(`/api/v1/time-entries/${entry.body.entry.id}/reject`)
@@ -197,8 +197,8 @@ describe("Pointage — visibilité et validation", () => {
     const hrToken = await loginAs(hr);
     const employeeToken = await loginAs(employee);
 
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${employeeToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${employeeToken}`);
+    const entry = await clockInViaApi(app, employeeToken);
+    await clockOutViaApi(app, employeeToken);
 
     await request(app)
       .post(`/api/v1/time-entries/${entry.body.entry.id}/validate`)
@@ -218,7 +218,7 @@ describe("Consultation d'un pointage précis (GET /time-entries/:id)", () => {
   it("un employé peut consulter son propre pointage", async () => {
     const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-get1@deepclean.test" });
     const token = await loginAs(employee);
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${token}`);
+    const entry = await clockInViaApi(app, token);
 
     const res = await request(app)
       .get(`/api/v1/time-entries/${entry.body.entry.id}`)
@@ -232,7 +232,7 @@ describe("Consultation d'un pointage précis (GET /time-entries/:id)", () => {
     const employeeB = await createTestUser({ role: Role.EMPLOYEE, email: "emp-get3@deepclean.test" });
     const tokenA = await loginAs(employeeA);
     const tokenB = await loginAs(employeeB);
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${tokenA}`);
+    const entry = await clockInViaApi(app, tokenA);
 
     const res = await request(app)
       .get(`/api/v1/time-entries/${entry.body.entry.id}`)
@@ -245,7 +245,7 @@ describe("Consultation d'un pointage précis (GET /time-entries/:id)", () => {
     const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-get4@deepclean.test" });
     const supervisorToken = await loginAs(supervisor);
     const employeeToken = await loginAs(employee);
-    const entry = await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${employeeToken}`);
+    const entry = await clockInViaApi(app, employeeToken);
 
     const res = await request(app)
       .get(`/api/v1/time-entries/${entry.body.entry.id}`)
@@ -342,7 +342,7 @@ describe("Portée du filtre ?userId= — jamais un contournement de la restricti
     const managerToken = await loginAs(manager);
     const outsiderToken = await loginAs(outsider);
 
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${outsiderToken}`);
+    await clockInViaApi(app, outsiderToken);
 
     const res = await request(app)
       .get(`/api/v1/time-entries?userId=${outsider.id}`)
@@ -360,7 +360,7 @@ describe("Portée du filtre ?userId= — jamais un contournement de la restricti
     const managerToken = await loginAs(manager);
     const teamToken = await loginAs(teamMember);
 
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${teamToken}`);
+    await clockInViaApi(app, teamToken);
 
     const res = await request(app)
       .get(`/api/v1/time-entries?userId=${teamMember.id}`)
@@ -378,8 +378,8 @@ describe("Export CSV des pointages (dossier RH pour la paie)", () => {
     const hrToken = await loginAs(hr);
     const employeeToken = await loginAs(employee);
 
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${employeeToken}`);
-    await request(app).post("/api/v1/time-entries/clock-out").set("Authorization", `Bearer ${employeeToken}`);
+    await clockInViaApi(app, employeeToken);
+    await clockOutViaApi(app, employeeToken);
 
     const res = await request(app)
       .get(`/api/v1/time-entries/export?userId=${employee.id}`)
@@ -400,7 +400,7 @@ describe("Export CSV des pointages (dossier RH pour la paie)", () => {
     const tokenA = await loginAs(employeeA);
     const tokenB = await loginAs(employeeB);
 
-    await request(app).post("/api/v1/time-entries/clock-in").set("Authorization", `Bearer ${tokenB}`);
+    await clockInViaApi(app, tokenB);
 
     const res = await request(app)
       .get(`/api/v1/time-entries/export?userId=${employeeB.id}`)

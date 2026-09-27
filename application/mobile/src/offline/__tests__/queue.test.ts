@@ -11,8 +11,8 @@ describe("offline queue", () => {
   });
 
   it("ajoute une action avec un id unique et zéro tentative", async () => {
-    const action = await enqueueAction("CLOCK_IN", {});
-    expect(action.type).toBe("CLOCK_IN");
+    const action = await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "test" });
+    expect(action.type).toBe("REPORT_PROBLEM");
     expect(action.attempts).toBe(0);
     expect(action.id).toBeTruthy();
 
@@ -22,22 +22,21 @@ describe("offline queue", () => {
   });
 
   it("conserve l'ordre d'ajout (FIFO)", async () => {
-    await enqueueAction("CLOCK_IN", {});
-    await enqueueAction("CLOCK_OUT", {});
+    await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "premier" });
+    await enqueueAction("REPORT_PROBLEM", { missionId: "m2", type: "ISSUE", description: "second" });
     const queue = await getQueue();
-    expect(queue.map((a) => a.type)).toEqual(["CLOCK_IN", "CLOCK_OUT"]);
+    expect(queue.map((a) => (a.payload as { description: string }).description)).toEqual(["premier", "second"]);
   });
 
   it("détecte une action en attente d'un type donné", async () => {
     expect(await hasPendingActionOfType("REPORT_PROBLEM")).toBe(false);
     await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "test" });
     expect(await hasPendingActionOfType("REPORT_PROBLEM")).toBe(true);
-    expect(await hasPendingActionOfType("CLOCK_IN")).toBe(false);
   });
 
   it("retire une action précise sans toucher aux autres", async () => {
-    const a = await enqueueAction("CLOCK_IN", {});
-    const b = await enqueueAction("CLOCK_OUT", {});
+    const a = await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "premier" });
+    const b = await enqueueAction("REPORT_PROBLEM", { missionId: "m2", type: "ISSUE", description: "second" });
     await removeFromQueue(a.id);
     const queue = await getQueue();
     expect(queue).toHaveLength(1);
@@ -45,7 +44,7 @@ describe("offline queue", () => {
   });
 
   it("incrémente les tentatives d'une action précise", async () => {
-    const a = await enqueueAction("CLOCK_IN", {});
+    const a = await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "test" });
     await bumpAttempts(a.id);
     await bumpAttempts(a.id);
     const queue = await getQueue();
@@ -53,8 +52,8 @@ describe("offline queue", () => {
   });
 
   it("vide entièrement la file", async () => {
-    await enqueueAction("CLOCK_IN", {});
-    await enqueueAction("CLOCK_OUT", {});
+    await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "premier" });
+    await enqueueAction("REPORT_PROBLEM", { missionId: "m2", type: "ISSUE", description: "second" });
     await clearQueue();
     expect(await getQueue()).toEqual([]);
   });

@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Linking, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
+import { PressableScale } from "../../components/PressableScale";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { useTheme } from "../../theme/ThemeProvider";
-import { getTimeEntry } from "../../api/timesheets.api";
+import { getTimeEntry, clockInPhotoUrl, clockOutPhotoUrl } from "../../api/timesheets.api";
 import type { TimeEntry } from "../../api/timesheets.api";
 import { formatDuration } from "../../utils/duration";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
@@ -26,6 +28,47 @@ function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap;
         <Text style={[type.footnote, { color: colors.inkTertiary }]}>{label}</Text>
         <Text style={[type.callout, { color: colors.ink, marginTop: 1 }]}>{value}</Text>
       </View>
+    </View>
+  );
+}
+
+// Justificatif anti-fraude (photo + position GPS pris au moment du pointage) —
+// affiché uniquement quand ces informations existent, pour rester compatible
+// avec les pointages saisis avant l'introduction de cette fonctionnalité.
+function ProofSection({
+  title,
+  photoUrl,
+  latitude,
+  longitude,
+  accuracy,
+}: {
+  title: string;
+  photoUrl: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy?: number | null;
+}) {
+  const { colors, spacing, type, radius } = useTheme();
+  const hasPosition = latitude != null && longitude != null;
+
+  return (
+    <View style={{ marginTop: spacing.md }}>
+      <Text style={[type.footnote, { color: colors.inkTertiary }]}>{title}</Text>
+      <AuthenticatedImage
+        uri={photoUrl}
+        style={{ width: "100%", height: 200, marginTop: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceAlt }}
+      />
+      {hasPosition && (
+        <PressableScale
+          onPress={() => Linking.openURL(`https://www.google.com/maps?q=${latitude},${longitude}`)}
+          style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}
+        >
+          <Ionicons name="location-outline" size={16} color={colors.accent} />
+          <Text style={[type.callout, { color: colors.accent, marginLeft: spacing.xs }]}>
+            Voir sur la carte{accuracy != null ? ` (précision ${Math.round(accuracy)} m)` : ""}
+          </Text>
+        </PressableScale>
+      )}
     </View>
   );
 }
@@ -113,6 +156,30 @@ export function TimeEntryDetailScreen() {
             <InfoRow icon="paper-plane-outline" label="Transmission" value="Heures transmises à la RH." />
           )}
         </Card>
+
+        {(entry.hasClockInPhoto || entry.hasClockOutPhoto) && (
+          <Card style={{ marginTop: spacing.md }}>
+            <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>Justificatif de pointage</Text>
+            {entry.hasClockInPhoto && (
+              <ProofSection
+                title="Prise à l'arrivée"
+                photoUrl={clockInPhotoUrl(entry.id)}
+                latitude={entry.clockInLatitude}
+                longitude={entry.clockInLongitude}
+                accuracy={entry.clockInAccuracy}
+              />
+            )}
+            {entry.hasClockOutPhoto && (
+              <ProofSection
+                title="Prise au départ"
+                photoUrl={clockOutPhotoUrl(entry.id)}
+                latitude={entry.clockOutLatitude}
+                longitude={entry.clockOutLongitude}
+                accuracy={entry.clockOutAccuracy}
+              />
+            )}
+          </Card>
+        )}
       </View>
     </ScreenContainer>
   );

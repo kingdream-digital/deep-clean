@@ -1,4 +1,7 @@
 import { Role } from "@prisma/client";
+import type { Express } from "express";
+import request from "supertest";
+import sharp from "sharp";
 import { prisma } from "../src/db/prisma";
 import { hashPassword } from "../src/utils/password";
 
@@ -44,6 +47,39 @@ export async function createTestUser(
       passwordHash,
     },
   });
+}
+
+// Pointage (clock-in/clock-out) exige désormais une photo + une position
+// (justificatif anti-fraude, voir timesheets.routes.ts) — générée à la volée
+// avec `sharp` (déjà une dépendance de production, storage.ts) plutôt qu'un
+// base64 codé en dur : évite tout risque de fixture corrompue que
+// `sharp()` rejetterait côté serveur (storage.ts::storeImage revérifie les
+// octets réels du fichier, pas seulement le Content-Type déclaré).
+async function tinyTestPhoto(): Promise<Buffer> {
+  return sharp({ create: { width: 2, height: 2, channels: 3, background: { r: 10, g: 20, b: 30 } } })
+    .jpeg()
+    .toBuffer();
+}
+
+// Noms distincts de "clockIn"/"clockOut" tout court : plusieurs tests de
+// pointage différé déclarent déjà des variables locales `const clockIn = ...`
+// / `const clockOut = ...` (des dates, pas des appels API) — éviter toute confusion.
+export async function clockInViaApi(app: Express, token: string) {
+  return request(app)
+    .post("/api/v1/time-entries/clock-in")
+    .set("Authorization", `Bearer ${token}`)
+    .field("latitude", "48.8566")
+    .field("longitude", "2.3522")
+    .attach("photo", await tinyTestPhoto(), { filename: "proof.jpg", contentType: "image/jpeg" });
+}
+
+export async function clockOutViaApi(app: Express, token: string) {
+  return request(app)
+    .post("/api/v1/time-entries/clock-out")
+    .set("Authorization", `Bearer ${token}`)
+    .field("latitude", "48.8566")
+    .field("longitude", "2.3522")
+    .attach("photo", await tinyTestPhoto(), { filename: "proof.jpg", contentType: "image/jpeg" });
 }
 
 export async function createTestSite(overrides: Partial<{ name: string; managerId: string | null }> = {}) {

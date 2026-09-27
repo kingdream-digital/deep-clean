@@ -3,13 +3,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // File d'attente d'actions hors ligne (§18 du cahier des charges : "les
 // actions réalisées hors connexion pourront être synchronisées lorsque la
 // connexion revient"). Volontairement limitée aux actions au payload simple
-// et sans fichier binaire (pointage, signalement texte) — une action avec
+// et sans fichier binaire (signalement texte, sans photo) — une action avec
 // photo resterait bloquante hors ligne (voir ReportProblemScreen), stocker
 // des fichiers en attente de synchronisation est un chantier à part, non
-// couvert ici.
+// couvert ici. Le pointage (CLOCK_IN/CLOCK_OUT) exige désormais toujours une
+// photo (justificatif anti-fraude, retour explicite du client) : il a rejoint
+// cette catégorie et n'est donc plus mis en file hors ligne (voir
+// useClockStatus.ts), retiré de cette liste de types.
 const QUEUE_KEY = "deepclean.offlineQueue.v1";
 
-export type OfflineActionType = "CLOCK_IN" | "CLOCK_OUT" | "REPORT_PROBLEM";
+export type OfflineActionType = "REPORT_PROBLEM";
 
 export interface OfflineAction<TPayload = unknown> {
   id: string;

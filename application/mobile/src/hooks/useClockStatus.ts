@@ -1,11 +1,77 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import NetInfo from "@react-native-community/netinfo";
+import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import { useSharedValue, withSpring } from "react-native-reanimated";
 import { clockIn, clockOut, getMyTimesheetStatus } from "../api/timesheets.api";
-import type { TimeEntry } from "../api/timesheets.api";
+import type { ClockPhotoAsset, ClockPosition, TimeEntry } from "../api/timesheets.api";
 import { extractErrorMessage } from "../api/client";
-import { enqueueAction, getQueue } from "../offline/queue";
+import { pickWebImages } from "../utils/webImagePicker";
+
+// Le pointage exige toujours une position GPS + une photo prise sur l'instant
+// (justificatif anti-fraude, retour explicite du client — voir
+// docs/DEPLOYMENT.md pour le contexte). `CaptureAborted` distingue une
+// annulation volontaire de l'utilisateur (ferme la caméra, refuse la
+// localisation) d'une vraie erreur réseau : dans les deux cas on abandonne
+// l'action sans toucher au serveur, mais seule la vraie erreur doit
+// s'afficher comme un message d'échec.
+class CaptureAborted extends Error {}
+
+const LOCATION_TIMEOUT_MS = 8000;
+
+async function capturePosition(): Promise<ClockPosition> {
+  const permission = await Location.requestForegroundPermissionsAsync();
+  if (permission.status !== "granted") {
+    throw new Error("Localisation refusée : autorisez l'accès à votre position dans les réglages pour pointer.");
+  }
+
+  // Une position fraîche peut prendre du temps à l'intérieur d'un bâtiment
+  // (signal GPS faible) — on retombe sur la dernière position connue plutôt
+  // que de bloquer indéfiniment le pointage, tout en gardant une vraie
+  // position (jamais une valeur inventée) : soit l'une, soit l'autre, jamais
+  // aucune.
+  const fresh = new Promise<Location.LocationObject>((resolve, reject) => {
+    Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then(resolve, reject);
+  });
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS));
+
+  let position = await Promise.race([fresh, timeout]);
+  if (!position) {
+    position = await Location.getLastKnownPositionAsync();
+  }
+  if (!position) {
+    throw new Error("Position GPS indisponible pour le moment. Réessayez dans un instant, idéalement à l'extérieur.");
+  }
+
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    accuracy: position.coords.accuracy ?? undefined,
+  };
+}
+
+// Toujours l'appareil photo, jamais la galerie : une photo choisie dans la
+// pellicule pourrait dater de n'importe quand, ce qui viderait le
+// justificatif de tout son sens anti-fraude.
+async function capturePhoto(): Promise<ClockPhotoAsset> {
+  if (Platform.OS === "web") {
+    // Même contournement que ReportProblemScreen (voir utils/webImagePicker.ts).
+    const [file] = await pickWebImages({ multiple: false, capture: true });
+    if (!file) throw new CaptureAborted();
+    return { uri: file.uri, fileName: file.fileName, mimeType: file.mimeType, file: file.file };
+  }
+
+  const permission = await ImagePicker.requestCameraPermissionsAsync();
+  if (!permission.granted) {
+    throw new Error("Accès à l'appareil photo refusé : autorisez-le dans les réglages pour pointer.");
+  }
+  const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 });
+  if (result.canceled || !result.assets[0]) throw new CaptureAborted();
+  const asset = result.assets[0];
+  return { uri: asset.uri, fileName: asset.fileName, mimeType: asset.mimeType };
+}
 
 export function elapsedMinutes(clockInAt: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(clockInAt).getTime()) / 60000));
@@ -30,7 +96,11 @@ export function useClockStatus() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<{ type: "CLOCK_IN" | "CLOCK_OUT"; at: string } | null>(null);
+  // Toujours null désormais : le pointage exige une photo (voir plus haut),
+  // donc il ne peut plus jamais être mis en file hors ligne — gardé dans la
+  // forme retournue pour ne pas devoir toucher TimesheetWidget/TimesheetScreen,
+  // qui l'affichent déjà correctement (jamais "en attente de synchronisation").
+  const pendingAction: { type: "CLOCK_IN" | "CLOCK_OUT"; at: string } | null = null;
   const [showSuccess, setShowSuccess] = useState(false);
   const successScale = useSharedValue(0.7);
   const successTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,11 +113,6 @@ export function useClockStatus() {
     } catch {
       setState("error");
     }
-    const queue = await getQueue();
-    const lastTimesheetAction = [...queue].reverse().find((a) => a.type === "CLOCK_IN" || a.type === "CLOCK_OUT");
-    setPendingAction(
-      lastTimesheetAction ? { type: lastTimesheetAction.type as "CLOCK_IN" | "CLOCK_OUT", at: lastTimesheetAction.createdAt } : null
-    );
   }, []);
 
   useFocusEffect(
@@ -62,8 +127,8 @@ export function useClockStatus() {
     };
   }, []);
 
-  const effectiveClockedIn = pendingAction ? pendingAction.type === "CLOCK_IN" : !!openEntry;
-  const effectiveClockInTime = pendingAction?.type === "CLOCK_IN" ? pendingAction.at : openEntry?.clockIn;
+  const effectiveClockedIn = !!openEntry;
+  const effectiveClockInTime = openEntry?.clockIn;
 
   // Rafraîchit l'anneau et le temps écoulé pendant que le pointage est en
   // cours, sans quoi ils resteraient figés jusqu'au prochain re-rendu
@@ -82,15 +147,17 @@ export function useClockStatus() {
     try {
       const net = await NetInfo.fetch();
       if (!net.isConnected || net.isInternetReachable === false) {
-        const type = wasClockingOut ? "CLOCK_OUT" : "CLOCK_IN";
-        await enqueueAction(type, {});
-        setPendingAction({ type, at: new Date().toISOString() });
-        setActing(false);
-        return;
+        // Une photo est un fichier binaire, jamais mis en file hors ligne
+        // (même règle que ReportProblemScreen) : contrairement à avant, il
+        // n'y a plus de pointage "en attente de synchronisation" possible.
+        throw new Error("Vous êtes hors connexion : le pointage nécessite une vraie connexion pour envoyer la photo justificative. Réessayez dès que possible.");
       }
-      const entry = wasClockingOut ? await clockOut() : await clockIn();
+
+      const position = await capturePosition();
+      const photo = await capturePhoto();
+
+      const entry = wasClockingOut ? await clockOut(position, photo) : await clockIn(position, photo);
       setOpenEntry(entry.clockOut ? null : entry);
-      setPendingAction(null);
       if (wasClockingOut) {
         onClockOutSuccess?.();
         if (successTimeout.current) clearTimeout(successTimeout.current);
@@ -100,7 +167,9 @@ export function useClockStatus() {
         successTimeout.current = setTimeout(() => setShowSuccess(false), 2800);
       }
     } catch (err) {
-      setError(extractErrorMessage(err, "Action impossible."));
+      if (!(err instanceof CaptureAborted)) {
+        setError(extractErrorMessage(err, "Action impossible."));
+      }
     } finally {
       setActing(false);
     }

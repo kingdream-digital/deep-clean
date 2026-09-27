@@ -392,6 +392,20 @@ model TimeEntry {
   validatedAt   DateTime?
   comment       String?
   isRetroactive Boolean         @default(false) // pointage saisi après coup (oubli), signalé pour le validateur
+  // Justificatif anti-fraude (retour explicite du client) : photo + position GPS
+  // capturées sur le terrain au moment même du pointage, jamais saisies après
+  // coup (absentes sur un pointage différé, `isRetroactive`, par construction —
+  // il n'y a alors personne sur place pour les capturer). `storageKey` suit le
+  // même principe que `Photo.storageKey` : jamais d'URL publique, toujours
+  // servi via une route authentifiée qui revérifie les permissions.
+  clockInLatitude   Float?
+  clockInLongitude  Float?
+  clockInAccuracy   Float? // précision GPS en mètres fournie par l'appareil, pour que le validateur juge la fiabilité du point
+  clockInPhotoKey   String?
+  clockOutLatitude  Float?
+  clockOutLongitude Float?
+  clockOutAccuracy  Float?
+  clockOutPhotoKey  String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 

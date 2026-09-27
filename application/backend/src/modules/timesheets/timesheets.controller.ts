@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
+import fs from "node:fs";
 import { asyncHandler } from "../../utils/asyncHandler";
+import { ApiError } from "../../utils/ApiError";
+import { resolveStoragePath } from "../../utils/storage";
 import * as timesheetsService from "./timesheets.service";
 import { exportTimeEntriesExcel, exportTimeEntriesPdf } from "./timesheets.export";
 
@@ -7,15 +10,52 @@ function actorOf(req: Request) {
   return { userId: req.auth!.userId, role: req.auth!.role };
 }
 
+// Le corps arrive en multipart (voir upload.middleware.ts::uploadPhoto), donc
+// déjà coercé en nombres par clockPositionSchema au moment où ce handler
+// s'exécute — req.body.accuracy peut cependant être absent (champ optionnel).
+function positionOf(req: Request): { latitude: number; longitude: number; accuracy?: number } {
+  return { latitude: req.body.latitude, longitude: req.body.longitude, accuracy: req.body.accuracy };
+}
+
+function requirePhoto(req: Request): Buffer {
+  if (!req.file) {
+    throw ApiError.badRequest(
+      'Une photo est requise pour pointer (champ attendu : "photo") — c\'est elle qui sert de justificatif.'
+    );
+  }
+  return req.file.buffer;
+}
+
 export const clockInHandler = asyncHandler(async (req: Request, res: Response) => {
-  const entry = await timesheetsService.clockIn(actorOf(req));
+  const entry = await timesheetsService.clockIn(actorOf(req), positionOf(req), requirePhoto(req));
   res.status(201).json({ entry });
 });
 
 export const clockOutHandler = asyncHandler(async (req: Request, res: Response) => {
-  const entry = await timesheetsService.clockOut(actorOf(req));
+  const entry = await timesheetsService.clockOut(actorOf(req), positionOf(req), requirePhoto(req));
   res.status(200).json({ entry });
 });
+
+async function streamTimeEntryPhoto(req: Request, res: Response, moment: "in" | "out"): Promise<void> {
+  const photo = await timesheetsService.getTimeEntryPhoto(actorOf(req), req.params.id as string, moment);
+  const filePath = resolveStoragePath(photo.storageKey);
+
+  if (!fs.existsSync(filePath)) {
+    throw ApiError.notFound("Photo introuvable.");
+  }
+
+  res.setHeader("Content-Type", photo.mimeType);
+  res.setHeader("Cache-Control", "private, max-age=86400");
+  const stream = fs.createReadStream(filePath);
+  stream.on("error", () => {
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
+  });
+  stream.pipe(res);
+}
+
+export const getClockInPhotoHandler = asyncHandler((req: Request, res: Response) => streamTimeEntryPhoto(req, res, "in"));
+export const getClockOutPhotoHandler = asyncHandler((req: Request, res: Response) => streamTimeEntryPhoto(req, res, "out"));
 
 export const retroactiveTimeEntryHandler = asyncHandler(async (req: Request, res: Response) => {
   const entry = await timesheetsService.createRetroactiveTimeEntry(actorOf(req), req.body);

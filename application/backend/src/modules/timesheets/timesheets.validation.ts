@@ -59,6 +59,18 @@ export const reconciliationDetailSchema = {
   }),
 };
 
+// Multipart (voir middleware/upload.middleware.ts::uploadPhoto) : latitude/
+// longitude/accuracy arrivent en tant que champs texte du formulaire, donc en
+// chaînes — coercition nécessaire. La photo elle-même (`req.file`) est
+// vérifiée séparément dans le contrôleur, comme pour les signalements.
+export const clockPositionSchema = {
+  body: z.object({
+    latitude: z.coerce.number().min(-90).max(90),
+    longitude: z.coerce.number().min(-180).max(180),
+    accuracy: z.coerce.number().nonnegative().optional(),
+  }),
+};
+
 export const retroactiveTimeEntrySchema = {
   body: z.object({
     clockIn: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)),

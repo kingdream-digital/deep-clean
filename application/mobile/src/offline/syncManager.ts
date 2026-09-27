@@ -1,7 +1,6 @@
 import NetInfo from "@react-native-community/netinfo";
 import { Alert } from "../utils/alert";
 import axios from "axios";
-import { clockIn, clockOut } from "../api/timesheets.api";
 import { createProblem, type CreateProblemInput } from "../api/problems.api";
 import { extractErrorMessage } from "../api/client";
 import { bumpAttempts, getQueue, removeFromQueue, type OfflineAction } from "./queue";
@@ -22,12 +21,6 @@ let syncing = false;
 async function processAction(action: OfflineAction): Promise<"done" | "retry" | "failed"> {
   try {
     switch (action.type) {
-      case "CLOCK_IN":
-        await clockIn();
-        return "done";
-      case "CLOCK_OUT":
-        await clockOut();
-        return "done";
       case "REPORT_PROBLEM":
         await createProblem(action.payload as CreateProblemInput);
         return "done";
@@ -46,10 +39,6 @@ async function processAction(action: OfflineAction): Promise<"done" | "retry" | 
 
 function describeAction(action: OfflineAction): string {
   switch (action.type) {
-    case "CLOCK_IN":
-      return "Votre pointage d'arrivée";
-    case "CLOCK_OUT":
-      return "Votre pointage de sortie";
     case "REPORT_PROBLEM":
       return "Votre signalement";
     default:
