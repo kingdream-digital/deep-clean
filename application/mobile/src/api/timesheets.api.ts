@@ -36,6 +36,19 @@ export interface TimeEntry {
   clockOutLongitude: number | null;
   clockOutAccuracy: number | null;
   hasClockOutPhoto: boolean;
+  // Chantier/mission auquel ce pointage correspond le mieux (recoupement
+  // horaire, voir timesheets.service.ts::attachMatchedMissions) — absent
+  // (null) tant que le pointage n'est pas clôturé, ou si aucune mission ne
+  // recoupe la période pointée. Permet de comparer l'heure PRÉVUE (ce champ)
+  // à l'heure POINTÉE (clockIn/clockOut) juste à côté du justificatif photo.
+  matchedMission: {
+    id: string;
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    site: { name: string };
+  } | null;
 }
 
 export interface ClockPosition {

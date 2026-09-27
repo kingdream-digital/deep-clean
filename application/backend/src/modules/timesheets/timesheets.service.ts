@@ -353,7 +353,8 @@ export async function listTimeEntries(actor: Actor, filters: ListFilters & { pag
   ]);
 
   const withOvertime = await attachOvertimeInfo(items);
-  return { items: withOvertime.map(presentEntry), total, page: filters.page, pageSize: filters.pageSize };
+  const withMission = await attachMatchedMissions(withOvertime);
+  return { items: withMission.map(presentEntry), total, page: filters.page, pageSize: filters.pageSize };
 }
 
 // Au-delà de cette marge, un pointage validé plus long que les missions
@@ -405,6 +406,99 @@ async function attachOvertimeInfo<T extends OvertimeSource>(entries: T[]): Promi
     const workedMinutes = (e.clockOut.getTime() - e.clockIn.getTime()) / 60000;
     const gap = Math.round(workedMinutes - scheduledMinutes);
     return { ...e, overtimeMinutes: gap > OVERTIME_TOLERANCE_MINUTES ? gap : null };
+  });
+}
+
+export interface MatchedMissionInfo {
+  id: string;
+  title: string;
+  date: Date;
+  startTime: Date;
+  endTime: Date;
+  site: { name: string };
+}
+
+type MissionMatchSource = { id: string; userId: string; clockIn: Date; clockOut: Date | null };
+
+function matchOverlapMinutes(entry: MissionMatchSource, mission: { startTime: Date; endTime: Date }): number {
+  const entryEnd = entry.clockOut ?? new Date();
+  const start = Math.max(entry.clockIn.getTime(), mission.startTime.getTime());
+  const end = Math.min(entryEnd.getTime(), mission.endTime.getTime());
+  return Math.max(0, end - start) / 60000;
+}
+
+function matchDistanceMinutes(entry: MissionMatchSource, mission: { startTime: Date; endTime: Date }): number {
+  const entryEnd = entry.clockOut ?? new Date();
+  if (entryEnd.getTime() < mission.startTime.getTime()) return (mission.startTime.getTime() - entryEnd.getTime()) / 60000;
+  if (entry.clockIn.getTime() > mission.endTime.getTime()) return (entry.clockIn.getTime() - mission.endTime.getTime()) / 60000;
+  return 0;
+}
+
+// Rattache à chaque pointage clôturé le chantier/la mission à laquelle il
+// correspond le mieux — même heuristique de recoupement horaire que le
+// rapprochement RH (`getReconciliationDetail` : recouvrement réel maximal,
+// puis distance minimale à défaut de recouvrement), pour que le justificatif
+// (photo + position) affiché à la RH/au superviseur/à la direction montre
+// aussi, à côté de l'heure pointée, l'heure PRÉVUE pour ce chantier — retour
+// explicite du client, pour repérer un abus (ex. prévu 8h-9h, pointé 8h-11h).
+// Volontairement non exclusif entre pointages voisins (contrairement au
+// rapprochement) : ici chaque pointage est affiché indépendamment, il n'y a
+// pas de total agrégé à protéger d'un double comptage.
+async function attachMatchedMissions<T extends MissionMatchSource>(
+  entries: T[]
+): Promise<(T & { matchedMission: MatchedMissionInfo | null })[]> {
+  const closed = entries.filter((e) => e.clockOut !== null);
+  if (closed.length === 0) {
+    return entries.map((e) => ({ ...e, matchedMission: null }));
+  }
+
+  const userIds = Array.from(new Set(closed.map((e) => e.userId)));
+  const minClockIn = new Date(Math.min(...closed.map((e) => e.clockIn.getTime())) - MISSION_TIME_ENTRY_BUFFER_MS);
+  const maxClockOut = new Date(Math.max(...closed.map((e) => e.clockOut!.getTime())) + MISSION_TIME_ENTRY_BUFFER_MS);
+
+  const missions = await prisma.mission.findMany({
+    where: {
+      status: { not: MissionStatus.CANCELLED },
+      startTime: { lte: maxClockOut },
+      endTime: { gte: minClockIn },
+      assignments: { some: { userId: { in: userIds } } },
+    },
+    select: {
+      id: true,
+      title: true,
+      date: true,
+      startTime: true,
+      endTime: true,
+      site: { select: { name: true } },
+      assignments: { select: { userId: true } },
+    },
+  });
+
+  return entries.map((e) => {
+    if (e.clockOut === null) return { ...e, matchedMission: null };
+
+    const windowStart = new Date(e.clockIn.getTime() - MISSION_TIME_ENTRY_BUFFER_MS);
+    const windowEnd = new Date(e.clockOut.getTime() + MISSION_TIME_ENTRY_BUFFER_MS);
+    const candidates = missions.filter(
+      (m) => m.assignments.some((a) => a.userId === e.userId) && m.startTime < windowEnd && m.endTime > windowStart
+    );
+    if (candidates.length === 0) return { ...e, matchedMission: null };
+
+    let best = candidates[0]!;
+    let bestOverlap = matchOverlapMinutes(e, best);
+    let bestDistance = matchDistanceMinutes(e, best);
+    for (const candidate of candidates.slice(1)) {
+      const overlap = matchOverlapMinutes(e, candidate);
+      const distance = matchDistanceMinutes(e, candidate);
+      if (overlap > bestOverlap || (overlap === bestOverlap && distance < bestDistance)) {
+        best = candidate;
+        bestOverlap = overlap;
+        bestDistance = distance;
+      }
+    }
+
+    const { assignments, ...missionInfo } = best;
+    return { ...e, matchedMission: missionInfo };
   });
 }
 
@@ -503,7 +597,8 @@ export async function getTimeEntryById(actor: Actor, id: string) {
   if (!(await assertCanViewEntry(actor, entry))) throw ApiError.notFound("Pointage introuvable.");
 
   const [withOvertime] = await attachOvertimeInfo([entry]);
-  return presentEntry(withOvertime!);
+  const [withMission] = await attachMatchedMissions([withOvertime!]);
+  return presentEntry(withMission!);
 }
 
 // Sert le justificatif photo d'un pointage (arrivée ou sortie) — jamais d'URL
@@ -574,7 +669,8 @@ export async function validateTimeEntry(actor: Actor, id: string, comment?: stri
   // listTimeEntries/getTimeEntryById) : le badge "heures supp." n'apparaissait
   // qu'après avoir quitté puis rouvert l'écran de validation.
   const [withOvertime] = await attachOvertimeInfo([updated]);
-  return presentEntry(withOvertime!);
+  const [withMission] = await attachMatchedMissions([withOvertime!]);
+  return presentEntry(withMission!);
 }
 
 export async function rejectTimeEntry(actor: Actor, id: string, comment: string) {
@@ -614,7 +710,8 @@ export async function rejectTimeEntry(actor: Actor, id: string, comment: string)
   // client porte `overtimeMinutes` (jamais absent), même si un pointage
   // refusé vaudra toujours `null` ici (voir `attachOvertimeInfo`).
   const [withOvertime] = await attachOvertimeInfo([updated]);
-  return presentEntry(withOvertime!);
+  const [withMission] = await attachMatchedMissions([withOvertime!]);
+  return presentEntry(withMission!);
 }
 
 // --- Rapprochement pointage <-> mission (menu RH "qui a un écart à examiner") ---

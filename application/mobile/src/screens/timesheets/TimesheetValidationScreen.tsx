@@ -100,9 +100,17 @@ export function TimesheetValidationScreen() {
       key: "hours",
       label: "Horaire",
       render: (item) => (
-        <Text style={[type.footnote, { color: colors.inkSecondary }]}>
-          {timeFmt.format(new Date(item.clockIn))} – {item.clockOut ? timeFmt.format(new Date(item.clockOut)) : "en cours"}
-        </Text>
+        <View>
+          <Text style={[type.footnote, { color: colors.inkSecondary }]}>
+            {timeFmt.format(new Date(item.clockIn))} – {item.clockOut ? timeFmt.format(new Date(item.clockOut)) : "en cours"}
+          </Text>
+          {item.matchedMission && (
+            <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]}>
+              Prévu {timeFmt.format(new Date(item.matchedMission.startTime))}–
+              {timeFmt.format(new Date(item.matchedMission.endTime))} · {item.matchedMission.site.name}
+            </Text>
+          )}
+        </View>
       ),
     },
     {
@@ -205,6 +213,15 @@ export function TimesheetValidationScreen() {
                         {formatDuration(item.clockIn, item.clockOut)})
                       </Text>
                     </View>
+                    {item.matchedMission && (
+                      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
+                        <Ionicons name="business-outline" size={12} color={colors.inkTertiary} />
+                        <Text style={[type.caption, { color: colors.inkTertiary, marginLeft: 3 }]}>
+                          Prévu {timeFmt.format(new Date(item.matchedMission.startTime))}–
+                          {timeFmt.format(new Date(item.matchedMission.endTime))} sur {item.matchedMission.site.name}
+                        </Text>
+                      </View>
+                    )}
                     {item.isRetroactive && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="time-outline" size={12} color={colors.purple} />

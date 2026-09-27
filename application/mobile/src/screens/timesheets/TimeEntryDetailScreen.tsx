@@ -132,6 +132,18 @@ export function TimeEntryDetailScreen() {
               entry.clockOut ? timeFmt.format(new Date(entry.clockOut)) : "en cours"
             } (${formatDuration(entry.clockIn, entry.clockOut)})`}
           />
+          {entry.matchedMission && (
+            <>
+              <InfoRow icon="business-outline" label="Chantier" value={entry.matchedMission.site.name} />
+              <InfoRow
+                icon="calendar-clear-outline"
+                label="Horaire prévu pour cette mission"
+                value={`${timeFmt.format(new Date(entry.matchedMission.startTime))} – ${timeFmt.format(
+                  new Date(entry.matchedMission.endTime)
+                )}`}
+              />
+            </>
+          )}
           {entry.isRetroactive && (
             <InfoRow icon="alert-circle-outline" label="Type" value="Pointage différé (saisi après coup)" />
           )}
