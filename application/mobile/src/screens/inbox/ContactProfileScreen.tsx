@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Linking, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation, useRoute, RouteProp, NavigationProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -11,7 +10,7 @@ import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
 import { getContact } from "../../api/messages.api";
 import type { Contact } from "../../api/messages.api";
-import type { InboxStackParamList } from "../../navigation/InboxStack";
+import type { AppTabsParamList } from "../../navigation/appTabsShared";
 
 type Route = RouteProp<{ ContactProfile: { userId: string } }, "ContactProfile">;
 
@@ -30,7 +29,7 @@ const ROLE_LABELS: Record<Contact["role"], string> = {
 export function ContactProfileScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const route = useRoute<Route>();
-  const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList>>();
+  const navigation = useNavigation<NavigationProp<AppTabsParamList>>();
   const { userId } = route.params;
 
   const [contact, setContact] = useState<Contact | null>(null);
@@ -111,7 +110,19 @@ export function ContactProfileScreen() {
         <Button
           label="Envoyer un message"
           icon="chatbubble-outline"
-          onPress={() => navigation.navigate("ConversationThread", { userId })}
+          onPress={() =>
+            // Cet écran est monté dans plusieurs stacks (Accueil, Planning,
+            // Missions, Menu, Messagerie) — "ConversationThread" n'existe que
+            // dans le stack Messagerie. Naviguer directement vers son nom ne
+            // fonctionne donc que depuis ce stack-là ; partout ailleurs,
+            // React Navigation ne trouve l'écran dans aucun navigateur
+            // ancêtre et l'action est silencieusement ignorée (bug constaté :
+            // le bouton "Envoyer un message" ne faisait rien depuis la fiche
+            // d'un contact ouverte via une mission). Passer par le nom de
+            // l'onglet fonctionne dans tous les cas, y compris depuis
+            // l'onglet Messagerie lui-même.
+            navigation.navigate("Messagerie", { screen: "ConversationThread", params: { userId } })
+          }
         />
       </View>
     </ScreenContainer>

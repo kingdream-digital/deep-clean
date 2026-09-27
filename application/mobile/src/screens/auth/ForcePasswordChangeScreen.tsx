@@ -11,7 +11,7 @@ export function ForcePasswordChangeScreen() {
   const { colors, spacing, type } = useTheme();
 
   return (
-    <ScreenContainer avoidKeyboard>
+    <ScreenContainer noHeader avoidKeyboard>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: "center", marginTop: spacing.xxl, marginBottom: spacing.xxl }}>
           <LogoMark size={48} />

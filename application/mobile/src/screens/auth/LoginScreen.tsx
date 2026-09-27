@@ -127,7 +127,7 @@ export function LoginScreen() {
   }
 
   return (
-    <ScreenContainer avoidKeyboard gradient style={styles.container}>
+    <ScreenContainer noHeader avoidKeyboard gradient style={styles.container}>
       <View>
         <View style={styles.brand}>
           <LogoHalo />

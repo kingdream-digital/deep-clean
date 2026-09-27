@@ -24,7 +24,7 @@ export function InboxHomeScreen() {
   const [segment, setSegment] = useState<Segment>("notifications");
 
   return (
-    <ScreenContainer>
+    <ScreenContainer noHeader>
       <View style={{ paddingTop: spacing.lg, paddingBottom: spacing.sm }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={[type.largeTitle, { color: colors.ink }]}>

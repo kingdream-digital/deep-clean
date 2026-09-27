@@ -12,6 +12,7 @@ import type { HomeStackParamList } from "./HomeStack";
 import type { PlanningStackParamList } from "./PlanningStack";
 import type { MissionsStackParamList } from "./MissionsStack";
 import type { MenuStackParamList } from "./MenuStack";
+import type { InboxStackParamList } from "./InboxStack";
 
 // "Gestion" (variable selon le rôle) et "Profil" ont fusionné en un seul
 // onglet "Menu", commun à tous les rôles (retour explicite du client,
@@ -21,7 +22,7 @@ export type AppTabsParamList = {
   Accueil: NavigatorScreenParams<HomeStackParamList> | undefined;
   Planning: NavigatorScreenParams<PlanningStackParamList> | undefined;
   Missions: NavigatorScreenParams<MissionsStackParamList> | undefined;
-  Messagerie: undefined;
+  Messagerie: NavigatorScreenParams<InboxStackParamList> | undefined;
   Menu: NavigatorScreenParams<MenuStackParamList> | undefined;
 };
 

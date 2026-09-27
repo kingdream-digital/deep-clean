@@ -114,7 +114,7 @@ export function HomeScreen() {
   const unread = useUnreadInboxCount();
 
   return (
-    <ScreenContainer style={{ paddingHorizontal: 0 }}>
+    <ScreenContainer noHeader style={{ paddingHorizontal: 0 }}>
       <ScrollView
         {...onboardingScrollProps}
         showsVerticalScrollIndicator={false}

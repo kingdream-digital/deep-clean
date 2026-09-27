@@ -20,6 +20,16 @@ interface ScreenContainerProps extends ViewProps {
   /** Fond en léger dégradé (écrans "hero" : connexion...) plutôt que plat. */
   gradient?: boolean;
   /**
+   * À réserver aux écrans qui n'ont PAS d'en-tête de navigation (connexion,
+   * changement de mot de passe forcé, accueil, écran d'accueil de la
+   * messagerie — ceux qui passent `headerShown: false` dans leur stack, ou
+   * qui sont rendus hors de tout `Stack.Navigator`). Dans tous les autres cas
+   * (immense majorité des écrans), le header natif couvre déjà la zone
+   * sécurisée du haut ; redemander cet espace ici le comptait deux fois et
+   * poussait tout le contenu plus bas que prévu.
+   */
+  noHeader?: boolean;
+  /**
    * Sur web large uniquement : désactive le plafond de largeur du contenu
    * (tableaux, tableaux de bord denses). Sans effet natif/mobile web.
    */
@@ -40,6 +50,7 @@ export function ScreenContainer({
   keyboardVerticalOffset = 12,
   gradient,
   fullBleed = false,
+  noHeader = false,
   ...rest
 }: ScreenContainerProps) {
   const { colors, spacing, isDark } = useTheme();
@@ -63,7 +74,7 @@ export function ScreenContainer({
   return (
     <SafeAreaView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      edges={["top", "bottom"]}
+      edges={noHeader ? ["top", "bottom"] : ["bottom"]}
     >
       {gradient && (
         <LinearGradient

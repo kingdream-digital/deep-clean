@@ -12,6 +12,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { getContact, getThread, markThreadRead, sendMessage } from "../../api/messages.api";
 import type { ChatMessage, Contact } from "../../api/messages.api";
 import { extractErrorMessage } from "../../api/client";
+import { Alert } from "../../utils/alert";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
 
 type Route = RouteProp<{ ConversationThread: { userId: string } }, "ConversationThread">;
@@ -83,7 +84,10 @@ export function ConversationThreadScreen() {
       setMessages((prev) => [...prev, sent]);
     } catch (err) {
       setDraft(body);
-      extractErrorMessage(err);
+      // Message précédemment ravalé en silence : le texte revenait dans le
+      // champ sans aucune explication, donnant l'impression que l'envoi ne
+      // faisait juste rien (bug remonté par un utilisateur).
+      Alert.alert("Message non envoyé", extractErrorMessage(err, "Réessayez dans un instant."));
     } finally {
       setSending(false);
     }
