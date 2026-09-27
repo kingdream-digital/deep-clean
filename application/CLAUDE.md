@@ -1,3 +1,12 @@
+# CONSIGNE DE COMMUNICATION — TOUJOURS EN FRANÇAIS
+
+Le client communique uniquement en français (souvent par téléphone, avec des
+fautes de frappe). Toute communication avec lui doit être en français,
+**y compris le raisonnement/réflexion interne affiché**, pas seulement les
+réponses finales. Ne jamais basculer en anglais dans les échanges avec lui.
+
+---
+
 # DEEP CLEAN — CRÉATION COMPLÈTE DE L'APPLICATION
 
 Tu vas créer **Deep Clean**, une véritable application mobile professionnelle destinée à une entreprise de nettoyage.
