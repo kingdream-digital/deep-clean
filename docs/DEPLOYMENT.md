@@ -1,0 +1,172 @@
+# Déploiement — VPS Oracle Cloud + Coolify
+
+Ce document décrit comment l'application Deep Clean est actuellement hébergée
+en ligne, et comment faire une mise à jour après une modification du code.
+Objectif : que n'importe qui (ou une future session Claude Code) puisse
+reprendre l'infrastructure sans tout redécouvrir.
+
+## 1. Infrastructure
+
+- **Serveur** : VPS Oracle Cloud (offre "Always Free"), Ubuntu 24.04 LTS,
+  architecture ARM64 (aarch64).
+- **IP publique** : `141.253.112.12`
+- **Accès SSH** : utilisateur `ubuntu`, authentification par clé privée
+  (fichier `.key.txt` téléchargé depuis la console Oracle Cloud à la création
+  de l'instance — conservé par le propriétaire du serveur).
+- **Panel de déploiement** : [Coolify](https://coolify.io) (open-source,
+  auto-hébergé), installé directement sur ce VPS.
+  - Dashboard : `http://141.253.112.12:8000`
+  - Accès au dashboard restreint par IP dans la Security List Oracle Cloud
+    (ports 8000/6001/6002) — voir §4 si l'IP change et que l'accès est perdu.
+
+## 2. Ce qui tourne sur Coolify
+
+Projet Coolify : **"My first project"**, environnement **"production"**.
+
+### Backend (API)
+
+- Application Coolify : `alive-alpaca-fmtokdqzbgwovcjd5frrhnvf`
+- Dépôt : `kingdream-digital/deep-clean`, branche `master`
+- Dossier de base : `application/backend`
+- Méthode de build : Railpack (détection automatique Node.js)
+- URL publique : `http://fmtokdqzbgwovcjd5frrhnvf.141.253.112.12.sslip.io`
+  (domaine `sslip.io` : résout automatiquement vers l'IP du serveur, pas de
+  nom de domaine payant nécessaire pour l'instant)
+- Base de données : PostgreSQL 16, ressource Coolify séparée dans le même
+  projet — connexion via `DATABASE_URL` (variable d'environnement du
+  backend, voir Coolify > backend > Environment Variables pour la valeur
+  réelle).
+- Variables d'environnement importantes (valeurs réelles uniquement dans
+  Coolify, jamais dans ce fichier) : `DATABASE_URL`, `JWT_ACCESS_SECRET`,
+  `JWT_REFRESH_SECRET`, `CORS_ORIGINS` (doit inclure l'URL du web, voir
+  ci-dessous), `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`.
+- Compte admin technique bootstrap : identifiant `atechnique` (généré par
+  `prisma/seed.ts`) — mot de passe changé à la première connexion, RH créée
+  depuis ce compte ensuite (voir README.md principal, section "Créer le
+  premier compte RH").
+
+### Web (interface RH/Direction dans le navigateur)
+
+- Application Coolify : `perfect-platypus-5su1qf8vcecqqpi5ob17sp7a`
+- Dépôt : `kingdream-digital/deep-clean`, branche `master`
+- Dossier de base : `application/mobile`
+- Type de site : **Static** (Railpack, serveur web `nginx:alpine`)
+- Build command : `npx expo export --platform web` → dossier `/dist`
+- URL publique : `http://5su1qf8vcecqqpi5ob17sp7a.141.253.112.12.sslip.io`
+- Variable clé : `EXPO_PUBLIC_API_URL` = URL du backend + `/api/v1`
+  (**doit être disponible "at Buildtime"**, pas seulement "Runtime" — Expo
+  intègre cette valeur dans le JS au moment du build, pas au lancement).
+
+### Authentification GitHub utilisée par Coolify
+
+L'organisation GitHub `kingdream-digital` a des policies (niveau Enterprise)
+qui bloquaient au départ les Deploy Keys et l'installation de GitHub Apps
+tierces sur l'organisation — un propriétaire de l'org a dû aller activer
+l'autorisation des Deploy Keys manuellement dans les réglages de
+l'organisation. Une fois autorisées, une clé SSH dédiée a été créée dans
+Coolify (**Keys & Tokens**, nommée automatiquement du type
+`obnoxious-ox-...`) et ajoutée comme Deploy Key (lecture seule) sur le dépôt
+GitHub (`Settings > Deploy keys`). Les deux applications Coolify
+(backend et web) utilisent cette même clé pour cloner le dépôt privé.
+
+## 3. Faire une mise à jour après une modification du code
+
+1. Le code est modifié et poussé sur `master` du dépôt
+   `kingdream-digital/deep-clean` (par une session Claude Code ou
+   directement).
+2. **Coolify ne redéploie pas automatiquement** (pas de webhook avec la
+   méthode "Deploy Key over SSH", contrairement à un vrai GitHub App ou à
+   Render). Pour chaque application concernée :
+   - Ouvrir l'application sur `http://141.253.112.12:8000`
+   - **Actions → Redeploy**
+   - Attendre le statut "Success" puis "Running"
+3. Si le changement touche le schéma de base de données (nouveau champ,
+   nouvelle table) : après le redéploiement du backend, ouvrir son
+   **Terminal** (menu de gauche) et lancer :
+   ```
+   npx prisma db push
+   ```
+4. Si `CORS_ORIGINS` doit changer (nouvelle URL web, nouveau domaine) :
+   Environment Variables du backend → éditer la variable → **attention à ne
+   coller QUE la valeur dans le champ Value, jamais `CORS_ORIGINS=` en plus**
+   (bug rencontré une fois, voir §5) → sauvegarder → Redeploy.
+
+## 4. Pare-feu / accès réseau
+
+Deux couches de pare-feu à tenir synchronisées :
+
+- **Sur le serveur** (`iptables`, règles persistées avec
+  `netfilter-persistent save`) : ports 22, 80, 443, 4000, 6001, 6002, 8000,
+  8081 ouverts.
+- **Console Oracle Cloud** (Security List du VNIC/Subnet de l'instance) :
+  - Ports **80, 443, 22** : ouverts à tous (`0.0.0.0/0`) — trafic web public.
+  - Ports **8000, 6001, 6002** (dashboard Coolify) : restreints à l'IP
+    publique du propriétaire (`<IP>/32`), pas à tout le monde — si cette IP
+    change (réseau différent, box qui redémarre), il faut mettre à jour
+    cette règle pour retrouver l'accès au dashboard. Vérifier son IP
+    actuelle sur https://whatismyip.com et remplacer la règle.
+  - Ports **4000, 8081** : ouverts à tous à l'origine (tests directs
+    avant la mise en place de Coolify) — plus nécessaires maintenant que
+    tout passe par 80/443 via le reverse proxy de Coolify ; à fermer quand
+    l'occasion se présente (amélioration sécurité, non urgente).
+
+## 5. Bugs rencontrés pendant la mise en place (pour ne pas les refaire)
+
+- **"Base directory" qui revient à `/`** : après avoir changé le "Build
+  strategy" ou d'autres réglages de la section "Build pipeline" dans
+  Coolify, le champ "Base directory" peut silencieusement revenir à `/` au
+  lieu de la valeur voulue (`application/backend` ou `application/mobile`).
+  Toujours revérifier ce champ juste avant de redéployer si le build échoue
+  de façon inattendue (conteneur qui tourne mais ne fait rien, ou erreur
+  "COPY ... not found").
+- **Commande de démarrage `/bin/bash` toute seule** : si "Base directory"
+  est resté sur `/`, Railpack ne trouve pas de `package.json` et génère un
+  conteneur qui ne fait qu'ouvrir un shell bash sans rien exécuter — boucle
+  de redémarrage silencieuse, sans aucun log (`docker logs` vide, code de
+  sortie 0). Vérifiable avec `docker inspect <id> --format '{{json
+  .Config.Cmd}}'` sur le serveur.
+- **`docker-buildx-plugin` manquant** : la première fois que Railpack essaie
+  de builder une image sur ce serveur, il peut manquer le plugin Docker
+  buildx. Installé une fois pour toutes via le dépôt officiel Docker (voir
+  historique de cette conversation ou réinstaller avec les commandes
+  standard `docker-buildx-plugin` sur Ubuntu/Debian).
+- **Variable d'environnement collée avec son propre nom en trop** : en
+  éditant `CORS_ORIGINS` dans l'interface Coolify, la valeur collée
+  contenait `CORS_ORIGINS=http://...` au lieu de juste `http://...` — la
+  variable finit par valoir littéralement la chaîne `CORS_ORIGINS=http://...`,
+  ce qui casse la comparaison d'origine côté serveur (CORS silencieusement
+  refusé pour la bonne URL, mais toujours accepté pour les anciennes valeurs
+  restées correctes). Toujours vérifier via le Terminal de l'app
+  (`env | grep NOM_VARIABLE`) si un comportement CORS/env semble
+  incohérent avec ce qui est affiché dans l'interface.
+- **Comptes de démo (`seedDemo.ts`/`seedSupervisor.ts`) sans `username`** :
+  ces scripts créaient des comptes sans le champ `username`, pourtant requis
+  et unique (c'est l'identifiant de connexion réel, jamais l'email) —
+  corrigé, voir commit "Corrige la création des comptes de démo".
+
+## 6. Prévisualisation mobile (Expo Go)
+
+Pour tester la version mobile (iOS/Android) sans passer par un vrai build
+EAS, un serveur Expo de développement tourne en permanence sur le VPS
+(dans une session `tmux` nommée `expo`, pour survivre à une déconnexion
+SSH) :
+
+```bash
+tmux attach -t expo      # rejoindre la session si elle existe déjà
+# ou, si elle n'existe pas / a été arrêtée :
+tmux new -s expo
+cd ~/deep-clean/application/mobile
+git pull                  # récupérer le dernier code avant de relancer
+npx expo start --tunnel
+```
+
+Nécessite d'être connecté au même compte Expo (`npx expo login`) que celui
+utilisé dans l'app **Expo Go** sur le téléphone de démo — le mode `--tunnel`
+n'autorise pas l'anonymat des deux côtés à la fois.
+
+Limites à connaître : c'est un serveur de développement, pas une vraie
+application installée — le VPS doit rester allumé et la session tmux
+active. Pour une version installée de façon autonome (surtout nécessaire
+pour iOS, qui interdit toute installation hors App Store/TestFlight sans
+compte Apple Developer à 99$/an), voir `application/README.md` section
+"Build de production" (EAS Build).
