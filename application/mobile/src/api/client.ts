@@ -82,5 +82,15 @@ export function extractErrorMessage(error: unknown, fallback = "Une erreur est s
     const data = error.response.data as { error?: { message?: string } } | undefined;
     return data?.error?.message ?? fallback;
   }
+  // Bug corrigé : une erreur "locale" (jamais envoyée au serveur — permission
+  // caméra/position refusée, hors ligne, GPS indisponible...) retombait
+  // toujours sur le message générique `fallback`, quel que soit le message
+  // explicite déjà rédigé pour l'utilisateur au moment où l'erreur est levée
+  // (voir hooks/useClockStatus.ts) — masquant la vraie raison de l'échec
+  // (constaté en conditions réelles : "Action impossible." au lieu de
+  // "Localisation refusée : autorisez l'accès...").
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
   return fallback;
 }
