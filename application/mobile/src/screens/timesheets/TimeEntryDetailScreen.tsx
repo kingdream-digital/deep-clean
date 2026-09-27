@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Linking, Text, View } from "react-native";
+import { Linking, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -142,7 +142,10 @@ export function TimeEntryDetailScreen() {
 
   return (
     <ScreenContainer>
-      <View style={{ paddingTop: spacing.lg }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxl }}
+      >
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={[type.title1, { color: colors.ink }]}>
             {entry.user.firstName} {entry.user.lastName}
@@ -223,7 +226,7 @@ export function TimeEntryDetailScreen() {
             )}
           </Card>
         )}
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
