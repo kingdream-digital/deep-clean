@@ -1,0 +1,391 @@
+<title>Mise à jour Deep Clean</title>
+<style>
+  :root {
+    --accent: #0E7490;
+    --accent-soft: rgba(14,116,144,0.10);
+    --bg: #F5F8F9;
+    --surface: #FFFFFF;
+    --surface-alt: #EEF3F4;
+    --ink: #12232A;
+    --ink-soft: #4B6169;
+    --ink-faint: #7C8E94;
+    --border: #DCE6E8;
+    --success: #16A34A;
+    --success-soft: rgba(22,163,74,0.10);
+    --warning: #D97706;
+    --code-bg: #0B1416;
+    --code-ink: #CFEFE8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0B0F;
+      --surface: #16191D;
+      --surface-alt: #1D2226;
+      --ink: #EAF2F3;
+      --ink-soft: #A9BABE;
+      --ink-faint: #74868B;
+      --border: #262C30;
+      --accent: #35B6CE;
+      --accent-soft: rgba(53,182,206,0.14);
+      --success: #34D399;
+      --success-soft: rgba(52,211,153,0.14);
+      --warning: #F0A835;
+      --code-bg: #05090A;
+      --code-ink: #B9F3E4;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B0B0F;
+    --surface: #16191D;
+    --surface-alt: #1D2226;
+    --ink: #EAF2F3;
+    --ink-soft: #A9BABE;
+    --ink-faint: #74868B;
+    --border: #262C30;
+    --accent: #35B6CE;
+    --accent-soft: rgba(53,182,206,0.14);
+    --success: #34D399;
+    --success-soft: rgba(52,211,153,0.14);
+    --warning: #F0A835;
+    --code-bg: #05090A;
+    --code-ink: #B9F3E4;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding-inline: 16px;
+    padding-block: 28px 56px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  header { margin-bottom: 28px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 8px;
+  }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 10px; text-wrap: balance; }
+  .lede { color: var(--ink-soft); font-size: 15px; line-height: 1.55; margin: 0; }
+
+  .whatsnew {
+    margin-top: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .whatsnew h2 {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 8px;
+  }
+  .whatsnew ul { margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 14px; line-height: 1.6; }
+  .whatsnew li { margin-bottom: 4px; }
+
+  .progress {
+    position: sticky; top: env(safe-area-inset-top, 0px);
+    margin: 22px 0 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--ink-soft);
+    z-index: 5;
+  }
+  .progress-track {
+    flex: 1; height: 6px; border-radius: 999px; background: var(--surface-alt); overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--accent); width: 0%;
+    transition: width 0.25s ease;
+  }
+  .progress-count { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); white-space: nowrap; }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 18px;
+    transition: opacity 0.2s ease, border-color 0.2s ease;
+  }
+  .step.done { border-color: var(--success); }
+  .step-head { display: flex; align-items: flex-start; gap: 14px; }
+  .step-num {
+    flex: none; width: 34px; height: 34px; border-radius: 10px;
+    background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums;
+  }
+  .step.done .step-num { background: var(--success-soft); color: var(--success); }
+  .step-title { font-size: 17px; font-weight: 650; margin: 0 0 4px; }
+  .step-where { font-size: 13px; color: var(--ink-faint); margin: 0; }
+
+  .step-body { margin-top: 14px; padding-left: 48px; }
+  .step-body p { color: var(--ink-soft); font-size: 14.5px; line-height: 1.6; margin: 0 0 12px; }
+  .step-body p:last-child { margin-bottom: 0; }
+
+  .mock {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-alt);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .mock-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--ink-faint);
+  }
+  .mock-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .mock-inner { padding: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .mock-label { font-size: 13.5px; color: var(--ink-soft); }
+  .mock-btn {
+    flex: none;
+    background: var(--accent); color: white; border-radius: 8px;
+    padding: 7px 14px; font-size: 13px; font-weight: 600;
+    position: relative;
+  }
+  .mock-btn::after {
+    content: ""; position: absolute; inset: -4px;
+    border: 2px solid var(--accent); border-radius: 12px; opacity: 0.5;
+    animation: pulse 1.8s ease-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .mock-btn::after { animation: none; } }
+  @keyframes pulse {
+    0% { transform: scale(0.94); opacity: 0.6; }
+    70% { transform: scale(1.06); opacity: 0; }
+    100% { opacity: 0; }
+  }
+  .mock-menu { display: flex; flex-direction: column; gap: 2px; }
+  .mock-menu-item { font-size: 12.5px; color: var(--ink-faint); padding: 3px 0; }
+  .mock-menu-item.active { color: var(--accent); font-weight: 600; }
+
+  .code {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 13.5px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+  }
+  .code code { white-space: nowrap; }
+  .copy-btn {
+    flex: none;
+    background: rgba(255,255,255,0.08);
+    color: var(--code-ink);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .copy-btn:active { transform: scale(0.96); }
+
+  .check-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .check-box {
+    flex: none; width: 22px; height: 22px; border-radius: 7px;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .step.done .check-box { background: var(--success); border-color: var(--success); }
+  .check-box svg { width: 13px; height: 13px; opacity: 0; transition: opacity 0.15s ease; }
+  .step.done .check-box svg { opacity: 1; }
+  .check-text { font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+  .step.done .check-text { color: var(--success); }
+
+  .finish {
+    margin-top: 8px;
+    background: var(--accent-soft);
+    border: 1px dashed var(--accent);
+    border-radius: 16px;
+    padding: 18px 20px;
+    text-align: center;
+  }
+  .finish[hidden] { display: none; }
+  .finish p { margin: 0; font-size: 15px; font-weight: 650; color: var(--accent); }
+  .finish span { display: block; margin-top: 4px; font-size: 13.5px; font-weight: 400; color: var(--ink-soft); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Deep Clean — Coolify</p>
+    <h1>Mettre en ligne les dernières modifications</h1>
+    <p class="lede">4 étapes, toujours les mêmes. Coche chaque case au fur et à mesure, ça t'aide à suivre où tu en es.</p>
+
+    <div class="whatsnew">
+      <h2>Ce qui a changé cette fois</h2>
+      <ul>
+        <li>Actualités : un exemple de message du directeur sur l'accueil</li>
+        <li>Pointage : photo + position GPS obligatoires, comparées au chantier</li>
+        <li>Chantier : l'adresse tapée donne automatiquement sa position</li>
+      </ul>
+    </div>
+  </header>
+
+  <div class="progress">
+    <span class="progress-count" id="progressCount">0 / 4</span>
+    <span class="progress-track"><span class="progress-fill" id="progressFill"></span></span>
+  </div>
+
+  <section class="step" data-step="1">
+    <div class="step-head">
+      <div class="step-num">1</div>
+      <div>
+        <p class="step-title">Redéployer le Backend</p>
+        <p class="step-where">http://141.253.112.12:8000 → application "backend"</p>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="mock">
+        <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>&nbsp;backend</div>
+        <div class="mock-inner">
+          <span class="mock-label">Actions</span>
+          <span class="mock-btn">Redeploy</span>
+        </div>
+      </div>
+      <p>Ouvre l'application <strong>backend</strong>, clique sur <strong>Actions → Redeploy</strong>, puis attends que le statut passe sur <strong>Success</strong> et <strong>Running</strong> (une à deux minutes).</p>
+      <div class="check-row" onclick="toggleStep(1)">
+        <span class="check-box"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.2 12L13 4" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="check-text">Fait — le backend est "Running"</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" data-step="2">
+    <div class="step-head">
+      <div class="step-num">2</div>
+      <div>
+        <p class="step-title">Mettre à jour la base de données</p>
+        <p class="step-where">Application "backend" → menu Terminal</p>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="mock">
+        <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>&nbsp;backend</div>
+        <div class="mock-inner">
+          <div class="mock-menu">
+            <span class="mock-menu-item">Général</span>
+            <span class="mock-menu-item">Environment Variables</span>
+            <span class="mock-menu-item active">▸ Terminal</span>
+          </div>
+        </div>
+      </div>
+      <p>Toujours sur le backend, ouvre <strong>Terminal</strong> dans le menu de gauche, colle cette commande et appuie sur Entrée :</p>
+      <div class="code">
+        <code>npx prisma db push</code>
+        <button class="copy-btn" onclick="copyCode(this, 'npx prisma db push')">Copier</button>
+      </div>
+      <p>Ça ajoute les nouvelles informations (position GPS, distance...) à la base sans rien effacer.</p>
+      <div class="check-row" onclick="toggleStep(2)">
+        <span class="check-box"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.2 12L13 4" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="check-text">Fait — la commande s'est terminée sans erreur</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" data-step="3">
+    <div class="step-head">
+      <div class="step-num">3</div>
+      <div>
+        <p class="step-title">Redéployer le site Web</p>
+        <p class="step-where">http://141.253.112.12:8000 → application "web"</p>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="mock">
+        <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>&nbsp;web</div>
+        <div class="mock-inner">
+          <span class="mock-label">Actions</span>
+          <span class="mock-btn">Redeploy</span>
+        </div>
+      </div>
+      <p>Même chose que l'étape 1, mais sur l'application <strong>web</strong> cette fois : <strong>Actions → Redeploy</strong>, puis attends "Success".</p>
+      <div class="check-row" onclick="toggleStep(3)">
+        <span class="check-box"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.2 12L13 4" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="check-text">Fait — le site web est "Running"</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" data-step="4">
+    <div class="step-head">
+      <div class="step-num">4</div>
+      <div>
+        <p class="step-title">Recharger la démo mobile</p>
+        <p class="step-where">Session du tunnel Expo sur le serveur (tmux)</p>
+      </div>
+    </div>
+    <div class="step-body">
+      <p>Dans la fenêtre du tunnel Expo, tape ces deux commandes l'une après l'autre :</p>
+      <div class="code">
+        <code>git pull</code>
+        <button class="copy-btn" onclick="copyCode(this, 'git pull')">Copier</button>
+      </div>
+      <p>Puis, une fois que c'est terminé, appuie simplement sur la touche <strong>r</strong> du clavier (pas besoin de retaper une commande).</p>
+      <div class="check-row" onclick="toggleStep(4)">
+        <span class="check-box"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.2 12L13 4" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="check-text">Fait — l'appli s'est rechargée sur mon téléphone</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="finish" id="finish" hidden>
+    <p>Les 4 étapes sont cochées 🎉<span>Dis-le-moi dans le chat, je vérifie avec toi que tout fonctionne bien.</span></p>
+  </div>
+</div>
+
+<script>
+  function updateProgress() {
+    var steps = document.querySelectorAll('.step');
+    var done = document.querySelectorAll('.step.done').length;
+    document.getElementById('progressCount').textContent = done + ' / ' + steps.length;
+    document.getElementById('progressFill').style.width = (done / steps.length * 100) + '%';
+    document.getElementById('finish').hidden = done < steps.length;
+  }
+
+  function toggleStep(n) {
+    var el = document.querySelector('.step[data-step="' + n + '"]');
+    el.classList.toggle('done');
+    try { localStorage.setItem('deepclean-redeploy-step-' + n, el.classList.contains('done') ? '1' : '0'); } catch (e) {}
+    updateProgress();
+  }
+
+  function copyCode(btn, text) {
+    var original = btn.textContent;
+    function done() { btn.textContent = 'Copié !'; setTimeout(function () { btn.textContent = original; }, 1500); }
+    try {
+      navigator.clipboard.writeText(text).then(done).catch(function () { btn.textContent = 'Sélectionne le texte'; });
+    } catch (e) {
+      btn.textContent = 'Sélectionne le texte';
+    }
+  }
+
+  (function restore() {
+    for (var n = 1; n <= 4; n++) {
+      try {
+        if (localStorage.getItem('deepclean-redeploy-step-' + n) === '1') {
+          document.querySelector('.step[data-step="' + n + '"]').classList.add('done');
+        }
+      } catch (e) {}
+    }
+    updateProgress();
+  })();
+</script>
