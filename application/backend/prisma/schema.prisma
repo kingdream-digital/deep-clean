@@ -510,6 +510,11 @@ model Announcement {
   author    User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   title     String
   body      String
+  // Photo de couverture facultative (retour explicite du client : "un vrai
+  // blog/journal d'entreprise", une photo en tête d'actualité) — même
+  // principe que les autres photos de l'app, jamais d'URL publique, servie
+  // via une route authentifiée dédiée.
+  coverPhotoKey String?
   createdAt DateTime @default(now())
 
   @@index([createdAt])

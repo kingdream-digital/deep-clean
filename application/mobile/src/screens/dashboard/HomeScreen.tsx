@@ -20,6 +20,7 @@ import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { avatarUrl } from "../../api/users.api";
+import { announcementCoverPhotoUrl } from "../../api/announcements.api";
 import { useUnreadInboxCount } from "../../hooks/useUnreadInboxCount";
 import { DASHBOARD_SECTIONS, DashboardSectionTone } from "./dashboardSections";
 import { useDashboardData } from "./useDashboardData";
@@ -235,17 +236,25 @@ export function HomeScreen() {
                     navigation.navigate("AnnouncementDetail", { announcementId: data.latestAnnouncement!.id })
                   }
                 >
-                  <Card>
-                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
-                      {data.latestAnnouncement.title}
-                    </Text>
-                    <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]} numberOfLines={2}>
-                      {data.latestAnnouncement.body}
-                    </Text>
-                    <Text style={[type.caption, { color: colors.inkTertiary, marginTop: spacing.sm }]}>
-                      {data.latestAnnouncement.author.firstName} {data.latestAnnouncement.author.lastName} ·{" "}
-                      {timeAgo(data.latestAnnouncement.createdAt)}
-                    </Text>
+                  <Card padded={false}>
+                    {data.latestAnnouncement.hasCoverPhoto && (
+                      <AuthenticatedImage
+                        uri={announcementCoverPhotoUrl(data.latestAnnouncement.id)}
+                        style={{ width: "100%", height: 140, backgroundColor: colors.surfaceAlt }}
+                      />
+                    )}
+                    <View style={{ padding: spacing.lg }}>
+                      <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                        {data.latestAnnouncement.title}
+                      </Text>
+                      <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]} numberOfLines={2}>
+                        {data.latestAnnouncement.body}
+                      </Text>
+                      <Text style={[type.caption, { color: colors.inkTertiary, marginTop: spacing.sm }]}>
+                        {data.latestAnnouncement.author.firstName} {data.latestAnnouncement.author.lastName} ·{" "}
+                        {timeAgo(data.latestAnnouncement.createdAt)}
+                      </Text>
+                    </View>
                   </Card>
                 </PressableScale>
               </>

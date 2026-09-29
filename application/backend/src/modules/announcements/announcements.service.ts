@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
+import { deleteStoredImage, storeImage } from "../../utils/storage";
 
 interface Actor {
   userId: string;
@@ -25,9 +26,21 @@ const announcementSelect = {
   id: true,
   title: true,
   body: true,
+  coverPhotoKey: true,
   createdAt: true,
   author: { select: authorSelect },
 } as const;
+
+// Enlève la clé de stockage brute de la réponse API (même principe que
+// TimeEntry.clockInPhotoKey, jamais exposée telle quelle) au profit d'un
+// simple booléen : le client récupère la photo via la route authentifiée
+// dédiée (GET /:id/cover-photo), jamais par la clé elle-même.
+function presentAnnouncement<T extends { coverPhotoKey: string | null }>(
+  announcement: T
+): Omit<T, "coverPhotoKey"> & { hasCoverPhoto: boolean } {
+  const { coverPhotoKey, ...rest } = announcement;
+  return { ...rest, hasCoverPhoto: Boolean(coverPhotoKey) };
+}
 
 /**
  * Publie une actualité et notifie IMMÉDIATEMENT tous les comptes actifs de
@@ -36,15 +49,30 @@ const announcementSelect = {
  * déjà gérés en best-effort par createNotification ; ils n'empêchent jamais
  * la publication elle-même.
  */
-export async function createAnnouncement(actor: Actor, input: { title: string; body: string }) {
+export async function createAnnouncement(
+  actor: Actor,
+  input: { title: string; body: string },
+  photoBuffer?: Buffer
+) {
   if (!ANNOUNCEMENT_AUTHOR_ROLES.includes(actor.role)) {
     throw ApiError.forbidden("Vous n'êtes pas autorisé à publier une actualité.");
   }
 
-  const announcement = await prisma.announcement.create({
-    data: { authorId: actor.userId, title: input.title, body: input.body },
-    select: announcementSelect,
-  });
+  // Photo de couverture facultative (retour explicite du client : "un vrai
+  // blog/journal d'entreprise") — stockée HORS transaction comme toute autre
+  // photo de l'app ; un fichier orphelin est nettoyé si la création échoue.
+  const stored = photoBuffer ? await storeImage(photoBuffer) : null;
+
+  let announcement;
+  try {
+    announcement = await prisma.announcement.create({
+      data: { authorId: actor.userId, title: input.title, body: input.body, coverPhotoKey: stored?.storageKey },
+      select: announcementSelect,
+    });
+  } catch (err) {
+    if (stored) await deleteStoredImage(stored.storageKey);
+    throw err;
+  }
 
   const recipients = await prisma.user.findMany({
     where: { isActive: true, id: { not: actor.userId } },
@@ -72,7 +100,7 @@ export async function createAnnouncement(actor: Actor, input: { title: string; b
     metadata: { title: announcement.title, recipients: recipients.length },
   });
 
-  return announcement;
+  return presentAnnouncement(announcement);
 }
 
 export async function listAnnouncements(page: number, pageSize: number) {
@@ -86,11 +114,21 @@ export async function listAnnouncements(page: number, pageSize: number) {
     prisma.announcement.count(),
   ]);
 
-  return { items, total, page, pageSize };
+  return { items: items.map(presentAnnouncement), total, page, pageSize };
 }
 
 export async function getAnnouncementById(id: string) {
   const announcement = await prisma.announcement.findUnique({ where: { id }, select: announcementSelect });
   if (!announcement) throw ApiError.notFound("Actualité introuvable.");
-  return announcement;
+  return presentAnnouncement(announcement);
+}
+
+// Sert la photo de couverture d'une actualité — jamais d'URL publique, même
+// principe que les autres photos de l'app : la lecture d'une actualité est
+// déjà ouverte à tout compte authentifié (voir announcements.routes.ts),
+// donc pas de vérification de portée supplémentaire ici au-delà de l'auth.
+export async function getAnnouncementCoverPhoto(id: string) {
+  const announcement = await prisma.announcement.findUnique({ where: { id }, select: { coverPhotoKey: true } });
+  if (!announcement?.coverPhotoKey) throw ApiError.notFound("Aucune photo pour cette actualité.");
+  return { storageKey: announcement.coverPhotoKey };
 }

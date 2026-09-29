@@ -7,10 +7,11 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
-import { listAnnouncements } from "../../api/announcements.api";
+import { announcementCoverPhotoUrl, listAnnouncements } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import { timeAgo } from "../../utils/timeAgo";
 import type { Role } from "../../api/auth.api";
@@ -85,7 +86,14 @@ export function AnnouncementsListScreen() {
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale onPress={() => navigation.navigate("AnnouncementDetail", { announcementId: item.id })}>
                 {/* Seule la plus récente porte le glow — carte prioritaire de l'écran. */}
-                <Card glow={index === 0}>
+                <Card glow={index === 0} padded={false}>
+                  {item.hasCoverPhoto && (
+                    <AuthenticatedImage
+                      uri={announcementCoverPhotoUrl(item.id)}
+                      style={{ width: "100%", height: 160, backgroundColor: colors.surfaceAlt }}
+                    />
+                  )}
+                  <View style={{ padding: spacing.lg }}>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <View
                       style={{
@@ -127,6 +135,7 @@ export function AnnouncementsListScreen() {
                   <Text style={[type.callout, { color: colors.inkSecondary, marginTop: spacing.xs }]} numberOfLines={4}>
                     {item.body}
                   </Text>
+                  </View>
                 </Card>
               </PressableScale>
             </Animated.View>

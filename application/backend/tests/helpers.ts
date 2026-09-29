@@ -55,7 +55,7 @@ export async function createTestUser(
 // base64 codé en dur : évite tout risque de fixture corrompue que
 // `sharp()` rejetterait côté serveur (storage.ts::storeImage revérifie les
 // octets réels du fichier, pas seulement le Content-Type déclaré).
-async function tinyTestPhoto(): Promise<Buffer> {
+export async function tinyTestPhoto(): Promise<Buffer> {
   return sharp({ create: { width: 2, height: 2, channels: 3, background: { r: 10, g: 20, b: 30 } } })
     .jpeg()
     .toBuffer();

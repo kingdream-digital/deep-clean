@@ -4,8 +4,11 @@ import { useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
+import { PhotoViewerModal } from "../../components/PhotoViewerModal";
+import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
-import { getAnnouncement } from "../../api/announcements.api";
+import { announcementCoverPhotoUrl, getAnnouncement } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import type { Role } from "../../api/auth.api";
 
@@ -28,6 +31,7 @@ export function AnnouncementDetailScreen() {
   const { announcementId } = route.params;
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -54,7 +58,16 @@ export function AnnouncementDetailScreen() {
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxl }}>
-        <Card glow>
+        <Card glow padded={false}>
+          {announcement.hasCoverPhoto && (
+            <PressableScale onPress={() => setViewerOpen(true)}>
+              <AuthenticatedImage
+                uri={announcementCoverPhotoUrl(announcement.id)}
+                style={{ width: "100%", height: 220, backgroundColor: colors.surfaceAlt }}
+              />
+            </PressableScale>
+          )}
+          <View style={{ padding: spacing.lg }}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <View
               style={{
@@ -95,8 +108,16 @@ export function AnnouncementDetailScreen() {
           <Text style={[type.body, { color: colors.inkSecondary, marginTop: spacing.sm, lineHeight: 24 }]}>
             {announcement.body}
           </Text>
+          </View>
         </Card>
       </ScrollView>
+      {announcement.hasCoverPhoto && (
+        <PhotoViewerModal
+          visible={viewerOpen}
+          uri={announcementCoverPhotoUrl(announcement.id)}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
     </ScreenContainer>
   );
 }
