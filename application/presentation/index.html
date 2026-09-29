@@ -105,12 +105,8 @@
   .cover .glow{ position:absolute; width:620px; height:620px; border-radius:50%; background:radial-gradient(circle, rgba(14,116,144,.07), rgba(14,116,144,0) 70%); top:-220px; right:-180px; }
   .cover .glow2{ position:absolute; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle, rgba(34,211,238,.06), rgba(34,211,238,0) 70%); bottom:-160px; left:-160px; }
   .cover .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; position:relative; z-index:2; }
-  /* Lockup KingDream (texte : aucun fichier logo fourni — à remplacer par le
-     vrai logo dès qu'il est disponible, voir <img class="kd-logo"> plus bas). */
-  .kd-brand{ display:flex; align-items:center; gap:9px; }
-  .kd-mono{ width:24px; height:24px; border-radius:7px; background:var(--ink); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; color:#fff; }
-  .kd-word{ font-size:11px; font-weight:700; letter-spacing:2px; color:var(--ink); text-transform:uppercase; }
-  .kd-word span{ font-weight:500; opacity:.55; margin-left:6px; letter-spacing:1.5px; }
+  /* Logo KingDream réel (assets/kingdream-logo.png, fourni par le client) —
+     remplace l'ancien lockup texte le temps que le fichier n'existait pas. */
   .kd-logo{ height:22px; display:block; }
 
   /* Icône d'app (badge arrondi noir + mark centré) plutôt que le mark seul :
@@ -276,10 +272,7 @@
   <div class="glow2"></div>
   <div class="pad">
     <div class="brandrow">
-      <div class="kd-brand">
-        <div class="kd-mono">K</div>
-        <div class="kd-word">KingDream<span>Digital</span></div>
-      </div>
+      <img class="kd-logo" src="assets/kingdream-logo.png" alt="KingDream Digital" />
       <div class="kd" style="letter-spacing:2px;">Présentation</div>
     </div>
     <div class="center">
@@ -514,11 +507,13 @@
 
     <div class="feat-bul" style="margin-top:12px;"><div class="chk">✓</div><div class="txt">Export en un clic en <b>Excel, PDF ou CSV</b> : le dossier du mois, prêt à transmettre au logiciel de paie.</div></div>
     <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Congés et absences</b> approuvés ou refusés directement dans l'app : un conflit avec une mission déjà planifiée est détecté automatiquement.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Photo et position GPS à chaque pointage</b> : chaque arrivée et départ sont accompagnés d'une photo prise sur l'instant et de la position exacte, comparée automatiquement au chantier prévu — la RH voit en un coup d'œil si l'heure pointée correspond bien au lieu de travail, sans avoir à le vérifier elle-même.</div></div>
 
     <div class="stat-strip" style="margin-top:auto;">
       <div class="stat-chip"><div class="n">3 formats</div><div class="l">EXCEL, PDF, CSV EN UN CLIC</div></div>
       <div class="stat-chip"><div class="n">0</div><div class="l">RESSAISIE MANUELLE AVANT LA PAIE</div></div>
       <div class="stat-chip"><div class="n">Auto</div><div class="l">DÉTECTION DES CONFLITS DE CONGÉS</div></div>
+      <div class="stat-chip"><div class="n">Photo + GPS</div><div class="l">JUSTIFICATIF À CHAQUE POINTAGE</div></div>
     </div>
     <img class="wm" src="assets/mark-ink.png" />
   </div>
