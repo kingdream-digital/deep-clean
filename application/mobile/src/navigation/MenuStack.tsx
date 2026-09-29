@@ -8,6 +8,8 @@ import { LegalScreen } from "../screens/profile/LegalScreen";
 import { UsersListScreen } from "../screens/users/UsersListScreen";
 import { UserDetailScreen } from "../screens/users/UserDetailScreen";
 import { UserFormScreen } from "../screens/users/UserFormScreen";
+import { UserDocumentsScreen } from "../screens/users/UserDocumentsScreen";
+import { MyDocumentsScreen } from "../screens/profile/MyDocumentsScreen";
 import { SitesListScreen } from "../screens/sites/SitesListScreen";
 import { SiteDetailScreen } from "../screens/sites/SiteDetailScreen";
 import { SiteFormScreen } from "../screens/sites/SiteFormScreen";
@@ -53,6 +55,8 @@ export type MenuStackParamList = {
   UsersList: undefined;
   UserDetail: { userId: string; temporaryPassword?: string };
   UserForm: { userId?: string } | undefined;
+  UserDocuments: { userId: string; fullName: string };
+  MyDocuments: undefined;
   SitesList: undefined;
   SiteDetail: { siteId: string };
   SiteForm: { siteId?: string } | undefined;
@@ -207,6 +211,12 @@ export function MenuStack() {
         options={{ title: "Nouvelle actualité", presentation: "modal" }}
       />
       <Stack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
+      <Stack.Screen
+        name="UserDocuments"
+        component={UserDocumentsScreen}
+        options={({ route }) => ({ title: `Documents · ${route.params.fullName}` })}
+      />
+      <Stack.Screen name="MyDocuments" component={MyDocumentsScreen} options={{ title: "Mes documents" }} />
     </Stack.Navigator>
   );
 }

@@ -81,6 +81,8 @@ model User {
   absences           Absence[]           @relation("AbsenceUser")
   decidedAbsences    Absence[]           @relation("AbsenceDecidedBy")
   postedAnnouncements Announcement[]     @relation("AnnouncementAuthor")
+  employeeDocuments   EmployeeDocument[] @relation("EmployeeDocumentOwner")
+  uploadedEmployeeDocuments EmployeeDocument[] @relation("EmployeeDocumentUploadedBy")
 
   @@index([role])
   @@map("users")
@@ -512,6 +514,27 @@ model Announcement {
 
   @@index([createdAt])
   @@map("announcements")
+}
+
+// Espace documents personnel (retour explicite du client) : la RH/direction y
+// dépose un document (contrat, avenant...) directement dans l'espace d'un
+// employé, qui peut ensuite le consulter/télécharger depuis son profil —
+// une simple liste par personne, comme les photos de signalement, jamais de
+// notion de dossier/catégorie.
+model EmployeeDocument {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation("EmployeeDocumentOwner", fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  storageKey   String
+  fileName     String
+  sizeBytes    Int
+  uploadedById String?
+  uploadedBy   User?    @relation("EmployeeDocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("employee_documents")
 }
 
 model Notification {

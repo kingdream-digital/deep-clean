@@ -190,6 +190,13 @@ export function ProfileScreen() {
         </Card>
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
+          DOCUMENTS
+        </Text>
+        <Card padded={false}>
+          <Row icon="folder-open-outline" label="Mes documents" onPress={() => navigation.navigate("MyDocuments")} />
+        </Card>
+
+        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
           SÉCURITÉ
         </Text>
         <Card padded={false}>

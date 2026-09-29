@@ -287,6 +287,17 @@ export function UserDetailScreen() {
           {account.phone ? <InfoRow icon="call-outline" label={account.phone} /> : null}
         </Card>
 
+        {canManage && (
+          <View style={{ marginTop: spacing.lg }}>
+            <Button
+              label="Documents (contrat, attestations...)"
+              variant="secondary"
+              icon="document-attach-outline"
+              onPress={() => navigation.navigate("UserDocuments", { userId: account.id, fullName: `${account.firstName} ${account.lastName}` })}
+            />
+          </View>
+        )}
+
         {dossier && (
           <View style={{ marginTop: spacing.xl }}>
             <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>

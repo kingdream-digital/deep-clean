@@ -20,6 +20,7 @@ import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
 import { UsersListScreen } from "../screens/users/UsersListScreen";
 import { UserDetailScreen } from "../screens/users/UserDetailScreen";
 import { UserFormScreen } from "../screens/users/UserFormScreen";
+import { UserDocumentsScreen } from "../screens/users/UserDocumentsScreen";
 import { TimesheetScreen } from "../screens/timesheets/TimesheetScreen";
 import { TimesheetValidationScreen } from "../screens/timesheets/TimesheetValidationScreen";
 import { TimesheetRejectScreen } from "../screens/timesheets/TimesheetRejectScreen";
@@ -54,6 +55,7 @@ export type HomeStackParamList = {
   UsersList: undefined;
   UserDetail: { userId: string; temporaryPassword?: string };
   UserForm: { userId?: string } | undefined;
+  UserDocuments: { userId: string; fullName: string };
   Timesheet: undefined;
   TimesheetValidation: undefined;
   TimesheetReject: { entryId: string };
@@ -142,6 +144,11 @@ export function HomeStack() {
 
       <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: isDesktopWeb ? "" : "Comptes" }} />
       <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: "Compte" }} />
+      <Stack.Screen
+        name="UserDocuments"
+        component={UserDocumentsScreen}
+        options={({ route }) => ({ title: `Documents · ${route.params.fullName}` })}
+      />
       <Stack.Screen
         name="UserForm"
         component={UserFormScreen}

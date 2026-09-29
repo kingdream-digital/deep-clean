@@ -20,6 +20,7 @@ import { messagesRouter } from "./modules/messages/messages.routes";
 import { absencesRouter } from "./modules/absences/absences.routes";
 import { activityRouter } from "./modules/activity/activity.routes";
 import { announcementsRouter } from "./modules/announcements/announcements.routes";
+import { documentsRouter } from "./modules/documents/documents.routes";
 
 export function createApp() {
   const app = express();
@@ -62,6 +63,7 @@ export function createApp() {
   app.use("/api/v1/absences", absencesRouter);
   app.use("/api/v1/activity-logs", activityRouter);
   app.use("/api/v1/announcements", announcementsRouter);
+  app.use("/api/v1/documents", documentsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
