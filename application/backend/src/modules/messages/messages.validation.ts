@@ -13,12 +13,20 @@ export const threadQuerySchema = {
 };
 
 export const sendMessageSchema = {
+  // `body` est optionnel ici (retour explicite du client : joindre une photo
+  // au message) — le contrôle "au moins l'un des deux (texte/photo)" est fait
+  // dans messages.service.ts::sendMessage, seul endroit qui connaît aussi le
+  // fichier éventuellement reçu par multer (req.file, hors de ce schéma).
   body: z.object({
     recipientId: z.string().uuid(),
-    body: z.string().trim().min(1, "Le message ne peut pas être vide.").max(4000),
+    body: z.string().trim().max(4000).optional(),
   }),
 };
 
 export const contactIdParamSchema = {
+  params: z.object({ id: z.string().uuid() }),
+};
+
+export const messageIdParamSchema = {
   params: z.object({ id: z.string().uuid() }),
 };

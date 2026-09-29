@@ -99,6 +99,9 @@ export function HomeScreen() {
       // l'absence) faute d'écran de détail par absence — "Mes absences" est
       // la cible la plus proche, cohérente avec NotificationsList.
       navigation.navigate("MyAbsences");
+    } else if (notif.relatedEntityType === "Conversation" && notif.relatedEntityId) {
+      // relatedEntityId porte l'identifiant de l'expéditeur (pas du message).
+      tabNavigation?.navigate("Messagerie", { screen: "ConversationThread", params: { userId: notif.relatedEntityId } });
     } else {
       tabNavigation?.navigate("Messagerie");
     }

@@ -522,6 +522,12 @@ enum NotificationType {
   // ou l'admin publie une actualité (retour explicite du client) — jamais
   // envoyée à l'auteur lui-même.
   ANNOUNCEMENT_POSTED
+  // Retour explicite du client : "je veux une cloche de notification" —
+  // jusqu'ici un nouveau message envoyait une alerte push directe sans
+  // jamais créer d'entrée dans le centre de notifications (voir
+  // messages.service.ts::sendMessage), au motif que le badge de non-lus de
+  // l'onglet Messagerie suffisait déjà. Le client veut la cloche en plus.
+  MESSAGE_RECEIVED
   GENERAL
 }
 
@@ -612,7 +618,15 @@ model Message {
   sender      User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   recipientId String
   recipient   User      @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  body        String
+  // Optionnel depuis l'ajout de la photo jointe (retour explicite du client)
+  // : un message peut être une photo seule, sans texte — jamais les deux
+  // absents à la fois (voir messages.service.ts::sendMessage).
+  body        String?
+  // Photo jointe au message (retour explicite du client) — même principe que
+  // les autres photos de l'app : jamais d'URL publique, clé opaque résolue
+  // par une route authentifiée dédiée (voir messages.service.ts
+  // `getMessagePhoto`), réservée à l'expéditeur et au destinataire.
+  photoKey    String?
   isRead      Boolean   @default(false)
   readAt      DateTime?
   createdAt   DateTime  @default(now())

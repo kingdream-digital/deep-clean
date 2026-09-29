@@ -118,6 +118,10 @@ export function NotificationsList() {
       }
     } else if (notification.relatedEntityType === "Announcement") {
       navigation.navigate("AnnouncementDetail", { announcementId: notification.relatedEntityId });
+    } else if (notification.relatedEntityType === "Conversation") {
+      // relatedEntityId porte l'identifiant de l'expéditeur (pas du message) —
+      // voir messages.service.ts::sendMessage.
+      navigation.navigate("ConversationThread", { userId: notification.relatedEntityId });
     }
   }
 
@@ -153,7 +157,8 @@ export function NotificationsList() {
             item.relatedEntityType === "TimeEntry" ||
             item.relatedEntityType === "Problem" ||
             item.relatedEntityType === "Absence" ||
-            item.relatedEntityType === "Announcement");
+            item.relatedEntityType === "Announcement" ||
+            item.relatedEntityType === "Conversation");
         const relatedEntityLabel =
           item.relatedEntityType === "TimeEntry"
             ? "Voir le pointage"
@@ -161,11 +166,13 @@ export function NotificationsList() {
               ? "Voir le signalement"
               : item.relatedEntityType === "Announcement"
                 ? "Voir l'actualité"
-                : item.relatedEntityType === "Absence"
-                  ? item.type === "ABSENCE_REQUESTED"
-                    ? "Voir la fiche employé"
-                    : "Voir mes absences"
-                  : "Voir la mission";
+                : item.relatedEntityType === "Conversation"
+                  ? "Voir le message"
+                  : item.relatedEntityType === "Absence"
+                    ? item.type === "ABSENCE_REQUESTED"
+                      ? "Voir la fiche employé"
+                      : "Voir mes absences"
+                    : "Voir la mission";
         return (
           <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
             <Card padded={false} style={{ backgroundColor: item.isRead ? colors.background : colors.accentSoft }}>

@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/auth.middleware";
 import { validate } from "../../middleware/validate.middleware";
+import { uploadPhoto } from "../../middleware/upload.middleware";
 import {
   contactIdParamSchema,
+  messageIdParamSchema,
   sendMessageSchema,
   threadParamSchema,
   threadQuerySchema,
@@ -23,5 +25,10 @@ messagesRouter.get("/contacts/:id", validate(contactIdParamSchema), messagesCont
 messagesRouter.get("/conversations", messagesController.listConversationsHandler);
 messagesRouter.get("/unread-count", messagesController.unreadCountHandler);
 messagesRouter.get("/with/:userId", validate(threadQuerySchema), messagesController.getThreadHandler);
-messagesRouter.post("/", validate(sendMessageSchema), messagesController.sendMessageHandler);
+// `uploadPhoto` (multer) avant `validate` : la photo jointe est facultative
+// (`.single()` ne l'exige pas), mais si présente, multer doit parser le
+// multipart pour peupler req.body AVANT que validate() ne le lise — même
+// ordre que announcements.routes.ts.
+messagesRouter.post("/", uploadPhoto, validate(sendMessageSchema), messagesController.sendMessageHandler);
+messagesRouter.get("/:id/photo", validate(messageIdParamSchema), messagesController.getMessagePhotoHandler);
 messagesRouter.post("/with/:userId/read", validate(threadParamSchema), messagesController.markThreadReadHandler);

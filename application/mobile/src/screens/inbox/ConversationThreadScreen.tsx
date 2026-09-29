@@ -1,18 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { PressableScale } from "../../components/PressableScale";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
+import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
-import { getContact, getThread, markThreadRead, sendMessage } from "../../api/messages.api";
+import { getContact, getThread, markThreadRead, messagePhotoUrl, sendMessage } from "../../api/messages.api";
 import type { ChatMessage, Contact } from "../../api/messages.api";
+import type { LocalPhotoAsset } from "../../api/problems.api";
 import { extractErrorMessage } from "../../api/client";
 import { Alert } from "../../utils/alert";
+import { pickWebImages } from "../../utils/webImagePicker";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
 
 type Route = RouteProp<{ ConversationThread: { userId: string } }, "ConversationThread">;
@@ -37,6 +42,11 @@ export function ConversationThreadScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // Photo jointe (retour explicite du client) — sélection locale en attente
+  // d'envoi, jamais téléversée tant que l'utilisateur n'a pas appuyé sur
+  // envoyer (même principe que les autres écrans avec photo optionnelle).
+  const [photo, setPhoto] = useState<LocalPhotoAsset | null>(null);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
 
   const load = useCallback(async () => {
@@ -97,14 +107,18 @@ export function ConversationThreadScreen() {
 
   async function handleSend() {
     const body = draft.trim();
-    if (!body) return;
+    // Retour explicite du client : un message peut être une photo seule.
+    if (!body && !photo) return;
     setSending(true);
     setDraft("");
+    const sentPhoto = photo;
+    setPhoto(null);
     try {
-      const sent = await sendMessage(userId, body);
+      const sent = await sendMessage(userId, body || undefined, sentPhoto ?? undefined);
       setMessages((prev) => [...prev, sent]);
     } catch (err) {
       setDraft(body);
+      setPhoto(sentPhoto);
       // Message précédemment ravalé en silence : le texte revenait dans le
       // champ sans aucune explication, donnant l'impression que l'envoi ne
       // faisait juste rien (bug remonté par un utilisateur).
@@ -112,6 +126,44 @@ export function ConversationThreadScreen() {
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleTakePhoto() {
+    if (Platform.OS === "web") {
+      const [file] = await pickWebImages({ multiple: false, capture: true });
+      if (file) setPhoto(file);
+      return;
+    }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Accès refusé", "Autorisez l'accès à l'appareil photo dans les réglages pour prendre une photo.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 });
+    if (!result.canceled) setPhoto(result.assets[0]);
+  }
+
+  async function handlePickFromLibrary() {
+    if (Platform.OS === "web") {
+      const [file] = await pickWebImages({ multiple: false });
+      if (file) setPhoto(file);
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Accès refusé", "Autorisez l'accès aux photos dans les réglages pour en sélectionner.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+    if (!result.canceled) setPhoto(result.assets[0]);
+  }
+
+  function handleAddPhoto() {
+    Alert.alert("Joindre une photo", undefined, [
+      { text: "Prendre une photo", onPress: handleTakePhoto },
+      { text: "Choisir dans la galerie", onPress: handlePickFromLibrary },
+      { text: "Annuler", style: "cancel" },
+    ]);
   }
 
   if (state === "loading") {
@@ -182,15 +234,39 @@ export function ConversationThreadScreen() {
                   borderRadius: radius.lg,
                   borderBottomRightRadius: isMine ? 4 : radius.lg,
                   borderBottomLeftRadius: isMine ? radius.lg : 4,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.sm,
+                  padding: item.hasPhoto ? 4 : undefined,
+                  paddingHorizontal: item.hasPhoto ? 4 : spacing.md,
+                  paddingVertical: item.hasPhoto ? 4 : spacing.sm,
                 }}
               >
-                <Text style={[type.body, { color: isMine ? colors.onAccent : colors.ink }]}>{item.body}</Text>
+                {item.hasPhoto && (
+                  <PressableScale onPress={() => setViewerUri(messagePhotoUrl(item.id))}>
+                    <AuthenticatedImage
+                      uri={messagePhotoUrl(item.id)}
+                      style={{ width: 220, height: 220, borderRadius: radius.md - 4, backgroundColor: colors.surfaceAlt }}
+                    />
+                  </PressableScale>
+                )}
+                {item.body && (
+                  <Text
+                    style={[
+                      type.body,
+                      { color: isMine ? colors.onAccent : colors.ink, margin: item.hasPhoto ? spacing.xs : 0 },
+                    ]}
+                  >
+                    {item.body}
+                  </Text>
+                )}
                 <Text
                   style={[
                     type.caption,
-                    { color: isMine ? colors.onAccent : colors.inkTertiary, opacity: 0.7, marginTop: 2, textAlign: "right" },
+                    {
+                      color: isMine ? colors.onAccent : colors.inkTertiary,
+                      opacity: 0.7,
+                      marginTop: 2,
+                      marginHorizontal: item.hasPhoto ? spacing.xs : 0,
+                      textAlign: "right",
+                    },
                   ]}
                 >
                   {timeFmt.format(new Date(item.createdAt))}
@@ -201,6 +277,24 @@ export function ConversationThreadScreen() {
         />
       )}
 
+      {photo && (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.sm,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: colors.border,
+          }}
+        >
+          <Image source={{ uri: photo.uri }} style={{ width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.surfaceAlt }} />
+          <PressableScale onPress={() => setPhoto(null)} style={{ marginLeft: spacing.sm }} hitSlop={10}>
+            <Ionicons name="close-circle" size={22} color={colors.inkTertiary} />
+          </PressableScale>
+        </View>
+      )}
+
       <View
         style={{
           flexDirection: "row",
@@ -208,10 +302,13 @@ export function ConversationThreadScreen() {
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.sm,
           paddingBottom: spacing.sm,
-          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopWidth: photo ? 0 : StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
         }}
       >
+        <PressableScale onPress={handleAddPhoto} style={{ marginRight: spacing.sm, marginBottom: 8 }} hitSlop={8}>
+          <Ionicons name="camera-outline" size={26} color={colors.accent} />
+        </PressableScale>
         <TextInput
           value={draft}
           onChangeText={setDraft}
@@ -257,21 +354,23 @@ export function ConversationThreadScreen() {
             },
           ]}
         />
-        <PressableScale onPress={handleSend} disabled={sending || !draft.trim()}>
+        <PressableScale onPress={handleSend} disabled={sending || (!draft.trim() && !photo)}>
           <View
             style={{
               width: 40,
               height: 40,
               borderRadius: radius.pill,
-              backgroundColor: draft.trim() ? colors.accent : colors.surfaceAlt,
+              backgroundColor: draft.trim() || photo ? colors.accent : colors.surfaceAlt,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Ionicons name="arrow-up" size={20} color={draft.trim() ? colors.onAccent : colors.inkTertiary} />
+            <Ionicons name="arrow-up" size={20} color={draft.trim() || photo ? colors.onAccent : colors.inkTertiary} />
           </View>
         </PressableScale>
       </View>
+
+      <PhotoViewerModal visible={!!viewerUri} uri={viewerUri ?? ""} onClose={() => setViewerUri(null)} />
     </ScreenContainer>
   );
 }

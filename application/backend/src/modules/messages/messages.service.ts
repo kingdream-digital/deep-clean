@@ -1,8 +1,9 @@
+import { NotificationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
-import { logger } from "../../config/logger";
-import { sendExpoPushNotifications } from "../../utils/pushSender";
+import { deleteStoredImage, storeImage } from "../../utils/storage";
+import { createNotification } from "../notifications/notifications.service";
 
 interface Actor {
   userId: string;
@@ -21,10 +22,19 @@ const messageSelect = {
   senderId: true,
   recipientId: true,
   body: true,
+  photoKey: true,
   isRead: true,
   readAt: true,
   createdAt: true,
 } as const;
+
+// Retire `photoKey` (jamais exposé tel quel, même principe que
+// `Announcement.coverPhotoKey`) au profit d'un simple booléen — le client
+// récupère la photo via la route authentifiée dédiée (GET /messages/:id/photo).
+function presentMessage<T extends { photoKey: string | null }>(message: T): Omit<T, "photoKey"> & { hasPhoto: boolean } {
+  const { photoKey, ...rest } = message;
+  return { ...rest, hasPhoto: Boolean(photoKey) };
+}
 
 // Annuaire interne : tout compte actif de l'entreprise peut être contacté —
 // "communiquer avec tout le monde" (retour explicite du client), pas de
@@ -85,7 +95,7 @@ export async function listConversations(actor: Actor) {
         prisma.message.count({ where: { senderId: otherId, recipientId: actor.userId, isRead: false } }),
         prisma.user.findUnique({ where: { id: otherId }, select: contactSelect }),
       ]);
-      return { user, lastMessage, unreadCount };
+      return { user, lastMessage: lastMessage ? presentMessage(lastMessage) : null, unreadCount };
     })
   );
 
@@ -127,45 +137,79 @@ export async function getThread(actor: Actor, otherUserId: string, filters: Thre
 
   // Ordre chronologique pour l'affichage (le plus récent en bas, comme une
   // conversation), alors que la pagination elle-même part du plus récent.
-  return { items: items.reverse(), total, page: filters.page, pageSize: filters.pageSize };
+  return { items: items.reverse().map(presentMessage), total, page: filters.page, pageSize: filters.pageSize };
 }
 
-export async function sendMessage(actor: Actor, input: { recipientId: string; body: string }) {
+export async function sendMessage(
+  actor: Actor,
+  input: { recipientId: string; body?: string },
+  photoBuffer?: Buffer
+) {
   if (input.recipientId === actor.userId) {
     throw ApiError.badRequest("Vous ne pouvez pas vous envoyer un message à vous-même.");
   }
+  // Retour explicite du client : joindre une photo au message — un message
+  // peut donc être une photo seule, sans texte, mais jamais les deux absents
+  // à la fois (ce que ne peut pas vérifier le schéma zod seul, qui ne connaît
+  // pas req.file : voir messages.validation.ts).
+  if (!input.body && !photoBuffer) {
+    throw ApiError.badRequest("Le message ne peut pas être vide.");
+  }
   await getContactById(input.recipientId);
 
-  const message = await prisma.message.create({
-    data: { senderId: actor.userId, recipientId: input.recipientId, body: input.body },
-    select: messageSelect,
-  });
+  // Photo stockée HORS transaction comme toute autre photo de l'app — un
+  // fichier orphelin est nettoyé si la création échoue.
+  const stored = photoBuffer ? await storeImage(photoBuffer) : null;
+
+  let message;
+  try {
+    message = await prisma.message.create({
+      data: {
+        senderId: actor.userId,
+        recipientId: input.recipientId,
+        body: input.body,
+        photoKey: stored?.storageKey,
+      },
+      select: messageSelect,
+    });
+  } catch (err) {
+    if (stored) await deleteStoredImage(stored.storageKey);
+    throw err;
+  }
 
   await logActivity({ userId: actor.userId, action: "MESSAGE_SENT", entityType: "Message", entityId: message.id });
 
-  // Alerte push directe, sans notification interne dupliquée : le segment
-  // "Messages" de l'onglet Messagerie a déjà son propre badge de non-lus,
-  // pas besoin d'une seconde entrée dans le centre de notifications.
-  const [sender, pushTokens] = await Promise.all([
-    prisma.user.findUnique({ where: { id: actor.userId }, select: { firstName: true, lastName: true } }),
-    prisma.pushToken.findMany({ where: { userId: input.recipientId } }),
-  ]);
-  if (pushTokens.length > 0 && sender) {
-    const { invalidTokens } = await sendExpoPushNotifications(
-      pushTokens.map((t) => ({
-        to: t.token,
-        title: `${sender.firstName} ${sender.lastName}`,
-        body: input.body,
-        data: { type: "NEW_MESSAGE", senderId: actor.userId },
-      }))
-    );
-    if (invalidTokens.length > 0) {
-      await prisma.pushToken.deleteMany({ where: { token: { in: invalidTokens } } });
-    }
+  // Notification interne (cloche) + push, comme tout autre événement de
+  // l'app (retour explicite du client — auparavant seule l'alerte push était
+  // envoyée, sans jamais apparaître dans le centre de notifications).
+  // `relatedEntityId` porte l'identifiant de L'EXPÉDITEUR (pas du message) :
+  // c'est ce dont ConversationThreadScreen a besoin pour ouvrir directement
+  // le bon fil au clic sur la notification.
+  const sender = await prisma.user.findUnique({ where: { id: actor.userId }, select: { firstName: true, lastName: true } });
+  if (sender) {
+    await createNotification({
+      userId: input.recipientId,
+      type: NotificationType.MESSAGE_RECEIVED,
+      title: `${sender.firstName} ${sender.lastName}`,
+      body: input.body ?? "📷 Photo",
+      relatedEntityType: "Conversation",
+      relatedEntityId: actor.userId,
+    });
   }
-  logger.info({ senderId: actor.userId, recipientId: input.recipientId }, "Message envoyé");
 
-  return message;
+  return presentMessage(message);
+}
+
+// Sert la photo d'un message — jamais d'URL publique, réservée à l'expéditeur
+// et au destinataire (même principe que le reste de la messagerie : un fil
+// n'est visible que par ses deux participants).
+export async function getMessagePhoto(actor: Actor, messageId: string) {
+  const message = await prisma.message.findUnique({ where: { id: messageId }, select: { senderId: true, recipientId: true, photoKey: true } });
+  if (!message || (message.senderId !== actor.userId && message.recipientId !== actor.userId)) {
+    throw ApiError.notFound("Message introuvable.");
+  }
+  if (!message.photoKey) throw ApiError.notFound("Aucune photo pour ce message.");
+  return { storageKey: message.photoKey };
 }
 
 export async function markThreadRead(actor: Actor, otherUserId: string) {

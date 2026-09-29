@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
+import fs from "node:fs";
 import { asyncHandler } from "../../utils/asyncHandler";
+import { ApiError } from "../../utils/ApiError";
+import { resolveStoragePath } from "../../utils/storage";
 import * as messagesService from "./messages.service";
 
 function actorOf(req: Request) {
@@ -32,8 +35,26 @@ export const getThreadHandler = asyncHandler(async (req: Request, res: Response)
 });
 
 export const sendMessageHandler = asyncHandler(async (req: Request, res: Response) => {
-  const message = await messagesService.sendMessage(actorOf(req), req.body);
+  const message = await messagesService.sendMessage(actorOf(req), req.body, req.file?.buffer);
   res.status(201).json({ message });
+});
+
+export const getMessagePhotoHandler = asyncHandler(async (req: Request, res: Response) => {
+  const photo = await messagesService.getMessagePhoto(actorOf(req), req.params.id as string);
+  const filePath = resolveStoragePath(photo.storageKey);
+
+  if (!fs.existsSync(filePath)) {
+    throw ApiError.notFound("Photo introuvable.");
+  }
+
+  res.setHeader("Content-Type", "image/jpeg");
+  res.setHeader("Cache-Control", "private, max-age=86400");
+  const stream = fs.createReadStream(filePath);
+  stream.on("error", () => {
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
+  });
+  stream.pipe(res);
 });
 
 export const markThreadReadHandler = asyncHandler(async (req: Request, res: Response) => {

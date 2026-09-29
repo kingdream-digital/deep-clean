@@ -24,6 +24,12 @@ export type NotificationType =
   | "ABSENCE_DECIDED"
   | "ABSENCE_CONFLICT"
   | "ANNOUNCEMENT_POSTED"
+  // Retour explicite du client : une cloche de notification lors de la
+  // réception d'un message (voir messages.service.ts::sendMessage) —
+  // relatedEntityType vaut "Conversation" et relatedEntityId porte
+  // l'identifiant de l'EXPÉDITEUR (pas du message), pour ouvrir directement
+  // le bon fil au clic.
+  | "MESSAGE_RECEIVED"
   | "GENERAL";
 
 export interface AppNotification {

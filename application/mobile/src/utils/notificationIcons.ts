@@ -21,5 +21,6 @@ export const NOTIFICATION_TYPE_ICON: Record<NotificationType, keyof typeof Ionic
   ABSENCE_DECIDED: "calendar-outline",
   ABSENCE_CONFLICT: "alert-circle-outline",
   ANNOUNCEMENT_POSTED: "megaphone-outline",
+  MESSAGE_RECEIVED: "chatbubble-ellipses-outline",
   GENERAL: "notifications-outline",
 };

@@ -2,7 +2,7 @@ import request from "supertest";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
-import { createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+import { createTestUser, resetDatabase, tinyTestPhoto, TEST_PASSWORD } from "./helpers";
 
 const app = createApp();
 
@@ -138,5 +138,69 @@ describe("Messagerie interne — envoi et fils de discussion", () => {
     expect(res.body.items[0].user.id).toBe(employeeB.id);
     expect(res.body.items[0].unreadCount).toBe(1);
     expect(res.body.items[1].user.id).toBe(employeeA.id);
+  });
+});
+
+describe("Messagerie interne — cloche de notification (retour explicite du client)", () => {
+  it("crée une notification interne en plus de l'alerte push lors de l'envoi d'un message", async () => {
+    const { user: sender, accessToken: senderToken } = await loginAs(Role.EMPLOYEE, "emp-msg-notif1@deepclean.test");
+    const { user: recipient, accessToken: recipientToken } = await loginAs(Role.HR, "hr-msg-notif1@deepclean.test");
+
+    const sent = await request(app)
+      .post("/api/v1/messages")
+      .set("Authorization", `Bearer ${senderToken}`)
+      .send({ recipientId: recipient.id, body: "Une question pour vous." });
+    expect(sent.status).toBe(201);
+
+    const notifications = await request(app)
+      .get("/api/v1/notifications")
+      .set("Authorization", `Bearer ${recipientToken}`);
+    expect(notifications.status).toBe(200);
+    const messageNotif = notifications.body.items.find((n: { type: string }) => n.type === "MESSAGE_RECEIVED");
+    expect(messageNotif).toBeDefined();
+    expect(messageNotif.relatedEntityType).toBe("Conversation");
+    expect(messageNotif.relatedEntityId).toBe(sender.id);
+    expect(messageNotif.title).toBe(`${sender.firstName} ${sender.lastName}`);
+  });
+});
+
+describe("Messagerie interne — photo jointe (retour explicite du client)", () => {
+  it("permet d'envoyer une photo sans texte, servie uniquement à l'expéditeur et au destinataire", async () => {
+    const { accessToken: senderToken } = await loginAs(Role.EMPLOYEE, "emp-msg-photo1@deepclean.test");
+    const { user: recipient, accessToken: recipientToken } = await loginAs(Role.EMPLOYEE, "emp-msg-photo2@deepclean.test");
+    const { accessToken: outsiderToken } = await loginAs(Role.EMPLOYEE, "emp-msg-photo3@deepclean.test");
+
+    const sent = await request(app)
+      .post("/api/v1/messages")
+      .set("Authorization", `Bearer ${senderToken}`)
+      .field("recipientId", recipient.id)
+      .attach("photo", await tinyTestPhoto(), { filename: "photo.jpg", contentType: "image/jpeg" });
+
+    expect(sent.status).toBe(201);
+    expect(sent.body.message.hasPhoto).toBe(true);
+    expect(sent.body.message.photoKey).toBeUndefined();
+
+    const photo = await request(app)
+      .get(`/api/v1/messages/${sent.body.message.id}/photo`)
+      .set("Authorization", `Bearer ${recipientToken}`);
+    expect(photo.status).toBe(200);
+    expect(photo.headers["content-type"]).toContain("image/jpeg");
+
+    const outsider = await request(app)
+      .get(`/api/v1/messages/${sent.body.message.id}/photo`)
+      .set("Authorization", `Bearer ${outsiderToken}`);
+    expect(outsider.status).toBe(404);
+  });
+
+  it("refuse un message sans texte ni photo", async () => {
+    const { accessToken } = await loginAs(Role.EMPLOYEE, "emp-msg-empty@deepclean.test");
+    const { user: recipient } = await loginAs(Role.EMPLOYEE, "emp-msg-empty2@deepclean.test");
+
+    const res = await request(app)
+      .post("/api/v1/messages")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ recipientId: recipient.id });
+
+    expect(res.status).toBe(400);
   });
 });
