@@ -23,19 +23,15 @@ function canManageAbsences(actor: Actor): boolean {
   return MANAGE_ABSENCES_ROLES.includes(actor.role);
 }
 
-// Bug corrigé (retour explicite du client : "le chef d'équipe ne peut pas
-// valider de congé") — il pouvait déjà VOIR les demandes de sa propre équipe
-// (voir listAbsences ci-dessous) mais decideAbsence ne l'autorisait jamais à
-// trancher, même sur son propre périmètre. Aligné sur le reste de l'app
-// (validation de mission, pointages...) : un chef d'équipe agit sur SON
-// équipe, jamais au-delà.
-async function canDecideAbsence(actor: Actor, absenceUserId: string): Promise<boolean> {
-  if (canManageAbsences(actor)) return true;
-  if (actor.role === Role.SITE_MANAGER) {
-    const team = await resolveManagedTeamIds(actor.userId);
-    return team.includes(absenceUserId);
-  }
-  return false;
+// Retour explicite du client, correction : un chef d'équipe ne décide jamais
+// des congés — il reste un simple référent de chantier auprès des employés
+// (consultation de son équipe, planning, terrain...), jamais une autorité de
+// validation. Un précédent réglage lui avait par erreur donné ce droit sur
+// sa propre équipe ; annulé ici. Seuls canManageAbsences (RH/direction/
+// superviseur/admin) décident — la fonction ne prend que `actor` pour
+// autant, gardée async/avec le même nom pour ne pas toucher ses appelants.
+async function canDecideAbsence(actor: Actor, _absenceUserId: string): Promise<boolean> {
+  return canManageAbsences(actor);
 }
 
 const absenceSelect = {
@@ -142,37 +138,24 @@ export async function createAbsence(actor: Actor, input: CreateAbsenceInput) {
   if (isSelfAuthoritative) {
     await notifyMissionConflicts(absence.id, targetUserId, startDate, endDate);
   } else {
-    await notifyAbsenceManagers(absence.id, targetUserId, target);
+    await notifyAbsenceManagers(absence.id, target);
   }
 
   return presentAbsence(absence);
 }
 
-// Notifie la RH/direction/superviseur/admin (autorité globale) ET le ou les
-// chef·fe·s d'équipe dont le demandeur fait partie de l'équipe (retour
-// explicite du client : le chef d'équipe doit désormais pouvoir valider les
-// congés de son équipe — il doit donc être prévenu comme les autres).
+// Notifie uniquement la RH/direction/superviseur/admin — seuls décisionnaires
+// des congés (retour explicite du client, correction : le chef d'équipe n'en
+// décide jamais, un précédent réglage l'avait par erreur ajouté ici aussi).
 async function notifyAbsenceManagers(
   absenceId: string,
-  targetUserId: string,
   target: { firstName: string; lastName: string }
 ): Promise<void> {
-  const [globalManagers, teamManagers] = await Promise.all([
-    prisma.user.findMany({ where: { role: { in: MANAGE_ABSENCES_ROLES }, isActive: true }, select: { id: true } }),
-    prisma.site.findMany({
-      where: { members: { some: { userId: targetUserId } }, managerId: { not: null } },
-      select: { managerId: true },
-    }),
-  ]);
-  const recipientIds = new Set<string>([
-    ...globalManagers.map((m) => m.id),
-    ...teamManagers.map((s) => s.managerId).filter((id): id is string => !!id),
-  ]);
-
+  const managers = await prisma.user.findMany({ where: { role: { in: MANAGE_ABSENCES_ROLES }, isActive: true }, select: { id: true } });
   await Promise.all(
-    [...recipientIds].map((userId) =>
+    managers.map((m) =>
       createNotification({
-        userId,
+        userId: m.id,
         type: NotificationType.ABSENCE_REQUESTED,
         title: "Demande d'absence",
         body: `${target.firstName} ${target.lastName} a demandé une absence à valider.`,

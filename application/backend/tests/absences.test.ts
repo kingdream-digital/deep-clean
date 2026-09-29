@@ -27,8 +27,8 @@ function futureRange(startInDays: number, endInDays: number): { startDate: strin
   return { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
 }
 
-describe("Congés — le chef d'équipe peut valider les demandes de sa propre équipe", () => {
-  it("permet à un chef d'équipe de valider le congé d'un membre de son équipe (bug corrigé)", async () => {
+describe("Congés — le chef d'équipe n'en décide jamais (simple référent de chantier)", () => {
+  it("refuse à un chef d'équipe de valider le congé d'un membre de sa propre équipe (retour explicite du client, correction)", async () => {
     const manager = await createTestUser({ role: Role.SITE_MANAGER, email: "smgr-abs1@deepclean.test" });
     const employee = await createTestUser({ role: Role.EMPLOYEE, email: "abs-emp1@deepclean.test", leaveAccrualRate: 10 });
     const site = await createTestSite({ managerId: manager.id });
@@ -50,28 +50,36 @@ describe("Congés — le chef d'équipe peut valider les demandes de sa propre �
       .set("Authorization", `Bearer ${managerToken}`)
       .send({ status: "APPROVED" });
 
-    expect(decided.status).toBe(200);
-    expect(decided.body.absence.status).toBe("APPROVED");
+    expect(decided.status).toBe(403);
   });
 
-  it("refuse à un chef d'équipe de valider le congé d'un employé hors de son équipe", async () => {
-    const manager = await createTestUser({ role: Role.SITE_MANAGER, email: "smgr-abs2@deepclean.test" });
-    const outsider = await createTestUser({ role: Role.EMPLOYEE, email: "abs-emp2@deepclean.test" });
-    const managerToken = await loginAs(manager);
-    const outsiderToken = await loginAs(outsider);
+  it("refuse aussi à un chef d'équipe d'annuler le congé d'un membre de son équipe", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-abs-cancel@deepclean.test" });
+    const manager = await createTestUser({ role: Role.SITE_MANAGER, email: "smgr-abs3@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "abs-emp10@deepclean.test" });
+    const site = await createTestSite({ managerId: manager.id });
+    await prisma.siteMember.create({ data: { siteId: site.id, userId: employee.id } });
 
-    const { startDate, endDate } = futureRange(10, 11);
+    const hrToken = await loginAs(hr);
+    const managerToken = await loginAs(manager);
+    const employeeToken = await loginAs(employee);
+
+    const { startDate, endDate } = futureRange(10, 12);
     const created = await request(app)
       .post("/api/v1/absences")
-      .set("Authorization", `Bearer ${outsiderToken}`)
+      .set("Authorization", `Bearer ${employeeToken}`)
       .send({ type: "PAID_LEAVE", startDate, endDate });
 
-    const decided = await request(app)
+    await request(app)
       .post(`/api/v1/absences/${created.body.absence.id}/decide`)
-      .set("Authorization", `Bearer ${managerToken}`)
+      .set("Authorization", `Bearer ${hrToken}`)
       .send({ status: "APPROVED" });
 
-    expect(decided.status).toBe(403);
+    const cancelled = await request(app)
+      .post(`/api/v1/absences/${created.body.absence.id}/cancel`)
+      .set("Authorization", `Bearer ${managerToken}`);
+
+    expect(cancelled.status).toBe(403);
   });
 });
 
