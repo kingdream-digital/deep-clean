@@ -231,14 +231,41 @@ export function MissionDetailScreen() {
     ]);
   }
 
+  async function performCancel(scope: "one" | "series") {
+    setActionLoading("cancel");
+    try {
+      const { mission: updated, seriesCancelledCount } = await cancelMission(missionId, scope);
+      setMission(updated);
+      if (seriesCancelledCount > 0) {
+        Alert.alert(
+          "Série annulée",
+          `${seriesCancelledCount} mission${seriesCancelledCount > 1 ? "s" : ""} à venir de cette série récurrente ${
+            seriesCancelledCount > 1 ? "ont" : "a"
+          } aussi été annulée${seriesCancelledCount > 1 ? "s" : ""}.`
+        );
+      }
+    } catch (err) {
+      Alert.alert("Annulation impossible", extractErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   function handleCancel() {
+    // Mission récurrente (retour explicite du client : symétrique de la
+    // création en série) — propose d'annuler seulement cette occurrence ou
+    // toutes les occurrences à venir encore programmées de la série.
+    if (mission?.recurrenceGroupId) {
+      Alert.alert("Annuler la mission ?", "Cette mission fait partie d'une série récurrente.", [
+        { text: "Retour", style: "cancel" },
+        { text: "Cette mission seulement", style: "destructive", onPress: () => void performCancel("one") },
+        { text: "Toute la série à venir", style: "destructive", onPress: () => void performCancel("series") },
+      ]);
+      return;
+    }
     Alert.alert("Annuler la mission ?", "Les employés affectés seront notifiés.", [
       { text: "Retour", style: "cancel" },
-      {
-        text: "Annuler la mission",
-        style: "destructive",
-        onPress: () => runAction("cancel", () => cancelMission(missionId)),
-      },
+      { text: "Annuler la mission", style: "destructive", onPress: () => void performCancel("one") },
     ]);
   }
 

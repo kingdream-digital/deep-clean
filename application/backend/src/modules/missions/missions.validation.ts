@@ -4,6 +4,12 @@ import { MissionStatus } from "@prisma/client";
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).");
 const timeString = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Heure invalide (format attendu : HH:mm).");
 
+const recurrenceSchema = z.object({
+  // 0 = dimanche ... 6 = samedi (JS Date#getDay).
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).min(1, "Sélectionnez au moins un jour.").max(7),
+  until: dateString,
+});
+
 export const createMissionSchema = {
   body: z
     .object({
@@ -16,10 +22,15 @@ export const createMissionSchema = {
       assigneeIds: z.array(z.string().uuid()).min(1, "Au moins un employé doit être affecté."),
       leadId: z.string().uuid().optional(),
       standardId: z.string().uuid().optional(),
+      recurrence: recurrenceSchema.optional(),
     })
     .refine((data) => !data.leadId || data.assigneeIds.includes(data.leadId), {
       message: "Le chef d'équipe désigné doit faire partie des employés affectés.",
       path: ["leadId"],
+    })
+    .refine((data) => !data.recurrence || data.recurrence.until >= data.date, {
+      message: "La date de fin de récurrence doit être postérieure à la date de la mission.",
+      path: ["recurrence", "until"],
     }),
 };
 
@@ -39,6 +50,11 @@ export const updateMissionSchema = {
 
 export const missionIdParamSchema = {
   params: z.object({ id: z.string().uuid() }),
+};
+
+export const cancelMissionSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({ scope: z.enum(["one", "series"]).optional().default("one") }),
 };
 
 export const conflictsQuerySchema = {

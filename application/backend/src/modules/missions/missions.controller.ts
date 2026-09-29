@@ -10,8 +10,8 @@ function actorOf(req: Request) {
 }
 
 export const createMissionHandler = asyncHandler(async (req: Request, res: Response) => {
-  const mission = await missionsService.createMission(actorOf(req), req.body);
-  res.status(201).json({ mission });
+  const { recurrenceCount, ...mission } = await missionsService.createMission(actorOf(req), req.body);
+  res.status(201).json({ mission, recurrenceCount });
 });
 
 export const listMissionsHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -35,8 +35,12 @@ export const updateMissionHandler = asyncHandler(async (req: Request, res: Respo
 });
 
 export const cancelMissionHandler = asyncHandler(async (req: Request, res: Response) => {
-  const mission = await missionsService.cancelMission(actorOf(req), req.params.id as string);
-  res.status(200).json({ mission });
+  const { seriesCancelledCount, ...mission } = await missionsService.cancelMission(
+    actorOf(req),
+    req.params.id as string,
+    req.body.scope
+  );
+  res.status(200).json({ mission, seriesCancelledCount });
 });
 
 export const setStatusHandler = asyncHandler(async (req: Request, res: Response) => {

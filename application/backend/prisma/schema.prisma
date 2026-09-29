@@ -62,6 +62,7 @@ model User {
   pushTokens         PushToken[]
   notifications      Notification[]
   managedSites       Site[]              @relation("SiteManager")
+  supervisedSites    Site[]              @relation("SiteSupervisor")
   siteMemberships    SiteMember[]
   missionAssignments MissionAssignment[]
   createdMissions    Mission[]           @relation("MissionCreatedBy")
@@ -116,6 +117,16 @@ model Site {
   description String?
   managerId   String?
   manager     User?    @relation("SiteManager", fields: [managerId], references: [id], onDelete: SetNull)
+  // Superviseur du chantier — retour explicite du client : distinct du chef
+  // d'équipe (`managerId`, ou le chef d'équipe désigné mission par mission
+  // via `MissionAssignment.isLead`), qui PEUT varier d'un jour à l'autre.
+  // Le superviseur du chantier, lui, ne change pas : c'est le même
+  // interlocuteur fixe pour ce chantier. N'ajoute aucune permission propre :
+  // tout compte au rôle Superviseur peut déjà gérer n'importe quel chantier
+  // (voir sites.service.ts) — purement organisationnel/informatif, pour que
+  // l'équipe sache qui est le superviseur référent de CE chantier précis.
+  supervisorId String?
+  supervisor   User?    @relation("SiteSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
   isActive    Boolean  @default(true)
   // Position GPS du chantier, enregistrée une fois sur place (bouton "Utiliser
   // ma position actuelle" à la création/édition de la fiche) — retour explicite
@@ -227,6 +238,14 @@ model Mission {
   standardDocumentUploadedById String?
   standardDocumentUploadedBy   User?     @relation("MissionStandardDocumentUploadedBy", fields: [standardDocumentUploadedById], references: [id], onDelete: SetNull)
   standardDocumentUploadedAt   DateTime?
+  // Regroupe les occurrences générées ensemble par une mission récurrente
+  // (retour explicite du client : "pas besoin de le recréer à chaque fois",
+  // voir missions.service.ts `createMission`/`generateRecurringDates`) — nul
+  // pour une mission ponctuelle. Partagé par la mission "source" et toutes
+  // ses occurrences, permet d'annuler la série entière en un geste
+  // (`cancelMission` avec `scope: "series"`) plutôt qu'occurrence par
+  // occurrence.
+  recurrenceGroupId String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -236,6 +255,7 @@ model Mission {
   jobSheet    JobSheet?
 
   @@index([siteId, date])
+  @@index([recurrenceGroupId])
   @@map("missions")
 }
 

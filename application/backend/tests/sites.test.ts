@@ -93,6 +93,46 @@ describe("Chantiers — visibilité scoping par rôle", () => {
   });
 });
 
+describe("Chantiers — superviseur fixe du chantier (distinct du chef d'équipe)", () => {
+  it("refuse d'assigner un superviseur du chantier qui n'a pas le rôle Superviseur", async () => {
+    const { accessToken } = await loginAs(Role.HR, "hr-supervisor-invalid@deepclean.test");
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-not-supervisor@deepclean.test" });
+
+    const res = await request(app)
+      .post("/api/v1/sites")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ name: "Chantier avec superviseur invalide", address: "1 rue Test", supervisorId: employee.id });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("permet d'assigner un superviseur du chantier, indépendant du chef d'équipe (qui peut varier)", async () => {
+    const { accessToken } = await loginAs(Role.DIRECTOR, "dir-supervisor@deepclean.test");
+    const manager = await createTestUser({ role: Role.SITE_MANAGER, email: "smgr-supervised@deepclean.test" });
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-fixed@deepclean.test" });
+
+    const created = await request(app)
+      .post("/api/v1/sites")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ name: "Chantier avec superviseur", address: "1 rue Test", managerId: manager.id, supervisorId: supervisor.id });
+
+    expect(created.status).toBe(201);
+    expect(created.body.site.managerId).toBe(manager.id);
+    expect(created.body.site.supervisorId).toBe(supervisor.id);
+
+    // Le chef d'équipe peut être remplacé sans toucher au superviseur fixe.
+    const otherManager = await createTestUser({ role: Role.SITE_MANAGER, email: "smgr-replacement@deepclean.test" });
+    const updated = await request(app)
+      .patch(`/api/v1/sites/${created.body.site.id}`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ managerId: otherManager.id });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.site.managerId).toBe(otherManager.id);
+    expect(updated.body.site.supervisorId).toBe(supervisor.id);
+  });
+});
+
 describe("Chantiers — le chef d'équipe ne modifie plus la fiche chantier", () => {
   it("refuse au chef d'équipe de modifier la description de son propre chantier (retour explicite du client)", async () => {
     const { user: manager, accessToken } = await loginAs(Role.SITE_MANAGER, "smgr-edit@deepclean.test");

@@ -10,6 +10,8 @@ import { TextField } from "../../components/TextField";
 import { DateTimeField } from "../../components/DateTimeField";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { Checkbox } from "../../components/Checkbox";
+import { PressableScale } from "../../components/PressableScale";
 import { EmployeePickerModal } from "../../components/EmployeePickerModal";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -36,6 +38,17 @@ type Route = RouteProp<{ MissionForm: { missionId?: string } | undefined }, "Mis
 const NONE = "__none__";
 const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+// 0 = dimanche ... 6 = samedi (JS Date#getDay) — même convention que le serveur.
+const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 1, label: "Lun" },
+  { value: 2, label: "Mar" },
+  { value: 3, label: "Mer" },
+  { value: 4, label: "Jeu" },
+  { value: 5, label: "Ven" },
+  { value: 6, label: "Sam" },
+  { value: 0, label: "Dim" },
+];
 
 function toTimeInput(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -87,6 +100,17 @@ export function MissionFormScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [initialAssigneeIds, setInitialAssigneeIds] = useState<string[]>([]);
   const [initialLeadId, setInitialLeadId] = useState<string | undefined>(undefined);
+
+  // Récurrence (retour explicite du client : "pas besoin de le recréer à
+  // chaque fois") — uniquement à la création, jamais en édition d'une mission
+  // déjà existante (une occurrence déjà créée reste une mission indépendante).
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatDays, setRepeatDays] = useState<number[]>([]);
+  const [repeatUntil, setRepeatUntil] = useState<Date>(defaultDate());
+
+  function toggleRepeatDay(value: number) {
+    setRepeatDays((prev) => (prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]));
+  }
 
   // Fonction nommée (plutôt qu'un effet anonyme) pour que le bouton
   // "Réessayer" de l'état d'erreur puisse réellement relancer le chargement —
@@ -181,6 +205,14 @@ export function MissionFormScreen() {
       setError("Affectez au moins un employé.");
       return;
     }
+    if (!isEdit && repeatEnabled && repeatDays.length === 0) {
+      setError("Sélectionnez au moins un jour à répéter, ou désactivez la répétition.");
+      return;
+    }
+    if (!isEdit && repeatEnabled && toLocalDateKey(repeatUntil) < toLocalDateKey(date)) {
+      setError("La date de fin de répétition doit être postérieure à la date de la mission.");
+      return;
+    }
 
     setSaving(true);
     const assigneeIds = leadId ? [...employeeIds, leadId] : employeeIds;
@@ -241,7 +273,7 @@ export function MissionFormScreen() {
 
         navigation.goBack();
       } else {
-        const created = await createMission({
+        const { mission: created, recurrenceCount } = await createMission({
           siteId,
           title,
           date: toLocalDateKey(date),
@@ -251,7 +283,11 @@ export function MissionFormScreen() {
           assigneeIds,
           leadId,
           standardId: standardId || undefined,
+          recurrence: repeatEnabled ? { daysOfWeek: repeatDays, until: toLocalDateKey(repeatUntil) } : undefined,
         });
+        if (recurrenceCount > 1) {
+          Alert.alert("Mission récurrente créée", `${recurrenceCount} missions ont été créées pour cette récurrence.`);
+        }
         navigation.replace("MissionDetail", { missionId: created.id });
       }
     } catch (err) {
@@ -343,6 +379,63 @@ export function MissionFormScreen() {
             <DateTimeField label="Fin" mode="time" value={endTime} onChange={setEndTime} formatValue={(d) => timeFmt.format(d)} />
           </View>
         </View>
+
+        {!isEdit && (
+          <View style={{ marginBottom: spacing.md }}>
+            <Checkbox
+              label="Répéter cette mission"
+              checked={repeatEnabled}
+              onChange={(v) => {
+                setRepeatEnabled(v);
+                if (v) {
+                  const d = new Date(date);
+                  d.setDate(d.getDate() + 7);
+                  setRepeatUntil(d);
+                }
+              }}
+            />
+            {repeatEnabled && (
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.xxs }]}>
+                  Jours de la semaine à répéter
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+                  {WEEKDAYS.map((day) => {
+                    const selected = repeatDays.includes(day.value);
+                    return (
+                      <PressableScale key={day.value} onPress={() => toggleRepeatDay(day.value)}>
+                        <View
+                          style={{
+                            paddingVertical: spacing.xs,
+                            paddingHorizontal: spacing.sm,
+                            borderRadius: 999,
+                            borderWidth: 1.5,
+                            borderColor: selected ? colors.accent : colors.border,
+                            backgroundColor: selected ? colors.accentSoft : colors.surface,
+                          }}
+                        >
+                          <Text style={[type.footnote, { color: selected ? colors.accent : colors.inkSecondary, fontWeight: "600" }]}>
+                            {day.label}
+                          </Text>
+                        </View>
+                      </PressableScale>
+                    );
+                  })}
+                </View>
+                <View style={{ marginTop: spacing.sm }}>
+                  <DateTimeField
+                    label="Jusqu'au"
+                    mode="date"
+                    value={repeatUntil}
+                    onChange={setRepeatUntil}
+                    minimumDate={date}
+                    formatValue={(d) => dateFmt.format(d)}
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>

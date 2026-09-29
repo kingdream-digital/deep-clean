@@ -19,6 +19,8 @@ const siteSelect = {
   isActive: true,
   managerId: true,
   manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+  supervisorId: true,
+  supervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
   latitude: true,
   longitude: true,
   createdAt: true,
@@ -67,19 +69,37 @@ async function assertCanView(actor: Actor, siteId: string, site: { managerId: st
   throw ApiError.notFound("Chantier introuvable.");
 }
 
+async function assertValidManager(managerId: string): Promise<void> {
+  const manager = await prisma.user.findUnique({ where: { id: managerId } });
+  if (!manager || manager.role !== Role.SITE_MANAGER) {
+    throw ApiError.badRequest("Le responsable désigné doit être un chef d'équipe.");
+  }
+  if (!manager.isActive) {
+    throw ApiError.badRequest("Le responsable désigné a un compte désactivé.");
+  }
+}
+
+// Superviseur du chantier — retour explicite du client : un interlocuteur
+// fixe pour ce chantier, distinct du chef d'équipe qui peut varier d'un jour
+// à l'autre (voir `Site.supervisorId` dans schema.prisma). Même principe de
+// validation que le chef d'équipe : doit être un compte actif au rôle
+// Superviseur.
+async function assertValidSupervisor(supervisorId: string): Promise<void> {
+  const supervisor = await prisma.user.findUnique({ where: { id: supervisorId } });
+  if (!supervisor || supervisor.role !== Role.SUPERVISOR) {
+    throw ApiError.badRequest("Le superviseur désigné doit avoir le rôle Superviseur.");
+  }
+  if (!supervisor.isActive) {
+    throw ApiError.badRequest("Le superviseur désigné a un compte désactivé.");
+  }
+}
+
 export async function createSite(
   actorId: string,
-  input: { name: string; address: string; description?: string; managerId?: string }
+  input: { name: string; address: string; description?: string; managerId?: string; supervisorId?: string }
 ) {
-  if (input.managerId) {
-    const manager = await prisma.user.findUnique({ where: { id: input.managerId } });
-    if (!manager || manager.role !== Role.SITE_MANAGER) {
-      throw ApiError.badRequest("Le responsable désigné doit être un chef d'équipe.");
-    }
-    if (!manager.isActive) {
-      throw ApiError.badRequest("Le responsable désigné a un compte désactivé.");
-    }
-  }
+  if (input.managerId) await assertValidManager(input.managerId);
+  if (input.supervisorId) await assertValidSupervisor(input.supervisorId);
 
   // Position GPS déduite automatiquement de l'adresse tapée (retour explicite
   // du client : il tape l'adresse à la main, jamais de capture GPS manuelle
@@ -175,6 +195,7 @@ interface UpdateSiteInput {
   address?: string;
   description?: string | null;
   managerId?: string | null;
+  supervisorId?: string | null;
   isActive?: boolean;
 }
 
@@ -182,15 +203,8 @@ export async function updateSite(actor: Actor, id: string, input: UpdateSiteInpu
   const existing = await findSiteOrThrow(id);
   await assertCanManage(actor);
 
-  if (input.managerId) {
-    const manager = await prisma.user.findUnique({ where: { id: input.managerId } });
-    if (!manager || manager.role !== Role.SITE_MANAGER) {
-      throw ApiError.badRequest("Le responsable désigné doit être un chef d'équipe.");
-    }
-    if (!manager.isActive) {
-      throw ApiError.badRequest("Le responsable désigné a un compte désactivé.");
-    }
-  }
+  if (input.managerId) await assertValidManager(input.managerId);
+  if (input.supervisorId) await assertValidSupervisor(input.supervisorId);
 
   // Ne re-géocode que si l'adresse change réellement — inutile de refaire
   // l'appel à chaque modification de la fiche (nom, description, statut...)

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
@@ -41,6 +42,7 @@ const missionSelect = {
   createdAt: true,
   updatedAt: true,
   site: { select: { id: true, name: true, address: true, isActive: true, managerId: true } },
+  recurrenceGroupId: true,
   createdBy: { select: { id: true, firstName: true, lastName: true } },
   assignments: {
     select: {
@@ -192,6 +194,33 @@ function toLocalTimeString(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// Nombre maximum d'occurrences (mission "source" incluse) pour une mission
+// récurrente en une seule création — garde-fou contre une erreur de saisie
+// sur la date de fin de récurrence (ex. mauvaise année) qui génèrerait des
+// centaines de missions d'un coup.
+export const MAX_RECURRING_OCCURRENCES = 60;
+
+// Génère les dates (AAAA-MM-JJ) des occurrences SUIVANTES d'une mission
+// récurrente — la mission du jour J (startDateStr) est déjà créée par
+// l'appelant normalement, qu'elle tombe ou non sur un jour sélectionné :
+// retour explicite du client, "tout les jours de la semaine ... pas besoin de
+// le recréer à chaque fois", donc seules les occurrences AU-DELÀ de la date
+// de départ sont générées ici, jusqu'à `untilStr` inclus.
+function generateRecurringDates(startDateStr: string, daysOfWeek: number[], untilStr: string): string[] {
+  const daysSet = new Set(daysOfWeek);
+  const dates: string[] = [];
+  const cursor = new Date(`${startDateStr}T00:00:00`);
+  const until = new Date(`${untilStr}T00:00:00`);
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= until) {
+    if (daysSet.has(cursor.getDay())) {
+      dates.push(toLocalDateString(cursor));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
 async function assertAssigneesValid(assigneeIds: string[]): Promise<void> {
   const users = await prisma.user.findMany({ where: { id: { in: assigneeIds } } });
   if (users.length !== assigneeIds.length) {
@@ -281,6 +310,12 @@ export async function getAssignmentConflicts(actor: Actor, input: ConflictCheckI
   return [...missionConflicts, ...absenceConflicts];
 }
 
+interface RecurrenceInput {
+  // 0 = dimanche ... 6 = samedi (JS Date#getDay), envoyé tel quel par le mobile.
+  daysOfWeek: number[];
+  until: string;
+}
+
 interface CreateMissionInput {
   siteId: string;
   title: string;
@@ -291,6 +326,7 @@ interface CreateMissionInput {
   assigneeIds: string[];
   leadId?: string;
   standardId?: string;
+  recurrence?: RecurrenceInput;
 }
 
 export async function createMission(actor: Actor, input: CreateMissionInput) {
@@ -318,6 +354,21 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     standard = found;
   }
 
+  let recurringDates: string[] = [];
+  let recurrenceGroupId: string | undefined;
+  if (input.recurrence) {
+    if (input.recurrence.until < input.date) {
+      throw ApiError.badRequest("La date de fin de récurrence doit être postérieure à la date de la mission.");
+    }
+    recurringDates = generateRecurringDates(input.date, input.recurrence.daysOfWeek, input.recurrence.until);
+    if (recurringDates.length + 1 > MAX_RECURRING_OCCURRENCES) {
+      throw ApiError.badRequest(
+        `Cette récurrence dépasse ${MAX_RECURRING_OCCURRENCES} missions au total : réduisez la période ou le nombre de jours sélectionnés.`
+      );
+    }
+    if (recurringDates.length > 0) recurrenceGroupId = crypto.randomUUID();
+  }
+
   const mission = await prisma.mission.create({
     data: {
       siteId: input.siteId,
@@ -328,6 +379,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
       instructions: input.instructions,
       createdById: actor.userId,
       standardId: input.standardId,
+      recurrenceGroupId,
       assignments: {
         create: input.assigneeIds.map((userId) => ({ userId, isLead: userId === input.leadId })),
       },
@@ -348,16 +400,73 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     select: missionSelect,
   });
 
-  await logActivity({ userId: actor.userId, action: "MISSION_CREATED", entityType: "Mission", entityId: mission.id });
+  // Occurrences suivantes de la série (retour explicite du client : créer une
+  // mission récurrente ne doit pas obliger à la recréer manuellement chaque
+  // jour) — mêmes chantier/horaire/équipe/consigne/standard que la mission
+  // source, chacune avec sa propre fiche de poste (JobSheet est 1:1 par
+  // mission, ne peut pas être partagée). `createMany` ne supporte pas les
+  // relations imbriquées : affectations et fiches de poste sont créées à part
+  // une fois les missions elles-mêmes en base.
+  if (recurringDates.length > 0 && recurrenceGroupId) {
+    await prisma.mission.createMany({
+      data: recurringDates.map((d) => ({
+        siteId: input.siteId,
+        title: input.title,
+        date: new Date(`${d}T00:00:00`),
+        startTime: combineDateTime(d, input.startTime),
+        endTime: combineDateTime(d, input.endTime),
+        instructions: input.instructions,
+        createdById: actor.userId,
+        standardId: input.standardId,
+        recurrenceGroupId,
+      })),
+    });
+
+    const occurrences = await prisma.mission.findMany({
+      where: { recurrenceGroupId, id: { not: mission.id } },
+      select: { id: true },
+    });
+
+    await prisma.missionAssignment.createMany({
+      data: occurrences.flatMap((occ) =>
+        input.assigneeIds.map((userId) => ({ missionId: occ.id, userId, isLead: userId === input.leadId }))
+      ),
+    });
+
+    if (standard) {
+      await prisma.jobSheet.createMany({
+        data: occurrences.map((occ) => ({
+          missionId: occ.id,
+          tasks: standard!.tasks,
+          equipment: standard!.equipment,
+          safetyInstructions: standard!.safetyInstructions,
+          notes: standard!.notes,
+          createdById: actor.userId,
+        })),
+      });
+    }
+  }
+
+  const recurrenceCount = recurringDates.length + 1;
+
+  await logActivity({
+    userId: actor.userId,
+    action: "MISSION_CREATED",
+    entityType: "Mission",
+    entityId: mission.id,
+    ...(recurrenceGroupId ? { metadata: { recurrenceGroupId, recurrenceCount } } : {}),
+  });
   await notifyAssignees(
     input.assigneeIds,
     NotificationType.MISSION_ASSIGNED,
     "Nouvelle mission",
-    "Une nouvelle mission vous a été attribuée.",
+    recurrenceGroupId
+      ? `Une mission récurrente vous a été attribuée (${recurrenceCount} occurrences jusqu'au ${input.recurrence!.until}).`
+      : "Une nouvelle mission vous a été attribuée.",
     mission.id
   );
 
-  return presentMission(mission);
+  return { ...presentMission(mission), recurrenceCount };
 }
 
 interface ListMissionsFilters {
@@ -547,7 +656,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
   return presentMission(updated);
 }
 
-export async function cancelMission(actor: Actor, id: string) {
+export async function cancelMission(actor: Actor, id: string, scope: "one" | "series" = "one") {
   const mission = await findMissionOrThrow(id);
   assertCanSeeMission(actor, mission);
   if (!canManagePlanning(actor)) throw ApiError.forbidden();
@@ -577,7 +686,52 @@ export async function cancelMission(actor: Actor, id: string) {
     id
   );
 
-  return presentMission(updated);
+  // Annulation de toute la série récurrente (retour explicite du client :
+  // symétrique de la création en série, éviter d'avoir à annuler chaque
+  // occurrence une par une) — ne touche jamais une occurrence déjà en cours,
+  // terminée ou annulée, ni une occurrence PASSÉE : seules les occurrences
+  // encore SCHEDULED à partir de la date de celle-ci sont concernées.
+  let seriesCancelledCount = 0;
+  if (scope === "series" && mission.recurrenceGroupId) {
+    const siblings = await prisma.mission.findMany({
+      where: {
+        recurrenceGroupId: mission.recurrenceGroupId,
+        id: { not: id },
+        status: MissionStatus.SCHEDULED,
+        date: { gte: mission.date },
+      },
+      select: { id: true, assignments: { select: { userId: true } } },
+    });
+
+    if (siblings.length > 0) {
+      await prisma.mission.updateMany({
+        where: { id: { in: siblings.map((s) => s.id) } },
+        data: { status: MissionStatus.CANCELLED },
+      });
+      seriesCancelledCount = siblings.length;
+
+      await logActivity({
+        userId: actor.userId,
+        action: "MISSION_CANCELLED",
+        entityType: "Mission",
+        entityId: id,
+        metadata: { recurrenceGroupId: mission.recurrenceGroupId, seriesCancelledCount },
+      });
+
+      const notifiedUserIds = new Set(siblings.flatMap((s) => s.assignments.map((a) => a.userId)));
+      await notifyAssignees(
+        [...notifiedUserIds],
+        NotificationType.MISSION_CANCELLED,
+        "Missions annulées",
+        `${seriesCancelledCount} mission${seriesCancelledCount > 1 ? "s" : ""} à venir de cette série récurrente ${
+          seriesCancelledCount > 1 ? "ont" : "a"
+        } été annulée${seriesCancelledCount > 1 ? "s" : ""}.`,
+        id
+      );
+    }
+  }
+
+  return { ...presentMission(updated), seriesCancelledCount };
 }
 
 export async function setMissionStatus(actor: Actor, id: string, status: "IN_PROGRESS" | "COMPLETED") {

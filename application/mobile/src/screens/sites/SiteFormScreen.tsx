@@ -41,10 +41,15 @@ export function SiteFormScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [managers, setManagers] = useState<DirectoryUser[]>([]);
+  const [supervisors, setSupervisors] = useState<DirectoryUser[]>([]);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [managerId, setManagerId] = useState<string>(NONE);
+  // Superviseur fixe du chantier — retour explicite du client : distinct du
+  // chef d'équipe ci-dessus, qui peut varier d'un jour à l'autre sur les
+  // missions (voir MissionFormScreen "Chef d'équipe" par mission).
+  const [supervisorId, setSupervisorId] = useState<string>(NONE);
   const [isActive, setIsActive] = useState(true);
   // Position GPS de référence du chantier (retour explicite du client :
   // vérifier automatiquement, en interne, que les pointages sont faits à
@@ -67,8 +72,12 @@ export function SiteFormScreen() {
       // Le chef d'équipe ne se choisit plus à la création (retour
       // explicite du client) : inutile de charger la liste hors édition.
       if (isEdit) {
-        const managersRes = await listUsers({ role: "SITE_MANAGER", isActive: true });
+        const [managersRes, supervisorsRes] = await Promise.all([
+          listUsers({ role: "SITE_MANAGER", isActive: true }),
+          listUsers({ role: "SUPERVISOR", isActive: true }),
+        ]);
         setManagers(managersRes.items);
+        setSupervisors(supervisorsRes.items);
       }
 
       if (isEdit && siteId) {
@@ -77,6 +86,7 @@ export function SiteFormScreen() {
         setAddress(site.address);
         setDescription(site.description ?? "");
         setManagerId(site.managerId ?? NONE);
+        setSupervisorId(site.supervisorId ?? NONE);
         setIsActive(site.isActive);
         setSiteLatitude(site.latitude);
         setSiteLongitude(site.longitude);
@@ -125,6 +135,7 @@ export function SiteFormScreen() {
         address: address.trim(),
         description: description.trim() || undefined,
         managerId: managerId === NONE ? undefined : managerId,
+        supervisorId: supervisorId === NONE ? undefined : supervisorId,
       };
       // La position GPS n'est jamais envoyée : le serveur la déduit lui-même
       // de l'adresse tapée (voir sites.service.ts::geocodeAddress). On
@@ -140,7 +151,12 @@ export function SiteFormScreen() {
       };
 
       if (isEdit && siteId) {
-        const updated = await updateSite(siteId, { ...payload, managerId: managerId === NONE ? null : managerId, isActive });
+        const updated = await updateSite(siteId, {
+          ...payload,
+          managerId: managerId === NONE ? null : managerId,
+          supervisorId: supervisorId === NONE ? null : supervisorId,
+          isActive,
+        });
         warnIfNoPosition(updated);
         navigation.goBack();
       } else {
@@ -227,6 +243,28 @@ export function SiteFormScreen() {
                 ))}
               </Picker>
             </Card>
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
+              Peut varier d'une mission à l'autre (voir la fiche de chaque mission).
+            </Text>
+          </View>
+        )}
+
+        {isEdit && (
+          <View style={{ marginBottom: spacing.md }}>
+            <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>
+              Superviseur du chantier
+            </Text>
+            <Card padded={false}>
+              <Picker selectedValue={supervisorId} onValueChange={setSupervisorId} style={{ color: colors.ink }}>
+                <Picker.Item label="Aucun pour le moment" value={NONE} />
+                {supervisors.map((s) => (
+                  <Picker.Item key={s.id} label={`${s.firstName} ${s.lastName}`} value={s.id} />
+                ))}
+              </Picker>
+            </Card>
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
+              L'interlocuteur fixe de ce chantier — contrairement au chef d'équipe, il ne change pas.
+            </Text>
           </View>
         )}
 

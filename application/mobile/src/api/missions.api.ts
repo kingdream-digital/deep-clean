@@ -51,6 +51,9 @@ export interface Mission {
   standardDocumentSizeBytes: number | null;
   standardDocumentUploadedAt: string | null;
   standardDocumentUploadedBy: { id: string; firstName: string; lastName: string } | null;
+  // Regroupe les occurrences générées ensemble par une mission récurrente
+  // (voir createMission ci-dessous) — null pour une mission ponctuelle.
+  recurrenceGroupId: string | null;
 }
 
 interface ListMissionsResponse {
@@ -80,6 +83,12 @@ export async function getMission(id: string): Promise<Mission> {
   return data.mission;
 }
 
+export interface MissionRecurrenceInput {
+  // 0 = dimanche ... 6 = samedi (JS Date#getDay) — même convention que le serveur.
+  daysOfWeek: number[];
+  until: string;
+}
+
 export interface CreateMissionInput {
   siteId: string;
   title: string;
@@ -90,11 +99,20 @@ export interface CreateMissionInput {
   assigneeIds: string[];
   leadId?: string;
   standardId?: string;
+  recurrence?: MissionRecurrenceInput;
 }
 
-export async function createMission(input: CreateMissionInput): Promise<Mission> {
-  const { data } = await apiClient.post<{ mission: Mission }>("/missions", input);
-  return data.mission;
+export interface CreateMissionResult {
+  mission: Mission;
+  recurrenceCount: number;
+}
+
+// `recurrenceCount` vaut 1 pour une mission ponctuelle (voir missions.service.ts
+// côté serveur) — permet d'afficher "N missions créées" seulement quand une
+// récurrence a effectivement généré plusieurs occurrences.
+export async function createMission(input: CreateMissionInput): Promise<CreateMissionResult> {
+  const { data } = await apiClient.post<CreateMissionResult>("/missions", input);
+  return data;
 }
 
 export interface UpdateMissionInput {
@@ -110,9 +128,17 @@ export async function updateMission(id: string, input: UpdateMissionInput): Prom
   return data.mission;
 }
 
-export async function cancelMission(id: string): Promise<Mission> {
-  const { data } = await apiClient.post<{ mission: Mission }>(`/missions/${id}/cancel`);
-  return data.mission;
+export interface CancelMissionResult {
+  mission: Mission;
+  seriesCancelledCount: number;
+}
+
+// `scope: "series"` annule aussi toutes les occurrences À VENIR encore
+// programmées de la même mission récurrente (voir missions.service.ts côté
+// serveur) — jamais une occurrence déjà en cours, terminée ou passée.
+export async function cancelMission(id: string, scope: "one" | "series" = "one"): Promise<CancelMissionResult> {
+  const { data } = await apiClient.post<CancelMissionResult>(`/missions/${id}/cancel`, { scope });
+  return data;
 }
 
 export async function setMissionStatus(id: string, status: "IN_PROGRESS" | "COMPLETED"): Promise<Mission> {

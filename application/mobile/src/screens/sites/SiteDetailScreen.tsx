@@ -152,6 +152,45 @@ export function SiteDetailScreen() {
           </Card>
         )}
 
+        {/* Superviseur du chantier — retour explicite du client : interlocuteur
+            fixe, distinct du chef d'équipe ci-dessus qui peut varier d'une
+            mission à l'autre (voir MissionDetailScreen "Chef d'équipe"). */}
+        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>
+          SUPERVISEUR DU CHANTIER
+        </Text>
+        {site.supervisor ? (
+          <PressableScale onPress={() => navigation.navigate("UserDetail", { userId: site.supervisor!.id })}>
+            <Card style={{ flexDirection: "row", alignItems: "center" }}>
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 999,
+                  backgroundColor: colors.accentSoft,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={[type.footnote, { color: colors.accent, fontWeight: "700" }]}>
+                  {site.supervisor.firstName[0]}
+                  {site.supervisor.lastName[0]}
+                </Text>
+              </View>
+              <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
+                  {site.supervisor.firstName} {site.supervisor.lastName}
+                </Text>
+                <Text style={[type.caption, { color: colors.inkTertiary }]}>Superviseur</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
+            </Card>
+          </PressableScale>
+        ) : (
+          <Card>
+            <Text style={[type.callout, { color: colors.inkSecondary }]}>Aucun superviseur assigné</Text>
+          </Card>
+        )}
+
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>
           STANDARD DE NETTOYAGE
         </Text>

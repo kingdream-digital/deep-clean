@@ -6,6 +6,7 @@ export const createSiteSchema = {
     address: z.string().trim().min(1).max(300),
     description: z.string().trim().max(2000).optional(),
     managerId: z.string().uuid().optional(),
+    supervisorId: z.string().uuid().optional(),
   }),
 };
 
@@ -17,6 +18,7 @@ export const updateSiteSchema = {
       address: z.string().trim().min(1).max(300).optional(),
       description: z.string().trim().max(2000).nullable().optional(),
       managerId: z.string().uuid().nullable().optional(),
+      supervisorId: z.string().uuid().nullable().optional(),
       isActive: z.boolean().optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),

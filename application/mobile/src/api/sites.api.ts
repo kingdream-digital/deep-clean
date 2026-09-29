@@ -8,6 +8,11 @@ export interface Site {
   isActive: boolean;
   managerId: string | null;
   manager: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  // Superviseur fixe du chantier — retour explicite du client : distinct du
+  // chef d'équipe (manager/managerId), qui peut varier d'un jour à l'autre
+  // sur les missions. Le superviseur, lui, ne change pas.
+  supervisorId: string | null;
+  supervisor: { id: string; firstName: string; lastName: string; email: string | null } | null;
   // Position GPS de référence du chantier — calculée automatiquement par le
   // serveur à partir de `address` (géocodage, voir sites.service.ts), jamais
   // envoyée par le client. Absente si l'adresse n'a pas été reconnue ; permet
@@ -43,6 +48,7 @@ export interface CreateSiteInput {
   address: string;
   description?: string;
   managerId?: string;
+  supervisorId?: string;
 }
 
 // Réservé RH / Direction / Admin (voir backend/src/modules/sites/sites.routes.ts).
@@ -53,7 +59,11 @@ export async function createSite(input: CreateSiteInput): Promise<Site> {
 
 export async function updateSite(
   id: string,
-  input: Partial<Omit<CreateSiteInput, "managerId">> & { managerId?: string | null; isActive?: boolean }
+  input: Partial<Omit<CreateSiteInput, "managerId" | "supervisorId">> & {
+    managerId?: string | null;
+    supervisorId?: string | null;
+    isActive?: boolean;
+  }
 ): Promise<Site> {
   const { data } = await apiClient.patch<{ site: Site }>(`/sites/${id}`, input);
   return data.site;

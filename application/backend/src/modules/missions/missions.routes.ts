@@ -3,6 +3,7 @@ import { authenticate } from "../../middleware/auth.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import { uploadDocument } from "../../middleware/upload.middleware";
 import {
+  cancelMissionSchema,
   conflictsQuerySchema,
   createMissionSchema,
   listMissionsQuerySchema,
@@ -28,7 +29,7 @@ missionsRouter.get("/", validate(listMissionsQuerySchema), missionsController.li
 missionsRouter.get("/conflicts", validate(conflictsQuerySchema), missionsController.getAssignmentConflictsHandler);
 missionsRouter.get("/:id", validate(missionIdParamSchema), missionsController.getMissionHandler);
 missionsRouter.patch("/:id", validate(updateMissionSchema), missionsController.updateMissionHandler);
-missionsRouter.post("/:id/cancel", validate(missionIdParamSchema), missionsController.cancelMissionHandler);
+missionsRouter.post("/:id/cancel", validate(cancelMissionSchema), missionsController.cancelMissionHandler);
 missionsRouter.post("/:id/status", validate(setStatusSchema), missionsController.setStatusHandler);
 missionsRouter.put(
   "/:id/assignments",

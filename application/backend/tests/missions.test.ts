@@ -25,6 +25,12 @@ function tomorrowDateString(): string {
   return d.toISOString().slice(0, 10);
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 const basePayload = () => ({
   title: "Nettoyage des bureaux",
   date: tomorrowDateString(),
@@ -769,5 +775,101 @@ describe("Pointages rattachés à une mission (récapitulatif, recoupement horai
       .get(`/api/v1/missions/${created.body.mission.id}/time-entries`)
       .set("Authorization", `Bearer ${outsiderToken}`);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("Missions récurrentes — retour explicite du client, pas besoin de recréer chaque occurrence", () => {
+  it("crée toutes les occurrences d'une mission récurrente, regroupées sous le même recurrenceGroupId", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-recur1@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-recur1@deepclean.test" });
+    const site = await createTestSite();
+    const token = await loginAs(supervisor);
+    const date = tomorrowDateString();
+    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const until = addDays(date, 21); // date, +7, +14, +21 -> 4 occurrences
+
+    const res = await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...basePayload(), date, siteId: site.id, assigneeIds: [employee.id], recurrence: { daysOfWeek: [weekday], until } });
+
+    expect(res.status).toBe(201);
+    expect(res.body.recurrenceCount).toBe(4);
+    expect(res.body.mission.recurrenceGroupId).toEqual(expect.any(String));
+
+    const occurrences = await prisma.mission.findMany({
+      where: { recurrenceGroupId: res.body.mission.recurrenceGroupId },
+      include: { assignments: true },
+      orderBy: { date: "asc" },
+    });
+    expect(occurrences).toHaveLength(4);
+    expect(occurrences.every((m) => m.assignments.length === 1 && m.assignments[0]!.userId === employee.id)).toBe(true);
+
+    // Une seule notification pour toute la série, pas une par occurrence.
+    const notifications = await prisma.notification.findMany({ where: { userId: employee.id } });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]!.body).toContain("4 occurrences");
+  });
+
+  it("refuse une récurrence qui dépasserait le nombre maximum d'occurrences autorisées", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-recur2@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-recur2@deepclean.test" });
+    const site = await createTestSite();
+    const token = await loginAs(supervisor);
+    const date = tomorrowDateString();
+    const until = addDays(date, 400); // tous les jours pendant 400 jours : bien plus que la limite
+
+    const res = await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        ...basePayload(),
+        date,
+        siteId: site.id,
+        assigneeIds: [employee.id],
+        recurrence: { daysOfWeek: [0, 1, 2, 3, 4, 5, 6], until },
+      });
+
+    expect(res.status).toBe(400);
+    const count = await prisma.mission.count();
+    expect(count).toBe(0);
+  });
+
+  it("annule toute la série à partir d'une occurrence, sans jamais toucher une occurrence déjà terminée", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-recur3@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-recur3@deepclean.test" });
+    const site = await createTestSite();
+    const token = await loginAs(supervisor);
+    const date = tomorrowDateString();
+    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const until = addDays(date, 14); // date, +7, +14 -> 3 occurrences
+
+    const created = await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...basePayload(), date, siteId: site.id, assigneeIds: [employee.id], recurrence: { daysOfWeek: [weekday], until } });
+    expect(created.body.recurrenceCount).toBe(3);
+
+    const groupId = created.body.mission.recurrenceGroupId as string;
+    const occurrences = await prisma.mission.findMany({ where: { recurrenceGroupId: groupId }, orderBy: { date: "asc" } });
+    expect(occurrences).toHaveLength(3);
+
+    // La 2e occurrence est déjà terminée entre-temps (manipulé directement,
+    // hors flux normal) : l'annulation de série ne doit jamais y toucher.
+    await prisma.mission.update({ where: { id: occurrences[1]!.id }, data: { status: "COMPLETED" } });
+
+    const cancelRes = await request(app)
+      .post(`/api/v1/missions/${created.body.mission.id}/cancel`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ scope: "series" });
+
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.mission.status).toBe("CANCELLED");
+    expect(cancelRes.body.seriesCancelledCount).toBe(1);
+
+    const refreshed = await prisma.mission.findMany({ where: { recurrenceGroupId: groupId }, orderBy: { date: "asc" } });
+    expect(refreshed[0]!.status).toBe("CANCELLED");
+    expect(refreshed[1]!.status).toBe("COMPLETED");
+    expect(refreshed[2]!.status).toBe("CANCELLED");
   });
 });
