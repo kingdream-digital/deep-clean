@@ -87,7 +87,16 @@ export function ScreenContainer({
       {avoidKeyboard ? (
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          // Bug remonté par un utilisateur (Android) : laisser `behavior`
+          // à `undefined` sur Android partait du principe que le
+          // `adjustResize` natif suffirait seul à redimensionner l'écran
+          // quand le clavier s'ouvre — plus fiable depuis qu'Expo active
+          // l'affichage "edge-to-edge" par défaut sur Android (SDK 53+),
+          // qui casse ce comportement dans de nombreuses apps : le clavier
+          // recouvre alors le champ de saisie sans que rien ne remonte.
+          // `"height"` fait porter le repositionnement par
+          // KeyboardAvoidingView lui-même, comme sur iOS.
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={keyboardVerticalOffset}
         >
           {content}
