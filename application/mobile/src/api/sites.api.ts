@@ -1,4 +1,6 @@
-import { apiClient } from "./client";
+import { Platform } from "react-native";
+import { apiClient, API_URL } from "./client";
+import type { LocalPhotoAsset } from "./problems.api";
 
 export interface Site {
   id: string;
@@ -6,6 +8,10 @@ export interface Site {
   address: string;
   description: string | null;
   isActive: boolean;
+  // Photo du chantier (retour explicite du client : "un visuel directement")
+  // — jamais la clé de stockage elle-même, voir sitePhotoUrl() ci-dessous et
+  // le même principe que Announcement.hasCoverPhoto/User.hasAvatar.
+  hasPhoto: boolean;
   managerId: string | null;
   manager: { id: string; firstName: string; lastName: string; email: string | null } | null;
   // Superviseur fixe du chantier — retour explicite du client : distinct du
@@ -66,5 +72,32 @@ export async function updateSite(
   }
 ): Promise<Site> {
   const { data } = await apiClient.patch<{ site: Site }>(`/sites/${id}`, input);
+  return data.site;
+}
+
+// Jamais d'URL publique permanente (voir CLAUDE.md section 11) : chaque
+// affichage repasse par une requête authentifiée, voir components/AuthenticatedImage.tsx.
+export function sitePhotoUrl(siteId: string): string {
+  return `${API_URL}/sites/${siteId}/photo/file`;
+}
+
+export async function uploadSitePhoto(siteId: string, asset: LocalPhotoAsset): Promise<Site> {
+  const formData = new FormData();
+  if (Platform.OS === "web" && asset.file) {
+    formData.append("photo", asset.file, asset.fileName ?? asset.file.name);
+  } else {
+    formData.append("photo", {
+      uri: asset.uri,
+      name: asset.fileName ?? `chantier-${Date.now()}.jpg`,
+      type: asset.mimeType ?? "image/jpeg",
+    } as unknown as Blob);
+  }
+
+  const { data } = await apiClient.put<{ site: Site }>(`/sites/${siteId}/photo`, formData);
+  return data.site;
+}
+
+export async function removeSitePhoto(siteId: string): Promise<Site> {
+  const { data } = await apiClient.delete<{ site: Site }>(`/sites/${siteId}/photo`);
   return data.site;
 }

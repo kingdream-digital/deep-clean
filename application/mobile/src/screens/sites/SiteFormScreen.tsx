@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Platform, ScrollView, Text, View } from "react-native";
+import { Image, Platform, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -13,15 +14,17 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Checkbox } from "../../components/Checkbox";
 import { PressableScale } from "../../components/PressableScale";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
-import { createSite, getSite, updateSite } from "../../api/sites.api";
+import { createSite, getSite, removeSitePhoto, sitePhotoUrl, updateSite, uploadSitePhoto } from "../../api/sites.api";
 import { listUsers } from "../../api/users.api";
 import type { DirectoryUser } from "../../api/users.api";
 import { attachStandardDocument, createStandard } from "../../api/standards.api";
 import type { LocalDocumentAsset } from "../../api/standards.api";
-import { pickWebFile } from "../../utils/webImagePicker";
+import type { LocalPhotoAsset } from "../../api/problems.api";
+import { pickWebFile, pickWebImages } from "../../utils/webImagePicker";
 import { formatFileSize } from "../../utils/fileSize";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
@@ -65,6 +68,15 @@ export function SiteFormScreen() {
   // "Standards de nettoyage" (StandardsListScreen).
   const [pdfAsset, setPdfAsset] = useState<LocalDocumentAsset | null>(null);
   const [pdfSizeBytes, setPdfSizeBytes] = useState<number | null>(null);
+  // Photo du chantier (retour explicite du client : "un visuel directement")
+  // — `photo` est une sélection locale en attente d'envoi (création ou
+  // remplacement), `hasExistingPhoto` reflète la photo déjà en base en
+  // édition. Retirer une photo déjà en base est immédiat (comme "Retirer ce
+  // document" ailleurs dans l'app) ; une simple sélection locale non encore
+  // envoyée, elle, se retire sans appel serveur.
+  const [photo, setPhoto] = useState<LocalPhotoAsset | null>(null);
+  const [hasExistingPhoto, setHasExistingPhoto] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -87,6 +99,7 @@ export function SiteFormScreen() {
         setDescription(site.description ?? "");
         setManagerId(site.managerId ?? NONE);
         setSupervisorId(site.supervisorId ?? NONE);
+        setHasExistingPhoto(site.hasPhoto);
         setIsActive(site.isActive);
         setSiteLatitude(site.latitude);
         setSiteLongitude(site.longitude);
@@ -97,6 +110,66 @@ export function SiteFormScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId, isEdit]);
+
+  async function handleTakePhoto() {
+    if (Platform.OS === "web") {
+      const [file] = await pickWebImages({ multiple: false, capture: true });
+      if (file) setPhoto(file);
+      return;
+    }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Accès refusé", "Autorisez l'accès à l'appareil photo dans les réglages pour prendre une photo.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 });
+    if (!result.canceled) setPhoto(result.assets[0]);
+  }
+
+  async function handlePickFromLibrary() {
+    if (Platform.OS === "web") {
+      const [file] = await pickWebImages({ multiple: false });
+      if (file) setPhoto(file);
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Accès refusé", "Autorisez l'accès aux photos dans les réglages pour en sélectionner.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+    if (!result.canceled) setPhoto(result.assets[0]);
+  }
+
+  function handleAddPhoto() {
+    Alert.alert("Photo du chantier", undefined, [
+      { text: "Prendre une photo", onPress: handleTakePhoto },
+      { text: "Choisir dans la galerie", onPress: handlePickFromLibrary },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  }
+
+  function handleRemoveExistingPhoto() {
+    if (!siteId) return;
+    Alert.alert("Retirer la photo de ce chantier ?", undefined, [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Retirer",
+        style: "destructive",
+        onPress: async () => {
+          setRemovingPhoto(true);
+          try {
+            await removeSitePhoto(siteId);
+            setHasExistingPhoto(false);
+          } catch (err) {
+            Alert.alert("Suppression impossible", extractErrorMessage(err));
+          } finally {
+            setRemovingPhoto(false);
+          }
+        },
+      },
+    ]);
+  }
 
   async function handlePickPdf() {
     if (Platform.OS === "web") {
@@ -158,10 +231,33 @@ export function SiteFormScreen() {
           isActive,
         });
         warnIfNoPosition(updated);
+
+        if (photo) {
+          try {
+            await uploadSitePhoto(siteId, photo);
+          } catch (err) {
+            Alert.alert("Photo non envoyée", extractErrorMessage(err, "Les autres modifications ont bien été enregistrées."));
+          }
+        }
+
         navigation.goBack();
       } else {
         const created = await createSite(payload);
         warnIfNoPosition(created);
+
+        if (photo) {
+          // Même raisonnement que le PDF de standard ci-dessous : le chantier
+          // existe déjà, un échec ici ne doit jamais donner l'impression que
+          // la création elle-même a échoué.
+          try {
+            await uploadSitePhoto(created.id, photo);
+          } catch (err) {
+            Alert.alert(
+              "Chantier créé",
+              `Le chantier a bien été créé, mais l'envoi de la photo a échoué : ${extractErrorMessage(err)}. Vous pouvez réessayer depuis la fiche du chantier.`
+            );
+          }
+        }
 
         if (pdfAsset) {
           // Le chantier existe déjà à ce stade : un échec ici ne doit jamais
@@ -214,6 +310,50 @@ export function SiteFormScreen() {
           isDesktopWeb && { maxWidth: 640, width: "100%", alignSelf: "center" },
         ]}
       >
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.xxs }]}>
+          Photo du chantier (facultatif)
+        </Text>
+        {photo ? (
+          <View style={{ marginBottom: spacing.lg }}>
+            <Image
+              source={{ uri: photo.uri }}
+              style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: colors.surfaceAlt }}
+            />
+            <PressableScale onPress={() => setPhoto(null)} style={{ marginTop: spacing.xs, alignSelf: "flex-start" }}>
+              <Text style={[type.footnote, { color: colors.danger, fontWeight: "600" }]}>Retirer la photo</Text>
+            </PressableScale>
+          </View>
+        ) : isEdit && hasExistingPhoto && siteId ? (
+          <View style={{ marginBottom: spacing.lg }}>
+            <AuthenticatedImage
+              uri={sitePhotoUrl(siteId)}
+              style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: colors.surfaceAlt }}
+            />
+            <View style={{ flexDirection: "row", marginTop: spacing.xs, gap: spacing.md }}>
+              <PressableScale onPress={handleAddPhoto}>
+                <Text style={[type.footnote, { color: colors.accent, fontWeight: "600" }]}>Remplacer</Text>
+              </PressableScale>
+              <PressableScale onPress={handleRemoveExistingPhoto} disabled={removingPhoto}>
+                <Text style={[type.footnote, { color: colors.danger, fontWeight: "600" }]}>
+                  {removingPhoto ? "Suppression..." : "Retirer"}
+                </Text>
+              </PressableScale>
+            </View>
+          </View>
+        ) : (
+          <Card padded={false} style={{ marginBottom: spacing.lg }}>
+            <PressableScale
+              onPress={handleAddPhoto}
+              style={{ alignItems: "center", justifyContent: "center", paddingVertical: spacing.xl }}
+            >
+              <Ionicons name="image-outline" size={28} color={colors.accent} />
+              <Text style={[type.callout, { color: colors.accent, fontWeight: "600", marginTop: spacing.xs }]}>
+                Ajouter une photo
+              </Text>
+            </PressableScale>
+          </Card>
+        )}
+
         <TextField label="Nom du chantier" placeholder="Tour Horizon" value={name} onChangeText={setName} />
         <TextField label="Adresse" placeholder="12 rue des Fleurs, 04100 Manosque" value={address} onChangeText={setAddress} />
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.sm, marginBottom: spacing.md }]}>

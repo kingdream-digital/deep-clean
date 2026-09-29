@@ -9,9 +9,11 @@ import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
+import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
-import { getSite } from "../../api/sites.api";
+import { getSite, sitePhotoUrl } from "../../api/sites.api";
 import type { Site } from "../../api/sites.api";
 import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
@@ -25,10 +27,10 @@ type Route = RouteProp<{ SiteDetail: { siteId: string } }, "SiteDetail">;
 const MANAGE_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 
 // Fiche chantier — reprend la structure de la maquette validée (bannière,
-// chef d'équipe, standards, consignes, prochaines missions, signalements)
-// avec des données réelles à chaque section : aucune photo par chantier
-// n'existe dans le modèle de données, la bannière reste donc une icône
-// générique plutôt qu'une photo inventée.
+// chef d'équipe, standards, consignes, prochaines missions, signalements) ;
+// la bannière affiche la vraie photo du chantier quand il en a une (retour
+// explicite du client : "un visuel directement"), sinon l'icône générique
+// d'origine.
 export function SiteDetailScreen() {
   const { colors, spacing, type } = useTheme();
   const { user } = useAuth();
@@ -40,6 +42,7 @@ export function SiteDetailScreen() {
   const [upcomingMissions, setUpcomingMissions] = useState<Mission[]>([]);
   const [openProblems, setOpenProblems] = useState<Problem[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -83,16 +86,22 @@ export function SiteDetailScreen() {
 
   return (
     <ScreenContainer style={{ paddingHorizontal: 0 }}>
-      <View style={{ height: 140 }}>
-        <LinearGradient
-          colors={colors.accentGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
-          <Ionicons name="business-outline" size={44} color="rgba(255,255,255,0.85)" />
-        </LinearGradient>
-      </View>
+      {site.hasPhoto ? (
+        <PressableScale onPress={() => setViewerOpen(true)}>
+          <AuthenticatedImage uri={sitePhotoUrl(site.id)} style={{ width: "100%", height: 140, backgroundColor: colors.surfaceAlt }} />
+        </PressableScale>
+      ) : (
+        <View style={{ height: 140 }}>
+          <LinearGradient
+            colors={colors.accentGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
+            <Ionicons name="business-outline" size={44} color="rgba(255,255,255,0.85)" />
+          </LinearGradient>
+        </View>
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -311,6 +320,10 @@ export function SiteDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {site.hasPhoto && (
+        <PhotoViewerModal visible={viewerOpen} uri={sitePhotoUrl(site.id)} onClose={() => setViewerOpen(false)} />
+      )}
     </ScreenContainer>
   );
 }

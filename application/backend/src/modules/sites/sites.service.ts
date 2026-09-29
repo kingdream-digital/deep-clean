@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { geocodeAddress } from "../../utils/geocoding";
+import { deleteStoredImage, storeImage } from "../../utils/storage";
 
 interface Actor {
   userId: string;
@@ -21,11 +22,20 @@ const siteSelect = {
   manager: { select: { id: true, firstName: true, lastName: true, email: true } },
   supervisorId: true,
   supervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
+  photoKey: true,
   latitude: true,
   longitude: true,
   createdAt: true,
   updatedAt: true,
 } as const;
+
+// Retire `photoKey` (jamais exposé tel quel, même principe que
+// `Announcement.coverPhotoKey`) au profit d'un simple booléen — le client
+// récupère la photo via la route authentifiée dédiée (GET /:id/photo/file).
+function presentSite<T extends { photoKey: string | null }>(site: T): Omit<T, "photoKey"> & { hasPhoto: boolean } {
+  const { photoKey, ...rest } = site;
+  return { ...rest, hasPhoto: Boolean(photoKey) };
+}
 
 async function findSiteOrThrow(id: string) {
   const site = await prisma.site.findUnique({ where: { id } });
@@ -114,7 +124,7 @@ export async function createSite(
     select: siteSelect,
   });
   await logActivity({ userId: actorId, action: "SITE_CREATED", entityType: "Site", entityId: site.id });
-  return site;
+  return presentSite(site);
 }
 
 interface ListSitesFilters {
@@ -171,7 +181,7 @@ export async function listSites(actor: Actor, filters: ListSitesFilters) {
     prisma.site.count({ where }),
   ]);
 
-  return { items, total, page: filters.page, pageSize: filters.pageSize };
+  return { items: items.map(presentSite), total, page: filters.page, pageSize: filters.pageSize };
 }
 
 export async function getSiteById(actor: Actor, id: string) {
@@ -187,7 +197,7 @@ export async function getSiteById(actor: Actor, id: string) {
     }),
   ]);
 
-  return { ...full, members: members.map((m) => ({ ...m.user, joinedAt: m.joinedAt })) };
+  return { ...presentSite(full), members: members.map((m) => ({ ...m.user, joinedAt: m.joinedAt })) };
 }
 
 interface UpdateSiteInput {
@@ -217,7 +227,52 @@ export async function updateSite(actor: Actor, id: string, input: UpdateSiteInpu
 
   const updated = await prisma.site.update({ where: { id }, data: { ...input, ...geo }, select: siteSelect });
   await logActivity({ userId: actor.userId, action: "SITE_UPDATED", entityType: "Site", entityId: id, metadata: input as Record<string, unknown> });
-  return updated;
+  return presentSite(updated);
+}
+
+// Photo du chantier (retour explicite du client) — mêmes droits que le reste
+// de la fiche chantier (assertCanManage) : le chef d'équipe n'y touche plus,
+// au même titre que le nom, l'adresse ou la description depuis l'évolution
+// "superviseur/RH/direction/admin gèrent seuls la fiche".
+export async function setSitePhoto(actor: Actor, id: string, fileBuffer: Buffer) {
+  const site = await findSiteOrThrow(id);
+  await assertCanManage(actor);
+
+  const stored = await storeImage(fileBuffer);
+
+  let updated;
+  try {
+    updated = await prisma.site.update({ where: { id }, data: { photoKey: stored.storageKey }, select: siteSelect });
+  } catch (err) {
+    await deleteStoredImage(stored.storageKey);
+    throw err;
+  }
+
+  if (site.photoKey) await deleteStoredImage(site.photoKey);
+
+  await logActivity({ userId: actor.userId, action: "SITE_PHOTO_UPDATED", entityType: "Site", entityId: id });
+  return presentSite(updated);
+}
+
+export async function removeSitePhoto(actor: Actor, id: string) {
+  const site = await findSiteOrThrow(id);
+  await assertCanManage(actor);
+  if (!site.photoKey) throw ApiError.notFound("Aucune photo pour ce chantier.");
+
+  const updated = await prisma.site.update({ where: { id }, data: { photoKey: null }, select: siteSelect });
+  await deleteStoredImage(site.photoKey);
+  await logActivity({ userId: actor.userId, action: "SITE_PHOTO_REMOVED", entityType: "Site", entityId: id });
+  return presentSite(updated);
+}
+
+// Consultation ouverte à quiconque peut déjà voir la fiche du chantier
+// elle-même (même règle que le reste de `getSiteById`) — une photo de
+// chantier n'est pas une information plus sensible que le reste de la fiche.
+export async function getSitePhotoFile(actor: Actor, id: string) {
+  const site = await findSiteOrThrow(id);
+  await assertCanView(actor, id, site);
+  if (!site.photoKey) throw ApiError.notFound("Aucune photo pour ce chantier.");
+  return { storageKey: site.photoKey };
 }
 
 export async function addSiteMember(actor: Actor, siteId: string, userId: string) {

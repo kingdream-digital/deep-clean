@@ -9,10 +9,11 @@ import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
 import { DataTable, DataTableColumn } from "../../components/DataTable";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
-import { listSites } from "../../api/sites.api";
+import { listSites, sitePhotoUrl } from "../../api/sites.api";
 import type { Site } from "../../api/sites.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
@@ -129,17 +130,24 @@ export function SitesListScreen() {
               <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
                 <PressableScale onPress={() => navigation.navigate("SiteDetail", { siteId: item.id })}>
                   <Card padded={false}>
-                    <View
-                      style={{
-                        width: "100%",
-                        height: 90,
-                        backgroundColor: item.isActive ? colors.accentSoft : colors.neutralSoft,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Ionicons name="business-outline" size={34} color={item.isActive ? colors.accent : colors.neutral} />
-                    </View>
+                    {item.hasPhoto ? (
+                      <AuthenticatedImage
+                        uri={sitePhotoUrl(item.id)}
+                        style={{ width: "100%", height: 90, backgroundColor: colors.surfaceAlt }}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: "100%",
+                          height: 90,
+                          backgroundColor: item.isActive ? colors.accentSoft : colors.neutralSoft,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Ionicons name="business-outline" size={34} color={item.isActive ? colors.accent : colors.neutral} />
+                      </View>
+                    )}
                     <View style={{ padding: spacing.md }}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                         <Text style={[type.headline, { color: colors.ink, flex: 1 }]} numberOfLines={1}>

@@ -2,7 +2,7 @@ import request from "supertest";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
-import { createTestSite, createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+import { createTestSite, createTestUser, resetDatabase, tinyTestPhoto, TEST_PASSWORD } from "./helpers";
 
 const app = createApp();
 
@@ -130,6 +130,60 @@ describe("Chantiers — superviseur fixe du chantier (distinct du chef d'équipe
     expect(updated.status).toBe(200);
     expect(updated.body.site.managerId).toBe(otherManager.id);
     expect(updated.body.site.supervisorId).toBe(supervisor.id);
+  });
+});
+
+describe("Chantiers — photo du chantier (retour explicite du client, visuel direct)", () => {
+  it("permet à la RH de déposer une photo de chantier, servie à tout compte pouvant voir le chantier", async () => {
+    const { accessToken: hrToken } = await loginAs(Role.HR, "hr-site-photo@deepclean.test");
+    const site = await createTestSite({ name: "Chantier avec photo" });
+
+    const uploaded = await request(app)
+      .put(`/api/v1/sites/${site.id}/photo`)
+      .set("Authorization", `Bearer ${hrToken}`)
+      .attach("photo", await tinyTestPhoto(), { filename: "chantier.jpg", contentType: "image/jpeg" });
+
+    expect(uploaded.status).toBe(200);
+    expect(uploaded.body.site.hasPhoto).toBe(true);
+    expect(uploaded.body.site.photoKey).toBeUndefined();
+
+    const { user: employee, accessToken: employeeToken } = await loginAs(Role.EMPLOYEE, "emp-site-photo@deepclean.test");
+    await prisma.siteMember.create({ data: { siteId: site.id, userId: employee.id } });
+
+    const file = await request(app)
+      .get(`/api/v1/sites/${site.id}/photo/file`)
+      .set("Authorization", `Bearer ${employeeToken}`);
+    expect(file.status).toBe(200);
+    expect(file.headers["content-type"]).toContain("image/jpeg");
+  });
+
+  it("refuse au chef d'équipe de déposer une photo sur son propre chantier (réservé à la fiche chantier)", async () => {
+    const { user: manager, accessToken } = await loginAs(Role.SITE_MANAGER, "smgr-site-photo@deepclean.test");
+    const site = await createTestSite({ managerId: manager.id });
+
+    const res = await request(app)
+      .put(`/api/v1/sites/${site.id}/photo`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .attach("photo", await tinyTestPhoto(), { filename: "chantier.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("permet de retirer une photo de chantier, et renvoie 404 s'il n'y en a pas", async () => {
+    const { accessToken } = await loginAs(Role.SUPERVISOR, "sup-site-photo@deepclean.test");
+    const site = await createTestSite({ name: "Chantier sans photo" });
+
+    const removeMissing = await request(app).delete(`/api/v1/sites/${site.id}/photo`).set("Authorization", `Bearer ${accessToken}`);
+    expect(removeMissing.status).toBe(404);
+
+    await request(app)
+      .put(`/api/v1/sites/${site.id}/photo`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .attach("photo", await tinyTestPhoto(), { filename: "chantier.jpg", contentType: "image/jpeg" });
+
+    const removed = await request(app).delete(`/api/v1/sites/${site.id}/photo`).set("Authorization", `Bearer ${accessToken}`);
+    expect(removed.status).toBe(200);
+    expect(removed.body.site.hasPhoto).toBe(false);
   });
 });
 

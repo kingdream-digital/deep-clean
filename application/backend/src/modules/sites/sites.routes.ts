@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { authenticate } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
 import { validate } from "../../middleware/validate.middleware";
+import { uploadPhoto } from "../../middleware/upload.middleware";
 import {
   addSiteMemberSchema,
   createSiteSchema,
@@ -31,3 +32,9 @@ sitesRouter.patch("/:id", validate(updateSiteSchema), sitesController.updateSite
 
 sitesRouter.post("/:id/members", validate(addSiteMemberSchema), sitesController.addSiteMemberHandler);
 sitesRouter.delete("/:id/members/:userId", validate(removeSiteMemberSchema), sitesController.removeSiteMemberHandler);
+
+// Photo du chantier — portée exacte (qui peut modifier/consulter) appliquée
+// dans sites.service.ts (mêmes règles que le reste de la fiche chantier).
+sitesRouter.put("/:id/photo", validate(siteIdParamSchema), uploadPhoto, sitesController.setSitePhotoHandler);
+sitesRouter.delete("/:id/photo", validate(siteIdParamSchema), sitesController.removeSitePhotoHandler);
+sitesRouter.get("/:id/photo/file", validate(siteIdParamSchema), sitesController.getSitePhotoFileHandler);

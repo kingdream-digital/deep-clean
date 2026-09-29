@@ -127,6 +127,12 @@ model Site {
   // l'équipe sache qui est le superviseur référent de CE chantier précis.
   supervisorId String?
   supervisor   User?    @relation("SiteSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+  // Photo du chantier (retour explicite du client : "pour qu'on ait un
+  // visuel directement") — même principe que les autres photos de l'app :
+  // jamais une URL publique, clé opaque résolue par une route authentifiée
+  // dédiée (voir sites.service.ts `getSitePhotoFile`). Optionnelle : un
+  // chantier sans photo garde son icône générique (voir SiteDetailScreen).
+  photoKey    String?
   isActive    Boolean  @default(true)
   // Position GPS du chantier, enregistrée une fois sur place (bouton "Utiliser
   // ma position actuelle" à la création/édition de la fiche) — retour explicite
