@@ -82,12 +82,15 @@ export async function clockOutViaApi(app: Express, token: string) {
     .attach("photo", await tinyTestPhoto(), { filename: "proof.jpg", contentType: "image/jpeg" });
 }
 
-export async function createTestSite(overrides: Partial<{ name: string; managerId: string | null }> = {}) {
+export async function createTestSite(
+  overrides: Partial<{ name: string; managerId: string | null; supervisorId: string | null }> = {}
+) {
   return prisma.site.create({
     data: {
       name: overrides.name ?? `Chantier ${Date.now()}-${Math.random().toString(36).slice(2)}`,
       address: "1 rue de Test, 75000 Paris",
       managerId: overrides.managerId ?? null,
+      supervisorId: overrides.supervisorId ?? null,
     },
   });
 }

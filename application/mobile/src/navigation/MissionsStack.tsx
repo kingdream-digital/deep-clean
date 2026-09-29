@@ -10,6 +10,7 @@ import { ReportProblemScreen } from "../screens/missions/ReportProblemScreen";
 import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
 import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
+import { TimeEntryDetailScreen } from "../screens/timesheets/TimeEntryDetailScreen";
 
 export type MissionsStackParamList = {
   MissionsList: undefined;
@@ -20,6 +21,7 @@ export type MissionsStackParamList = {
   ProblemDetail: { problemId: string };
   StandardDetail: { standardId: string };
   ContactProfile: { userId: string };
+  TimeEntryDetail: { entryId: string };
 };
 
 const Stack = createNativeStackNavigator<MissionsStackParamList>();
@@ -61,6 +63,7 @@ export function MissionsStack() {
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
       <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ title: "Profil" }} />
+      <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
     </Stack.Navigator>
   );
 }

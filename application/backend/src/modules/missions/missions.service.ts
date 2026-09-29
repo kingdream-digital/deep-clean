@@ -41,7 +41,23 @@ const missionSelect = {
   status: true,
   createdAt: true,
   updatedAt: true,
-  site: { select: { id: true, name: true, address: true, isActive: true, managerId: true } },
+  // manager/supervisor exposés ici (pas juste leur id) — retour explicite du
+  // client : pouvoir identifier directement, depuis une mission, le chef
+  // d'équipe responsable du chantier et son superviseur fixe (utile pour
+  // diagnostiquer un écart pointage/mission sans naviguer vers la fiche
+  // chantier séparément).
+  site: {
+    select: {
+      id: true,
+      name: true,
+      address: true,
+      isActive: true,
+      managerId: true,
+      manager: { select: { id: true, firstName: true, lastName: true } },
+      supervisorId: true,
+      supervisor: { select: { id: true, firstName: true, lastName: true } },
+    },
+  },
   recurrenceGroupId: true,
   createdBy: { select: { id: true, firstName: true, lastName: true } },
   assignments: {

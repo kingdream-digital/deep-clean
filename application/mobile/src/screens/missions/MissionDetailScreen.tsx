@@ -82,10 +82,13 @@ export function MissionDetailScreen() {
       const [missionData, problemsData] = await Promise.all([getMission(missionId), listProblems({ missionId })]);
       setMission(missionData);
       setProblems(problemsData.items);
-      // Récap des pointages de l'équipe : utile surtout une fois la mission
-      // terminée, mais on tolère un échec silencieux (droits restreints,
-      // aucun pointage) sans bloquer le reste de l'écran.
-      if (missionData.status === "COMPLETED") {
+      // Suivi pointage vs mission (retour explicite du client : "voir si la
+      // mission est terminée ou pas, pourquoi l'employé n'a pas pointé") —
+      // utile dès que la mission a démarré, pas seulement une fois terminée ;
+      // avant (SCHEDULED), personne n'a encore de raison d'avoir pointé, donc
+      // rien à diagnostiquer. On tolère un échec silencieux (droits
+      // restreints, aucun pointage) sans bloquer le reste de l'écran.
+      if (missionData.status === "IN_PROGRESS" || missionData.status === "COMPLETED") {
         setTimeEntries(await getMissionTimeEntries(missionId).catch(() => []));
       } else {
         setTimeEntries([]);
@@ -146,6 +149,16 @@ export function MissionDetailScreen() {
   const canValidateMission =
     isOwningSiteManager || isMissionLead || user?.role === "HR" || user?.role === "SUPERVISOR" || user?.role === "DIRECTOR";
   const completionValidation = mission.validations.find((v) => v.type === "MISSION_COMPLETION");
+  // Retour explicite du client : diagnostiquer un écart pointage/mission
+  // (qui a pointé, qui manque, chef d'équipe et superviseur responsables) est
+  // réservé à ceux qui gèrent déjà le planning ou l'équipe de ce chantier —
+  // un simple employé n'a pas à voir le détail des pointages de ses collègues
+  // (déjà appliqué côté serveur, voir getMissionTimeEntries).
+  const canSeeTeamPointageDetail = canManagePlanning || isOwningSiteManager || isMissionLead;
+  // Employés affectés n'ayant, à ce jour, aucun pointage rapproché de cette
+  // mission — c'est précisément la question "pourquoi l'employé n'a pas
+  // pointé" que ce diagnostic doit permettre de repérer d'un coup d'œil.
+  const missingAssignees = mission.assignments.filter((a) => !timeEntries.some((e) => e.userId === a.userId));
 
   async function runAction(name: string, action: () => Promise<Mission>) {
     setActionLoading(name);
@@ -553,41 +566,126 @@ export function MissionDetailScreen() {
           Créée par {mission.createdBy.firstName} {mission.createdBy.lastName}
         </Text>
 
-        {mission.status === "COMPLETED" && timeEntries.length > 0 && (
+        {canSeeTeamPointageDetail && (mission.status === "IN_PROGRESS" || mission.status === "COMPLETED") && (
           <>
             <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.xxs }]}>
-              POINTAGES DE L'ÉQUIPE
+              SUIVI DE L'ÉQUIPE
             </Text>
             <Text style={[type.caption, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-              Rapproché par créneau horaire, à titre indicatif.
+              Pointages rapprochés par créneau horaire, à titre indicatif — pour vous aider à identifier un problème
+              (mission {mission.status === "COMPLETED" ? "terminée" : "en cours"}).
             </Text>
+
+            {(mission.site.manager || mission.site.supervisor) && (
+              <Card padded={false} style={{ marginBottom: spacing.sm }}>
+                {mission.site.manager && (
+                  <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: mission.site.manager!.id })}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: spacing.sm,
+                        paddingHorizontal: spacing.lg,
+                      }}
+                    >
+                      <Ionicons name="person-outline" size={16} color={colors.inkTertiary} />
+                      <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                        <Text style={[type.footnote, { color: colors.inkTertiary }]}>Chef d'équipe du chantier</Text>
+                        <Text style={[type.callout, { color: colors.ink }]}>
+                          {mission.site.manager.firstName} {mission.site.manager.lastName}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
+                    </View>
+                  </PressableScale>
+                )}
+                {mission.site.supervisor && (
+                  <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: mission.site.supervisor!.id })}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: spacing.sm,
+                        paddingHorizontal: spacing.lg,
+                        borderTopWidth: mission.site.manager ? 1 : 0,
+                        borderTopColor: colors.border,
+                      }}
+                    >
+                      <Ionicons name="shield-checkmark-outline" size={16} color={colors.inkTertiary} />
+                      <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                        <Text style={[type.footnote, { color: colors.inkTertiary }]}>Superviseur du chantier</Text>
+                        <Text style={[type.callout, { color: colors.ink }]}>
+                          {mission.site.supervisor.firstName} {mission.site.supervisor.lastName}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
+                    </View>
+                  </PressableScale>
+                )}
+              </Card>
+            )}
+
             <Card padded={false}>
               {timeEntries.map((entry, index) => (
-                <View
+                <PressableScale
                   key={entry.id}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: spacing.sm,
-                    paddingHorizontal: spacing.lg,
-                    borderTopWidth: index === 0 ? 0 : 1,
-                    borderTopColor: colors.border,
-                  }}
+                  onPress={() => navigation.navigate("TimeEntryDetail", { entryId: entry.id })}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
-                      {entry.user.firstName} {entry.user.lastName}
-                    </Text>
-                    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>
-                      {entryTimeFormatter.format(new Date(entry.clockIn))}
-                      {" – "}
-                      {entry.clockOut ? entryTimeFormatter.format(new Date(entry.clockOut)) : "en cours"}
-                      {"  ·  "}
-                      {formatDuration(entry.clockIn, entry.clockOut)}
-                    </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: spacing.sm,
+                      paddingHorizontal: spacing.lg,
+                      borderTopWidth: index === 0 ? 0 : 1,
+                      borderTopColor: colors.border,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
+                        {entry.user.firstName} {entry.user.lastName}
+                      </Text>
+                      <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>
+                        {entryTimeFormatter.format(new Date(entry.clockIn))}
+                        {" – "}
+                        {entry.clockOut ? entryTimeFormatter.format(new Date(entry.clockOut)) : "en cours"}
+                        {"  ·  "}
+                        {formatDuration(entry.clockIn, entry.clockOut)}
+                      </Text>
+                    </View>
+                    <TimeEntryStatusBadge status={entry.status} />
+                    <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />
                   </View>
-                  <TimeEntryStatusBadge status={entry.status} />
-                </View>
+                </PressableScale>
+              ))}
+              {/* Retour explicite du client : "pourquoi l'employé n'a pas pointé" —
+                  les affectés sans pointage rapproché doivent être aussi visibles
+                  que ceux qui ont pointé, pas silencieusement absents de la liste. */}
+              {missingAssignees.map((a, index) => (
+                <PressableScale
+                  key={a.userId}
+                  onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: spacing.sm,
+                      paddingHorizontal: spacing.lg,
+                      borderTopWidth: timeEntries.length === 0 && index === 0 ? 0 : 1,
+                      borderTopColor: colors.border,
+                    }}
+                  >
+                    <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+                    <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                      <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
+                        {a.user.firstName} {a.user.lastName}
+                      </Text>
+                      <Text style={[type.footnote, { color: colors.warning, marginTop: 1 }]}>Aucun pointage</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
+                  </View>
+                </PressableScale>
               ))}
             </Card>
           </>

@@ -873,3 +873,26 @@ describe("Missions récurrentes — retour explicite du client, pas besoin de re
     expect(refreshed[2]!.status).toBe("CANCELLED");
   });
 });
+
+describe("Mission — chef d'équipe et superviseur du chantier exposés (diagnostic pointage vs mission)", () => {
+  it("expose le chef d'équipe et le superviseur du chantier dans la réponse d'une mission", async () => {
+    const supervisorAccount = await createTestUser({ role: Role.SUPERVISOR, email: "sup-mission-site@deepclean.test" });
+    const manager = await createTestUser({ role: Role.SITE_MANAGER, email: "smgr-mission-site@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-mission-site@deepclean.test" });
+    const site = await createTestSite({ managerId: manager.id, supervisorId: supervisorAccount.id });
+    const token = await loginAs(supervisorAccount);
+
+    const res = await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.mission.site.manager).toMatchObject({ id: manager.id, firstName: manager.firstName, lastName: manager.lastName });
+    expect(res.body.mission.site.supervisor).toMatchObject({
+      id: supervisorAccount.id,
+      firstName: supervisorAccount.firstName,
+      lastName: supervisorAccount.lastName,
+    });
+  });
+});

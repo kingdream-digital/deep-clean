@@ -38,7 +38,19 @@ export interface Mission {
   status: MissionStatus;
   createdAt: string;
   updatedAt: string;
-  site: { id: string; name: string; address: string; isActive: boolean; managerId: string | null };
+  site: {
+    id: string;
+    name: string;
+    address: string;
+    isActive: boolean;
+    managerId: string | null;
+    manager: { id: string; firstName: string; lastName: string } | null;
+    // Superviseur fixe du chantier — distinct du chef d'équipe désigné sur
+    // CETTE mission (voir `assignments[].isLead` ci-dessus) : ne change
+    // jamais d'une mission à l'autre.
+    supervisorId: string | null;
+    supervisor: { id: string; firstName: string; lastName: string } | null;
+  };
   createdBy: { id: string; firstName: string; lastName: string };
   assignments: MissionAssignee[];
   validations: MissionValidation[];
