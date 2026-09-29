@@ -22,6 +22,8 @@ import { leaveRouter } from "./modules/leave/leave.routes";
 import { activityRouter } from "./modules/activity/activity.routes";
 import { announcementsRouter } from "./modules/announcements/announcements.routes";
 import { documentsRouter } from "./modules/documents/documents.routes";
+import { prospectsRouter } from "./modules/prospects/prospects.routes";
+import { clientsRouter } from "./modules/clients/clients.routes";
 
 export function createApp() {
   const app = express();
@@ -66,6 +68,8 @@ export function createApp() {
   app.use("/api/v1/activity-logs", activityRouter);
   app.use("/api/v1/announcements", announcementsRouter);
   app.use("/api/v1/documents", documentsRouter);
+  app.use("/api/v1/prospects", prospectsRouter);
+  app.use("/api/v1/clients", clientsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

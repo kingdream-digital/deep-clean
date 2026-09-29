@@ -40,6 +40,13 @@ import { StatsOverviewScreen } from "../screens/stats/StatsOverviewScreen";
 import { AnnouncementsListScreen } from "../screens/announcements/AnnouncementsListScreen";
 import { AnnouncementDetailScreen } from "../screens/announcements/AnnouncementDetailScreen";
 import { AnnouncementFormScreen } from "../screens/announcements/AnnouncementFormScreen";
+import { CommercialHomeScreen } from "../screens/commercial/CommercialHomeScreen";
+import { ProspectsListScreen } from "../screens/commercial/ProspectsListScreen";
+import { ProspectDetailScreen } from "../screens/commercial/ProspectDetailScreen";
+import { ProspectFormScreen } from "../screens/commercial/ProspectFormScreen";
+import { ClientsListScreen } from "../screens/commercial/ClientsListScreen";
+import { ClientDetailScreen } from "../screens/commercial/ClientDetailScreen";
+import { ClientFormScreen } from "../screens/commercial/ClientFormScreen";
 
 // Remplace l'ancien tandem d'onglets "Gestion" (variable selon le rôle) +
 // "Profil" (retour explicite du client : tout ce qui n'est pas Accueil /
@@ -88,6 +95,16 @@ export type MenuStackParamList = {
   AnnouncementDetail: { announcementId: string };
   AnnouncementForm: undefined;
   Legal: undefined;
+  // Module commercial (cahier des charges "Module commercial / devis /
+  // chantiers / facturation") — réservé à Superviseur/RH/Direction/Admin,
+  // voir TOOL_ENTRIES dans MenuScreen.tsx.
+  CommercialHome: undefined;
+  ProspectsList: undefined;
+  ProspectDetail: { prospectId: string };
+  ProspectForm: { prospectId?: string } | undefined;
+  ClientsList: undefined;
+  ClientDetail: { clientId: string };
+  ClientForm: { clientId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<MenuStackParamList>();
@@ -211,6 +228,28 @@ export function MenuStack() {
         options={{ title: "Nouvelle actualité", presentation: "modal" }}
       />
       <Stack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
+
+      <Stack.Screen name="CommercialHome" component={CommercialHomeScreen} options={{ title: isDesktopWeb ? "" : "Commercial" }} />
+      <Stack.Screen name="ProspectsList" component={ProspectsListScreen} options={{ title: "Prospects" }} />
+      <Stack.Screen name="ProspectDetail" component={ProspectDetailScreen} options={{ title: "Prospect" }} />
+      <Stack.Screen
+        name="ProspectForm"
+        component={ProspectFormScreen}
+        options={({ route }) => ({
+          title: route.params?.prospectId ? "Modifier le prospect" : "Nouveau prospect",
+          presentation: "modal",
+        })}
+      />
+      <Stack.Screen name="ClientsList" component={ClientsListScreen} options={{ title: "Clients" }} />
+      <Stack.Screen name="ClientDetail" component={ClientDetailScreen} options={{ title: "Client" }} />
+      <Stack.Screen
+        name="ClientForm"
+        component={ClientFormScreen}
+        options={({ route }) => ({
+          title: route.params?.clientId ? "Modifier le client" : "Nouveau client",
+          presentation: "modal",
+        })}
+      />
       <Stack.Screen
         name="UserDocuments"
         component={UserDocumentsScreen}

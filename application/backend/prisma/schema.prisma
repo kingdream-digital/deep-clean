@@ -97,6 +97,9 @@ model User {
   postedAnnouncements Announcement[]     @relation("AnnouncementAuthor")
   employeeDocuments   EmployeeDocument[] @relation("EmployeeDocumentOwner")
   uploadedEmployeeDocuments EmployeeDocument[] @relation("EmployeeDocumentUploadedBy")
+  assignedProspects   Prospect[]         @relation("ProspectAssignedUser")
+  createdProspects    Prospect[]         @relation("ProspectCreatedBy")
+  createdClients      Client[]           @relation("ClientCreatedBy")
 
   @@index([role])
   @@map("users")
@@ -698,6 +701,91 @@ model Message {
 // ---------------------------------------------------------------------------
 // Journal d'activité
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Module commercial — prospection / clients (cahier des charges "Module
+// commercial / devis / chantiers / facturation", phase 3). Le client final
+// n'a JAMAIS de compte DeepClean ni d'accès à l'application : Prospect et
+// Client ne sont que des fiches internes gérées par Direction / RH /
+// Superviseur (voir prospects.service.ts / clients.service.ts pour le détail
+// des permissions — RH a le même niveau d'accès complet que la Direction,
+// le Superviseur est restreint à ses propres prospects).
+// ---------------------------------------------------------------------------
+
+enum ProspectStatus {
+  NEW // Nouveau
+  CONTACTED // Contacté
+  MEETING_SCHEDULED // Rendez-vous
+  QUOTE_TO_PREPARE // Devis à préparer
+  QUOTE_SENT // Devis envoyé
+  NEGOTIATING // En négociation
+  WON // Gagné
+  LOST // Perdu
+}
+
+model Prospect {
+  id               String         @id @default(uuid())
+  companyName      String
+  contactFirstName String?
+  contactLastName  String?
+  jobTitle         String?
+  phone            String?
+  email            String?
+  address          String?
+  postalCode       String?
+  city             String?
+  siret            String?
+  source           String?
+  need             String?
+  serviceType      String?
+  notes            String?
+  status           ProspectStatus @default(NEW)
+  nextFollowUpAt   DateTime?
+  // Commercial responsable — un superviseur ne peut s'assigner qu'à
+  // lui-même ; seuls RH/Direction/Admin peuvent réassigner un prospect à un
+  // autre commercial (voir prospects.service.ts::resolveAssignedUserId).
+  assignedUserId String?
+  assignedUser   User?    @relation("ProspectAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdById    String
+  createdBy      User     @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Rempli une fois le prospect transformé en client (voir
+  // prospects.service.ts::convertProspectToClient) — jamais recréé à la
+  // main, les coordonnées sont reprises telles quelles.
+  client Client?
+
+  @@index([assignedUserId])
+  @@index([status])
+  @@map("prospects")
+}
+
+/// Un client n'a jamais de compte DeepClean — coordonnées internes utilisées
+/// pour générer devis/factures PDF et rattacher les chantiers. Peut provenir
+/// d'un prospect transformé (prospectId) ou être créé directement.
+model Client {
+  id               String    @id @default(uuid())
+  companyName      String
+  contactFirstName String?
+  contactLastName  String?
+  jobTitle         String?
+  phone            String?
+  email            String?
+  billingAddress   String?
+  postalCode       String?
+  city             String?
+  siret            String?
+  notes            String?
+  prospectId       String?   @unique
+  prospect         Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  createdById      String
+  createdBy        User      @relation("ClientCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("clients")
+}
 
 model ActivityLog {
   id         String   @id @default(uuid())
