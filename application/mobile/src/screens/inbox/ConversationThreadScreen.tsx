@@ -71,7 +71,28 @@ export function ConversationThreadScreen() {
   );
 
   useEffect(() => {
-    navigation.setOptions({ title: contact ? `${contact.firstName} ${contact.lastName}` : "" });
+    navigation.setOptions({
+      title: contact ? `${contact.firstName} ${contact.lastName}` : "",
+      // Cet écran est parfois atteint via un saut inter-onglets (voir
+      // ContactProfileScreen.tsx) plutôt que par une navigation normale dans
+      // ce stack — selon le chemin emprunté, `goBack()` peut ne rien avoir à
+      // dépiler (bug constaté : le bouton retour restait inerte une fois sur
+      // la conversation). On garde toujours une sortie qui fonctionne :
+      // retour normal si possible, sinon retour à la liste des messages.
+      headerLeft: () => (
+        <PressableScale
+          onPress={() => {
+            if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate("InboxHome");
+          }}
+          hitSlop={10}
+          style={{ marginLeft: -4, padding: 4 }}
+        >
+          <Ionicons name="chevron-back" size={26} color={colors.accent} />
+        </PressableScale>
+      ),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation, contact]);
 
   async function handleSend() {
