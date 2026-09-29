@@ -4,6 +4,7 @@ import { useTheme } from "../theme/ThemeProvider";
 import { useResponsive } from "../hooks/useResponsive";
 import { MenuScreen } from "../screens/dashboard/MenuScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
+import { LegalScreen } from "../screens/profile/LegalScreen";
 import { UsersListScreen } from "../screens/users/UsersListScreen";
 import { UserDetailScreen } from "../screens/users/UserDetailScreen";
 import { UserFormScreen } from "../screens/users/UserFormScreen";
@@ -82,6 +83,7 @@ export type MenuStackParamList = {
   AnnouncementsList: undefined;
   AnnouncementDetail: { announcementId: string };
   AnnouncementForm: undefined;
+  Legal: undefined;
 };
 
 const Stack = createNativeStackNavigator<MenuStackParamList>();
@@ -204,6 +206,7 @@ export function MenuStack() {
         component={AnnouncementFormScreen}
         options={{ title: "Nouvelle actualité", presentation: "modal" }}
       />
+      <Stack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
     </Stack.Navigator>
   );
 }

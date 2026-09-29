@@ -230,6 +230,13 @@ export function ProfileScreen() {
           <Row icon="school-outline" label="Revoir le tutoriel" onPress={replayOnboarding} />
         </Card>
 
+        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
+          À PROPOS
+        </Text>
+        <Card padded={false}>
+          <Row icon="shield-checkmark-outline" label="Mentions légales" onPress={() => navigation.navigate("Legal")} />
+        </Card>
+
         <View style={{ marginTop: spacing.xxl }}>
           <Button label="Se déconnecter" variant="destructive" onPress={handleLogout} loading={loggingOut} />
         </View>
