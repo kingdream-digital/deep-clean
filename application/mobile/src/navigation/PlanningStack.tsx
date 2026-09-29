@@ -16,7 +16,10 @@ export type PlanningStackParamList = {
   // rester sur le dernier jour déjà sélectionné dans cet onglet.
   PlanningHome: { day?: string } | undefined;
   MissionDetail: { missionId: string };
-  MissionForm: { missionId?: string } | undefined;
+  // `initialDate` (AAAA-MM-JJ) : pré-remplit la date du formulaire avec le
+  // jour actuellement sélectionné dans le Planning, quand on crée une
+  // mission depuis cet écran plutôt que depuis la liste des missions.
+  MissionForm: { missionId?: string; initialDate?: string } | undefined;
   JobSheetForm: { missionId: string };
   ReportProblem: { missionId: string };
   ProblemDetail: { problemId: string };

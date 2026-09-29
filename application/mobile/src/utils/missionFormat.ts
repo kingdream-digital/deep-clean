@@ -73,6 +73,20 @@ export function isSameLocalDay(a: Date, b: Date): boolean {
   return toLocalDateKey(a) === toLocalDateKey(b);
 }
 
+// "Aujourd'hui" / "Demain" en évidence plutôt que la date complète — l'info la
+// plus utile en un coup d'œil pour une mission proche (cahier des charges :
+// "où dois-je aller, quand ?"). `null` en dehors de ces deux cas, pour que
+// l'appelant retombe sur son propre formatage de date complète.
+export function relativeDayLabel(dateIso: string): string | null {
+  const target = new Date(dateIso);
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+  if (isSameLocalDay(target, today)) return "Aujourd'hui";
+  if (isSameLocalDay(target, tomorrow)) return "Demain";
+  return null;
+}
+
 const weekRangeSameMonthFormatter = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
 const weekRangeShortFormatter = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
 

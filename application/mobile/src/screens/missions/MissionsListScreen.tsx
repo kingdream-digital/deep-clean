@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -19,7 +19,13 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
-import { todayKey, formatMissionDay, formatMissionTimeRange } from "../../utils/missionFormat";
+import {
+  todayKey,
+  formatMissionDay,
+  formatMissionTimeRange,
+  groupMissionsByDate,
+  relativeDayLabel,
+} from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
 
@@ -71,6 +77,17 @@ export function MissionsListScreen() {
   const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
 
   const canManage = user ? CAN_MANAGE_ROLES.includes(user.role) : false;
+
+  // Regroupées par jour ("Aujourd'hui", "Demain", ...) plutôt qu'une simple
+  // liste plate — retour explicite du client : rendre la vue "missions
+  // prévues" plus lisible et moins austère. Ordre chronologique pour "à
+  // venir", le plus récent d'abord pour "terminées"/"annulées" (même logique
+  // que le `reverse()` déjà appliqué à `items` dans `load`).
+  const sections = useMemo(() => {
+    const groups = groupMissionsByDate(items);
+    const ordered = tab === "upcoming" ? groups : [...groups].reverse();
+    return ordered.map((g) => ({ key: g.key, label: g.label, data: g.missions }));
+  }, [items, tab]);
 
   const load = useCallback(async (activeTab: Tab) => {
     const cacheKey = `missions.${activeTab}`;
@@ -177,12 +194,17 @@ export function MissionsListScreen() {
               onRowPress={(item) => navigation.navigate("MissionDetail", { missionId: item.id })}
             />
           ) : (
-            <FlatList
-              data={items}
+            <SectionList
+              sections={sections}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: spacing.xxxl }}
+              stickySectionHeadersEnabled={false}
               ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+              SectionSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
+              renderSectionHeader={({ section }) => (
+                <MissionSectionHeader label={section.label} count={section.data.length} dateIso={section.data[0]?.date ?? section.key} />
+              )}
               renderItem={({ item, index }) => (
                 <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 45).duration(300)}>
                   <MissionCard mission={item} onPress={() => navigation.navigate("MissionDetail", { missionId: item.id })} />
@@ -207,6 +229,29 @@ export function MissionsListScreen() {
         </Animated.View>
       )}
     </ScreenContainer>
+  );
+}
+
+function MissionSectionHeader({ label, count, dateIso }: { label: string; count: number; dateIso: string }) {
+  const { colors, spacing, type } = useTheme();
+  const relative = relativeDayLabel(dateIso);
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.xs,
+      }}
+    >
+      <Text style={[type.subhead, { color: relative ? colors.accent : colors.ink, fontWeight: "700" }]}>
+        {relative ?? label}
+      </Text>
+      <Text style={[type.caption, { color: colors.inkTertiary }]}>
+        {count} {count > 1 ? "missions" : "mission"}
+      </Text>
+    </View>
   );
 }
 

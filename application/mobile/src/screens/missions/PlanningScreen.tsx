@@ -35,6 +35,12 @@ import {
 import { readCache, writeCache } from "../../offline/cache";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
 
+// Créer une mission est réservé aux rôles qui gèrent le planning — même
+// règle que dans MissionsListScreen (le chef d'équipe n'en fait plus partie,
+// retour explicite du client) ; on l'ajoute ici en plus sur le Planning
+// lui-même, pour créer directement sur le jour affiché.
+const CAN_MANAGE_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
+
 // Vue "planning" : la semaine en cours (lundi → dimanche) s'affiche directement
 // à l'ouverture de l'app — tâches et lieu du jour en un coup d'œil, conforme
 // au cahier des charges ("où dois-je aller, quand, que dois-je faire ?").
@@ -55,6 +61,7 @@ export function PlanningScreen() {
   // Le chef d'équipe garde la grille par jour : il ne suit que ses propres
   // chantiers, l'organisation par personnel n'y ajoute rien.
   const showTeamGrid = isDesktopWeb && !!user && ["SUPERVISOR", "HR", "DIRECTOR"].includes(user.role);
+  const canManagePlanning = !!user && CAN_MANAGE_ROLES.includes(user.role);
 
   const today = useMemo(() => new Date(), []);
   // Jour ciblé explicitement (ex. depuis le mini-calendrier du tableau de
@@ -270,6 +277,22 @@ export function PlanningScreen() {
             </PressableScale>
           </View>
 
+          {/* Créer une mission directement depuis le Planning, pré-remplie sur le
+              jour actuellement affiché — desktop uniquement ici, le mobile a son
+              propre FAB flottant plus bas (cohérent avec MissionsListScreen). */}
+          {isDesktopWeb && canManagePlanning && (
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: spacing.md }}>
+              <PressableScale onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}>
+                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accent, borderRadius: radius.md }]}>
+                  <Ionicons name="add" size={18} color={colors.onAccent} />
+                  <Text style={{ color: colors.onAccent, fontWeight: "600", marginLeft: 6, fontSize: 15 }}>
+                    Nouvelle mission
+                  </Text>
+                </View>
+              </PressableScale>
+            </View>
+          )}
+
           {/* Sélecteur d'un seul jour : inutile sur desktop web, où la grille
               ci-dessous montre déjà les 7 jours de la semaine côte à côte. */}
           {!isDesktopWeb && (
@@ -425,6 +448,20 @@ export function PlanningScreen() {
             </View>
           )}
         </ScrollView>
+      )}
+
+      {!isDesktopWeb && canManagePlanning && (
+        <Animated.View entering={FadeInUp.duration(280)} style={styles.fab}>
+          <PressableScale
+            pressedScale={0.9}
+            onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}
+            accessibilityRole="button"
+            accessibilityLabel="Nouvelle mission"
+            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+          >
+            <Ionicons name="add" size={26} color={colors.onAccent} />
+          </PressableScale>
+        </Animated.View>
       )}
     </ScreenContainer>
   );
@@ -720,5 +757,21 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
+  },
+  desktopCreateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 11, paddingHorizontal: 16 },
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 24,
+  },
+  fabInner: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
 });

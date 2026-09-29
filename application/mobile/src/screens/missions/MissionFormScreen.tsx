@@ -33,7 +33,7 @@ import type { CleaningStandard } from "../../api/standards.api";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
 import { toLocalDateKey } from "../../utils/missionFormat";
 
-type Route = RouteProp<{ MissionForm: { missionId?: string } | undefined }, "MissionForm">;
+type Route = RouteProp<{ MissionForm: { missionId?: string; initialDate?: string } | undefined }, "MissionForm">;
 
 const NONE = "__none__";
 const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -74,6 +74,7 @@ export function MissionFormScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MissionsStackParamList>>();
   const missionId = route.params?.missionId;
   const isEdit = !!missionId;
+  const initialDateParam = route.params?.initialDate;
 
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
@@ -91,7 +92,7 @@ export function MissionFormScreen() {
   const [siteId, setSiteId] = useState<string>("");
   const [standardId, setStandardId] = useState<string>("");
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState<Date>(defaultDate());
+  const [date, setDate] = useState<Date>(() => (initialDateParam ? new Date(`${initialDateParam}T00:00:00`) : defaultDate()));
   const [startTime, setStartTime] = useState<Date>(timeAt(8, 0));
   const [endTime, setEndTime] = useState<Date>(timeAt(17, 0));
   const [instructions, setInstructions] = useState("");
