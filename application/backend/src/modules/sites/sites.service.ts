@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import { QuoteStatus, Role, SiteBillingMode } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -25,6 +25,11 @@ const siteSelect = {
   photoKey: true,
   latitude: true,
   longitude: true,
+  // Lien commercial optionnel (§19-21) — voir createSite().
+  clientId: true,
+  client: { select: { id: true, companyName: true } },
+  quoteId: true,
+  quote: { select: { id: true, quoteNumber: true } },
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -104,12 +109,42 @@ async function assertValidSupervisor(supervisorId: string): Promise<void> {
   }
 }
 
+// Un devis ne peut servir de base qu'une seule fois (une fois accepté, en
+// plus) — retour explicite du cahier des charges §19 : "Créer un chantier à
+// partir du devis" est une action humaine ponctuelle, jamais automatique.
+async function assertValidQuoteForSite(quoteId: string, clientId: string | undefined): Promise<void> {
+  const quote = await prisma.quote.findUnique({ where: { id: quoteId }, include: { site: true } });
+  if (!quote) throw ApiError.badRequest("Devis introuvable.");
+  if (quote.status !== QuoteStatus.ACCEPTED) {
+    throw ApiError.badRequest("Seul un devis accepté peut servir de base à un chantier.");
+  }
+  if (quote.site) {
+    throw ApiError.conflict("Un chantier existe déjà pour ce devis.");
+  }
+  if (clientId && quote.clientId !== clientId) {
+    throw ApiError.badRequest("Le client indiqué ne correspond pas au client du devis.");
+  }
+}
+
 export async function createSite(
   actorId: string,
-  input: { name: string; address: string; description?: string; managerId?: string; supervisorId?: string }
+  input: {
+    name: string;
+    address: string;
+    description?: string;
+    managerId?: string;
+    supervisorId?: string;
+    clientId?: string;
+    quoteId?: string;
+  }
 ) {
   if (input.managerId) await assertValidManager(input.managerId);
   if (input.supervisorId) await assertValidSupervisor(input.supervisorId);
+  if (input.clientId) {
+    const client = await prisma.client.findUnique({ where: { id: input.clientId } });
+    if (!client) throw ApiError.badRequest("Client introuvable.");
+  }
+  if (input.quoteId) await assertValidQuoteForSite(input.quoteId, input.clientId);
 
   // Position GPS déduite automatiquement de l'adresse tapée (retour explicite
   // du client : il tape l'adresse à la main, jamais de capture GPS manuelle
@@ -123,7 +158,7 @@ export async function createSite(
     data: { ...input, latitude: position?.latitude, longitude: position?.longitude },
     select: siteSelect,
   });
-  await logActivity({ userId: actorId, action: "SITE_CREATED", entityType: "Site", entityId: site.id });
+  await logActivity({ userId: actorId, action: "SITE_CREATED", entityType: "Site", entityId: site.id, metadata: { quoteId: input.quoteId, clientId: input.clientId } });
   return presentSite(site);
 }
 
@@ -296,4 +331,132 @@ export async function removeSiteMember(actor: Actor, siteId: string, userId: str
 
   await prisma.siteMember.deleteMany({ where: { siteId, userId } });
   await logActivity({ userId: actor.userId, action: "SITE_MEMBER_REMOVED", entityType: "Site", entityId: siteId, metadata: { userId } });
+}
+
+// ---------------------------------------------------------------------------
+// Objectifs et suivi mensuel (cahier des charges module commercial, §22-24 et
+// §28) — l'objectif est saisi MANUELLEMENT par le responsable ; le "réalisé"
+// n'est JAMAIS stocké séparément : il est recalculé à la volée depuis les
+// missions réelles du chantier, pour ne jamais désynchroniser prévision et
+// réalisation (§34). Rien ici ne crée ni ne modifie de mission.
+// ---------------------------------------------------------------------------
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+function parsePeriod(period: string): { start: Date; end: Date } {
+  const [yearStr, monthStr] = period.split("-");
+  const start = new Date(Number(yearStr), Number(monthStr) - 1, 1);
+  const end = new Date(Number(yearStr), Number(monthStr), 1);
+  return { start, end };
+}
+
+interface SiteTargetInput {
+  period: string;
+  plannedVisits: number;
+  plannedHours?: number;
+  plannedAmount?: number;
+  billingMode?: SiteBillingMode;
+}
+
+// Même droits que la modification de la fiche chantier (assertCanManage) —
+// définir l'objectif du mois est une décision de gestion, pas une action de
+// terrain (contrairement à la composition d'équipe, voir assertCanManageTeam).
+export async function upsertSiteTarget(actor: Actor, siteId: string, input: SiteTargetInput) {
+  await findSiteOrThrow(siteId);
+  await assertCanManage(actor);
+
+  const target = await prisma.siteTarget.upsert({
+    where: { siteId_period: { siteId, period: input.period } },
+    create: {
+      siteId,
+      period: input.period,
+      plannedVisits: input.plannedVisits,
+      plannedHours: input.plannedHours,
+      plannedAmount: input.plannedAmount,
+      billingMode: input.billingMode ?? SiteBillingMode.FLAT_RATE,
+      createdById: actor.userId,
+    },
+    update: {
+      plannedVisits: input.plannedVisits,
+      plannedHours: input.plannedHours,
+      plannedAmount: input.plannedAmount,
+      ...(input.billingMode ? { billingMode: input.billingMode } : {}),
+    },
+  });
+  await logActivity({ userId: actor.userId, action: "SITE_TARGET_SET", entityType: "Site", entityId: siteId, metadata: { ...input } });
+  return target;
+}
+
+export async function listSiteTargets(actor: Actor, siteId: string) {
+  const site = await findSiteOrThrow(siteId);
+  await assertCanView(actor, siteId, site);
+  return prisma.siteTarget.findMany({ where: { siteId }, orderBy: { period: "desc" } });
+}
+
+export interface SiteProgress {
+  period: string;
+  target: { plannedVisits: number; plannedHours: number | null; plannedAmount: number | null; billingMode: SiteBillingMode } | null;
+  scheduledVisits: number;
+  completedVisits: number;
+  cancelledVisits: number;
+  remainingVisits: number | null;
+  plannedHours: number;
+  actualHours: number;
+}
+
+// Suivi mensuel (§23/§34) — tout est recalculé en direct depuis les missions
+// réelles du chantier : jamais une valeur stockée qui pourrait dériver.
+// `actualHours` reste un INDICATEUR (pointages validés des employés affectés,
+// le même jour calendaire qu'une mission du chantier) : pour un rapprochement
+// pointage ↔ mission précis, voir "Pointage vs mission" (Reconciliation).
+export async function getSiteProgress(actor: Actor, siteId: string, period: string): Promise<SiteProgress> {
+  const site = await findSiteOrThrow(siteId);
+  await assertCanView(actor, siteId, site);
+
+  const [target, missions] = await Promise.all([
+    prisma.siteTarget.findUnique({ where: { siteId_period: { siteId, period } } }),
+    (async () => {
+      const { start, end } = parsePeriod(period);
+      return prisma.mission.findMany({
+        where: { siteId, date: { gte: start, lt: end } },
+        select: { status: true, date: true, startTime: true, endTime: true, assignments: { select: { userId: true } } },
+      });
+    })(),
+  ]);
+
+  const active = missions.filter((m) => m.status !== "CANCELLED");
+  const completedVisits = missions.filter((m) => m.status === "COMPLETED").length;
+  const cancelledVisits = missions.filter((m) => m.status === "CANCELLED").length;
+  const plannedHours = active.reduce((sum, m) => sum + (m.endTime.getTime() - m.startTime.getTime()) / 3_600_000, 0);
+
+  const involvedUserIds = [...new Set(active.flatMap((m) => m.assignments.map((a) => a.userId)))];
+  const missionDayKeys = new Set(active.map((m) => m.date.toISOString().slice(0, 10)));
+  let actualHours = 0;
+  if (involvedUserIds.length > 0) {
+    const { start, end } = parsePeriod(period);
+    const entries = await prisma.timeEntry.findMany({
+      where: { userId: { in: involvedUserIds }, status: "VALIDATED", clockOut: { not: null }, clockIn: { gte: start, lt: end } },
+      select: { clockIn: true, clockOut: true },
+    });
+    for (const entry of entries) {
+      if (entry.clockOut && missionDayKeys.has(entry.clockIn.toISOString().slice(0, 10))) {
+        actualHours += (entry.clockOut.getTime() - entry.clockIn.getTime()) / 3_600_000;
+      }
+    }
+  }
+
+  return {
+    period,
+    target: target
+      ? { plannedVisits: target.plannedVisits, plannedHours: target.plannedHours, plannedAmount: target.plannedAmount, billingMode: target.billingMode }
+      : null,
+    scheduledVisits: active.length,
+    completedVisits,
+    cancelledVisits,
+    remainingVisits: target ? Math.max(0, target.plannedVisits - completedVisits) : null,
+    plannedHours: round1(plannedHours),
+    actualHours: round1(actualHours),
+  };
 }

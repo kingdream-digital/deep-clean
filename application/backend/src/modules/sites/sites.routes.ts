@@ -10,7 +10,9 @@ import {
   listSitesQuerySchema,
   removeSiteMemberSchema,
   siteIdParamSchema,
+  siteProgressQuerySchema,
   updateSiteSchema,
+  upsertSiteTargetSchema,
 } from "./sites.validation";
 import * as sitesController from "./sites.controller";
 
@@ -38,3 +40,11 @@ sitesRouter.delete("/:id/members/:userId", validate(removeSiteMemberSchema), sit
 sitesRouter.put("/:id/photo", validate(siteIdParamSchema), uploadPhoto, sitesController.setSitePhotoHandler);
 sitesRouter.delete("/:id/photo", validate(siteIdParamSchema), sitesController.removeSitePhotoHandler);
 sitesRouter.get("/:id/photo/file", validate(siteIdParamSchema), sitesController.getSitePhotoFileHandler);
+
+// Objectifs et suivi mensuel (module commercial, §22-24/§28) — définir un
+// objectif reste une décision de gestion (mêmes rôles que la modification de
+// la fiche), la consultation du suivi suit les mêmes règles que la fiche
+// chantier elle-même (voir sites.service.ts).
+sitesRouter.post("/:id/targets", validate(upsertSiteTargetSchema), sitesController.upsertSiteTargetHandler);
+sitesRouter.get("/:id/targets", validate(siteIdParamSchema), sitesController.listSiteTargetsHandler);
+sitesRouter.get("/:id/progress", validate(siteProgressQuerySchema), sitesController.getSiteProgressHandler);

@@ -39,6 +39,21 @@ export const removeSiteMemberHandler = asyncHandler(async (req: Request, res: Re
   res.status(204).send();
 });
 
+export const upsertSiteTargetHandler = asyncHandler(async (req: Request, res: Response) => {
+  const target = await sitesService.upsertSiteTarget(actorOf(req), req.params.id as string, req.body);
+  res.status(200).json({ target });
+});
+
+export const listSiteTargetsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const items = await sitesService.listSiteTargets(actorOf(req), req.params.id as string);
+  res.status(200).json({ items });
+});
+
+export const getSiteProgressHandler = asyncHandler(async (req: Request, res: Response) => {
+  const progress = await sitesService.getSiteProgress(actorOf(req), req.params.id as string, req.query.period as string);
+  res.status(200).json({ progress });
+});
+
 export const setSitePhotoHandler = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) {
     throw ApiError.badRequest('Aucune photo reçue (champ attendu : "photo").');

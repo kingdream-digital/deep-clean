@@ -1,6 +1,8 @@
 import React, { useCallback, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
+import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -8,19 +10,24 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
+import { TextField } from "../../components/TextField";
 import { PressableScale } from "../../components/PressableScale";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
-import { getSite, sitePhotoUrl } from "../../api/sites.api";
-import type { Site } from "../../api/sites.api";
+import { extractErrorMessage } from "../../api/client";
+import { currentPeriod, getSite, getSiteProgress, sitePhotoUrl, upsertSiteTarget } from "../../api/sites.api";
+import type { Site, SiteBillingMode, SiteProgress } from "../../api/sites.api";
 import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { listProblems } from "../../api/problems.api";
 import type { Problem } from "../../api/problems.api";
 import { formatMissionDay, formatMissionTimeRange, todayKey } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+
+const periodFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = { FLAT_RATE: "Forfait (montant prévu au devis)", PER_SERVICE: "À la prestation" };
 
 type Route = RouteProp<{ SiteDetail: { siteId: string } }, "SiteDetail">;
 
@@ -41,25 +48,32 @@ export function SiteDetailScreen() {
   const [site, setSite] = useState<Site | null>(null);
   const [upcomingMissions, setUpcomingMissions] = useState<Mission[]>([]);
   const [openProblems, setOpenProblems] = useState<Problem[]>([]);
+  const [progress, setProgress] = useState<SiteProgress | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [editingTarget, setEditingTarget] = useState(false);
+
+  const period = currentPeriod();
 
   const load = useCallback(async () => {
     try {
       setState("loading");
-      const [siteRes, missionsRes, problemsRes] = await Promise.all([
+      const [siteRes, missionsRes, problemsRes, progressRes] = await Promise.all([
         getSite(siteId),
         listMissions({ siteId, from: todayKey(), pageSize: 5 }),
         listProblems({ siteId }),
+        getSiteProgress(siteId, period),
       ]);
       setSite(siteRes);
       setUpcomingMissions(missionsRes.items.filter((m) => m.status !== "CANCELLED").slice(0, 5));
       setOpenProblems(problemsRes.items.filter((p) => p.status !== "VALIDATED").slice(0, 3));
+      setProgress(progressRes);
       setState("ready");
     } catch {
       setState("error");
     }
-  }, [siteId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteId, period]);
 
   useFocusEffect(
     useCallback(() => {
@@ -124,6 +138,16 @@ export function SiteDetailScreen() {
           </View>
         </View>
         <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: 4 }]}>{site.address}</Text>
+        {/* Lien commercial (module commercial §20-21) — absent pour un
+            chantier opérationnel classique, purement informatif ici. */}
+        {(site.client || site.quote) && (
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.xs, flexWrap: "wrap" }}>
+            <Ionicons name="briefcase-outline" size={13} color={colors.inkTertiary} />
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: 4 }]}>
+              {[site.client?.companyName, site.quote?.quoteNumber].filter(Boolean).join(" · ")}
+            </Text>
+          </View>
+        )}
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
           CHEF D'ÉQUIPE
@@ -236,6 +260,31 @@ export function SiteDetailScreen() {
           </>
         ) : null}
 
+        {/* Suivi mensuel (module commercial §22-24/§28) — l'objectif est saisi
+            manuellement, le réalisé est toujours recalculé depuis les
+            missions réelles du chantier : n'affiche jamais rien d'automatique,
+            juste une information/alerte pour le responsable (§37). */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg, marginBottom: spacing.sm }}>
+          <Text style={[type.overline, { color: colors.inkTertiary }]}>
+            OBJECTIFS & SUIVI · {periodFmt.format(new Date(`${period}-01`))}
+          </Text>
+        </View>
+        {progress && (
+          <SiteTargetSection
+            siteId={site.id}
+            period={period}
+            progress={progress}
+            canManage={canManage}
+            editing={editingTarget}
+            onStartEdit={() => setEditingTarget(true)}
+            onCancelEdit={() => setEditingTarget(false)}
+            onSaved={async () => {
+              setEditingTarget(false);
+              await load();
+            }}
+          />
+        )}
+
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>
           PROCHAINES MISSIONS
         </Text>
@@ -325,6 +374,129 @@ export function SiteDetailScreen() {
         <PhotoViewerModal visible={viewerOpen} uri={sitePhotoUrl(site.id)} onClose={() => setViewerOpen(false)} />
       )}
     </ScreenContainer>
+  );
+}
+
+interface SiteTargetSectionProps {
+  siteId: string;
+  period: string;
+  progress: SiteProgress;
+  canManage: boolean;
+  editing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaved: () => void;
+}
+
+function SiteTargetSection({ siteId, period, progress, canManage, editing, onStartEdit, onCancelEdit, onSaved }: SiteTargetSectionProps) {
+  const { colors, spacing, radius, type } = useTheme();
+  const [plannedVisits, setPlannedVisits] = useState(String(progress.target?.plannedVisits ?? ""));
+  const [plannedHours, setPlannedHours] = useState(progress.target?.plannedHours != null ? String(progress.target.plannedHours) : "");
+  const [plannedAmount, setPlannedAmount] = useState(progress.target?.plannedAmount != null ? String(progress.target.plannedAmount) : "");
+  const [billingMode, setBillingMode] = useState<SiteBillingMode>(progress.target?.billingMode ?? "FLAT_RATE");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    const visits = Number(plannedVisits);
+    if (!plannedVisits || Number.isNaN(visits) || visits < 0) {
+      Alert.alert("Objectif invalide", "Indiquez un nombre de prestations prévues (0 ou plus).");
+      return;
+    }
+    setSaving(true);
+    try {
+      await upsertSiteTarget(siteId, {
+        period,
+        plannedVisits: visits,
+        plannedHours: plannedHours ? Number(plannedHours.replace(",", ".")) : undefined,
+        plannedAmount: plannedAmount ? Number(plannedAmount.replace(",", ".")) : undefined,
+        billingMode,
+      });
+      onSaved();
+    } catch (err) {
+      Alert.alert("Enregistrement impossible", extractErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <Card>
+        <TextField label="Prestations prévues ce mois" keyboardType="number-pad" value={plannedVisits} onChangeText={setPlannedVisits} placeholder="6" />
+        <TextField label="Heures prévues (optionnel)" keyboardType="decimal-pad" value={plannedHours} onChangeText={setPlannedHours} placeholder="20" />
+        <TextField label="Montant prévu HT (optionnel)" keyboardType="decimal-pad" value={plannedAmount} onChangeText={setPlannedAmount} placeholder="900" />
+        <View style={{ marginBottom: spacing.md }}>
+          <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mode de facturation</Text>
+          <Card padded={false}>
+            <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={{ color: colors.ink }}>
+              {Object.entries(BILLING_MODE_LABELS).map(([value, label]) => (
+                <Picker.Item key={value} label={label} value={value} />
+              ))}
+            </Picker>
+          </Card>
+        </View>
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <Button label="Annuler" variant="secondary" onPress={onCancelEdit} disabled={saving} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button label="Enregistrer" onPress={handleSave} loading={saving} />
+          </View>
+        </View>
+      </Card>
+    );
+  }
+
+  if (!progress.target) {
+    return (
+      <Card>
+        <Text style={[type.callout, { color: colors.inkSecondary }]}>Aucun objectif défini pour ce mois.</Text>
+        {canManage && (
+          <View style={{ marginTop: spacing.sm }}>
+            <Button label="Définir l'objectif" variant="secondary" onPress={onStartEdit} />
+          </View>
+        )}
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <SiteStat label="Prévues" value={String(progress.target.plannedVisits)} />
+        <SiteStat label="Réalisées" value={String(progress.completedVisits)} color={colors.success} />
+        <SiteStat label="Restantes" value={progress.remainingVisits != null ? String(progress.remainingVisits) : "—"} color={colors.warning} />
+      </View>
+      {(progress.target.plannedHours != null || progress.plannedHours > 0) && (
+        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.sm }]}>
+          Heures : {progress.plannedHours} h planifiées
+          {progress.actualHours > 0 ? ` · ${progress.actualHours} h pointées (indicatif)` : ""}
+        </Text>
+      )}
+      {progress.remainingVisits !== null && progress.remainingVisits > 0 && (
+        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.warningSoft, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm }}>
+          <Ionicons name="alert-circle" size={16} color={colors.warning} />
+          <Text style={[type.footnote, { color: colors.warning, marginLeft: 6, fontWeight: "600", flex: 1 }]}>
+            {progress.remainingVisits} prestation{progress.remainingVisits > 1 ? "s" : ""} restante{progress.remainingVisits > 1 ? "s" : ""} à programmer ce mois-ci.
+          </Text>
+        </View>
+      )}
+      {canManage && (
+        <View style={{ marginTop: spacing.sm }}>
+          <Button label="Modifier l'objectif" variant="secondary" onPress={onStartEdit} />
+        </View>
+      )}
+    </Card>
+  );
+}
+
+function SiteStat({ label, value, color }: { label: string; value: string; color?: string }) {
+  const { colors, type } = useTheme();
+  return (
+    <View style={{ alignItems: "center", flex: 1 }}>
+      <Text style={[type.title2, { color: color ?? colors.ink }]}>{value}</Text>
+      <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]}>{label}</Text>
+    </View>
   );
 }
 

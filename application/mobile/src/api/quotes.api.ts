@@ -120,6 +120,7 @@ export interface Quote {
   rejectedComment: string | null;
   previousVersionId: string | null;
   nextVersion: { id: string; quoteNumber: string } | null;
+  site: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
   items: QuoteItem[];

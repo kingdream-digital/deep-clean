@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SiteBillingMode } from "@prisma/client";
 
 export const createSiteSchema = {
   body: z.object({
@@ -7,6 +8,10 @@ export const createSiteSchema = {
     description: z.string().trim().max(2000).optional(),
     managerId: z.string().uuid().optional(),
     supervisorId: z.string().uuid().optional(),
+    // Lien commercial optionnel (cahier des charges module commercial,
+    // §19-21) — voir sites.service.ts::createSite.
+    clientId: z.string().uuid().optional(),
+    quoteId: z.string().uuid().optional(),
   }),
 };
 
@@ -47,4 +52,22 @@ export const addSiteMemberSchema = {
 
 export const removeSiteMemberSchema = {
   params: z.object({ id: z.string().uuid(), userId: z.string().uuid() }),
+};
+
+const periodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format attendu : AAAA-MM");
+
+export const upsertSiteTargetSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    period: periodSchema,
+    plannedVisits: z.number().int().min(0),
+    plannedHours: z.number().min(0).optional(),
+    plannedAmount: z.number().min(0).optional(),
+    billingMode: z.nativeEnum(SiteBillingMode).optional(),
+  }),
+};
+
+export const siteProgressQuerySchema = {
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({ period: periodSchema }),
 };

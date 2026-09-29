@@ -70,7 +70,11 @@ export type MenuStackParamList = {
   MyDocuments: undefined;
   SitesList: undefined;
   SiteDetail: { siteId: string };
-  SiteForm: { siteId?: string } | undefined;
+  // `clientId`/`quoteId`/`prefillName`/`prefillAddress` : uniquement via
+  // "Créer un chantier à partir du devis" (voir QuoteDetailScreen) — le
+  // formulaire reste une création normale, ces valeurs ne font que le
+  // pré-remplir (module commercial §19-21).
+  SiteForm: { siteId?: string; clientId?: string; quoteId?: string; prefillName?: string; prefillAddress?: string } | undefined;
   StandardsList: { siteId: string; siteName?: string };
   StandardForm: { siteId: string; standardId?: string };
   StandardDetail: { standardId: string };

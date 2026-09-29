@@ -28,7 +28,10 @@ import { pickWebFile, pickWebImages } from "../../utils/webImagePicker";
 import { formatFileSize } from "../../utils/fileSize";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
-type Route = RouteProp<{ SiteForm: { siteId?: string } | undefined }, "SiteForm">;
+type Route = RouteProp<
+  { SiteForm: { siteId?: string; clientId?: string; quoteId?: string; prefillName?: string; prefillAddress?: string } | undefined },
+  "SiteForm"
+>;
 const NONE = "__none__";
 
 export function SiteFormScreen() {
@@ -38,6 +41,12 @@ export function SiteFormScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const siteId = route.params?.siteId;
   const isEdit = !!siteId;
+  // "Créer un chantier à partir du devis" (module commercial §19-21) — action
+  // humaine explicite depuis QuoteDetailScreen, jamais automatique : ces
+  // valeurs ne font que pré-remplir le formulaire, l'utilisateur les valide
+  // (et peut les modifier) avant enregistrement comme pour toute création.
+  const prefillClientId = route.params?.clientId;
+  const prefillQuoteId = route.params?.quoteId;
 
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
@@ -45,8 +54,8 @@ export function SiteFormScreen() {
 
   const [managers, setManagers] = useState<DirectoryUser[]>([]);
   const [supervisors, setSupervisors] = useState<DirectoryUser[]>([]);
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
+  const [name, setName] = useState(route.params?.prefillName ?? "");
+  const [address, setAddress] = useState(route.params?.prefillAddress ?? "");
   const [description, setDescription] = useState("");
   const [managerId, setManagerId] = useState<string>(NONE);
   // Superviseur fixe du chantier — retour explicite du client : distinct du
@@ -209,6 +218,8 @@ export function SiteFormScreen() {
         description: description.trim() || undefined,
         managerId: managerId === NONE ? undefined : managerId,
         supervisorId: supervisorId === NONE ? undefined : supervisorId,
+        // Uniquement à la création, jamais en édition d'un chantier existant.
+        ...(isEdit ? {} : { clientId: prefillClientId, quoteId: prefillQuoteId }),
       };
       // La position GPS n'est jamais envoyée : le serveur la déduit lui-même
       // de l'adresse tapée (voir sites.service.ts::geocodeAddress). On

@@ -26,6 +26,13 @@ export interface Site {
   // rapport au chantier prévu (voir timesheets.api.ts).
   latitude: number | null;
   longitude: number | null;
+  // Lien commercial optionnel (module commercial §19-21) — rempli uniquement
+  // quand le chantier a été créé à partir d'un devis accepté ; absent pour un
+  // chantier opérationnel classique.
+  clientId: string | null;
+  client: { id: string; companyName: string } | null;
+  quoteId: string | null;
+  quote: { id: string; quoteNumber: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,6 +62,11 @@ export interface CreateSiteInput {
   description?: string;
   managerId?: string;
   supervisorId?: string;
+  // Voir §19-21 — uniquement renseigné via "Créer un chantier à partir du
+  // devis" (voir QuoteDetailScreen), jamais pour un chantier opérationnel
+  // classique créé depuis la liste des chantiers.
+  clientId?: string;
+  quoteId?: string;
 }
 
 // Réservé RH / Direction / Admin (voir backend/src/modules/sites/sites.routes.ts).
@@ -100,4 +112,58 @@ export async function uploadSitePhoto(siteId: string, asset: LocalPhotoAsset): P
 export async function removeSitePhoto(siteId: string): Promise<Site> {
   const { data } = await apiClient.delete<{ site: Site }>(`/sites/${siteId}/photo`);
   return data.site;
+}
+
+// --- Objectifs et suivi mensuel (module commercial §22-24/§28) -------------
+// L'objectif est saisi manuellement ; le "réalisé" est toujours recalculé
+// côté serveur depuis les missions réelles du chantier — jamais une valeur
+// qui pourrait dériver (§34).
+
+export type SiteBillingMode = "FLAT_RATE" | "PER_SERVICE";
+
+export interface SiteTarget {
+  id: string;
+  siteId: string;
+  period: string;
+  plannedVisits: number;
+  plannedHours: number | null;
+  plannedAmount: number | null;
+  billingMode: SiteBillingMode;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SiteProgress {
+  period: string;
+  target: { plannedVisits: number; plannedHours: number | null; plannedAmount: number | null; billingMode: SiteBillingMode } | null;
+  scheduledVisits: number;
+  completedVisits: number;
+  cancelledVisits: number;
+  remainingVisits: number | null;
+  plannedHours: number;
+  actualHours: number;
+}
+
+export async function upsertSiteTarget(
+  siteId: string,
+  input: { period: string; plannedVisits: number; plannedHours?: number; plannedAmount?: number; billingMode?: SiteBillingMode }
+): Promise<SiteTarget> {
+  const { data } = await apiClient.post<{ target: SiteTarget }>(`/sites/${siteId}/targets`, input);
+  return data.target;
+}
+
+export async function listSiteTargets(siteId: string): Promise<SiteTarget[]> {
+  const { data } = await apiClient.get<{ items: SiteTarget[] }>(`/sites/${siteId}/targets`);
+  return data.items;
+}
+
+export async function getSiteProgress(siteId: string, period: string): Promise<SiteProgress> {
+  const { data } = await apiClient.get<{ progress: SiteProgress }>(`/sites/${siteId}/progress`, { params: { period } });
+  return data.progress;
+}
+
+/** Période "AAAA-MM" du mois courant — période par défaut du suivi. */
+export function currentPeriod(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }

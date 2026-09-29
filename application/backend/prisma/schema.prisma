@@ -105,6 +105,7 @@ model User {
   acceptedQuotes      Quote[]            @relation("QuoteAcceptedBy")
   rejectedQuotes      Quote[]            @relation("QuoteRejectedBy")
   quoteEvents         QuoteEvent[]       @relation("QuoteEventUser")
+  createdSiteTargets  SiteTarget[]       @relation("SiteTargetCreatedBy")
 
   @@index([role])
   @@map("users")
@@ -164,6 +165,15 @@ model Site {
   // n'en ont pas, et la vérification de distance ne s'applique alors pas.
   latitude    Float?
   longitude   Float?
+  // Lien commercial optionnel (cahier des charges module commercial, §19-21)
+  // — un chantier "opérationnel" classique n'a besoin d'aucun des deux ;
+  // remplis uniquement quand le chantier a été créé à partir d'un devis
+  // accepté (action humaine explicite, voir sites.service.ts::createSite).
+  // Jamais rempli automatiquement par l'acceptation du devis elle-même.
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  quoteId     String?  @unique
+  quote       Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -171,8 +181,39 @@ model Site {
   missions          Mission[]
   problems          Problem[]
   cleaningStandards CleaningStandard[]
+  targets           SiteTarget[]
 
   @@map("sites")
+}
+
+enum SiteBillingMode {
+  FLAT_RATE // forfait (montant prévu au devis)
+  PER_SERVICE // à la prestation (nombre réel de prestations facturables × tarif)
+}
+
+/// Objectif mensuel d'un chantier (cahier des charges §22 : "suivi manuel des
+/// objectifs") — défini MANUELLEMENT par le responsable, jamais déduit
+/// automatiquement du devis (même s'il peut s'en inspirer). Le "réalisé" ne
+/// se calcule pas ici : il est recalculé à la volée depuis les missions
+/// réelles du chantier sur la période (voir sites.service.ts::getSiteProgress)
+/// pour ne jamais désynchroniser prévision et réalisation.
+model SiteTarget {
+  id            String          @id @default(uuid())
+  siteId        String
+  site          Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  // Format "AAAA-MM" — un objectif par chantier et par mois.
+  period        String
+  plannedVisits Int
+  plannedHours  Float?
+  plannedAmount Float?
+  billingMode   SiteBillingMode @default(FLAT_RATE)
+  createdById   String
+  createdBy     User            @relation("SiteTargetCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([siteId, period])
+  @@map("site_targets")
 }
 
 /// Standard de nettoyage réutilisable pour un chantier/client donné — préparé
@@ -790,6 +831,7 @@ model Client {
   updatedAt        DateTime  @updatedAt
 
   quotes Quote[]
+  sites  Site[]
 
   @@map("clients")
 }
@@ -935,6 +977,10 @@ model Quote {
 
   items  QuoteItem[]
   events QuoteEvent[]
+  // Chantier créé à partir de ce devis accepté (§19-21) — jamais rempli
+  // automatiquement, uniquement via l'action humaine "Créer un chantier à
+  // partir du devis" (voir sites.service.ts::createSite).
+  site   Site?
 
   @@index([clientId])
   @@index([assignedUserId])

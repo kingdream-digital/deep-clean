@@ -64,6 +64,9 @@ const quoteSelect = {
   rejectedComment: true,
   previousVersionId: true,
   nextVersion: { select: { id: true, quoteNumber: true } },
+  // Chantier déjà créé à partir de ce devis (§19-21), le cas échéant — permet
+  // au mobile de proposer soit "Créer un chantier", soit "Voir le chantier".
+  site: { select: { id: true, name: true } },
   createdAt: true,
   updatedAt: true,
   items: { select: quoteItemSelect, orderBy: { sortOrder: "asc" } },

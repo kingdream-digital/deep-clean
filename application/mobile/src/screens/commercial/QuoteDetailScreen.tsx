@@ -269,12 +269,31 @@ export function QuoteDetailScreen() {
           )}
 
           {quote.status === "ACCEPTED" && (
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm }}>
-              <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-              <Text style={[type.footnote, { color: colors.success, marginLeft: 6, fontWeight: "600" }]}>
-                Accepté{quote.acceptedAt ? ` le ${dateFmt.format(new Date(quote.acceptedAt))}` : ""}
-              </Text>
-            </View>
+            <>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm }}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                <Text style={[type.footnote, { color: colors.success, marginLeft: 6, fontWeight: "600" }]}>
+                  Accepté{quote.acceptedAt ? ` le ${dateFmt.format(new Date(quote.acceptedAt))}` : ""}
+                </Text>
+              </View>
+              {/* Action humaine explicite (module commercial §19) : l'acceptation
+                  du devis ne crée jamais de chantier toute seule. */}
+              {quote.site ? (
+                <Button label={`Voir le chantier "${quote.site.name}"`} variant="secondary" onPress={() => navigation.navigate("SiteDetail", { siteId: quote.site!.id })} />
+              ) : (
+                <Button
+                  label="Créer un chantier à partir du devis"
+                  onPress={() =>
+                    navigation.navigate("SiteForm", {
+                      clientId: quote.clientId,
+                      quoteId: quote.id,
+                      prefillName: `${quote.client.companyName}${quote.subject ? ` — ${quote.subject}` : ""}`,
+                      prefillAddress: quote.siteAddress ?? quote.billingAddress ?? undefined,
+                    })
+                  }
+                />
+              )}
+            </>
           )}
 
           {(quote.status === "REJECTED" || quote.status === "EXPIRED") && (
