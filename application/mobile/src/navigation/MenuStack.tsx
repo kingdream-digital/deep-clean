@@ -47,6 +47,10 @@ import { ProspectFormScreen } from "../screens/commercial/ProspectFormScreen";
 import { ClientsListScreen } from "../screens/commercial/ClientsListScreen";
 import { ClientDetailScreen } from "../screens/commercial/ClientDetailScreen";
 import { ClientFormScreen } from "../screens/commercial/ClientFormScreen";
+import { QuotesListScreen } from "../screens/commercial/QuotesListScreen";
+import { QuoteDetailScreen } from "../screens/commercial/QuoteDetailScreen";
+import { QuoteFormScreen } from "../screens/commercial/QuoteFormScreen";
+import { QuoteActionScreen } from "../screens/commercial/QuoteActionScreen";
 
 // Remplace l'ancien tandem d'onglets "Gestion" (variable selon le rôle) +
 // "Profil" (retour explicite du client : tout ce qui n'est pas Accueil /
@@ -105,6 +109,10 @@ export type MenuStackParamList = {
   ClientsList: undefined;
   ClientDetail: { clientId: string };
   ClientForm: { clientId?: string } | undefined;
+  QuotesList: undefined;
+  QuoteDetail: { quoteId: string };
+  QuoteForm: { quoteId?: string; clientId?: string } | undefined;
+  QuoteAction: { quoteId: string; action: "send" | "followUp" | "accept" | "reject" };
 };
 
 const Stack = createNativeStackNavigator<MenuStackParamList>();
@@ -247,6 +255,24 @@ export function MenuStack() {
         component={ClientFormScreen}
         options={({ route }) => ({
           title: route.params?.clientId ? "Modifier le client" : "Nouveau client",
+          presentation: "modal",
+        })}
+      />
+      <Stack.Screen name="QuotesList" component={QuotesListScreen} options={{ title: "Devis" }} />
+      <Stack.Screen name="QuoteDetail" component={QuoteDetailScreen} options={{ title: "Devis" }} />
+      <Stack.Screen
+        name="QuoteForm"
+        component={QuoteFormScreen}
+        options={({ route }) => ({
+          title: route.params?.quoteId ? "Modifier le devis" : "Nouveau devis",
+          presentation: "modal",
+        })}
+      />
+      <Stack.Screen
+        name="QuoteAction"
+        component={QuoteActionScreen}
+        options={({ route }) => ({
+          title: { send: "Envoyer le devis", followUp: "Relance", accept: "Marquer accepté", reject: "Marquer refusé" }[route.params.action],
           presentation: "modal",
         })}
       />

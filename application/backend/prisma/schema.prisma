@@ -100,6 +100,11 @@ model User {
   assignedProspects   Prospect[]         @relation("ProspectAssignedUser")
   createdProspects    Prospect[]         @relation("ProspectCreatedBy")
   createdClients      Client[]           @relation("ClientCreatedBy")
+  assignedQuotes      Quote[]            @relation("QuoteAssignedUser")
+  createdQuotes       Quote[]            @relation("QuoteCreatedBy")
+  acceptedQuotes      Quote[]            @relation("QuoteAcceptedBy")
+  rejectedQuotes      Quote[]            @relation("QuoteRejectedBy")
+  quoteEvents         QuoteEvent[]       @relation("QuoteEventUser")
 
   @@index([role])
   @@map("users")
@@ -784,7 +789,209 @@ model Client {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  quotes Quote[]
+
   @@map("clients")
+}
+
+// ---------------------------------------------------------------------------
+// Module commercial — devis (phase 4-7 du cahier des charges). Un devis
+// accepté ne crée JAMAIS automatiquement de chantier, de mission ou
+// d'événement de planning (règle absolue, §25/§40) : la création du chantier
+// et des missions reste une action humaine, toujours déclenchée depuis un
+// bouton explicite (voir sites.service.ts / missions.service.ts, phase 8-10).
+// ---------------------------------------------------------------------------
+
+enum QuoteStatus {
+  DRAFT // Brouillon
+  TO_VALIDATE // À valider
+  VALIDATED // Validé
+  SENT // Envoyé
+  FOLLOW_UP // Relance en cours
+  ACCEPTED // Accepté
+  REJECTED // Refusé
+  EXPIRED // Expiré
+}
+
+enum QuoteItemUnit {
+  HOUR // heure
+  DAY // jour
+  INTERVENTION // intervention
+  SQUARE_METER // m²
+  FLAT_RATE // forfait
+  MONTH // mois
+  OTHER // autre
+}
+
+enum QuoteItemFrequency {
+  ONE_TIME // ponctuelle
+  DAILY // quotidienne
+  MULTIPLE_PER_WEEK // plusieurs fois par semaine
+  WEEKLY // hebdomadaire
+  MULTIPLE_PER_MONTH // plusieurs fois par mois
+  MONTHLY // mensuelle
+  CUSTOM // personnalisée
+}
+
+enum QuoteFollowUpMethod {
+  EMAIL
+  PHONE
+  SMS
+  MEETING // rendez-vous
+  OTHER
+}
+
+enum QuoteEventAction {
+  CREATED
+  UPDATED
+  SUBMITTED_FOR_VALIDATION
+  VALIDATED
+  SENT
+  FOLLOW_UP
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  NEW_VERSION_CREATED
+}
+
+model Quote {
+  id             String      @id @default(uuid())
+  // Format DEV-AAAA-NNNN (voir quotes.service.ts::generateQuoteNumber) —
+  // jamais réutilisé, y compris pour une nouvelle version (voir
+  // previousVersionId ci-dessous).
+  quoteNumber    String      @unique
+  clientId       String
+  client         Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  // "Commercial" responsable du devis (cahier des charges §9) — distinct du
+  // créateur : un superviseur ne peut s'assigner qu'à lui-même, seuls
+  // RH/Direction/Admin peuvent réassigner (même règle que Prospect.assignedUserId).
+  assignedUserId String?
+  assignedUser   User?       @relation("QuoteAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdById    String
+  createdBy      User        @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  status         QuoteStatus @default(DRAFT)
+  issueDate      DateTime    @default(now())
+  validUntil     DateTime?
+  subject        String?
+  // Coordonnées "figées" au moment de la création — un devis déjà envoyé ne
+  // doit jamais changer silencieusement si la fiche client est modifiée
+  // ensuite (le PDF déjà transmis au client doit rester cohérent avec ce que
+  // l'application affiche). Reprises du client à la création, modifiables
+  // tant que le devis est en BROUILLON.
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  billingAddress String?
+  siret          String?
+  // Adresse du CHANTIER visé par le devis — distincte de l'adresse de
+  // facturation ci-dessus (cahier des charges §9).
+  siteAddress    String?
+  description    String?
+  paymentTerms   String?
+  // Jamais inclus dans le PDF client (cahier des charges §9/§15) — voir
+  // quotes.pdf.ts::buildQuotePdf, qui ne lit jamais ce champ.
+  internalNotes  String?
+
+  // Montants recalculés côté serveur à chaque création/modification des
+  // lignes (jamais fournis par le client — cahier des charges §13) : voir
+  // quotes.service.ts::recomputeQuoteTotals.
+  subtotalHt      Float @default(0)
+  // Remise globale, en montant HT (pas un pourcentage) — appliquée après le
+  // sous-total des lignes.
+  discount        Float @default(0)
+  vatRate         Float @default(20)
+  vatAmount       Float @default(0)
+  totalTtc        Float @default(0)
+  // Somme des `monthlyAmountHt` des lignes récurrentes — "montant
+  // prévisionnel" du §11/§13, jamais une facturation réelle.
+  monthlyAmountHt Float @default(0)
+
+  // Relance (§17) — dernière/prochaine relance en un coup d'œil, l'historique
+  // complet est dans QuoteEvent ci-dessous.
+  nextFollowUpAt DateTime?
+
+  // Acceptation manuelle (§18) — jamais déclenchée par le client lui-même.
+  acceptedAt      DateTime?
+  acceptedById    String?
+  acceptedBy      User?                 @relation("QuoteAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  acceptedMethod  QuoteFollowUpMethod?
+  acceptedComment String?
+
+  rejectedAt      DateTime?
+  rejectedById    String?
+  rejectedBy      User?     @relation("QuoteRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedComment String?
+
+  // Versionnage (§14 : "toute modification importante doit créer une
+  // nouvelle version") — un devis non-brouillon est verrouillé ; le modifier
+  // crée une copie DRAFT distincte pointant vers l'original via ce champ,
+  // plutôt que de réécrire l'historique déjà envoyé au client.
+  previousVersionId String? @unique
+  previousVersion   Quote?  @relation("QuoteVersion", fields: [previousVersionId], references: [id], onDelete: SetNull)
+  nextVersion       Quote?  @relation("QuoteVersion")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items  QuoteItem[]
+  events QuoteEvent[]
+
+  @@index([clientId])
+  @@index([assignedUserId])
+  @@index([status])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String        @id @default(uuid())
+  quoteId     String
+  quote       Quote         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  unit        QuoteItemUnit
+  unitPriceHt Float
+  // Pourcentage 0-100, jamais un montant absolu (distinct de Quote.discount).
+  discount    Float         @default(0)
+  // Recalculé côté serveur : quantity * unitPriceHt * (1 - discount / 100).
+  totalHt     Float         @default(0)
+
+  frequency QuoteItemFrequency @default(ONE_TIME)
+  // Nombre de passages par mois — requis dès que `frequency` n'est pas
+  // ONE_TIME (ex. "6 passages par mois", cahier des charges §11). Sert à
+  // calculer `monthlyAmountHt` ci-dessous, jamais à déduire une date de
+  // planning : purement prévisionnel/informatif (§12).
+  occurrencesPerMonth Float?
+  // Recalculé côté serveur : totalHt * occurrencesPerMonth si récurrent,
+  // sinon 0 (une ligne ponctuelle n'entre pas dans le prévisionnel mensuel).
+  monthlyAmountHt     Float  @default(0)
+
+  // Sert de référence au futur chantier (§12) — jamais utilisé pour créer
+  // quoi que ce soit automatiquement.
+  estimatedHours     Float?
+  estimatedEmployees Int?
+  sortOrder          Int    @default(0)
+
+  @@index([quoteId])
+  @@map("quote_items")
+}
+
+/// Historique et relances (§17/§42) — chaque changement de statut et chaque
+/// relance enregistrée créent une ligne ici, jamais modifiée ni supprimée
+/// ensuite (traçabilité).
+model QuoteEvent {
+  id        String               @id @default(uuid())
+  quoteId   String
+  quote     Quote                @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                 @relation("QuoteEventUser", fields: [userId], references: [id], onDelete: Restrict)
+  action    QuoteEventAction
+  method    QuoteFollowUpMethod?
+  comment   String?
+  metadata  Json?
+  createdAt DateTime             @default(now())
+
+  @@index([quoteId])
+  @@map("quote_events")
 }
 
 model ActivityLog {

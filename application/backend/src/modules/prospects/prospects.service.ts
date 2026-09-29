@@ -3,21 +3,10 @@ import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { escapeLikePattern } from "../../utils/likePattern";
+import { COMMERCIAL_FULL_ROLES, COMMERCIAL_ROLES, isOwnRecord, resolveAssignedUserId } from "../commercial/roles";
+import type { Actor } from "../commercial/roles";
 
-interface Actor {
-  userId: string;
-  role: Role;
-}
-
-// Niveau complet — retour explicite du client (cahier des charges module
-// commercial, §2) : "La RH doit avoir les MÊMES DROITS que le Directeur".
-// ADMIN inclus par cohérence avec le reste de l'application (rôle technique
-// utilisé partout comme niveau de contrôle maximal), même si le cahier des
-// charges ne mentionne que Directeur/RH.
-const COMMERCIAL_FULL_ROLES: Role[] = [Role.DIRECTOR, Role.HR, Role.ADMIN];
-// Rôles ayant accès au module commercial — le Superviseur y a accès mais
-// restreint à ses propres prospects (voir assertCanView/assertCanManage).
-export const COMMERCIAL_ROLES: Role[] = [Role.SUPERVISOR, ...COMMERCIAL_FULL_ROLES];
+export { COMMERCIAL_ROLES };
 
 const userSummarySelect = { id: true, firstName: true, lastName: true, email: true, role: true } as const;
 
@@ -61,36 +50,13 @@ async function findProspectOrThrow(id: string) {
   return prospect;
 }
 
-function isOwnProspect(actor: Actor, prospect: { assignedUserId: string | null; createdById: string }): boolean {
-  return actor.role === Role.SUPERVISOR && (prospect.assignedUserId === actor.userId || prospect.createdById === actor.userId);
-}
-
 // Consultation et gestion partagent la même portée pour un prospect : un
 // superviseur ne voit et ne gère que "ses" prospects (assignés à lui, ou
 // créés par lui s'ils ne sont pas encore assignés) — RH/Direction/Admin
 // voient et gèrent tout (cahier des charges §2-3).
 function assertCanAccessProspect(actor: Actor, prospect: { assignedUserId: string | null; createdById: string }): void {
-  if (COMMERCIAL_FULL_ROLES.includes(actor.role) || isOwnProspect(actor, prospect)) return;
+  if (COMMERCIAL_FULL_ROLES.includes(actor.role) || isOwnRecord(actor, prospect)) return;
   throw ApiError.notFound("Prospect introuvable.");
-}
-
-// Un superviseur ne peut s'assigner un prospect qu'à lui-même — seuls
-// RH/Direction/Admin peuvent choisir un autre commercial responsable
-// (cahier des charges §3 : "le Directeur/RH puisse contrôler les accès du
-// Superviseur si nécessaire").
-async function resolveAssignedUserId(actor: Actor, requested: string | null | undefined): Promise<string | null> {
-  if (actor.role === Role.SUPERVISOR) return actor.userId;
-  if (requested === undefined) return actor.userId;
-  if (requested === null) return null;
-
-  const user = await prisma.user.findUnique({ where: { id: requested } });
-  if (!user || !COMMERCIAL_ROLES.includes(user.role)) {
-    throw ApiError.badRequest("Le commercial assigné doit être Superviseur, RH ou Direction.");
-  }
-  if (!user.isActive) {
-    throw ApiError.badRequest("Le commercial assigné a un compte désactivé.");
-  }
-  return requested;
 }
 
 interface ProspectInput {

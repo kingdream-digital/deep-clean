@@ -104,11 +104,10 @@ export function ClientDetailScreen() {
           {client.notes && <InfoRow icon="document-text-outline" label="Notes" value={client.notes} />}
         </Card>
 
-        {canManage && (
-          <View style={{ marginTop: spacing.lg }}>
-            <Button label="Modifier la fiche" variant="secondary" onPress={() => navigation.navigate("ClientForm", { clientId })} />
-          </View>
-        )}
+        <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+          <Button label="Nouveau devis" onPress={() => navigation.navigate("QuoteForm", { clientId })} />
+          {canManage && <Button label="Modifier la fiche" variant="secondary" onPress={() => navigation.navigate("ClientForm", { clientId })} />}
+        </View>
       </ScrollView>
     </ScreenContainer>
   );

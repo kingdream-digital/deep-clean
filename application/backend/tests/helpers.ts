@@ -31,8 +31,12 @@ export async function resetDatabase() {
   await prisma.pushToken.deleteMany();
   await prisma.session.deleteMany();
   // Module commercial : `createdById` est aussi en onDelete: Restrict sur
-  // Prospect/Client (même logique de traçabilité que leaveTransaction/mission
-  // ci-dessus) — Client avant Prospect (Client.prospectId le référence).
+  // Prospect/Client/Quote (même logique de traçabilité que
+  // leaveTransaction/mission ci-dessus) — Quote avant Client (Quote.clientId
+  // le référence) ; Client avant Prospect (Client.prospectId le référence).
+  // `quote.deleteMany()` cascade automatiquement ses QuoteItem/QuoteEvent
+  // (onDelete: Cascade sur quoteId), inutile de les vider séparément.
+  await prisma.quote.deleteMany();
   await prisma.client.deleteMany();
   await prisma.prospect.deleteMany();
   await prisma.user.deleteMany();

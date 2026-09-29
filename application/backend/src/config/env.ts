@@ -46,6 +46,29 @@ const envSchema = z.object({
   // chaque salarié (temps partiel...) via sa fiche (voir User.leaveAccrualRate
   // dans schema.prisma et leave.service.ts).
   DEFAULT_LEAVE_ACCRUAL_RATE_PER_MONTH: z.coerce.number().positive().default(2.5),
+
+  // Coordonnées légales de l'entreprise exploitante — utilisées sur les PDF
+  // (devis/factures) envoyés au client final (cahier des charges module
+  // commercial, §15). Tous optionnels pour ne jamais bloquer le démarrage
+  // du serveur, mais DOIVENT être renseignés en production avant d'envoyer
+  // un vrai devis : sans eux, le PDF reste utilisable mais incomplet.
+  COMPANY_LEGAL_NAME: z.string().default("Deep Clean"),
+  COMPANY_ADDRESS: z.string().optional(),
+  COMPANY_SIRET: z.string().optional(),
+  COMPANY_PHONE: z.string().optional(),
+  COMPANY_EMAIL: z.string().optional(),
+  COMPANY_VAT_NUMBER: z.string().optional(),
+
+  // Envoi d'email (devis/factures au client final, §16) — si non configuré,
+  // le serveur reste fonctionnel (mode simulation journalisé) mais aucun
+  // email n'est réellement délivré : à renseigner avant une mise en
+  // production réelle du module commercial.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

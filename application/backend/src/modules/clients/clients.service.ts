@@ -3,14 +3,10 @@ import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { escapeLikePattern } from "../../utils/likePattern";
+import { COMMERCIAL_FULL_ROLES, COMMERCIAL_ROLES } from "../commercial/roles";
+import type { Actor } from "../commercial/roles";
 
-interface Actor {
-  userId: string;
-  role: Role;
-}
-
-const COMMERCIAL_FULL_ROLES: Role[] = [Role.DIRECTOR, Role.HR, Role.ADMIN];
-export const COMMERCIAL_ROLES: Role[] = [Role.SUPERVISOR, ...COMMERCIAL_FULL_ROLES];
+export { COMMERCIAL_ROLES };
 
 const clientSelect = {
   id: true,

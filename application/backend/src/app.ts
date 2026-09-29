@@ -24,6 +24,7 @@ import { announcementsRouter } from "./modules/announcements/announcements.route
 import { documentsRouter } from "./modules/documents/documents.routes";
 import { prospectsRouter } from "./modules/prospects/prospects.routes";
 import { clientsRouter } from "./modules/clients/clients.routes";
+import { quotesRouter } from "./modules/quotes/quotes.routes";
 
 export function createApp() {
   const app = express();
@@ -70,6 +71,7 @@ export function createApp() {
   app.use("/api/v1/documents", documentsRouter);
   app.use("/api/v1/prospects", prospectsRouter);
   app.use("/api/v1/clients", clientsRouter);
+  app.use("/api/v1/quotes", quotesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

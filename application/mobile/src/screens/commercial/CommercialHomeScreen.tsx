@@ -13,17 +13,18 @@ interface CommercialEntry {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   message: string;
-  screen: "ProspectsList" | "ClientsList";
+  screen: "ProspectsList" | "ClientsList" | "QuotesList";
 }
 
 // Point d'entrée du module commercial (cahier des charges "Module commercial
-// / devis / chantiers / facturation", §5) — Prospects et Clients pour
-// l'instant ; Devis, Relances et Factures viendront s'y ajouter phase par
-// phase, sans jamais automatiser la création de mission ou de planning
+// / devis / chantiers / facturation", §5) — Prospects, Clients et Devis pour
+// l'instant ; Chantiers commerciaux et Factures viendront s'y ajouter phase
+// par phase, sans jamais automatiser la création de mission ou de planning
 // (le client final n'a lui-même jamais accès à DeepClean, voir §4).
 const ENTRIES: CommercialEntry[] = [
   { icon: "person-add-outline", label: "Prospects", message: "Prospection, suivi et relances", screen: "ProspectsList" },
   { icon: "briefcase-outline", label: "Clients", message: "Coordonnées, historique commercial", screen: "ClientsList" },
+  { icon: "document-text-outline", label: "Devis", message: "Créer, envoyer, relancer, suivre l'acceptation", screen: "QuotesList" },
 ];
 
 export function CommercialHomeScreen() {
