@@ -12,7 +12,7 @@ import { DataTable, DataTableColumn } from "../../components/DataTable";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
-import { listAbsences, decideAbsence } from "../../api/absences.api";
+import { cancelAbsence, listAbsences, decideAbsence } from "../../api/absences.api";
 import type { Absence, AbsenceStatus } from "../../api/absences.api";
 
 const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
@@ -88,6 +88,31 @@ export function AbsencesManagementScreen() {
     );
   }
 
+  async function handleCancel(item: Absence) {
+    setDecidingId(item.id);
+    try {
+      await cancelAbsence(item.id);
+      await load();
+    } catch (err) {
+      Alert.alert("Annulation impossible", extractErrorMessage(err));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  function confirmCancel(item: Absence) {
+    Alert.alert(
+      "Annuler ce congé déjà approuvé ?",
+      `${item.user.firstName} ${item.user.lastName} — ${item.daysCount} jour${item.daysCount > 1 ? "s" : ""} recrédité${
+        item.daysCount > 1 ? "s" : ""
+      } si c'est un congé payé.`,
+      [
+        { text: "Retour", style: "cancel" },
+        { text: "Annuler le congé", style: "destructive", onPress: () => void handleCancel(item) },
+      ]
+    );
+  }
+
   const tableColumns: DataTableColumn<Absence>[] = [
     {
       key: "employee",
@@ -152,6 +177,14 @@ export function AbsencesManagementScreen() {
               />
             </View>
           </View>
+        ) : item.status === "APPROVED" ? (
+          <Button
+            label="Annuler"
+            variant="secondary"
+            size="md"
+            loading={decidingId === item.id}
+            onPress={() => confirmCancel(item)}
+          />
         ) : null,
     },
   ];
@@ -186,7 +219,7 @@ export function AbsencesManagementScreen() {
                     {item.user.firstName} {item.user.lastName}
                   </Text>
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
-                    {TYPE_LABELS[item.type]} · {formatRange(item.startDate, item.endDate)}
+                    {TYPE_LABELS[item.type]} · {formatRange(item.startDate, item.endDate)} · {item.daysCount} j
                   </Text>
                   {item.reason && (
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]}>{item.reason}</Text>
@@ -214,6 +247,17 @@ export function AbsencesManagementScreen() {
                       onPress={() => void handleDecide(item.id, "APPROVED")}
                     />
                   </View>
+                </View>
+              )}
+              {item.status === "APPROVED" && (
+                <View style={{ marginTop: spacing.md }}>
+                  <Button
+                    label="Annuler ce congé"
+                    variant="secondary"
+                    size="md"
+                    loading={decidingId === item.id}
+                    onPress={() => confirmCancel(item)}
+                  />
                 </View>
               )}
             </Card>

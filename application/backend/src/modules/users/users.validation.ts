@@ -23,6 +23,10 @@ export const updateUserSchema = {
       lastName: z.string().trim().min(1).max(100).optional(),
       phone: z.string().trim().max(30).nullable().optional(),
       role: roleEnum.optional(),
+      // Moteur de congés (retour explicite du client) — null remet le
+      // salarié sur le taux/plafond par défaut de l'entreprise.
+      leaveAccrualRate: z.coerce.number().positive().nullable().optional(),
+      leaveAccrualCap: z.coerce.number().positive().nullable().optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),
 };

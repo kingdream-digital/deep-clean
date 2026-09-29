@@ -226,6 +226,11 @@ interface UpdateUserInput {
   lastName?: string;
   phone?: string | null;
   role?: Role;
+  // Moteur de congés (retour explicite du client : "les règles d'acquisition
+  // doivent être configurables") — réglables par salarié, null = valeur par
+  // défaut de l'entreprise (voir leave.service.ts::computeAccrual).
+  leaveAccrualRate?: number | null;
+  leaveAccrualCap?: number | null;
 }
 
 // Détache un utilisateur de tous les chantiers dont il est responsable —

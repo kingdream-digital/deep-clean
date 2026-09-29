@@ -1,7 +1,7 @@
 import { apiClient } from "./client";
 
 export type AbsenceType = "PAID_LEAVE" | "SICK_LEAVE" | "UNPAID_LEAVE" | "OTHER";
-export type AbsenceStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type AbsenceStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 export interface Absence {
   id: string;
@@ -17,6 +17,10 @@ export interface Absence {
   decisionNote: string | null;
   createdAt: string;
   updatedAt: string;
+  // Nombre de jours OUVRÉS de la période, calculé côté serveur — jamais
+  // recalculé côté mobile pour rester toujours identique à ce qui sera
+  // réellement déduit du solde (voir leave.api.ts).
+  daysCount: number;
 }
 
 interface ListAbsencesResponse {
@@ -55,6 +59,14 @@ export async function createAbsence(input: CreateAbsenceInput): Promise<Absence>
 
 export async function decideAbsence(id: string, status: "APPROVED" | "REJECTED", decisionNote?: string): Promise<Absence> {
   const { data } = await apiClient.post<{ absence: Absence }>(`/absences/${id}/decide`, { status, decisionNote });
+  return data.absence;
+}
+
+// Retour explicite du client (section "Modification et annulation") — recrédite
+// le solde si le congé annulé était un congé payé déjà approuvé (voir
+// leave.api.ts pour consulter l'effet sur le compteur).
+export async function cancelAbsence(id: string): Promise<Absence> {
+  const { data } = await apiClient.post<{ absence: Absence }>(`/absences/${id}/cancel`);
   return data.absence;
 }
 

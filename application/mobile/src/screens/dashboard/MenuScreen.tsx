@@ -48,6 +48,10 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "warning-outline", label: "Problèmes", message: "Signalements sur vos chantiers", tone: "danger", screen: "ProblemsList" },
     { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages de votre équipe", tone: "success", screen: "TimesheetValidation" },
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Repérer les écarts sur votre équipe", tone: "neutral", screen: "Reconciliation" },
+    // Retour explicite du client : le chef d'équipe doit pouvoir valider les
+    // congés de sa propre équipe (voir absences.service.ts::canDecideAbsence) —
+    // jusqu'ici cette destination n'existait que pour RH/direction/admin.
+    { icon: "calendar-outline", label: "Congés de mon équipe", message: "Demandes à approuver ou refuser", tone: "info", screen: "AbsencesManagement" },
   ],
   SUPERVISOR: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },

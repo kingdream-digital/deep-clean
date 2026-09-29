@@ -20,3 +20,4 @@ absencesRouter.post("/", validate(createAbsenceSchema), absencesController.creat
 absencesRouter.get("/", validate(listAbsencesQuerySchema), absencesController.listAbsencesHandler);
 absencesRouter.get("/:id", validate(absenceIdParamSchema), absencesController.getAbsenceHandler);
 absencesRouter.post("/:id/decide", validate(decideAbsenceSchema), absencesController.decideAbsenceHandler);
+absencesRouter.post("/:id/cancel", validate(absenceIdParamSchema), absencesController.cancelAbsenceHandler);

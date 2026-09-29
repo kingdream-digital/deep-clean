@@ -7,6 +7,7 @@ const LABELS: Record<AbsenceStatus, string> = {
   PENDING: "En attente",
   APPROVED: "Approuvée",
   REJECTED: "Refusée",
+  CANCELLED: "Annulée",
 };
 
 export function AbsenceStatusBadge({ status }: { status: AbsenceStatus }) {
@@ -16,6 +17,7 @@ export function AbsenceStatusBadge({ status }: { status: AbsenceStatus }) {
     PENDING: { bg: colors.warningSoft, fg: colors.warning },
     APPROVED: { bg: colors.successSoft, fg: colors.success },
     REJECTED: { bg: colors.dangerSoft, fg: colors.danger },
+    CANCELLED: { bg: colors.neutralSoft, fg: colors.neutral },
   };
   const t = tone[status];
 

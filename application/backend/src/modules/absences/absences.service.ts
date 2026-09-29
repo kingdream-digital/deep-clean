@@ -1,8 +1,9 @@
-import { AbsenceStatus, MissionStatus, NotificationType, Role } from "@prisma/client";
+import { AbsenceStatus, AbsenceType, MissionStatus, NotificationType, Role } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
+import { countBusinessDays, recordLeaveCancelled, recordLeaveTaken } from "../leave/leave.service";
 
 interface Actor {
   userId: string;
@@ -22,6 +23,21 @@ function canManageAbsences(actor: Actor): boolean {
   return MANAGE_ABSENCES_ROLES.includes(actor.role);
 }
 
+// Bug corrigé (retour explicite du client : "le chef d'équipe ne peut pas
+// valider de congé") — il pouvait déjà VOIR les demandes de sa propre équipe
+// (voir listAbsences ci-dessous) mais decideAbsence ne l'autorisait jamais à
+// trancher, même sur son propre périmètre. Aligné sur le reste de l'app
+// (validation de mission, pointages...) : un chef d'équipe agit sur SON
+// équipe, jamais au-delà.
+async function canDecideAbsence(actor: Actor, absenceUserId: string): Promise<boolean> {
+  if (canManageAbsences(actor)) return true;
+  if (actor.role === Role.SITE_MANAGER) {
+    const team = await resolveManagedTeamIds(actor.userId);
+    return team.includes(absenceUserId);
+  }
+  return false;
+}
+
 const absenceSelect = {
   id: true,
   userId: true,
@@ -38,6 +54,15 @@ const absenceSelect = {
   createdAt: true,
   updatedAt: true,
 } as const;
+
+// Ajoute le nombre de jours OUVRÉS de la période (retour explicite du
+// client : "DeepClean calcule automatiquement le nombre de jours") — jamais
+// stocké, toujours recalculé à partir de startDate/endDate via la même
+// fonction que la déduction réelle (voir leave.service.ts), pour qu'un
+// affichage "3 jours" corresponde toujours exactement à ce qui sera déduit.
+function presentAbsence<T extends { startDate: Date; endDate: Date }>(absence: T): T & { daysCount: number } {
+  return { ...absence, daysCount: countBusinessDays(absence.startDate, absence.endDate) };
+}
 
 function toDayStart(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00`);
@@ -117,18 +142,37 @@ export async function createAbsence(actor: Actor, input: CreateAbsenceInput) {
   if (isSelfAuthoritative) {
     await notifyMissionConflicts(absence.id, targetUserId, startDate, endDate);
   } else {
-    await notifyAbsenceManagers(absence.id, target);
+    await notifyAbsenceManagers(absence.id, targetUserId, target);
   }
 
-  return absence;
+  return presentAbsence(absence);
 }
 
-async function notifyAbsenceManagers(absenceId: string, target: { firstName: string; lastName: string }): Promise<void> {
-  const managers = await prisma.user.findMany({ where: { role: { in: MANAGE_ABSENCES_ROLES }, isActive: true }, select: { id: true } });
+// Notifie la RH/direction/superviseur/admin (autorité globale) ET le ou les
+// chef·fe·s d'équipe dont le demandeur fait partie de l'équipe (retour
+// explicite du client : le chef d'équipe doit désormais pouvoir valider les
+// congés de son équipe — il doit donc être prévenu comme les autres).
+async function notifyAbsenceManagers(
+  absenceId: string,
+  targetUserId: string,
+  target: { firstName: string; lastName: string }
+): Promise<void> {
+  const [globalManagers, teamManagers] = await Promise.all([
+    prisma.user.findMany({ where: { role: { in: MANAGE_ABSENCES_ROLES }, isActive: true }, select: { id: true } }),
+    prisma.site.findMany({
+      where: { members: { some: { userId: targetUserId } }, managerId: { not: null } },
+      select: { managerId: true },
+    }),
+  ]);
+  const recipientIds = new Set<string>([
+    ...globalManagers.map((m) => m.id),
+    ...teamManagers.map((s) => s.managerId).filter((id): id is string => !!id),
+  ]);
+
   await Promise.all(
-    managers.map((m) =>
+    [...recipientIds].map((userId) =>
       createNotification({
-        userId: m.id,
+        userId,
         type: NotificationType.ABSENCE_REQUESTED,
         title: "Demande d'absence",
         body: `${target.firstName} ${target.lastName} a demandé une absence à valider.`,
@@ -233,7 +277,7 @@ export async function listAbsences(actor: Actor, filters: ListAbsencesFilters) {
     prisma.absence.count({ where }),
   ]);
 
-  return { items, total, page: filters.page, pageSize: filters.pageSize };
+  return { items: items.map(presentAbsence), total, page: filters.page, pageSize: filters.pageSize };
 }
 
 async function findAbsenceOrThrow(id: string) {
@@ -244,11 +288,11 @@ async function findAbsenceOrThrow(id: string) {
 
 export async function getAbsenceById(actor: Actor, id: string) {
   const absence = await findAbsenceOrThrow(id);
-  if (absence.userId === actor.userId) return absence;
-  if (canManageAbsences(actor)) return absence;
+  if (absence.userId === actor.userId) return presentAbsence(absence);
+  if (canManageAbsences(actor)) return presentAbsence(absence);
   if (actor.role === Role.SITE_MANAGER) {
     const team = await resolveManagedTeamIds(actor.userId);
-    if (team.includes(absence.userId)) return absence;
+    if (team.includes(absence.userId)) return presentAbsence(absence);
   }
   throw ApiError.notFound("Absence introuvable.");
 }
@@ -258,9 +302,9 @@ export async function decideAbsence(
   id: string,
   input: { status: "APPROVED" | "REJECTED"; decisionNote?: string }
 ) {
-  if (!canManageAbsences(actor)) throw ApiError.forbidden();
-
   const absence = await findAbsenceOrThrow(id);
+  if (!(await canDecideAbsence(actor, absence.userId))) throw ApiError.forbidden();
+
   if (absence.status !== AbsenceStatus.PENDING) {
     throw ApiError.conflict("Cette demande a déjà été traitée.");
   }
@@ -312,9 +356,74 @@ export async function decideAbsence(
 
   if (input.status === AbsenceStatus.APPROVED) {
     await notifyMissionConflicts(id, absence.userId, absence.startDate, absence.endDate);
+    // Déduction du solde de congés (retour explicite du client, moteur de
+    // congés) — uniquement pour un congé payé : les arrêts maladie, congés
+    // sans solde ou "autres" ne touchent jamais au compteur de congés payés,
+    // chaque type garde sa propre logique.
+    if (absence.type === AbsenceType.PAID_LEAVE) {
+      await recordLeaveTaken(absence, actor.userId);
+    }
   }
 
-  return updated;
+  return presentAbsence(updated);
+}
+
+// Annulation d'un congé déjà décidé (retour explicite du client, section
+// "Modification et annulation") — recrédite le solde si un congé payé
+// approuvé est annulé, et rouvre la disponibilité dans le planning (aucune
+// indisponibilité stockée séparément : le statut CANCELLED suffit, les
+// mêmes requêtes qui filtrent APPROVED l'excluent déjà naturellement).
+export async function cancelAbsence(actor: Actor, id: string) {
+  const absence = await findAbsenceOrThrow(id);
+
+  const isOwnRequest = absence.userId === actor.userId;
+  const isAuthorizedManager = await canDecideAbsence(actor, absence.userId);
+  if (!isOwnRequest && !isAuthorizedManager) throw ApiError.forbidden();
+
+  if (absence.status !== AbsenceStatus.PENDING && absence.status !== AbsenceStatus.APPROVED) {
+    throw ApiError.conflict("Seule une demande en attente ou approuvée peut être annulée.");
+  }
+  // Un employé ne peut annuler lui-même qu'un congé qui n'a pas encore
+  // commencé — une fois entamé, seul un responsable habilité tranche
+  // (retour explicite du client : "une personne autorisée peut modifier ou
+  // annuler un congé").
+  if (isOwnRequest && !isAuthorizedManager && absence.startDate <= new Date()) {
+    throw ApiError.forbidden("Ce congé a déjà commencé : seul un responsable peut l'annuler.");
+  }
+
+  const wasApprovedPaidLeave = absence.status === AbsenceStatus.APPROVED && absence.type === AbsenceType.PAID_LEAVE;
+
+  const updated = await prisma.absence.update({
+    where: { id },
+    data: { status: AbsenceStatus.CANCELLED, decidedById: actor.userId, decidedAt: new Date() },
+    select: absenceSelect,
+  });
+
+  let recreditedDays = 0;
+  if (wasApprovedPaidLeave) {
+    recreditedDays = await recordLeaveCancelled(absence, actor.userId);
+  }
+
+  await logActivity({
+    userId: actor.userId,
+    action: "ABSENCE_CANCELLED",
+    entityType: "Absence",
+    entityId: id,
+    metadata: { recreditedDays },
+  });
+
+  if (!isOwnRequest) {
+    await createNotification({
+      userId: absence.userId,
+      type: NotificationType.ABSENCE_CANCELLED,
+      title: "Congé annulé",
+      body: recreditedDays > 0 ? `Votre congé a été annulé — ${recreditedDays} jour(s) recrédité(s).` : "Votre congé a été annulé.",
+      relatedEntityType: "Absence",
+      relatedEntityId: id,
+    });
+  }
+
+  return presentAbsence(updated);
 }
 
 // Réutilisé par missions.service.ts (`getAssignmentConflicts`) pour avertir,

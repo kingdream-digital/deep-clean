@@ -38,6 +38,14 @@ const envSchema = z.object({
   // Optionnel : jeton d'accès Expo pour l'envoi de notifications push
   // (recommandé par Expo en production, pas requis pour fonctionner).
   EXPO_ACCESS_TOKEN: z.string().optional(),
+
+  // Moteur de congés — retour explicite du client : "les règles d'acquisition
+  // doivent être configurables, ne pas coder une règle fixe". Cette valeur
+  // n'est qu'un DÉFAUT (2,5 j/mois = minimum légal français) appliqué à la
+  // création d'un compte ; la RH peut ensuite ajuster le taux propre à
+  // chaque salarié (temps partiel...) via sa fiche (voir User.leaveAccrualRate
+  // dans schema.prisma et leave.service.ts).
+  DEFAULT_LEAVE_ACCRUAL_RATE_PER_MONTH: z.coerce.number().positive().default(2.5),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,17 +1,21 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { Card } from "../../components/Card";
 import { TextField } from "../../components/TextField";
 import { DateTimeField } from "../../components/DateTimeField";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { Button } from "../../components/Button";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
+import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
 import { createAbsence } from "../../api/absences.api";
 import type { AbsenceType } from "../../api/absences.api";
+import { countBusinessDaysPreview, getLeaveBalance } from "../../api/leave.api";
+import type { LeaveBalance } from "../../api/leave.api";
 import { toLocalDateKey } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
@@ -31,6 +35,7 @@ export function AbsenceFormScreen() {
   const { colors, spacing, type: typeScale } = useTheme();
   const { isDesktopWeb } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const { user } = useAuth();
 
   const [type, setType] = useState<AbsenceType>("PAID_LEAVE");
   const [startDate, setStartDate] = useState<Date>(new Date());
@@ -38,6 +43,15 @@ export function AbsenceFormScreen() {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [balance, setBalance] = useState<LeaveBalance | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getLeaveBalance(user.id).then(setBalance).catch(() => setBalance(null));
+  }, [user]);
+
+  const requestedDays = useMemo(() => countBusinessDaysPreview(startDate, endDate), [startDate, endDate]);
+  const wouldExceedBalance = type === "PAID_LEAVE" && balance != null && requestedDays > balance.remaining;
 
   async function handleSubmit() {
     setError(null);
@@ -89,6 +103,19 @@ export function AbsenceFormScreen() {
           onChange={setEndDate}
           formatValue={(d) => dateFmt.format(d)}
         />
+
+        <Card style={{ marginBottom: spacing.md }}>
+          <Text style={[typeScale.callout, { color: colors.ink }]}>
+            {requestedDays} jour{requestedDays > 1 ? "s" : ""} ouvré{requestedDays > 1 ? "s" : ""}
+          </Text>
+          {type === "PAID_LEAVE" && balance && (
+            <Text style={[typeScale.footnote, { color: wouldExceedBalance ? colors.danger : colors.inkTertiary, marginTop: 2 }]}>
+              {wouldExceedBalance
+                ? `⚠️ Solde restant : ${balance.remaining} jour${balance.remaining > 1 ? "s" : ""} — cette demande le dépasse.`
+                : `Solde restant après cette demande : ${(balance.remaining - requestedDays).toFixed(1)} jour(s).`}
+            </Text>
+          )}
+        </Card>
 
         <TextField
           label="Motif (optionnel)"

@@ -25,3 +25,8 @@ export const decideAbsenceHandler = asyncHandler(async (req: Request, res: Respo
   const absence = await absencesService.decideAbsence(actorOf(req), req.params.id as string, req.body);
   res.status(200).json({ absence });
 });
+
+export const cancelAbsenceHandler = asyncHandler(async (req: Request, res: Response) => {
+  const absence = await absencesService.cancelAbsence(actorOf(req), req.params.id as string);
+  res.status(200).json({ absence });
+});

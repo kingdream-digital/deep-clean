@@ -18,6 +18,7 @@ import { timesheetsRouter } from "./modules/timesheets/timesheets.routes";
 import { standardsRouter } from "./modules/standards/standards.routes";
 import { messagesRouter } from "./modules/messages/messages.routes";
 import { absencesRouter } from "./modules/absences/absences.routes";
+import { leaveRouter } from "./modules/leave/leave.routes";
 import { activityRouter } from "./modules/activity/activity.routes";
 import { announcementsRouter } from "./modules/announcements/announcements.routes";
 import { documentsRouter } from "./modules/documents/documents.routes";
@@ -61,6 +62,7 @@ export function createApp() {
   app.use("/api/v1/cleaning-standards", standardsRouter);
   app.use("/api/v1/messages", messagesRouter);
   app.use("/api/v1/absences", absencesRouter);
+  app.use("/api/v1/leave", leaveRouter);
   app.use("/api/v1/activity-logs", activityRouter);
   app.use("/api/v1/announcements", announcementsRouter);
   app.use("/api/v1/documents", documentsRouter);

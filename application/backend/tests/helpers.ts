@@ -10,6 +10,12 @@ export const TEST_PASSWORD = "CorrectHorse9!Battery";
 export async function resetDatabase() {
   // Ordre inverse des dépendances pour respecter les contraintes de clé étrangère.
   await prisma.activityLog.deleteMany();
+  // Explicite (comme mission/problem plus bas) plutôt que de compter sur la
+  // cascade de `userId` : `createdById` est en onDelete: Restrict (traçabilité
+  // de qui a enregistré la transaction), qui bloquerait sinon la suppression
+  // groupée des comptes ci-dessous.
+  await prisma.leaveTransaction.deleteMany();
+  await prisma.absence.deleteMany();
   await prisma.timeEntry.deleteMany();
   await prisma.validation.deleteMany();
   await prisma.photo.deleteMany();
@@ -28,7 +34,15 @@ export async function resetDatabase() {
 }
 
 export async function createTestUser(
-  overrides: Partial<{ email: string; username: string; role: Role; isActive: boolean }> = {}
+  overrides: Partial<{
+    email: string;
+    username: string;
+    role: Role;
+    isActive: boolean;
+    hireDate: Date;
+    leaveAccrualRate: number;
+    leaveAccrualCap: number;
+  }> = {}
 ) {
   const passwordHash = await hashPassword(TEST_PASSWORD);
   return prisma.user.create({
@@ -45,6 +59,9 @@ export async function createTestUser(
       isActive: overrides.isActive ?? true,
       mustChangePassword: false,
       passwordHash,
+      ...(overrides.hireDate ? { hireDate: overrides.hireDate } : {}),
+      ...(overrides.leaveAccrualRate !== undefined ? { leaveAccrualRate: overrides.leaveAccrualRate } : {}),
+      ...(overrides.leaveAccrualCap !== undefined ? { leaveAccrualCap: overrides.leaveAccrualCap } : {}),
     },
   });
 }

@@ -52,6 +52,17 @@ model User {
   // l'image est servie via une route authentifiée comme les autres photos.
   avatarKey          String?
   lastLoginAt        DateTime?
+  // Moteur de congés (retour explicite du client) — date d'embauche : point
+  // de départ de l'acquisition, jamais modifiée automatiquement ensuite ;
+  // par défaut la date de création du compte si non précisée (voir
+  // users.service.ts::createUser). leaveAccrualRate/leaveAccrualCap :
+  // configurables PAR SALARIÉ par la RH/direction (temps partiel, avenant...)
+  // — null = valeur par défaut de l'entreprise (DEFAULT_LEAVE_ACCRUAL_RATE_PER_MONTH,
+  // aucun plafond). Voir leave.service.ts pour le calcul (jamais une règle
+  // figée dans le code).
+  hireDate           DateTime  @default(now())
+  leaveAccrualRate   Float?
+  leaveAccrualCap    Float?
   createdById        String? // RH ayant créé le compte
   createdBy          User?     @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers       User[]    @relation("UserCreatedBy")
@@ -81,6 +92,8 @@ model User {
   receivedMessages   Message[]           @relation("MessageRecipient")
   absences           Absence[]           @relation("AbsenceUser")
   decidedAbsences    Absence[]           @relation("AbsenceDecidedBy")
+  leaveTransactions        LeaveTransaction[] @relation("LeaveTransactionUser")
+  createdLeaveTransactions LeaveTransaction[] @relation("LeaveTransactionCreatedBy")
   postedAnnouncements Announcement[]     @relation("AnnouncementAuthor")
   employeeDocuments   EmployeeDocument[] @relation("EmployeeDocumentOwner")
   uploadedEmployeeDocuments EmployeeDocument[] @relation("EmployeeDocumentUploadedBy")
@@ -465,6 +478,11 @@ enum AbsenceStatus {
   PENDING
   APPROVED
   REJECTED
+  // Un congé déjà validé peut être annulé (retour explicite du client,
+  // section "Modification et annulation") — jamais réutilisé pour un simple
+  // refus, qui reste REJECTED : CANCELLED suppose une validation préalable et
+  // un recrédit du solde (voir leave.service.ts::cancelLeave).
+  CANCELLED
 }
 
 /// Demande d'absence planifiée (congé, maladie...) — distincte du pointage
@@ -489,9 +507,47 @@ model Absence {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
+  leaveTransactions LeaveTransaction[]
+
   @@index([userId, startDate, endDate])
   @@index([status])
   @@map("absences")
+}
+
+// ---------------------------------------------------------------------------
+// Moteur de congés — compteur et historique (retour explicite du client)
+// ---------------------------------------------------------------------------
+
+// Le solde "acquis" n'est jamais stocké : recalculé à la volée à partir de
+// User.hireDate/leaveAccrualRate/leaveAccrualCap (voir leave.service.ts) —
+// c'est une formule déterministe, pas un compteur qui pourrait dériver.
+// Seuls les ÉVÉNEMENTS qui modifient réellement le solde disponible sont
+// journalisés ici, pour une traçabilité complète ("comprendre l'origine
+// exacte du solde de chaque salarié").
+enum LeaveTransactionType {
+  LEAVE_TAKEN // congé validé : jours déduits (days négatif)
+  LEAVE_CANCELLED // congé annulé après validation : jours recrédités (days positif)
+  ADJUSTMENT // correction manuelle RH (days positif ou négatif)
+}
+
+model LeaveTransaction {
+  id          String               @id @default(uuid())
+  userId      String
+  user        User                 @relation("LeaveTransactionUser", fields: [userId], references: [id], onDelete: Cascade)
+  type        LeaveTransactionType
+  // Signé : négatif = déduction, positif = crédit — permet un simple SUM()
+  // pour retrouver l'impact net sur le solde d'une période donnée.
+  days        Float
+  occurredAt  DateTime             @default(now())
+  absenceId   String?
+  absence     Absence?             @relation(fields: [absenceId], references: [id], onDelete: SetNull)
+  createdById String
+  createdBy   User                 @relation("LeaveTransactionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  note        String?
+  createdAt   DateTime             @default(now())
+
+  @@index([userId, occurredAt])
+  @@map("leave_transactions")
 }
 
 // ---------------------------------------------------------------------------
@@ -518,6 +574,9 @@ enum NotificationType {
   ABSENCE_REQUESTED
   ABSENCE_DECIDED
   ABSENCE_CONFLICT
+  // Congé déjà validé puis annulé (retour explicite du client) — distincte
+  // d'ABSENCE_DECIDED, qui porte la toute première décision.
+  ABSENCE_CANCELLED
   // Diffusée à toute l'entreprise quand la RH, un superviseur, la direction
   // ou l'admin publie une actualité (retour explicite du client) — jamais
   // envoyée à l'auteur lui-même.
