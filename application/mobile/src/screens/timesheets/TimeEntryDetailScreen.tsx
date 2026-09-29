@@ -6,6 +6,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
+import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { PressableScale } from "../../components/PressableScale";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -48,6 +49,7 @@ function ProofSection({
   accuracy,
   siteAddress,
   distanceMeters,
+  onOpenPhoto,
 }: {
   title: string;
   photoUrl: string;
@@ -56,6 +58,7 @@ function ProofSection({
   accuracy?: number | null;
   siteAddress?: string | null;
   distanceMeters?: number | null;
+  onOpenPhoto: (uri: string) => void;
 }) {
   const { colors, spacing, type, radius } = useTheme();
   const hasPosition = latitude != null && longitude != null;
@@ -64,10 +67,12 @@ function ProofSection({
   return (
     <View style={{ marginTop: spacing.md }}>
       <Text style={[type.footnote, { color: colors.inkTertiary }]}>{title}</Text>
-      <AuthenticatedImage
-        uri={photoUrl}
-        style={{ width: "100%", height: 200, marginTop: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceAlt }}
-      />
+      <PressableScale onPress={() => onOpenPhoto(photoUrl)} accessibilityRole="button" accessibilityLabel="Agrandir la photo">
+        <AuthenticatedImage
+          uri={photoUrl}
+          style={{ width: "100%", height: 200, marginTop: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceAlt }}
+        />
+      </PressableScale>
 
       {distanceMeters != null && (
         <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}>
@@ -110,6 +115,7 @@ export function TimeEntryDetailScreen() {
 
   const [entry, setEntry] = useState<TimeEntry | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -211,6 +217,7 @@ export function TimeEntryDetailScreen() {
                 accuracy={entry.clockInAccuracy}
                 siteAddress={entry.matchedMission?.site.address}
                 distanceMeters={entry.clockInDistanceMeters}
+                onOpenPhoto={setViewerUri}
               />
             )}
             {entry.hasClockOutPhoto && (
@@ -222,11 +229,13 @@ export function TimeEntryDetailScreen() {
                 accuracy={entry.clockOutAccuracy}
                 siteAddress={entry.matchedMission?.site.address}
                 distanceMeters={entry.clockOutDistanceMeters}
+                onOpenPhoto={setViewerUri}
               />
             )}
           </Card>
         )}
       </ScrollView>
+      <PhotoViewerModal visible={!!viewerUri} uri={viewerUri} onClose={() => setViewerUri(null)} />
     </ScreenContainer>
   );
 }
