@@ -26,6 +26,7 @@ import { prospectsRouter } from "./modules/prospects/prospects.routes";
 import { clientsRouter } from "./modules/clients/clients.routes";
 import { quotesRouter } from "./modules/quotes/quotes.routes";
 import { invoicesRouter } from "./modules/invoices/invoices.routes";
+import { commercialDashboardRouter } from "./modules/commercial/dashboard.routes";
 
 export function createApp() {
   const app = express();
@@ -74,6 +75,7 @@ export function createApp() {
   app.use("/api/v1/clients", clientsRouter);
   app.use("/api/v1/quotes", quotesRouter);
   app.use("/api/v1/invoices", invoicesRouter);
+  app.use("/api/v1/commercial-dashboard", commercialDashboardRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
