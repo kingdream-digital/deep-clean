@@ -8,11 +8,13 @@ import * as activityController from "./activity.controller";
 
 export const activityRouter = Router();
 
-// Journal d'activité réservé à la RH, la direction et l'admin technique —
-// jamais au superviseur ni au chef d'équipe (même périmètre que /stats),
-// puisqu'il couvre des actions sensibles sur les comptes, pas seulement le
-// terrain.
-const VIEW_ROLES = [Role.HR, Role.DIRECTOR, Role.ADMIN];
+// Retour explicite du client (validé), revirement par rapport au périmètre
+// d'origine (RH/direction/admin) : le journal d'activité expose des détails
+// potentiellement sensibles sur le fonctionnement interne de l'application
+// (actions précises, métadonnées) — en cas de problème, seul l'admin
+// technique doit pouvoir vraiment le consulter. RH et direction en perdent
+// l'accès (ils gardent tout le reste : comptes, planning, statistiques...).
+const VIEW_ROLES = [Role.ADMIN];
 
 activityRouter.use(authenticate());
 activityRouter.get("/", requireRole(...VIEW_ROLES), validate(listActivityLogsQuerySchema), activityController.listActivityLogsHandler);
