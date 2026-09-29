@@ -18,6 +18,12 @@ import { RootNavigator } from "./src/navigation/RootNavigator";
 import { SplashGate } from "./src/components/SplashGate";
 import { AlertHost } from "./src/components/AlertHost";
 import { OnboardingOverlay } from "./src/components/OnboardingOverlay";
+import { injectWebScrollbarStyle } from "./src/utils/webScrollbar";
+
+// Appelé au chargement du module (avant le premier rendu) — no-op sur
+// natif (voir webScrollbar.ts), une seule injection sur web quel que soit
+// le nombre de re-rendus de l'app.
+injectWebScrollbarStyle();
 
 function StatusBarBridge() {
   const { isDark } = useTheme();

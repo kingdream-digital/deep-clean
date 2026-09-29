@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -218,6 +218,26 @@ export function ConversationThreadScreen() {
           placeholder="Votre message..."
           placeholderTextColor={colors.inkTertiary}
           multiline
+          // Retour explicite du client : sur le web, la touche Entrée doit
+          // envoyer le message (Maj+Entrée pour un retour à la ligne), comme
+          // sur un vrai site de messagerie — jamais sur mobile natif, où le
+          // clavier tactile n'a pas cette convention et où la touche retour
+          // doit rester un simple saut de ligne. `react-native-web` ne route
+          // "Entrée" vers `onSubmitEditing` que si `blurOnSubmit` est vrai, ce
+          // qui perdrait aussi le focus du champ à chaque envoi : on
+          // intercepte donc directement `onKeyPress` (web uniquement) pour
+          // envoyer sans jamais faire perdre le focus.
+          onKeyPress={
+            Platform.OS === "web"
+              ? (e) => {
+                  const webEvent = e as unknown as { key: string; shiftKey?: boolean; preventDefault: () => void };
+                  if (webEvent.key === "Enter" && !webEvent.shiftKey) {
+                    webEvent.preventDefault();
+                    void handleSend();
+                  }
+                }
+              : undefined
+          }
           // Emoji : le clavier système (icône globe/emoji) fonctionne nativement
           // sur un TextInput standard — aucune restriction de type ici.
           style={[

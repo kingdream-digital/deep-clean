@@ -44,7 +44,7 @@ export function Button({
   icon,
   style,
 }: ButtonProps) {
-  const { colors, radius, type } = useTheme();
+  const { colors, radius, type, isDark } = useTheme();
   const isDisabled = disabled || loading;
 
   const press = useSharedValue(0); // 0 = relâché, 1 = pressé
@@ -92,12 +92,17 @@ export function Button({
           opacity: isDisabled && !loading ? 0.5 : 1,
           overflow: "hidden",
         },
+        // Retour explicite du client : le halo bleu (accentBright en fond de
+        // bouton) était bien trop marqué en mode sombre, où cette couleur est
+        // déjà la teinte la plus vive de toute la palette (voir colors.ts) —
+        // nettement atténué ici, gardé tel quel en clair où l'effet reste
+        // discret sur fond blanc.
         isPrimary && {
           shadowColor: colors.accentBright,
-          shadowOpacity: 0.35,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 5,
+          shadowOpacity: isDark ? 0.16 : 0.35,
+          shadowRadius: isDark ? 9 : 16,
+          shadowOffset: { width: 0, height: isDark ? 4 : 8 },
+          elevation: isDark ? 2 : 5,
         },
         animatedStyle,
         style,

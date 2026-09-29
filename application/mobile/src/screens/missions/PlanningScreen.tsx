@@ -291,11 +291,12 @@ export function PlanningScreen() {
                       zIndex: -1,
                       marginHorizontal: 2,
                       borderRadius: radius.md,
+                      // Halo atténué en mode sombre (retour explicite du client).
                       shadowColor: colors.accentBright,
-                      shadowOpacity: 0.45,
-                      shadowRadius: 12,
-                      shadowOffset: { width: 0, height: 4 },
-                      elevation: 6,
+                      shadowOpacity: isDark ? 0.2 : 0.45,
+                      shadowRadius: isDark ? 8 : 12,
+                      shadowOffset: { width: 0, height: isDark ? 2 : 4 },
+                      elevation: isDark ? 3 : 6,
                     },
                     pillStyle,
                   ]}
@@ -554,7 +555,7 @@ function TeamWeekGrid({
   today: Date;
   onPressMission: (mission: Mission) => void;
 }) {
-  const { colors, spacing, radius, type } = useTheme();
+  const { colors, spacing, radius, type, isDark } = useTheme();
   const NAME_COL_WIDTH = 210;
 
   if (teamMembers.length === 0) {
@@ -585,11 +586,12 @@ function TeamWeekGrid({
                     borderRadius: radius.md,
                     paddingVertical: spacing.xs,
                     paddingHorizontal: spacing.sm,
+                    // Halo atténué en mode sombre (retour explicite du client).
                     shadowColor: colors.accentBright,
-                    shadowOpacity: 0.35,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 4 },
-                    elevation: 4,
+                    shadowOpacity: isDark ? 0.16 : 0.35,
+                    shadowRadius: isDark ? 6 : 10,
+                    shadowOffset: { width: 0, height: isDark ? 2 : 4 },
+                    elevation: isDark ? 2 : 4,
                   }}
                 >
                   <Text style={[type.caption, { color: colors.onAccent, fontWeight: "700" }]}>{WEEKDAY_LABELS[index]}</Text>

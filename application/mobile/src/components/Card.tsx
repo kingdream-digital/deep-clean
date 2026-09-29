@@ -9,7 +9,7 @@ interface CardProps extends ViewProps {
 }
 
 export function Card({ style, padded = true, glow = false, children, ...rest }: CardProps) {
-  const { colors, radius, spacing } = useTheme();
+  const { colors, radius, spacing, isDark } = useTheme();
 
   return (
     <View
@@ -25,11 +25,14 @@ export function Card({ style, padded = true, glow = false, children, ...rest }: 
           // surtout du contraste de fond, jamais d'une ombre épaisse) — un
           // empilement de cartes à ombre marquée est ce qui donne le rendu
           // "gabarit gratuit" que le fond gris + bordure fine suffit à éviter.
+          // Retour explicite du client : le glow accent était bien trop
+          // marqué en mode sombre (accentBright y est déjà la teinte la plus
+          // vive de la palette) — nettement atténué ici, inchangé en clair.
           shadowColor: glow ? colors.accentBright : colors.shadow,
-          shadowOpacity: glow ? 0.35 : 0.5,
-          shadowRadius: glow ? 18 : 8,
-          shadowOffset: { width: 0, height: glow ? 8 : 2 },
-          elevation: glow ? 6 : 1,
+          shadowOpacity: glow ? (isDark ? 0.16 : 0.35) : 0.5,
+          shadowRadius: glow ? (isDark ? 10 : 18) : 8,
+          shadowOffset: { width: 0, height: glow ? (isDark ? 4 : 8) : 2 },
+          elevation: glow ? (isDark ? 3 : 6) : 1,
         },
         style,
       ]}

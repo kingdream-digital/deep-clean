@@ -35,7 +35,7 @@ const CAN_POST_ROLES: Role[] = ["HR", "SUPERVISOR", "DIRECTOR", "ADMIN"];
 const initialsOf = (firstName: string, lastName: string) => `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
 
 export function AnnouncementsListScreen() {
-  const { colors, spacing, radius, type } = useTheme();
+  const { colors, spacing, radius, type, isDark } = useTheme();
   const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const [items, setItems] = useState<Announcement[]>([]);
@@ -156,11 +156,13 @@ export function AnnouncementsListScreen() {
             backgroundColor: colors.accentDeep,
             alignItems: "center",
             justifyContent: "center",
+            // Halo atténué en mode sombre (retour explicite du client) —
+            // voir Button.tsx/Card.tsx pour le même ajustement.
             shadowColor: colors.accentBright,
-            shadowOpacity: 0.4,
-            shadowRadius: 14,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 6,
+            shadowOpacity: isDark ? 0.18 : 0.4,
+            shadowRadius: isDark ? 9 : 14,
+            shadowOffset: { width: 0, height: isDark ? 3 : 6 },
+            elevation: isDark ? 3 : 6,
           }}
         >
           <Ionicons name="add" size={26} color={colors.onAccent} />
