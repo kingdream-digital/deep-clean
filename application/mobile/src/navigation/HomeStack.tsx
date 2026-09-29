@@ -32,6 +32,9 @@ import { AbsencesManagementScreen } from "../screens/absences/AbsencesManagement
 import { AnnouncementsListScreen } from "../screens/announcements/AnnouncementsListScreen";
 import { AnnouncementDetailScreen } from "../screens/announcements/AnnouncementDetailScreen";
 import { AnnouncementFormScreen } from "../screens/announcements/AnnouncementFormScreen";
+import { InvoicesListScreen } from "../screens/commercial/InvoicesListScreen";
+import { InvoiceDetailScreen } from "../screens/commercial/InvoiceDetailScreen";
+import { InvoiceFormScreen } from "../screens/commercial/InvoiceFormScreen";
 
 export type HomeStackParamList = {
   Home: undefined;
@@ -64,6 +67,14 @@ export type HomeStackParamList = {
   MyAbsences: undefined;
   AbsenceForm: undefined;
   AbsencesManagement: undefined;
+  // Facturation (module commercial §29-33) — uniquement le bouton "Créer une
+  // facture" depuis la fiche chantier (dupliqué ici comme SiteForm/MissionForm
+  // ci-dessus, pour que ce bouton fonctionne quel que soit l'onglet d'où la
+  // fiche chantier a été ouverte). Le reste du module commercial (prospects,
+  // clients, devis) ne vit que dans MenuStack.
+  InvoicesList: undefined;
+  InvoiceDetail: { invoiceId: string };
+  InvoiceForm: { invoiceId?: string; clientId?: string; quoteId?: string; siteId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
@@ -179,6 +190,17 @@ export function HomeStack() {
         options={{ title: "Demander une absence", presentation: "modal" }}
       />
       <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: "Absences" }} />
+
+      <Stack.Screen name="InvoicesList" component={InvoicesListScreen} options={{ title: "Factures" }} />
+      <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: "Facture" }} />
+      <Stack.Screen
+        name="InvoiceForm"
+        component={InvoiceFormScreen}
+        options={({ route }) => ({
+          title: route.params?.invoiceId ? "Modifier la facture" : "Nouvelle facture",
+          presentation: "modal",
+        })}
+      />
     </Stack.Navigator>
   );
 }

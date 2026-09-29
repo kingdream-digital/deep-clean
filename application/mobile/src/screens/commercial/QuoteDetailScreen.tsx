@@ -293,6 +293,15 @@ export function QuoteDetailScreen() {
                   }
                 />
               )}
+              {/* Facturation réservée à RH/Direction/Admin (§1-3) — le
+                  Superviseur ne voit pas ce bouton. */}
+              {canValidate && (
+                <Button
+                  label="Créer une facture"
+                  variant="secondary"
+                  onPress={() => navigation.navigate("InvoiceForm", { clientId: quote.clientId, quoteId: quote.id, siteId: quote.site?.id })}
+                />
+              )}
             </>
           )}
 

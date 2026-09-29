@@ -32,6 +32,9 @@ const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = { FLAT_RATE: "Forfa
 type Route = RouteProp<{ SiteDetail: { siteId: string } }, "SiteDetail">;
 
 const MANAGE_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
+// Facturation réservée à RH/Direction/Admin (cahier des charges §1-3) — le
+// Superviseur n'y figure pas, contrairement à la gestion du chantier lui-même.
+const INVOICE_ROLES = ["HR", "DIRECTOR", "ADMIN"];
 
 // Fiche chantier — reprend la structure de la maquette validée (bannière,
 // chef d'équipe, standards, consignes, prochaines missions, signalements) ;
@@ -97,6 +100,7 @@ export function SiteDetailScreen() {
   }
 
   const canManage = user ? MANAGE_ROLES.includes(user.role) : false;
+  const canInvoice = user ? INVOICE_ROLES.includes(user.role) : false;
 
   return (
     <ScreenContainer style={{ paddingHorizontal: 0 }}>
@@ -363,9 +367,19 @@ export function SiteDetailScreen() {
           </View>
         )}
 
-        {canManage && (
-          <View style={{ marginTop: spacing.xl }}>
-            <Button label="Modifier le chantier" variant="secondary" onPress={() => navigation.navigate("SiteForm", { siteId: site.id })} />
+        {(canManage || canInvoice) && (
+          <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
+            {/* Client → Chantier → Facturation (cahier des charges §32) —
+                réservé RH/Direction/Admin, comme le reste de la facturation. */}
+            {canInvoice && (
+              <Button
+                label="Créer une facture"
+                onPress={() => navigation.navigate("InvoiceForm", { clientId: site.clientId ?? undefined, quoteId: site.quoteId ?? undefined, siteId: site.id })}
+              />
+            )}
+            {canManage && (
+              <Button label="Modifier le chantier" variant="secondary" onPress={() => navigation.navigate("SiteForm", { siteId: site.id })} />
+            )}
           </View>
         )}
       </ScrollView>

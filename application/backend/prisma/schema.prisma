@@ -106,6 +106,7 @@ model User {
   rejectedQuotes      Quote[]            @relation("QuoteRejectedBy")
   quoteEvents         QuoteEvent[]       @relation("QuoteEventUser")
   createdSiteTargets  SiteTarget[]       @relation("SiteTargetCreatedBy")
+  createdInvoices     Invoice[]          @relation("InvoiceCreatedBy")
 
   @@index([role])
   @@map("users")
@@ -182,6 +183,7 @@ model Site {
   problems          Problem[]
   cleaningStandards CleaningStandard[]
   targets           SiteTarget[]
+  invoices          Invoice[]
 
   @@map("sites")
 }
@@ -830,8 +832,9 @@ model Client {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  quotes Quote[]
-  sites  Site[]
+  quotes   Quote[]
+  sites    Site[]
+  invoices Invoice[]
 
   @@map("clients")
 }
@@ -975,12 +978,13 @@ model Quote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items  QuoteItem[]
-  events QuoteEvent[]
+  items    QuoteItem[]
+  events   QuoteEvent[]
   // Chantier créé à partir de ce devis accepté (§19-21) — jamais rempli
   // automatiquement, uniquement via l'action humaine "Créer un chantier à
   // partir du devis" (voir sites.service.ts::createSite).
-  site   Site?
+  site     Site?
+  invoices Invoice[]
 
   @@index([clientId])
   @@index([assignedUserId])
@@ -1038,6 +1042,102 @@ model QuoteEvent {
 
   @@index([quoteId])
   @@map("quote_events")
+}
+
+// ---------------------------------------------------------------------------
+// Module commercial — facturation (phase 11-12 du cahier des charges).
+// FACTURATION ≠ PLANNING (§29/§40) : une facture ne crée, ne modifie ni ne
+// supprime jamais de mission, de chantier ou d'événement de planning.
+// Réservée à RH/Direction/Admin (le Superviseur ne figure pas dans la liste
+// de permissions "facturation" du cahier des charges, §1-3) — voir
+// invoices.routes.ts.
+// ---------------------------------------------------------------------------
+
+enum InvoiceStatus {
+  DRAFT // À préparer
+  VALIDATED // Validée
+  SENT // Envoyée
+  PAID // Payée
+  CANCELLED // Annulée
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  // Format FAC-AAAA-NNNN (voir invoices.service.ts::generateInvoiceNumber).
+  invoiceNumber String        @unique
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  // Références optionnelles (§31 : "La facture doit conserver une référence
+  // au devis [...] et éventuellement au chantier") — une facture peut aussi
+  // être créée directement pour un client, sans devis ni chantier.
+  quoteId       String?
+  quote         Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  siteId        String?
+  site          Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  createdById   String
+  createdBy     User          @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  status        InvoiceStatus @default(DRAFT)
+  // Mode défini au moment de la génération (§33) : FLAT_RATE reprend le
+  // montant prévu (devis/objectif), PER_SERVICE se base sur le nombre réel de
+  // prestations réalisées sur la période × tarif — le calcul lui-même est
+  // fait une fois, à la création (voir invoices.service.ts), jamais recalculé
+  // après coup pour ne pas faire varier une facture déjà émise.
+  billingMode   SiteBillingMode @default(FLAT_RATE)
+  // Mois facturé le cas échéant ("AAAA-MM") — pour une facture mensuelle liée
+  // à un chantier récurrent.
+  period        String?
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime?
+  // Coordonnées figées au moment de la création (même principe que
+  // Quote.contactName et consorts — jamais relues depuis la fiche client
+  // après coup).
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  billingAddress String?
+  siret          String?
+  paymentTerms   String?
+  // Jamais inclus dans le PDF client (même règle que Quote.internalNotes).
+  internalNotes  String?
+
+  subtotalHt Float @default(0)
+  vatRate    Float @default(20)
+  vatAmount  Float @default(0)
+  totalTtc   Float @default(0)
+
+  sentAt      DateTime?
+  paidAt      DateTime?
+  cancelledAt DateTime?
+  cancelledComment String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items InvoiceItem[]
+
+  @@index([clientId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                String        @id @default(uuid())
+  invoiceId         String
+  invoice           Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description       String
+  quantity          Float
+  unit              QuoteItemUnit
+  unitPriceHt       Float
+  // Recalculé côté serveur : quantity * unitPriceHt (même principe que
+  // QuoteItem.totalHt — jamais fait confiance à un total envoyé par le client).
+  totalHt           Float         @default(0)
+  // Ligne de devis d'origine, le cas échéant (§38) — purement informatif,
+  // pour tracer d'où vient un montant facturé.
+  sourceQuoteItemId String?
+  sortOrder         Int           @default(0)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
 }
 
 model ActivityLog {
