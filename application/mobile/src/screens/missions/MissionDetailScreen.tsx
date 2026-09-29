@@ -243,8 +243,12 @@ export function MissionDetailScreen() {
   }
 
   return (
-    <ScreenContainer>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}>
+    <ScreenContainer avoidKeyboard>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}
+      >
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>{mission.title}</Text>
           <StatusBadge status={mission.status} />
