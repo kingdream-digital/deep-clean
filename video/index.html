@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deep Clean — Motion design</title>
+  <link rel="stylesheet" href="src/css/main.css">
+  <link rel="stylesheet" href="src/css/scenes.css">
+</head>
+<body>
+  <div id="stage">
+    <div id="shake"><div id="camera"></div></div>
+    <div id="fx">
+      <div id="leak"></div>
+      <div id="flash"></div>
+      <div id="vignette"></div>
+      <div id="grain"></div>
+    </div>
+  </div>
+
+  <!-- Filtres partagés : flou de mouvement directionnel (panoramiques filés). -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <filter id="mblur-x" x="-20%" y="-5%" width="140%" height="110%"><feGaussianBlur id="mblur-x-k" stdDeviation="0 0"/></filter>
+      <filter id="mblur-y" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur id="mblur-y-k" stdDeviation="0 0"/></filter>
+    </defs>
+  </svg>
+
+  <script src="node_modules/gsap/dist/gsap.min.js"></script>
+  <script src="node_modules/gsap/dist/SplitText.min.js"></script>
+  <script src="node_modules/gsap/dist/CustomEase.min.js"></script>
+  <script src="node_modules/gsap/dist/MorphSVGPlugin.min.js"></script>
+  <script src="node_modules/gsap/dist/DrawSVGPlugin.min.js"></script>
+  <script src="node_modules/gsap/dist/MotionPathPlugin.min.js"></script>
+  <script src="src/js/generated.js"></script>
+  <script src="src/js/core.js"></script>
+  <script src="src/js/ui.js"></script>
+  <script>window.SCENES = [];</script>
+  <script src="src/js/scenes/s1-chaos.js"></script>
+  <script src="src/js/scenes/s2-reveal.js"></script>
+  <script src="src/js/scenes/s3-communication.js"></script>
+  <script src="src/js/scenes/s4-roles.js"></script>
+  <script src="src/js/scenes/s5-operations.js"></script>
+  <script src="src/js/scenes/s6-commercial.js"></script>
+  <script src="src/js/scenes/s7-finale.js"></script>
+  <script src="src/js/main.js"></script>
+</body>
+</html>

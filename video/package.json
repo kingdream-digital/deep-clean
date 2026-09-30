@@ -1,0 +1,14 @@
+{
+  "name": "deep-clean-motion-video",
+  "private": true,
+  "description": "Vidéo motion design de présentation Deep Clean (60 s, 1080p60) — composition HTML/GSAP rendue image par image avec Playwright + ffmpeg.",
+  "scripts": {
+    "render": "node render.js"
+  },
+  "dependencies": {
+    "gsap": "^3.15.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}
