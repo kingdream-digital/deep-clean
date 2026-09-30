@@ -149,7 +149,17 @@ export function HomeScreen() {
                   </View>
                 )}
               </PressableScale>
-              <PressableScale onPress={() => tabNavigation?.navigate("Menu", { screen: "Profile" })}>
+              <PressableScale
+                onPress={() =>
+                  // `initial: false` : sans ça, quand l'onglet Menu n'a pas
+                  // encore été ouvert dans la session, Profil devenait l'UNIQUE
+                  // écran de sa pile (racine) — aucune flèche retour possible,
+                  // navigation "bloquée" sur le profil (bug remonté par le
+                  // client). Ainsi Profil est toujours empilé par-dessus
+                  // MenuHome, retour garanti quel que soit l'état de l'onglet.
+                  tabNavigation?.navigate("Menu", { screen: "Profile", initial: false })
+                }
+              >
                 {user.hasAvatar ? (
                   <AuthenticatedImage uri={avatarUrl(user.id)} style={styles.bannerAvatar} />
                 ) : (

@@ -23,8 +23,19 @@ export function SwipeableRow({ onDelete, children }: SwipeableRowProps) {
 
   const panResponder = useRef(
     PanResponder.create({
+      // En phase de capture (évaluée AVANT que le Pressable enfant ne
+      // revendique le geste) : sans ça, ce dernier "reprenait" parfois le
+      // toucher en cours de glissement (le PanResponder recevait alors
+      // onPanResponderTerminate et la case Supprimer se refermait aussitôt,
+      // dès le moindre mouvement — bug remonté par le client).
+      onMoveShouldSetPanResponderCapture: (_evt, gesture) =>
+        Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
       onMoveShouldSetPanResponder: (_evt, gesture) =>
         Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+      // Une fois le geste accordé, ne jamais le rendre — même logique que
+      // ci-dessus, pour qu'il n'y ait plus de "vol" du toucher en cours de
+      // route.
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startX.current = translateX.value;
       },
