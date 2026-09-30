@@ -138,11 +138,12 @@
   <nav class="menu__nav" aria-label="Navigation mobile">
     <ol class="menu__links">
       <li><a href="#prestations"><span>01</span>Prestations</a></li>
-      <li><a href="#conciergerie"><span>02</span>Conciergerie</a></li>
-      <li><a href="#exigence"><span>03</span>Méthode</a></li>
-      <li><a href="#zone-intervention"><span>04</span>Zone</a></li>
-      <li><a href="#avis"><span>05</span>Avis</a></li>
-      <li><a href="#contact"><span>06</span>Contact</a></li>
+      <li><a href="#en-action"><span>02</span>En action</a></li>
+      <li><a href="#conciergerie"><span>03</span>Conciergerie</a></li>
+      <li><a href="#exigence"><span>04</span>Méthode</a></li>
+      <li><a href="#zone-intervention"><span>05</span>Zone</a></li>
+      <li><a href="#avis"><span>06</span>Avis</a></li>
+      <li><a href="#contact"><span>07</span>Contact</a></li>
     </ol>
   </nav>
   <div class="menu__foot">
@@ -168,7 +169,7 @@
     <div class="hero__shade" aria-hidden="true"></div>
 
     <div class="hero__content container">
-      <p class="hero__eyebrow" data-hero-in><span class="pulse-dot" aria-hidden="true"></span>Manosque &amp; alentours<span class="hide-sm">&nbsp;· Particuliers &amp; professionnels</span></p>
+      <p class="hero__eyebrow" data-hero-in><span class="pulse-dot" aria-hidden="true"></span><span>Manosque &amp; alentours<span class="hide-sm"> · Particuliers &amp; professionnels</span></span></p>
       <h1 class="hero__title" data-hero-title>
         <span class="hero__line"><span>Nettoyage</span></span>
         <span class="hero__line"><span><em>en profondeur</em></span></span>
@@ -239,6 +240,13 @@
         </div>
         <p class="lede" data-reveal>Maison, bureaux ou résidence secondaire&nbsp;: la même équipe, la même méthode, le même niveau de finition.</p>
       </header>
+
+      <div class="panels-tabs" data-panels-tabs aria-label="Choisir votre profil">
+        <button type="button" class="is-active" aria-pressed="true" data-tab="0">Particuliers</button>
+        <button type="button" aria-pressed="false" data-tab="1" aria-label="Professionnels"><span class="lbl-long">Professionnels</span><span class="lbl-short" aria-hidden="true">Pros</span></button>
+        <button type="button" aria-pressed="false" data-tab="2">Conciergerie</button>
+        <span class="panels-tabs__pill" data-tabs-pill aria-hidden="true"></span>
+      </div>
 
       <div class="panels" data-panels>
         <article class="panel is-open" data-panel tabindex="0" aria-labelledby="panel-1-title">
@@ -387,7 +395,81 @@
           </li>
         </ol>
       </div>
-      <p class="services__swipe" aria-hidden="true"><span></span>Faites glisser</p>
+    </div>
+  </section>
+
+  <!-- 5b. En action — vraies vidéos d'intervention (verticales), une par
+       chapitre, pilotées par le scroll. Conteneur « sticky » en CSS, aucune
+       épingle JS (robuste sur mobile). Les vidéos ne se chargent qu'à
+       l'approche, jamais en mode économie de données ni en mouvement réduit
+       (l'image fixe reste affichée). Voir initReel() dans main.js. -->
+  <section class="reel" id="en-action" data-reel aria-labelledby="reel-title">
+    <div class="reel__sticky">
+      <div class="reel__ambient" aria-hidden="true">
+        <img data-reel-ambient class="is-active" src="assets/video/sols-poster.webp" alt="" loading="lazy" decoding="async" />
+        <img data-reel-ambient src="assets/video/vitres-poster.webp" alt="" loading="lazy" decoding="async" />
+        <img data-reel-ambient src="assets/video/cuisine-poster.webp" alt="" loading="lazy" decoding="async" />
+        <img data-reel-ambient src="assets/video/recoins-poster.webp" alt="" loading="lazy" decoding="async" />
+        <img data-reel-ambient src="assets/video/finitions-poster.webp" alt="" loading="lazy" decoding="async" />
+      </div>
+      <div class="reel__frame" data-reel-frame>
+        <figure class="reel__clip is-active" data-reel-clip="sols">
+          <img class="reel__poster" src="assets/video/sols-poster.webp" alt="Lavage d'un parquet à la serpillière plate" width="720" height="1280" loading="lazy" decoding="async" />
+          <video class="reel__video" muted loop playsinline preload="none" disablepictureinpicture disableremoteplayback aria-hidden="true" tabindex="-1"></video>
+        </figure>
+        <figure class="reel__clip" data-reel-clip="vitres">
+          <img class="reel__poster" src="assets/video/vitres-poster.webp" alt="Nettoyage d'un grand miroir au pulvérisateur" width="720" height="1280" loading="lazy" decoding="async" />
+          <video class="reel__video" muted loop playsinline preload="none" disablepictureinpicture disableremoteplayback aria-hidden="true" tabindex="-1"></video>
+        </figure>
+        <figure class="reel__clip" data-reel-clip="cuisine">
+          <img class="reel__poster" src="assets/video/cuisine-poster.webp" alt="Dégraissage des grilles d'une gazinière avec des gants" width="720" height="1280" loading="lazy" decoding="async" />
+          <video class="reel__video" muted loop playsinline preload="none" disablepictureinpicture disableremoteplayback aria-hidden="true" tabindex="-1"></video>
+        </figure>
+        <figure class="reel__clip" data-reel-clip="recoins">
+          <img class="reel__poster" src="assets/video/recoins-poster.webp" alt="Aspiration au ras du sol sous un meuble" width="720" height="1280" loading="lazy" decoding="async" />
+          <video class="reel__video" muted loop playsinline preload="none" disablepictureinpicture disableremoteplayback aria-hidden="true" tabindex="-1"></video>
+        </figure>
+        <figure class="reel__clip" data-reel-clip="finitions">
+          <img class="reel__poster" src="assets/video/finitions-poster.webp" alt="Main gantée passant une microfibre sur une table en bois" width="720" height="1280" loading="lazy" decoding="async" />
+          <video class="reel__video" muted loop playsinline preload="none" disablepictureinpicture disableremoteplayback aria-hidden="true" tabindex="-1"></video>
+        </figure>
+      </div>
+      <div class="reel__shade" aria-hidden="true"></div>
+      <div class="reel__ui">
+        <div class="reel__top">
+          <p class="eyebrow eyebrow--light">En action</p>
+          <ol class="reel__bars" aria-hidden="true"><li><i></i></li><li><i></i></li><li><i></i></li><li><i></i></li><li><i></i></li></ol>
+        </div>
+        <h2 class="visually-hidden" id="reel-title">Nos équipes en action</h2>
+        <ol class="reel__chapters">
+          <li class="reel__chapter is-active" data-reel-chapter>
+            <span class="reel__num">01 / 05</span>
+            <p class="reel__word">Sols</p>
+            <p class="reel__text">Parquets, carrelages, tapis&nbsp;: les sols retrouvent leur éclat.</p>
+          </li>
+          <li class="reel__chapter" data-reel-chapter>
+            <span class="reel__num">02 / 05</span>
+            <p class="reel__word">Vitres</p>
+            <p class="reel__text">Vitres et miroirs parfaitement nets, sans la moindre trace.</p>
+          </li>
+          <li class="reel__chapter" data-reel-chapter>
+            <span class="reel__num">03 / 05</span>
+            <p class="reel__word">Cuisine</p>
+            <p class="reel__text">Plaques, grilles, éviers&nbsp;: on dégraisse en profondeur.</p>
+          </li>
+          <li class="reel__chapter" data-reel-chapter>
+            <span class="reel__num">04 / 05</span>
+            <p class="reel__word">Recoins</p>
+            <p class="reel__text">Sous les meubles, derrière, dessous&nbsp;: là où l'on ne regarde jamais.</p>
+          </li>
+          <li class="reel__chapter" data-reel-chapter>
+            <span class="reel__num">05 / 05</span>
+            <p class="reel__word">Finitions</p>
+            <p class="reel__text">Le dernier passage, celui qui fait toute la différence.</p>
+          </li>
+        </ol>
+        <p class="reel__hint" aria-hidden="true"><i></i>Continuez à défiler</p>
+      </div>
     </div>
   </section>
 
@@ -462,6 +544,8 @@
         <p class="lede" data-reveal>Chaque intervention suit le même protocole, pensé pour protéger vos surfaces autant que pour les révéler.</p>
       </header>
 
+      <div class="flow" data-flow>
+      <div class="flow__rail" aria-hidden="true"><span class="flow__fill" data-flow-fill></span><span class="flow__drop" data-flow-drop></span></div>
       <ol class="stack" data-stack>
         <li class="step" data-step>
           <div class="step__card">
@@ -508,6 +592,7 @@
           </div>
         </li>
       </ol>
+      </div>
     </div>
   </section>
 
@@ -632,6 +717,7 @@
         <p class="zone__note" data-reveal>Distances à vol d'oiseau depuis le centre de Manosque. Votre commune n'apparaît pas&nbsp;? <a href="#contact">Demandez-nous</a>.<br /><small>Carte&nbsp;: données © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">contributeurs OpenStreetMap</a>.</small></p>
       </div>
       <div class="zone__map" data-zone-map data-reveal>
+        <p class="map__badge" data-map-badge aria-live="polite"><strong data-map-badge-name>Manosque</strong><span data-map-badge-km>Notre base</span></p>
         <svg class="map" viewBox="0 0 500 607" role="img" aria-labelledby="map-title map-desc">
           <title id="map-title">Carte de la zone d'intervention de Deep Clean</title>
           <desc id="map-desc">Manosque au centre, entourée de Pierrevert, Sainte-Tulle, Volx, Corbières, Villeneuve, Gréoux-les-Bains et Forcalquier, à moins de 15 km. La Durance et le Verdon traversent la carte.</desc>
@@ -692,6 +778,7 @@
       </div>
     </div>
 
+    <p class="swipe-hint reviews__hint" aria-hidden="true"><span></span>Faites glisser</p>
     <div class="reviews__marquee" data-reviews>
       <ul class="reviews__track" data-reviews-track>
         <!-- Avis fictif temporaire — à remplacer par un vrai avis Google fourni par le client -->
@@ -924,7 +1011,7 @@
     <div class="footer__bottom">
       <span>© <span data-year>2026</span> Deep Clean — Tous droits réservés.</span>
       <a href="legal.html">Mentions légales</a>
-      <span>Photos : Pexels &amp; Unsplash (licences libres)</span>
+      <span>Photos &amp; vidéos : Pexels &amp; Unsplash (licences libres)</span>
       <a class="footer__up" href="#accueil">Haut de page <span aria-hidden="true">↑</span></a>
     </div>
   </div>

@@ -33,6 +33,13 @@
     try { fn(); } catch (err) { errors++; if (window.console) console.error("[Deep Clean] " + name, err); }
   }
 
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+  /* Vibration courte (Android) pour ponctuer une action ; sans effet ailleurs */
+  function buzz(pattern) {
+    try { if (!REDUCED && navigator.vibrate) navigator.vibrate(pattern); } catch (err) { /* non supporté */ }
+  }
+
   function headerOffset() {
     var h = $("[data-header]");
     return h ? h.offsetHeight : 76;
@@ -80,13 +87,17 @@
     safe("about", initAbout);
     safe("map", initMapIntro);
     safe("band", initBand);
-    safe("reviews", initReviews);
     safe("footer", initFooter);
     safe("hero-scroll", initHeroScroll);
+    safe("ripple", initRipple);
   }
   safe("panels", initPanels);
+  safe("tabs", initPanelsTabs);
   safe("services", initServices);
+  safe("reel", initReel);
   safe("wipe", initWipe);
+  safe("flow", initFlow);
+  safe("reviews", initReviews);
   safe("map-links", initMapLinks);
   safe("counters", initCounters);
   safe("dock", initDockAndProgress);
@@ -551,8 +562,6 @@
     gsap.set(".hero__line > span", { yPercent: 0 });
     gsap.set("[data-reveal-img]", { clipPath: "none" });
     $$(".stars-fill").forEach(function (s) { s.style.removeProperty("--fill"); });
-    var rv = $("[data-reviews]");
-    if (rv) { rv.style.width = "100%"; rv.style.overflowX = "auto"; rv.style.paddingInline = "var(--gutter)"; }
   }
 
   function initSplits() {
@@ -579,12 +588,27 @@
     });
   }
 
+  /* Sépare un lot d'éléments : ceux à l'écran (animés), ceux déjà dépassés
+     lors d'un grand saut (ancre, lien « Devis gratuit ») affichés aussitôt —
+     sinon le décalage (stagger) cumulé retarderait l'affichage de plusieurs
+     secondes. */
+  function splitOnScreen(els) {
+    var vh = window.innerHeight, on = [], off = [];
+    els.forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      (r.top < vh && r.bottom > 0 ? on : off).push(el);
+    });
+    return { on: on, off: off };
+  }
+
   function initReveals() {
     ScrollTrigger.batch("[data-reveal]", {
       start: "top 90%",
       once: true,
       onEnter: function (els) {
-        gsap.fromTo(els, { autoAlpha: 0, y: 32 }, { autoAlpha: 1, y: 0, duration: 1, ease: "power3.out", stagger: 0.08, overwrite: "auto" });
+        var g = splitOnScreen(els);
+        if (g.off.length) gsap.set(g.off, { autoAlpha: 1, y: 0, overwrite: "auto" });
+        if (g.on.length) gsap.fromTo(g.on, { autoAlpha: 0, y: 32 }, { autoAlpha: 1, y: 0, duration: 1, ease: "power3.out", stagger: 0.08, overwrite: "auto" });
       }
     });
     $$("[data-reveal-img]").forEach(function (fig) {
@@ -703,8 +727,52 @@
     });
   }
 
+  function initPanelsTabs() {
+    var tabs = $("[data-panels-tabs]"), wrap = $("[data-panels]");
+    if (!tabs || !wrap) return;
+    var buttons = $$("button", tabs), pill = $("[data-tabs-pill]", tabs), panels = $$("[data-panel]", wrap);
+    var active = -1;
+    var movePill = function () {
+      var b = buttons[Math.max(0, active)];
+      if (!b || !pill) return;
+      pill.style.width = b.offsetWidth + "px";
+      pill.style.transform = "translateX(" + b.offsetLeft + "px)";
+    };
+    var setActive = function (i) {
+      if (i === active) return;
+      active = i;
+      buttons.forEach(function (b, k) { b.classList.toggle("is-active", k === i); b.setAttribute("aria-pressed", String(k === i)); });
+      movePill();
+    };
+    buttons.forEach(function (b, i) {
+      b.addEventListener("click", function () {
+        var p = panels[i];
+        if (!p) return;
+        wrap.scrollTo({ left: p.offsetLeft - (wrap.clientWidth - p.offsetWidth) / 2, behavior: REDUCED ? "auto" : "smooth" });
+        setActive(i);
+        buzz(8);
+      });
+    });
+    var ticking = false;
+    wrap.addEventListener("scroll", function () {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () {
+        ticking = false;
+        var center = wrap.scrollLeft + wrap.clientWidth / 2, best = 0, bestD = Infinity;
+        panels.forEach(function (p, k) {
+          var d = Math.abs(p.offsetLeft + p.offsetWidth / 2 - center);
+          if (d < bestD) { bestD = d; best = k; }
+        });
+        setActive(best);
+      });
+    }, { passive: true });
+    window.addEventListener("resize", movePill);
+    setActive(0);
+  }
+
   /* ================================================================== */
-  /* Prestations : horizontal épinglé (desktop) / carrousel natif         */
+  /* Prestations : horizontal épinglé (desktop) / pile plein écran        */
   /* ================================================================== */
 
   function initServices() {
@@ -724,8 +792,10 @@
     };
 
     if (REDUCED) {
-      viewport.style.overflowX = "auto";
-      viewport.addEventListener("scroll", function () { setProgress(viewport.scrollLeft / Math.max(1, viewport.scrollWidth - viewport.clientWidth)); }, { passive: true });
+      if (mq("(min-width: 1025px)")) {
+        viewport.style.overflowX = "auto";
+        viewport.addEventListener("scroll", function () { setProgress(viewport.scrollLeft / Math.max(1, viewport.scrollWidth - viewport.clientWidth)); }, { passive: true });
+      }
       return;
     }
 
@@ -758,14 +828,117 @@
       return function () { section.classList.remove("is-pinned"); gsap.set(track, { clearProps: "transform" }); };
     });
     mm.add("(max-width: 1024px)", function () {
-      gsap.fromTo(cards, { autoAlpha: 0, x: 60 }, {
-        autoAlpha: 1, x: 0, duration: 1.1, ease: "power4.out", stagger: 0.07,
-        scrollTrigger: { trigger: viewport, start: "top 85%", once: true }
+      // Pile « sticky » (CSS) : chaque carte recule et s'assombrit quand la
+      // suivante la recouvre ; l'image glisse légèrement (parallaxe).
+      gsap.set(cards, { autoAlpha: 1, x: 0 });
+      var topOf = function (k) { return 14 + k * 9; };
+      cards.forEach(function (card, i) {
+        var img = $(".svc__media img", card);
+        if (img) gsap.fromTo(img, { yPercent: -5 }, { yPercent: 5, ease: "none", scrollTrigger: { trigger: card, start: "top bottom", end: "top top", scrub: true } });
+        var next = cards[i + 1];
+        if (!next) return;
+        gsap.to(card, {
+          scale: 0.9, "--dim": 0.55, ease: "none",
+          scrollTrigger: {
+            trigger: next,
+            start: function () { return "top " + (topOf(i) + card.offsetHeight) + "px"; },
+            end: function () { return "top " + topOf(i + 1) + "px"; },
+            scrub: true,
+            invalidateOnRefresh: true
+          }
+        });
       });
-      var onScroll = function () { setProgress(viewport.scrollLeft / Math.max(1, viewport.scrollWidth - viewport.clientWidth)); };
-      viewport.addEventListener("scroll", onScroll, { passive: true });
-      return function () { viewport.removeEventListener("scroll", onScroll); };
+      return function () { gsap.set(cards, { clearProps: "transform,--dim" }); };
     });
+  }
+
+  /* ================================================================== */
+  /* En action : vidéos verticales, un chapitre par écran de scroll       */
+  /* ================================================================== */
+
+  function initReel() {
+    var section = $("[data-reel]");
+    if (!section) return;
+    var clips = $$("[data-reel-clip]", section);
+    var chapters = $$("[data-reel-chapter]", section);
+    var bars = $$(".reel__bars i", section);
+    var ambient = $$("[data-reel-ambient]", section);
+    var n = chapters.length, current = -1, armed = false;
+    var conn = navigator.connection || {};
+    var probe = document.createElement("video");
+    // H.264 (MP4) en priorité : décodage matériel partout (iPhone compris) ; WebM VP9 en repli.
+    var ext = probe.canPlayType && probe.canPlayType('video/mp4; codecs="avc1.64001F"') ? "mp4"
+      : probe.canPlayType && probe.canPlayType('video/webm; codecs="vp9"') ? "webm" : "";
+    var allowVideo = !REDUCED && !conn.saveData && !!ext;
+    var size = window.innerWidth >= 1025 ? 720 : 540;
+    var video = function (i) { return clips[i] ? $("video", clips[i]) : null; };
+    var visible = function () {
+      var r = section.getBoundingClientRect();
+      return r.top < window.innerHeight * 0.75 && r.bottom > window.innerHeight * 0.25;
+    };
+
+    function load(i) {
+      var v = video(i);
+      if (!allowVideo || !v) return null;
+      if (!v.getAttribute("src")) {
+        v.addEventListener("playing", function () { v.classList.add("is-playing"); });
+        v.src = "assets/video/" + clips[i].getAttribute("data-reel-clip") + "-" + size + "." + ext;
+        v.preload = "auto";
+      }
+      return v;
+    }
+    function play(i) {
+      var v = load(i);
+      if (!v) return;
+      var p = v.play();
+      // Lecture refusée (ex. mode économie d'énergie iOS) : l'image fixe reste affichée.
+      if (p && p.catch) p.catch(function () {});
+    }
+    function pauseAll(except) {
+      clips.forEach(function (c, k) {
+        var v = video(k);
+        if (k !== except && v && v.getAttribute("src") && !v.paused) v.pause();
+      });
+    }
+    function setActive(i) {
+      if (i === current) return;
+      current = i;
+      clips.forEach(function (c, k) { c.classList.toggle("is-active", k === i); });
+      chapters.forEach(function (c, k) { c.classList.toggle("is-active", k === i); });
+      ambient.forEach(function (a, k) { a.classList.toggle("is-active", k === i); });
+      section.classList.toggle("is-past-first", i > 0);
+      if (!allowVideo) return;
+      pauseAll(i);
+      if (visible()) play(i);
+      if (armed && i + 1 < n) load(i + 1);
+    }
+    function apply(p) {
+      bars.forEach(function (b, k) { b.style.transform = "scaleX(" + clamp01(p * n - k) + ")"; });
+      setActive(Math.min(n - 1, Math.floor(p * n)));
+    }
+
+    ScrollTrigger.create({
+      trigger: section, start: "top top", end: "bottom bottom",
+      onUpdate: function (self) { apply(self.progress); },
+      onRefresh: function (self) { apply(self.progress); }
+    });
+    if (allowVideo) {
+      new IntersectionObserver(function (entries) {
+        if (entries[0].isIntersecting && visible()) play(Math.max(0, current)); else pauseAll(-1);
+      }, { threshold: [0, 0.25, 0.5] }).observe(section);
+      var pre = new IntersectionObserver(function (entries) {
+        if (!entries[0].isIntersecting) return;
+        armed = true;
+        load(Math.max(0, current));
+        if (current + 1 < n) load(current + 1);
+        pre.disconnect();
+      }, { rootMargin: "900px 0px" });
+      pre.observe(section);
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) pauseAll(-1); else if (visible()) play(Math.max(0, current));
+      });
+    }
+    setActive(0);
   }
 
   /* ================================================================== */
@@ -856,6 +1029,7 @@
       finished = true;
       if (pctEl) pctEl.textContent = "100";
       if (status) status.textContent = "Vitre nettoyée à 100 %. Impeccable.";
+      buzz([12, 40, 18]);
       if (cursorApi) cursorApi.wipeDone();
       var tl = gsap.timeline();
       tl.to(canvas, { autoAlpha: 0, duration: 1.1, ease: "power2.out" })
@@ -962,19 +1136,34 @@
       scale: 1, autoAlpha: 1, duration: 1.2, ease: "back.out(1.6)",
       scrollTrigger: { trigger: visual, start: "top 70%", once: true }
     });
+    var main = $(".concierge__main", visual);
+    if (!main) return;
+    gsap.matchMedia().add("(max-width: 1024px)", function () {
+      gsap.fromTo(main, { clipPath: "inset(9% 7% 9% 7% round 26px)" }, {
+        clipPath: "inset(0% 0% 0% 0% round 0px)", ease: "none",
+        scrollTrigger: { trigger: visual, start: "top 92%", end: "top 22%", scrub: true }
+      });
+      gsap.fromTo($("img", main), { scale: 1.25 }, { scale: 1, ease: "none", scrollTrigger: { trigger: visual, start: "top bottom", end: "bottom top", scrub: true } });
+    });
   }
 
   function initStack() {
     var steps = $$("[data-step]");
+    steps.forEach(function (step) {
+      gsap.fromTo($(".step__text", step).children, { autoAlpha: 0, y: 30 }, {
+        autoAlpha: 1, y: 0, duration: 1, ease: "power3.out", stagger: 0.1,
+        scrollTrigger: { trigger: step, start: "top 70%", once: true }
+      });
+    });
+    gsap.matchMedia().add("(min-width: 1025px)", function () { stackDesktop(steps); });
+  }
+
+  function stackDesktop(steps) {
     steps.forEach(function (step, i) {
       var card = $(".step__card", step), shade = $(".step__shade", step), img = $(".step__media img", step);
       if (img) {
         gsap.fromTo(img, { scale: 1.18 }, { scale: 1, ease: "none", scrollTrigger: { trigger: step, start: "top bottom", end: "top top", scrub: true } });
       }
-      gsap.fromTo($(".step__text", step).children, { autoAlpha: 0, y: 30 }, {
-        autoAlpha: 1, y: 0, duration: 1, ease: "power3.out", stagger: 0.1,
-        scrollTrigger: { trigger: step, start: "top 70%", once: true }
-      });
       var next = steps[i + 1];
       if (!next) return;
       var st = {
@@ -989,12 +1178,49 @@
     });
   }
 
+  function initFlow() {
+    var flow = $("[data-flow]");
+    if (!flow) return;
+    var fill = $("[data-flow-fill]", flow), drop = $("[data-flow-drop]", flow), rail = $(".flow__rail", flow);
+    var steps = $$("[data-step]", flow);
+    gsap.matchMedia().add("(max-width: 1024px)", function () {
+      var apply = function (p) {
+        var H = rail.offsetHeight, y = rail.offsetTop + p * H;
+        fill.style.transform = "scaleY(" + p + ")";
+        drop.style.transform = "translateY(" + (p * H) + "px)";
+        steps.forEach(function (s) { s.classList.toggle("is-reached", s.offsetTop + 10 <= y); });
+      };
+      var trig = ScrollTrigger.create({
+        trigger: flow, start: "top 62%", end: "bottom 62%",
+        onUpdate: function (self) { apply(self.progress); },
+        onRefresh: function (self) { apply(self.progress); }
+      });
+      if (!REDUCED) {
+        steps.forEach(function (s) {
+          var media = $(".step__media", s);
+          if (!media) return;
+          gsap.fromTo(media, { clipPath: "inset(14% 10% 14% 10% round 24px)" }, {
+            clipPath: "inset(0% 0% 0% 0% round 24px)", ease: "none",
+            scrollTrigger: { trigger: media, start: "top 96%", end: "top 45%", scrub: true }
+          });
+        });
+      }
+      return function () {
+        trig.kill();
+        fill.style.transform = drop.style.transform = "";
+        steps.forEach(function (s) { s.classList.remove("is-reached"); });
+      };
+    });
+  }
+
   function initBento() {
     ScrollTrigger.batch("[data-tile]", {
       start: "top 88%",
       once: true,
       onEnter: function (els) {
-        gsap.fromTo(els, { autoAlpha: 0, y: 40, scale: 0.97 }, { autoAlpha: 1, y: 0, scale: 1, duration: 1.1, ease: "power4.out", stagger: 0.08 });
+        var g = splitOnScreen(els);
+        if (g.off.length) gsap.set(g.off, { autoAlpha: 1, y: 0, scale: 1 });
+        if (g.on.length) gsap.fromTo(g.on, { autoAlpha: 0, y: 40, scale: 0.97 }, { autoAlpha: 1, y: 0, scale: 1, duration: 1.1, ease: "power4.out", stagger: 0.08 });
       }
     });
     var m = $("[data-clock-m]"), h = $("[data-clock-h]");
@@ -1066,19 +1292,35 @@
     var buttons = $$("[data-town]", list);
     var towns = $$("[data-map-town]", svg);
     var links = $$("[data-map-link]", svg);
+    var badge = $("[data-map-badge]"), bName = $("[data-map-badge-name]"), bKm = $("[data-map-badge-km]");
+    var info = {};
+    buttons.forEach(function (b) { info[b.dataset.town] = { name: $("span", b).textContent, km: $("small", b).textContent }; });
+    var showBadge = function (slug) {
+      var key = slug || "manosque", d = info[key];
+      if (!d || !bName || bName.textContent === d.name) return;
+      bName.textContent = d.name;
+      bKm.textContent = key === "manosque" ? "Notre base" : d.km + " de Manosque";
+      badge.classList.remove("is-bump");
+      void badge.offsetWidth;
+      badge.classList.add("is-bump");
+    };
     var setActive = function (slug) {
       buttons.forEach(function (b) { b.classList.toggle("is-active", b.dataset.town === slug); });
       towns.forEach(function (t) { t.classList.toggle("is-active", t.dataset.mapTown === slug); });
       links.forEach(function (l) { l.classList.toggle("is-active", l.dataset.mapLink === slug); });
+      showBadge(slug);
     };
+    towns.forEach(function (t) { t.addEventListener("click", function () { setActive(t.dataset.mapTown); buzz(6); }); });
+    setActive(null);
+    var isMouse = function (e) { return !e.pointerType || e.pointerType === "mouse"; };
     buttons.forEach(function (b) {
-      b.addEventListener("mouseenter", function () { setActive(b.dataset.town); });
+      b.addEventListener("pointerenter", function (e) { if (isMouse(e)) setActive(b.dataset.town); });
       b.addEventListener("focus", function () { setActive(b.dataset.town); });
-      b.addEventListener("click", function () { setActive(b.dataset.town); });
+      b.addEventListener("click", function () { setActive(b.dataset.town); buzz(6); });
     });
-    towns.forEach(function (t) { t.addEventListener("mouseenter", function () { setActive(t.dataset.mapTown); }); });
-    list.addEventListener("mouseleave", function () { setActive(null); });
-    svg.addEventListener("mouseleave", function () { setActive(null); });
+    towns.forEach(function (t) { t.addEventListener("pointerenter", function (e) { if (isMouse(e)) setActive(t.dataset.mapTown); }); });
+    list.addEventListener("pointerleave", function (e) { if (isMouse(e)) setActive(null); });
+    svg.addEventListener("pointerleave", function (e) { if (isMouse(e)) setActive(null); });
   }
 
   function initBand() {
@@ -1094,6 +1336,7 @@
   function initReviews() {
     var marquee = $("[data-reviews]"), track = $("[data-reviews-track]");
     if (!marquee || !track) return;
+    if (TOUCH || REDUCED || mq("(max-width: 1024px)")) { reviewsSwipe(marquee); return; }
     for (var i = 0; i < 2; i++) {
       var c = track.cloneNode(true);
       c.setAttribute("aria-hidden", "true");
@@ -1118,6 +1361,55 @@
       autoAlpha: 1, y: 0, duration: 1.1, ease: "power4.out", stagger: 0.05,
       scrollTrigger: { trigger: marquee, start: "top 88%", once: true }
     });
+  }
+
+  function reviewsSwipe(marquee) {
+    marquee.classList.add("is-swipe");
+    var hint = $(".reviews__hint");
+    if (hint) hint.classList.add("is-visible");
+    var cards = $$(".review", marquee);
+    if (REDUCED) return;
+    gsap.fromTo(cards, { autoAlpha: 0, x: 50 }, {
+      autoAlpha: 1, x: 0, duration: 1.1, ease: "power4.out", stagger: 0.06,
+      scrollTrigger: { trigger: marquee, start: "top 90%", once: true }
+    });
+    // Défilement automatique doux, suspendu dès que la personne touche la bande
+    var lastTouch = 0, visible = false;
+    ["pointerdown", "touchstart", "wheel"].forEach(function (t) {
+      marquee.addEventListener(t, function () { lastTouch = Date.now(); }, { passive: true });
+    });
+    ScrollTrigger.create({ trigger: marquee, start: "top 85%", end: "bottom 15%", onToggle: function (s) { visible = s.isActive; } });
+    setInterval(function () {
+      if (!visible || document.hidden || Date.now() - lastTouch < 7000) return;
+      var center = marquee.scrollLeft + marquee.clientWidth / 2, best = 0, bestD = Infinity;
+      cards.forEach(function (c, k) {
+        var d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - center);
+        if (d < bestD) { bestD = d; best = k; }
+      });
+      var next = cards[(best + 1) % cards.length];
+      marquee.scrollTo({ left: next.offsetLeft - (marquee.clientWidth - next.offsetWidth) / 2, behavior: "smooth" });
+    }, 4200);
+  }
+
+  /* ================================================================== */
+  /* Ondulation « goutte d'eau » au toucher                                */
+  /* ================================================================== */
+
+  function initRipple() {
+    var sel = ".btn, .dock__btn, .choice__box, .chip span, .panels-tabs button, .zone__list button, .faq__item summary";
+    document.addEventListener("pointerdown", function (e) {
+      var el = e.target.closest && e.target.closest(sel);
+      if (!el) return;
+      var r = el.getBoundingClientRect();
+      var s = document.createElement("span");
+      s.className = "ripple";
+      s.setAttribute("aria-hidden", "true");
+      s.style.left = (e.clientX - r.left) + "px";
+      s.style.top = (e.clientY - r.top) + "px";
+      s.style.setProperty("--r", String(Math.ceil((Math.hypot(r.width, r.height) * 2) / 12)));
+      el.appendChild(s);
+      s.addEventListener("animationend", function () { s.remove(); });
+    }, { passive: true });
   }
 
   /* ================================================================== */
@@ -1232,6 +1524,7 @@
       index = n;
       if (current) current.textContent = String(n + 1);
       if (bar) bar.style.transform = "scaleX(" + ((n + 1) / steps.length) + ")";
+      buzz(8);
       if (window.gsap && !REDUCED) gsap.fromTo(steps[n], { autoAlpha: 0, x: 36 * dir }, { autoAlpha: 1, x: 0, duration: 0.6, ease: "power3.out" });
       var legend = $(".quote__legend", steps[n]);
       if (legend) { legend.setAttribute("tabindex", "-1"); try { legend.focus({ preventScroll: true }); } catch (e) { /* noop */ } }
@@ -1312,6 +1605,7 @@
         "Téléphone : " + form.telephone.value.trim(),
         "Email : " + form.email.value.trim()
       ];
+      buzz([10, 30, 10]);
       window.location.href = "mailto:" + EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(lines.join("\n"));
       showDone();
     });

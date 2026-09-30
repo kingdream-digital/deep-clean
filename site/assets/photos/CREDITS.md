@@ -35,6 +35,25 @@ uniformes (particuliers, diagnostic, conciergerie) ont été effacés.
 | carrelage | https://www.pexels.com/photo/4239033/ |
 | canape-equipe | https://www.pexels.com/photo/9462168/ (Liliana Drew) |
 
+## Vidéos (section « En action »)
+
+Vidéos verticales de la même série que plusieurs photos (Liliana Drew, Pexels,
+licence Pexels). Boucles de 4 s avec fondu enchaîné (aucun à-coup à la
+reprise), même étalonnage que les photos, sans son. Deux formats : MP4 H.264
+(lu en priorité, décodage matériel partout, iPhone compris) et WebM VP9 (repli),
+en 540 px de large (mobile) et 720 px (ordinateur), + une image fixe par vidéo.
+Les vidéos ne sont téléchargées qu'à l'approche de la section, jamais en mode
+« économie de données » ni avec « réduire les animations » : l'image fixe reste
+alors affichée.
+
+| Fichier (assets/video/) | Source |
+|---|---|
+| sols | https://www.pexels.com/video/9462889/ |
+| vitres | https://www.pexels.com/video/9462884/ |
+| cuisine | https://www.pexels.com/video/9462943/ |
+| recoins | https://www.pexels.com/video/9462898/ |
+| finitions | https://www.pexels.com/video/9462907/ |
+
 Carte de la zone d'intervention (index.html) : positions des communes et
 tracés de la Durance et du Verdon issus des données OpenStreetMap
 (© contributeurs OpenStreetMap, licence ODbL — mention affichée sous la carte).
