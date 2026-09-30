@@ -387,7 +387,7 @@ export function SiteFormScreen() {
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Chef d'équipe</Text>
             <Card padded={false}>
-              <Picker selectedValue={managerId} onValueChange={setManagerId} style={{ color: colors.ink }}>
+              <Picker selectedValue={managerId} onValueChange={setManagerId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
                 <Picker.Item label="Aucun pour le moment" value={NONE} />
                 {managers.map((m) => (
                   <Picker.Item key={m.id} label={`${m.firstName} ${m.lastName}`} value={m.id} />
@@ -406,7 +406,7 @@ export function SiteFormScreen() {
               Superviseur du chantier
             </Text>
             <Card padded={false}>
-              <Picker selectedValue={supervisorId} onValueChange={setSupervisorId} style={{ color: colors.ink }}>
+              <Picker selectedValue={supervisorId} onValueChange={setSupervisorId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
                 <Picker.Item label="Aucun pour le moment" value={NONE} />
                 {supervisors.map((s) => (
                   <Picker.Item key={s.id} label={`${s.firstName} ${s.lastName}`} value={s.id} />

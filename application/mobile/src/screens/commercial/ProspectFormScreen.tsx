@@ -207,7 +207,7 @@ export function ProspectFormScreen() {
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Statut</Text>
           <Card padded={false}>
-            <Picker selectedValue={status} onValueChange={(v) => setStatus(v as ProspectStatus)} style={{ color: colors.ink }}>
+            <Picker selectedValue={status} onValueChange={(v) => setStatus(v as ProspectStatus)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
               {PROSPECT_STATUS_ORDER.map((s) => (
                 <Picker.Item key={s} label={PROSPECT_STATUS_LABELS[s]} value={s} />
               ))}
@@ -219,7 +219,7 @@ export function ProspectFormScreen() {
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Commercial responsable</Text>
             <Card padded={false}>
-              <Picker selectedValue={assignedUserId} onValueChange={setAssignedUserId} style={{ color: colors.ink }}>
+              <Picker selectedValue={assignedUserId} onValueChange={setAssignedUserId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
                 <Picker.Item label="Moi-même" value={NONE} />
                 {commercials.map((c) => (
                   <Picker.Item key={c.id} label={`${c.firstName} ${c.lastName}`} value={c.id} />

@@ -249,7 +249,7 @@ export function InvoiceFormScreen() {
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Client</Text>
           <Card padded={false}>
-            <Picker enabled={!isEdit && !quoteId} selectedValue={clientId} onValueChange={handlePickClient} style={{ color: colors.ink }}>
+            <Picker enabled={!isEdit && !quoteId} selectedValue={clientId} onValueChange={handlePickClient} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
               <Picker.Item label="Sélectionner un client" value="" />
               {clients.map((c) => (
                 <Picker.Item key={c.id} label={c.companyName} value={c.id} />
@@ -263,7 +263,7 @@ export function InvoiceFormScreen() {
             <View style={{ marginBottom: spacing.md }}>
               <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mode de facturation</Text>
               <Card padded={false}>
-                <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={{ color: colors.ink }}>
+                <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
                   {Object.entries(BILLING_MODE_LABELS).map(([value, label]) => (
                     <Picker.Item key={value} label={label} value={value} />
                   ))}
@@ -322,7 +322,7 @@ export function InvoiceFormScreen() {
             <View style={{ marginBottom: spacing.sm }}>
               <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Unité</Text>
               <Card padded={false}>
-                <Picker selectedValue={item.unit} onValueChange={(v) => updateItem(item.key, { unit: v as QuoteItemUnit })} style={{ color: colors.ink }}>
+                <Picker selectedValue={item.unit} onValueChange={(v) => updateItem(item.key, { unit: v as QuoteItemUnit })} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
                   {Object.entries(QUOTE_ITEM_UNIT_LABELS).map(([value, label]) => (
                     <Picker.Item key={value} label={label} value={value} />
                   ))}

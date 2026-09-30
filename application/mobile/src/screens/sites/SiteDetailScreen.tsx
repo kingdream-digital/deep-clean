@@ -442,7 +442,7 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mode de facturation</Text>
           <Card padded={false}>
-            <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={{ color: colors.ink }}>
+            <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
               {Object.entries(BILLING_MODE_LABELS).map(([value, label]) => (
                 <Picker.Item key={value} label={label} value={value} />
               ))}

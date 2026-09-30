@@ -153,7 +153,7 @@ export function UserFormScreen() {
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Rôle</Text>
           <Card padded={false}>
-            <Picker selectedValue={role} onValueChange={(v) => setRole(v as Role)} style={{ color: colors.ink }}>
+            <Picker selectedValue={role} onValueChange={(v) => setRole(v as Role)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
               {assignableRoleOptionsFor(actor?.role).map((opt) => (
                 <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
               ))}
