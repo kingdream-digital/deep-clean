@@ -808,7 +808,7 @@
     function build() {
       var s = sizeCanvas(canvas, stage);
       ctx = s.ctx; W = s.W; H = s.H;
-      R = Math.min(90, Math.max(38, W * 0.055));
+      R = Math.min(90, Math.max(46, W * 0.055));
       brush = makeBrush(R);
       paintDirtyGlass(ctx, img, W, H, { blur: 11, sat: 0.45, bright: 0.98, haze: "rgba(190,183,168,0.44)", amount: 1.25, seed: 29, posX: 0.5, posY: 0.6 });
       mask.width = 80; mask.height = Math.max(20, Math.round(80 * H / W));
@@ -890,7 +890,7 @@
     function autoWipe(full) {
       if (!built || finished || busy) return;
       busy = true;
-      var rows = full ? Math.ceil(H / (R * 1.4)) + 1 : 1;
+      var rows = full ? Math.min(6, Math.ceil(H / (R * 1.4)) + 1) : 1;
       var pts = [];
       for (var i = 0; i < rows; i++) {
         var y = full ? (i + 0.5) * (H / rows) : H * 0.58;
@@ -903,7 +903,7 @@
       var segLen = pts.length - 1;
       gsap.to(o, {
         t: segLen,
-        duration: full ? 0.32 * rows : 1.3,
+        duration: full ? 0.3 * rows : 1.3,
         ease: full ? "none" : "power2.inOut",
         onUpdate: function () {
           var s = Math.min(Math.floor(o.t), segLen - 1), f = o.t - s;
