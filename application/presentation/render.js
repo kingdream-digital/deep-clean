@@ -2,7 +2,7 @@ const { chromium } = require("playwright");
 const path = require("path");
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
   // deviceScaleFactor plus élevé : tout ce que Chromium doit rastériser pour
   // l'export PDF (ombres à flou large notamment) part d'une densité de pixels
   // plus fine, donc un rendu net plutôt que pixelisé/aplati sur les

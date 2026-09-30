@@ -107,7 +107,12 @@
   .cover .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; position:relative; z-index:2; }
   /* Logo KingDream réel (assets/kingdream-logo.png, fourni par le client) —
      remplace l'ancien lockup texte le temps que le fichier n'existait pas. */
-  .kd-logo{ height:22px; display:block; }
+  /* align-self + width:auto : le logo est un enfant direct de .closing .pad,
+     un flex column — sans ça, le stretch par défaut de flexbox l'étire sur
+     toute la largeur de la page tout en gardant la hauteur fixée, le
+     déformant complètement. */
+  .kd-logo{ height:48px; width:auto; display:block; align-self:flex-start; }
+  .kd-logo.small{ height:30px; }
 
   /* Icône d'app (badge arrondi noir + mark centré) plutôt que le mark seul :
      lisible comme une vraie icône d'app, sur fond clair comme sur fond sombre. */
@@ -168,15 +173,15 @@
   .stat-chip .l{ font-size:9.5px; color:var(--ink2); font-weight:600; line-height:1.35; margin-top:3px; }
 
   /* ================= ROLE MATRIX ================= */
-  table.matrix{ width:100%; border-collapse:collapse; margin-top:28px; font-size:11.6px; }
-  table.matrix th{ text-align:left; font-size:9.6px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink3); font-weight:700; padding:11px 9px; border-bottom:2px solid var(--ink); }
+  table.matrix{ width:100%; border-collapse:collapse; margin-top:18px; font-size:11px; }
+  table.matrix th{ text-align:left; font-size:9.3px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink3); font-weight:700; padding:8px 9px; border-bottom:2px solid var(--ink); }
   table.matrix th.rolecol{ text-align:center; }
-  table.matrix td{ padding:13px 9px; border-bottom:1px solid var(--border); color:var(--ink2); font-weight:500; }
+  table.matrix td{ padding:8.5px 9px; border-bottom:1px solid var(--border); color:var(--ink2); font-weight:500; }
   table.matrix td.rolecol{ text-align:center; }
   table.matrix tr td:first-child{ color:var(--ink); font-weight:600; }
-  .yes{ display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--successSoft); color:var(--success); align-items:center; justify-content:center; font-weight:800; font-size:12px; }
-  .partial{ display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--warningSoft); color:var(--warning); align-items:center; justify-content:center; font-weight:800; font-size:11px; }
-  .no{ display:inline-flex; width:22px; height:22px; border-radius:50%; background:#F1F2F5; color:var(--ink3); align-items:center; justify-content:center; font-weight:800; font-size:12px; }
+  .yes{ display:inline-flex; width:19px; height:19px; border-radius:50%; background:var(--successSoft); color:var(--success); align-items:center; justify-content:center; font-weight:800; font-size:10.5px; }
+  .partial{ display:inline-flex; width:19px; height:19px; border-radius:50%; background:var(--warningSoft); color:var(--warning); align-items:center; justify-content:center; font-weight:800; font-size:9.5px; }
+  .no{ display:inline-flex; width:19px; height:19px; border-radius:50%; background:#F1F2F5; color:var(--ink3); align-items:center; justify-content:center; font-weight:800; font-size:10.5px; }
 
   /* ================= ROLE CARDS (détail) ================= */
   .role-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:26px; }
@@ -566,6 +571,7 @@
     <div class="feat-bul" style="margin-top:20px;"><div class="chk">✓</div><div class="txt"><b>Toute l'équipe, une seule vue</b> : qui travaille où, chaque jour de la semaine, sans ouvrir un fichier par personne.</div></div>
     <div class="feat-bul"><div class="chk">✓</div><div class="txt"><b>Mêmes données, en temps réel</b> : ce qui se passe sur le mobile terrain apparaît instantanément côté bureau.</div></div>
     <div class="feat-bul"><div class="chk">✓</div><div class="txt">Le <b>même compte</b> qu'en mobile : aucune installation, aucun second mot de passe à retenir.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt">Pensé pour le <b>pilotage</b> : c'est l'écran que le Superviseur, la RH et la Direction gardent ouvert toute la journée. Les équipes terrain, elles, restent sur mobile — même compte, même données, deux usages différents.</div></div>
 
     <div class="stat-strip" style="margin-top:auto;">
       <div class="stat-chip"><div class="n">1</div><div class="l">SEUL COMPTE, MOBILE ET ORDINATEUR</div></div>
@@ -577,7 +583,74 @@
   <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">11</div></div>
 </section>
 
-<!-- ============================================================ PAGE 12 — ROLE MATRIX ============================================================ -->
+<!-- ============================================================ PAGE 12 — COMMERCIAL, DU PROSPECT AU DEVIS ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Nouveau · Module commercial</div>
+    <h1 class="title" style="font-size:25px;">Du premier contact jusqu'au devis signé, sans sortir de l'application.</h1>
+
+    <div class="feat" style="margin-top:8px;">
+      <div class="col-text">
+        <p class="lede" style="margin-top:0;">Deep Clean suit désormais toute l'activité commerciale : un prospect devient client en un tap, un devis se construit ligne par ligne avec calcul automatique, et son statut est suivi jusqu'à la signature — jamais dans un tableur à part, jamais sur papier.</p>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Fiche <b>prospect</b> (contact, besoin, échanges) transformée en <b>client</b> en un tap dès l'accord obtenu.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Devis <b>détaillé ligne par ligne</b>, total et TVA calculés automatiquement, jamais à la main.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Statut suivi de bout en bout : <b>brouillon → à valider → validé → envoyé → accepté ou refusé</b>.</div></div>
+        <div class="feat-bul"><div class="chk">✓</div><div class="txt">Envoyé par <b>e-mail avec le PDF joint</b> directement depuis l'application, relance en un tap si le client ne répond pas.</div></div>
+      </div>
+      <div class="col-phone"><div class="phone"><div class="notch"></div><img src="shots/commercial-quote-detail.png"/></div></div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:9px; margin-top:24px; flex-wrap:wrap;">
+      <span class="pill">1 · Prospect</span><span style="color:var(--ink3); font-weight:700;">→</span>
+      <span class="pill">2 · Client</span><span style="color:var(--ink3); font-weight:700;">→</span>
+      <span class="pill">3 · Devis</span><span style="color:var(--ink3); font-weight:700;">→</span>
+      <span class="pill">4 · Chantier</span><span style="color:var(--ink3); font-weight:700;">→</span>
+      <span class="pill">5 · Facture</span>
+    </div>
+
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">5 étapes</div><div class="l">DU PREMIER CONTACT AU CHANTIER FACTURÉ</div></div>
+      <div class="stat-chip"><div class="n">Auto</div><div class="l">CALCUL DU TOTAL ET DE LA TVA SUR CHAQUE DEVIS</div></div>
+      <div class="stat-chip"><div class="n">PDF</div><div class="l">ENVOYÉ PAR E-MAIL EN UN TAP, DEPUIS L'APPLICATION</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">12</div></div>
+</section>
+
+<!-- ============================================================ PAGE 13 — COMMERCIAL, VALIDATION & FACTURATION (WEB) ============================================================ -->
+<section class="page">
+  <div class="pad">
+    <div class="eyebrow">Commercial, sur ordinateur</div>
+    <h1 class="title" style="font-size:25px;">La validation des devis et la facturation restent entre les mains de la RH et de la Direction.</h1>
+    <p class="lede">Le Superviseur peut créer et suivre ses propres prospects et devis, mais seuls la RH, la Direction et l'admin technique peuvent les <b>valider</b> ou établir une <b>facture</b> — exactement la même logique que pour la validation des pointages avant la paie.</p>
+
+    <div class="browser" style="margin-top:20px;">
+      <div class="bar">
+        <div class="dot" style="background:#ED6A5E;"></div>
+        <div class="dot" style="background:#F4BF4F;"></div>
+        <div class="dot" style="background:#61C554;"></div>
+        <div class="url">deepclean.app</div>
+      </div>
+      <img src="shots/web-commercial.png" />
+    </div>
+
+    <div class="feat-bul" style="margin-top:18px;"><div class="chk">✓</div><div class="txt">Tableau de bord commercial complet : <b>prospects, devis, chantiers et factures</b>, avec l'avancement réel de chaque chantier commercial.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt">Facture générée <b>à partir du devis accepté</b> et du chantier qui en découle — aucune ressaisie.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt">Statuts suivis de bout en bout : <b>brouillon → envoyée → payée</b>.</div></div>
+    <div class="feat-bul"><div class="chk">✓</div><div class="txt">Accès à la facturation réservé à la <b>RH, la Direction et l'admin technique</b> — le Superviseur n'y a pas accès.</div></div>
+
+    <div class="stat-strip" style="margin-top:auto;">
+      <div class="stat-chip"><div class="n">RH + Direction</div><div class="l">SEULS RÔLES POUVANT VALIDER UN DEVIS</div></div>
+      <div class="stat-chip"><div class="n">0</div><div class="l">RESSAISIE ENTRE LE DEVIS ET LA FACTURE</div></div>
+      <div class="stat-chip"><div class="n">Web</div><div class="l">PENSÉ POUR LE PILOTAGE, PAS LE TERRAIN</div></div>
+    </div>
+    <img class="wm" src="assets/mark-ink.png" />
+  </div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">13</div></div>
+</section>
+
+<!-- ============================================================ PAGE 14 — ROLE MATRIX ============================================================ -->
 <section class="page">
   <div class="pad">
     <div class="eyebrow">Les rôles</div>
@@ -603,18 +676,21 @@
       <tr><td>Valider les pointages avant la paie</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
       <tr><td>Créer un compte utilisateur</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="no">–</span></td></tr>
       <tr><td>Gérer un compte existant (modifier, activer/désactiver, réinitialiser)</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Gérer prospects, clients et devis (module commercial)</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Valider un devis</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
+      <tr><td>Accéder à la facturation</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
       <tr><td>Vue globale, statistiques de l'entreprise</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="partial">•</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
       <tr><td>Journal d'activité de toute l'entreprise</td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="no">–</span></td><td class="rolecol"><span class="yes">✓</span></td><td class="rolecol"><span class="yes">✓</span></td></tr>
     </table>
-    <p style="font-size:10px; color:var(--ink3); margin-top:12px;">✓ accès complet · • accès partiel, limité à son propre périmètre (son chantier, sa mission) · – non applicable à ce rôle</p>
+    <p style="font-size:9.5px; color:var(--ink3); margin-top:8px;">✓ accès complet · • accès partiel, limité à son propre périmètre (son chantier, sa mission) · – non applicable à ce rôle</p>
 
-    <div class="callout" style="margin-top:auto;">Un septième rôle, <b>Administrateur technique</b>, existe en coulisses pour la maintenance de l'application, jamais pour la gestion quotidienne du personnel.</div>
+    <div class="callout" style="margin-top:auto; padding:16px 24px; font-size:12.5px;">Un septième rôle, <b>Administrateur technique</b>, existe en coulisses pour la maintenance de l'application, jamais pour la gestion quotidienne du personnel.</div>
     <img class="wm" src="assets/mark-ink.png" />
   </div>
-  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">12</div></div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">14</div></div>
 </section>
 
-<!-- ============================================================ PAGE 13 — RÔLES EN DÉTAIL ============================================================ -->
+<!-- ============================================================ PAGE 15 — RÔLES EN DÉTAIL ============================================================ -->
 <section class="page">
   <div class="pad">
     <div class="eyebrow">Les rôles, en détail</div>
@@ -667,6 +743,7 @@
           <li>Signale un problème, comme tout le monde</li>
           <li>Approuve ou refuse les congés et absences</li>
           <li>Valide les pointages avant transmission à la RH</li>
+          <li>Crée et suit ses propres prospects et devis, sans les valider</li>
         </ul>
       </div>
 
@@ -683,6 +760,7 @@
           <li>Gère les chantiers, congés et absences</li>
           <li>Prépare les dossiers d'heures pour la paie</li>
           <li>Consulte le journal d'activité de toute l'entreprise</li>
+          <li>Valide les devis et gère la facturation, comme la Direction</li>
         </ul>
       </div>
 
@@ -698,6 +776,7 @@
           <li>Signale un problème, démarre/termine une mission</li>
           <li>Approuve les congés, valide les pointages avant la paie</li>
           <li>Modifie, active, désactive ou réinitialise un compte existant</li>
+          <li>Valide les devis et gère la facturation, comme la RH</li>
           <li>Seule exception : ne peut pas créer de compte (réservé à la RH)</li>
         </ul>
       </div>
@@ -719,10 +798,10 @@
     </div>
     <img class="wm" src="assets/mark-ink.png" />
   </div>
-  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">13</div></div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">15</div></div>
 </section>
 
-<!-- ============================================================ PAGE 14 — TEMPS GAGNÉ ============================================================ -->
+<!-- ============================================================ PAGE 16 — TEMPS GAGNÉ ============================================================ -->
 <section class="page">
   <div class="pad">
     <div class="eyebrow">L'essentiel</div>
@@ -775,10 +854,10 @@
     </div>
     <img class="wm" src="assets/mark-ink.png" />
   </div>
-  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">14</div></div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">16</div></div>
 </section>
 
-<!-- ============================================================ PAGE 15 — SÉCURITÉ ============================================================ -->
+<!-- ============================================================ PAGE 17 — SÉCURITÉ ============================================================ -->
 <section class="page">
   <div class="pad">
     <div class="eyebrow">Sécurité</div>
@@ -799,10 +878,10 @@
     <div class="callout" style="margin-top:auto;">Un compte désactivé par la RH perd l'accès <b>immédiatement</b>, sur tous ses appareils, sans exception.</div>
     <img class="wm" src="assets/mark-ink.png" />
   </div>
-  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">15</div></div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">17</div></div>
 </section>
 
-<!-- ============================================================ PAGE 16 — TECHNOLOGIE ============================================================ -->
+<!-- ============================================================ PAGE 18 — TECHNOLOGIE ============================================================ -->
 <section class="page">
   <div class="pad">
     <div class="eyebrow">Sous le capot</div>
@@ -827,10 +906,10 @@
     <div class="callout" style="margin-top:auto;">Le même niveau d'exigence technique que les applications professionnelles que vous utilisez déjà tous les jours.</div>
     <img class="wm" src="assets/mark-ink.png" />
   </div>
-  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">16</div></div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">18</div></div>
 </section>
 
-<!-- ============================================================ PAGE 17 — POURQUOI KINGDREAM ============================================================ -->
+<!-- ============================================================ PAGE 19 — POURQUOI KINGDREAM ============================================================ -->
 <section class="page">
   <div class="pad">
     <div class="eyebrow">Pourquoi KingDream</div>
@@ -846,14 +925,14 @@
     <div class="callout" style="margin-top:auto;">Les choix techniques de cette page se vérifient dans le code déjà écrit ; le suivi après la mise en ligne, dans l'accompagnement mensuel.</div>
     <img class="wm" src="assets/mark-ink.png" />
   </div>
-  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">17</div></div>
+  <div class="footer"><div>DEEP CLEAN · PRÉSENTATION</div><div class="num">19</div></div>
 </section>
 
-<!-- ============================================================ PAGE 18 — CLOSING ============================================================ -->
+<!-- ============================================================ PAGE 20 — CLOSING ============================================================ -->
 <section class="page closing">
   <div class="glow"></div>
   <div class="pad">
-    <div class="kd" style="font-size:11px; font-weight:700; letter-spacing:3px; color:var(--ink3); text-transform:uppercase;">KingDream Digital</div>
+    <img class="kd-logo small" src="assets/kingdream-logo.png" alt="KingDream Digital" />
     <h1 class="title" style="margin-top:18px; font-size:28px;">Deep Clean est prête. Votre équipe peut commencer dès aujourd'hui.</h1>
 
     <div class="check-list">
