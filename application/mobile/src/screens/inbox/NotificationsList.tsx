@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import NetInfo from "@react-native-community/netinfo";
 import { useNavigation } from "@react-navigation/native";
@@ -9,7 +9,6 @@ import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { OfflineBanner } from "../../components/OfflineBanner";
 import { PressableScale } from "../../components/PressableScale";
-import { PulsingDot } from "../../components/PulsingDot";
 import { SwipeableRow } from "../../components/SwipeableRow";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Alert } from "../../utils/alert";
@@ -30,6 +29,37 @@ import type { InboxStackParamList } from "../../navigation/InboxStack";
 const CACHE_KEY = "notifications.list";
 
 type LoadState = "loading" | "ready" | "error";
+
+const RELATED_ENTITY_TYPES = new Set(["Mission", "TimeEntry", "Problem", "Absence", "Announcement", "Conversation"]);
+
+// Regroupement par jour façon Centre de notifications iOS ("Aujourd'hui",
+// "Hier"...) — les éléments arrivent déjà triés du plus récent au plus ancien
+// (voir notifications.service.ts::listNotifications), l'ordre à l'intérieur
+// de chaque section est donc préservé tel quel.
+function sectionTitleFor(iso: string): string {
+  const startOfDay = (d: Date) => {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  };
+  const diffDays = Math.round((startOfDay(new Date()).getTime() - startOfDay(new Date(iso)).getTime()) / 86_400_000);
+  if (diffDays <= 0) return "Aujourd'hui";
+  if (diffDays === 1) return "Hier";
+  if (diffDays <= 6) return "Cette semaine";
+  return "Plus ancien";
+}
+
+const SECTION_ORDER = ["Aujourd'hui", "Hier", "Cette semaine", "Plus ancien"];
+
+function groupByDate(items: AppNotification[]): { title: string; data: AppNotification[] }[] {
+  const buckets = new Map<string, AppNotification[]>();
+  for (const item of items) {
+    const key = sectionTitleFor(item.createdAt);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(item);
+  }
+  return SECTION_ORDER.filter((title) => buckets.has(title)).map((title) => ({ title, data: buckets.get(title)! }));
+}
 
 // Contenu de l'onglet "Notifications" du segment Messagerie — extrait de
 // l'ancien écran plein pour pouvoir cohabiter avec "Messages" sous le même
@@ -82,6 +112,15 @@ export function NotificationsList() {
     }
   }
 
+  async function handleMarkAllAsRead() {
+    setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    try {
+      await markAllNotificationsAsRead();
+    } catch {
+      await load();
+    }
+  }
+
   async function handleDelete(notification: AppNotification) {
     const previous = items;
     setItems((prev) => prev.filter((n) => n.id !== notification.id));
@@ -93,18 +132,10 @@ export function NotificationsList() {
     }
   }
 
-  async function handleMarkAllAsRead() {
-    setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    try {
-      await markAllNotificationsAsRead();
-    } catch {
-      await load();
-    }
-  }
-
-  async function handleOpenRelatedEntity(notification: AppNotification) {
-    if (!notification.relatedEntityId) return;
+  async function handlePress(notification: AppNotification) {
     void handleMarkAsRead(notification);
+    if (!notification.relatedEntityId) return;
+
     if (notification.relatedEntityType === "Mission") {
       navigation.navigate("MissionDetail", { missionId: notification.relatedEntityId });
     } else if (notification.relatedEntityType === "TimeEntry") {
@@ -132,7 +163,7 @@ export function NotificationsList() {
     } else if (notification.relatedEntityType === "Announcement") {
       navigation.navigate("AnnouncementDetail", { announcementId: notification.relatedEntityId });
     } else if (notification.relatedEntityType === "Conversation") {
-      // relatedEntityId porte l'identifiant de l'expéditeur (pas du message) —
+      // relatedEntityId porte l'identifiant de l'EXPÉDITEUR (pas du message) —
       // voir messages.service.ts::sendMessage.
       navigation.navigate("ConversationThread", { userId: notification.relatedEntityId });
     }
@@ -147,95 +178,77 @@ export function NotificationsList() {
   }
 
   return (
-    <FlatList
-      data={items}
+    <SectionList
+      sections={groupByDate(items)}
       keyExtractor={(item) => item.id}
       contentContainerStyle={{ paddingBottom: spacing.xxl }}
+      stickySectionHeadersEnabled={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
       ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
+      SectionSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
       ListHeaderComponent={
         <>
           {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
           {hasUnread && (
-            <Pressable onPress={handleMarkAllAsRead} style={{ alignSelf: "flex-end", marginBottom: spacing.sm }}>
+            <Pressable onPress={handleMarkAllAsRead} style={{ alignSelf: "flex-end", marginBottom: spacing.xs }}>
               <Text style={[type.subhead, { color: colors.accent }]}>Tout marquer comme lu</Text>
             </Pressable>
           )}
         </>
       }
+      renderSectionHeader={({ section }) => (
+        <Text
+          style={[
+            type.overline,
+            { color: colors.inkTertiary, backgroundColor: colors.background, marginTop: spacing.md, marginBottom: spacing.xs },
+          ]}
+        >
+          {section.title.toUpperCase()}
+        </Text>
+      )}
       renderItem={({ item, index }) => {
-        const hasRelatedEntity =
-          !!item.relatedEntityId &&
-          (item.relatedEntityType === "Mission" ||
-            item.relatedEntityType === "TimeEntry" ||
-            item.relatedEntityType === "Problem" ||
-            item.relatedEntityType === "Absence" ||
-            item.relatedEntityType === "Announcement" ||
-            item.relatedEntityType === "Conversation");
-        const relatedEntityLabel =
-          item.relatedEntityType === "TimeEntry"
-            ? "Voir le pointage"
-            : item.relatedEntityType === "Problem"
-              ? "Voir le signalement"
-              : item.relatedEntityType === "Announcement"
-                ? "Voir l'actualité"
-                : item.relatedEntityType === "Conversation"
-                  ? "Voir le message"
-                  : item.relatedEntityType === "Absence"
-                    ? item.type === "ABSENCE_REQUESTED"
-                      ? "Voir la fiche employé"
-                      : "Voir mes absences"
-                    : "Voir la mission";
+        const hasRelatedEntity = !!item.relatedEntityId && RELATED_ENTITY_TYPES.has(item.relatedEntityType ?? "");
+
         return (
-          <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
+          <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 30).duration(240)}>
             <SwipeableRow onDelete={() => handleDelete(item)}>
-            <Card padded={false} style={{ backgroundColor: item.isRead ? colors.background : colors.accentSoft }}>
-              <PressableScale onPress={() => handleMarkAsRead(item)}>
-                <View style={{ padding: spacing.md }}>
-                  <View style={styles.row}>
+              <Card padded={false} style={{ backgroundColor: item.isRead ? colors.background : colors.accentSoft }}>
+                <PressableScale onPress={() => void handlePress(item)}>
+                  <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.md }}>
                     <View
                       style={{
-                        width: 32,
-                        height: 32,
+                        width: 34,
+                        height: 34,
                         borderRadius: radius.md,
                         backgroundColor: colors.accentSoft,
                         alignItems: "center",
                         justifyContent: "center",
-                        marginRight: spacing.sm,
                       }}
                     >
                       <Ionicons name={NOTIFICATION_TYPE_ICON[item.type]} size={16} color={colors.accent} />
                     </View>
-                    <Text style={[type.headline, { color: colors.ink, flex: 1 }]} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                    {!item.isRead && <PulsingDot color={colors.accent} style={styles.dot} />}
-                  </View>
-                  <Text style={[type.callout, { color: colors.inkSecondary, marginTop: spacing.xs }]}>{item.body}</Text>
-                  <Text style={[type.caption, { color: colors.inkTertiary, marginTop: spacing.xs }]}>
-                    {timeAgo(item.createdAt)}
-                  </Text>
-                </View>
-              </PressableScale>
 
-              {hasRelatedEntity && (
-                <PressableScale onPress={() => void handleOpenRelatedEntity(item)}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingVertical: spacing.sm,
-                      borderTopWidth: StyleSheet.hairlineWidth,
-                      borderTopColor: colors.border,
-                    }}
-                  >
-                    <Text style={[type.callout, { color: colors.accent, fontWeight: "600" }]}>{relatedEntityLabel}</Text>
-                    <Ionicons name="chevron-forward" size={16} color={colors.accent} style={{ marginLeft: 4 }} />
+                    <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                      <View style={styles.row}>
+                        <Text style={[type.headline, { color: colors.ink, flex: 1 }]} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        {!item.isRead && <View style={[styles.dot, { backgroundColor: colors.accent }]} />}
+                        <Text style={[type.caption, { color: colors.inkTertiary, marginLeft: 6 }]}>
+                          {timeAgo(item.createdAt)}
+                        </Text>
+                      </View>
+                      <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={2}>
+                        {item.body}
+                      </Text>
+                    </View>
+
+                    {hasRelatedEntity && (
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />
+                    )}
                   </View>
                 </PressableScale>
-              )}
-            </Card>
+              </Card>
             </SwipeableRow>
           </Animated.View>
         );
@@ -246,5 +259,5 @@ export function NotificationsList() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center" },
-  dot: { marginLeft: 8 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
 });
