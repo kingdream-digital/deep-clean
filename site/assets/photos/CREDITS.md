@@ -35,5 +35,9 @@ uniformes (particuliers, diagnostic, conciergerie) ont été effacés.
 | carrelage | https://www.pexels.com/photo/4239033/ |
 | canape-equipe | https://www.pexels.com/photo/9462168/ (Liliana Drew) |
 
+Carte de la zone d'intervention (index.html) : positions des communes et
+tracés de la Durance et du Verdon issus des données OpenStreetMap
+(© contributeurs OpenStreetMap, licence ODbL — mention affichée sous la carte).
+
 Idéalement, remplacer progressivement ces visuels par de vraies photos des
 interventions Deep Clean (avant/après) : c'est ce qui convainc le plus.
