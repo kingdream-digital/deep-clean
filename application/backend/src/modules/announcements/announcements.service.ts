@@ -15,6 +15,12 @@ interface Actor {
 // d'équipe.
 export const ANNOUNCEMENT_AUTHOR_ROLES: Role[] = [Role.HR, Role.SUPERVISOR, Role.DIRECTOR, Role.ADMIN];
 
+// Retour explicite du client : la suppression d'une actualité (contrairement
+// à sa publication, ouverte au superviseur) est réservée à la RH et à la
+// direction — l'admin technique la conserve aussi, comme pour les autres
+// actions de nettoyage/maintenance de l'application.
+export const ANNOUNCEMENT_DELETE_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN];
+
 const authorSelect = {
   id: true,
   firstName: true,
@@ -121,6 +127,29 @@ export async function getAnnouncementById(id: string) {
   const announcement = await prisma.announcement.findUnique({ where: { id }, select: announcementSelect });
   if (!announcement) throw ApiError.notFound("Actualité introuvable.");
   return presentAnnouncement(announcement);
+}
+
+export async function deleteAnnouncement(actor: Actor, id: string) {
+  if (!ANNOUNCEMENT_DELETE_ROLES.includes(actor.role)) {
+    throw ApiError.forbidden("Vous n'êtes pas autorisé à supprimer une actualité.");
+  }
+
+  const announcement = await prisma.announcement.findUnique({
+    where: { id },
+    select: { id: true, title: true, coverPhotoKey: true },
+  });
+  if (!announcement) throw ApiError.notFound("Actualité introuvable.");
+
+  await prisma.announcement.delete({ where: { id } });
+  if (announcement.coverPhotoKey) await deleteStoredImage(announcement.coverPhotoKey);
+
+  await logActivity({
+    userId: actor.userId,
+    action: "ANNOUNCEMENT_DELETED",
+    entityType: "Announcement",
+    entityId: announcement.id,
+    metadata: { title: announcement.title },
+  });
 }
 
 // Sert la photo de couverture d'une actualité — jamais d'URL publique, même

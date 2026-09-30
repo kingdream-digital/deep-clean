@@ -74,3 +74,10 @@ export async function createAnnouncement(
   const { data } = await apiClient.post<{ announcement: Announcement }>("/announcements", formData);
   return data.announcement;
 }
+
+// Réservé à la RH/Direction/Admin côté serveur (voir
+// ANNOUNCEMENT_DELETE_ROLES dans announcements.service.ts) — le superviseur
+// peut publier une actualité mais pas la supprimer.
+export async function deleteAnnouncement(id: string): Promise<void> {
+  await apiClient.delete(`/announcements/${id}`);
+}

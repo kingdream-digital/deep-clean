@@ -1,6 +1,8 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -8,11 +10,21 @@ import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
-import { announcementCoverPhotoUrl, getAnnouncement } from "../../api/announcements.api";
+import { useAuth } from "../../auth/AuthContext";
+import { announcementCoverPhotoUrl, deleteAnnouncement, getAnnouncement } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import type { Role } from "../../api/auth.api";
+import { Alert } from "../../utils/alert";
+import { extractErrorMessage } from "../../api/client";
 
 type Route = RouteProp<{ AnnouncementDetail: { announcementId: string } }, "AnnouncementDetail">;
+type Nav = NativeStackNavigationProp<Record<string, object | undefined>>;
+
+// Même liste que ANNOUNCEMENT_DELETE_ROLES côté serveur — la suppression est
+// réservée à la RH et à la direction (et l'admin technique), contrairement à
+// la publication qui inclut aussi le superviseur. Ceci ne fait qu'afficher ou
+// non le bouton, tout est revérifié côté serveur.
+const CAN_DELETE_ROLES: Role[] = ["HR", "DIRECTOR", "ADMIN"];
 
 const ROLE_LABELS: Record<Role, string> = {
   EMPLOYEE: "Employé",
@@ -28,10 +40,13 @@ const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeri
 export function AnnouncementDetailScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const route = useRoute<Route>();
+  const navigation = useNavigation<Nav>();
+  const { user } = useAuth();
   const { announcementId } = route.params;
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +64,41 @@ export function AnnouncementDetailScreen() {
       void load();
     }, [load])
   );
+
+  function handleDelete() {
+    Alert.alert("Supprimer cette actualité ?", "Elle disparaîtra pour tout le monde, définitivement.", [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Supprimer",
+        style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            await deleteAnnouncement(announcementId);
+            navigation.goBack();
+          } catch (err) {
+            Alert.alert("Suppression impossible", extractErrorMessage(err));
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
+  }
+
+  const canDelete = !!user && CAN_DELETE_ROLES.includes(user.role);
+
+  useEffect(() => {
+    if (!canDelete) return;
+    navigation.setOptions({
+      headerRight: () => (
+        <PressableScale onPress={handleDelete} disabled={deleting} style={{ padding: spacing.xs }}>
+          <Ionicons name="trash-outline" size={22} color={colors.danger} />
+        </PressableScale>
+      ),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canDelete, deleting, announcementId]);
 
   if (state === "loading") return <ScreenContainer><StateView kind="loading" /></ScreenContainer>;
   if (state === "error" || !announcement) return <ScreenContainer><StateView kind="error" onRetry={load} /></ScreenContainer>;

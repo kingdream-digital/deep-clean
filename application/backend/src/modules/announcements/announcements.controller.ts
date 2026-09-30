@@ -42,3 +42,8 @@ export const getAnnouncementHandler = asyncHandler(async (req: Request, res: Res
   const announcement = await announcementsService.getAnnouncementById(req.params.id as string);
   res.status(200).json({ announcement });
 });
+
+export const deleteAnnouncementHandler = asyncHandler(async (req: Request, res: Response) => {
+  await announcementsService.deleteAnnouncement(actorOf(req), req.params.id as string);
+  res.status(204).send();
+});

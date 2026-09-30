@@ -20,6 +20,11 @@ notificationsRouter.post(
   validate(notificationIdParamSchema),
   notificationsController.markAsReadHandler
 );
+notificationsRouter.delete(
+  "/:id",
+  validate(notificationIdParamSchema),
+  notificationsController.deleteNotificationHandler
+);
 
 notificationsRouter.post(
   "/push-tokens",

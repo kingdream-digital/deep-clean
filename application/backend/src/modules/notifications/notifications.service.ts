@@ -78,6 +78,16 @@ export async function markAsRead(userId: string, notificationId: string) {
   });
 }
 
+export async function deleteNotification(userId: string, notificationId: string) {
+  const notification = await prisma.notification.findUnique({ where: { id: notificationId } });
+  if (!notification || notification.userId !== userId) {
+    // 404 plutôt que 403 : même principe que markAsRead ci-dessus.
+    throw ApiError.notFound("Notification introuvable.");
+  }
+
+  await prisma.notification.delete({ where: { id: notificationId } });
+}
+
 export async function markAllAsRead(userId: string) {
   await prisma.notification.updateMany({
     where: { userId, isRead: false },

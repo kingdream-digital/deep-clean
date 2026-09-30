@@ -10,11 +10,13 @@ import { Card } from "../../components/Card";
 import { OfflineBanner } from "../../components/OfflineBanner";
 import { PressableScale } from "../../components/PressableScale";
 import { PulsingDot } from "../../components/PulsingDot";
+import { SwipeableRow } from "../../components/SwipeableRow";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Alert } from "../../utils/alert";
 import { extractErrorMessage } from "../../api/client";
 import {
   AppNotification,
+  deleteNotification,
   listNotifications,
   markAllNotificationsAsRead,
   markNotificationAsRead,
@@ -77,6 +79,17 @@ export function NotificationsList() {
       await markNotificationAsRead(notification.id);
     } catch (err) {
       void extractErrorMessage(err);
+    }
+  }
+
+  async function handleDelete(notification: AppNotification) {
+    const previous = items;
+    setItems((prev) => prev.filter((n) => n.id !== notification.id));
+    try {
+      await deleteNotification(notification.id);
+    } catch (err) {
+      setItems(previous);
+      Alert.alert("Suppression impossible", extractErrorMessage(err));
     }
   }
 
@@ -175,6 +188,7 @@ export function NotificationsList() {
                     : "Voir la mission";
         return (
           <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
+            <SwipeableRow onDelete={() => handleDelete(item)}>
             <Card padded={false} style={{ backgroundColor: item.isRead ? colors.background : colors.accentSoft }}>
               <PressableScale onPress={() => handleMarkAsRead(item)}>
                 <View style={{ padding: spacing.md }}>
@@ -222,6 +236,7 @@ export function NotificationsList() {
                 </PressableScale>
               )}
             </Card>
+            </SwipeableRow>
           </Animated.View>
         );
       }}

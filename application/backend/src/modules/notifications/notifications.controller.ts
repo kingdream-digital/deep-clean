@@ -13,6 +13,11 @@ export const markAsReadHandler = asyncHandler(async (req: Request, res: Response
   res.status(200).json({ notification });
 });
 
+export const deleteNotificationHandler = asyncHandler(async (req: Request, res: Response) => {
+  await notificationsService.deleteNotification(req.auth!.userId, req.params.id as string);
+  res.status(204).send();
+});
+
 export const markAllAsReadHandler = asyncHandler(async (req: Request, res: Response) => {
   await notificationsService.markAllAsRead(req.auth!.userId);
   res.status(204).send();

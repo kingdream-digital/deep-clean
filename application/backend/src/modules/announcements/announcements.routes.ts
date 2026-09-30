@@ -33,3 +33,10 @@ announcementsRouter.get(
   validate(announcementIdParamSchema),
   announcementsController.getAnnouncementCoverPhotoHandler
 );
+// Restriction de rôle vérifiée dans announcements.service.ts (ANNOUNCEMENT_DELETE_ROLES),
+// même principe que la restriction de publication ci-dessus.
+announcementsRouter.delete(
+  "/:id",
+  validate(announcementIdParamSchema),
+  announcementsController.deleteAnnouncementHandler
+);
