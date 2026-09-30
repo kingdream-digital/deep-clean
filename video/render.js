@@ -10,7 +10,8 @@
 //   node render.js sheet 12 26 0.5           → out/sheets/sheet_12-26.jpg (planche contact)
 //   node render.js cues                      → out/cues.json (repères son, pour audio/soundtrack.py)
 //   node render.js frames [--from s] [--to s] [--workers n] → out/frames/000000.jpg …
-//   node render.js encode                    → Deep-Clean-Motion-Design.mp4 (images + out/soundtrack.wav)
+//   node render.js encode [--light]          → Deep-Clean-Motion-Design.mp4 (images + out/soundtrack.wav)
+//                                              --light : Deep-Clean-Motion-Design-720p.mp4 (partage)
 
 const { chromium } = require("playwright");
 const http = require("http");
@@ -75,7 +76,9 @@ async function openComposition(browser, port) {
   page.on("console", (m) => {
     if (m.type() === "error" || m.type() === "warning") console.error("[page]", m.text());
   });
-  await page.goto(`http://127.0.0.1:${port}/video/index.html?render=1`);
+  // VIDEO_QUERY permet de passer des options à la composition (ex. "grain=film").
+  const extra = process.env.VIDEO_QUERY ? `&${process.env.VIDEO_QUERY}` : "";
+  await page.goto(`http://127.0.0.1:${port}/video/index.html?render=1${extra}`);
   await page.waitForFunction(() => window.__READY__ === true, null, { timeout: 60000 });
   return page;
 }
@@ -187,19 +190,22 @@ function run(cmd, args) {
   });
 }
 
-async function encode() {
+// Deux sorties : la version de référence (1080p60, ~45 Mo) et une version
+// légère (720p30, ~10 Mo) faite pour WhatsApp, l'e-mail et les réseaux.
+async function encode(light = false) {
   const audio = path.join(OUT, "soundtrack.wav");
-  const output = path.join(__dirname, "Deep-Clean-Motion-Design.mp4");
+  const output = path.join(__dirname, light ? "Deep-Clean-Motion-Design-720p.mp4" : "Deep-Clean-Motion-Design.mp4");
   const args = ["-y", "-framerate", String(FPS), "-i", path.join(OUT, "frames", "%06d.jpg")];
   if (fs.existsSync(audio)) args.push("-i", audio);
+  if (light) args.push("-vf", "fps=30,scale=1280:720:flags=lanczos");
   args.push(
-    "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p",
-    "-profile:v", "high", "-level", "4.2", "-movflags", "+faststart",
+    "-c:v", "libx264", "-preset", "slow", "-crf", light ? "23" : "19", "-pix_fmt", "yuv420p",
+    "-profile:v", "high", "-level", light ? "4.0" : "4.2", "-movflags", "+faststart",
     "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709"
   );
-  if (fs.existsSync(audio)) args.push("-c:a", "aac", "-b:a", "256k", "-shortest");
+  if (fs.existsSync(audio)) args.push("-c:a", "aac", "-b:a", light ? "160k" : "256k", "-shortest");
   args.push(output);
-  await run(FFMPEG, args);
+  await run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-stats", ...args]);
   console.log(output);
 }
 
@@ -213,7 +219,7 @@ async function encode() {
   else if (cmd === "sheet") await sheet(Number(rest[0]), Number(rest[1]), Number(rest[2] || 0.5));
   else if (cmd === "cues") await cues();
   else if (cmd === "frames") await frames(opt("from", 0), opt("to", DURATION), opt("workers", 4));
-  else if (cmd === "encode") await encode();
+  else if (cmd === "encode") await encode(rest.includes("--light"));
   else {
     console.log("commandes : stills | sheet | cues | frames | encode");
     process.exit(1);

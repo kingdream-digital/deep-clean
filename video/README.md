@@ -4,7 +4,11 @@ Film de présentation de l'application **Deep Clean** (mobile + web), pensé com
 un showreel : 60 secondes, 1920 × 1080, 60 images/s, bande-son synthétisée et
 calée à l'image près.
 
-Le rendu final est `Deep-Clean-Motion-Design.mp4` (H.264 + AAC).
+Rendus finaux (H.264 + AAC, lisibles partout) :
+
+- `Deep-Clean-Motion-Design.mp4` — version de référence, 1080p à 60 i/s ;
+- `Deep-Clean-Motion-Design-720p.mp4` — version légère (720p à 30 i/s) pour
+  WhatsApp, l'e-mail ou les réseaux sociaux.
 
 ## Déroulé
 
@@ -49,9 +53,15 @@ cd video
 npm install
 node render.js cues                 # repères son → out/cues.json
 python3 audio/soundtrack.py         # → out/soundtrack.wav
-node render.js frames --workers 4   # → out/frames/*.jpg (3 600 images)
+node render.js frames --workers 4   # → out/frames/*.jpg (3 600 images, ~6 min)
 node render.js encode               # → Deep-Clean-Motion-Design.mp4
+node render.js encode --light       # → Deep-Clean-Motion-Design-720p.mp4
 ```
+
+Le grain qui évite les bandes dans les dégradés sombres est un tramage fixe
+par défaut. `VIDEO_QUERY=grain=film node render.js frames` le rend animé
+comme un vrai grain de pellicule — plus organique, mais le fichier pèse alors
+près de dix fois plus lourd (≈ 400 Mo au lieu de ≈ 45 Mo).
 
 Outils de travail :
 

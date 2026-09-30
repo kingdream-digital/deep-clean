@@ -127,10 +127,13 @@
     });
   }
 
-  // Grain argentique : une tuile de bruit à graine fixe, décalée 24 fois par
-  // seconde comme un vrai grain de pellicule. Il casse aussi le banding des
-  // dégradés sombres une fois compressés en H.264.
+  // Grain : une tuile de bruit à graine fixe qui casse le banding des dégradés
+  // sombres une fois compressés en H.264. Mode "static" par défaut (tramage
+  // fixe, quasi gratuit à l'encodage) ; "film" le décale 24 fois par seconde
+  // comme un vrai grain de pellicule (joli, mais ~10x plus lourd) ; "off".
+  const GRAIN = new URLSearchParams(location.search).get("grain") || "static";
   function setupGrain() {
+    if (GRAIN === "off") return;
     const size = 256;
     const c = document.createElement("canvas");
     c.width = c.height = size;
@@ -145,6 +148,7 @@
     ctx.putImageData(img, 0, 0);
     const grain = document.getElementById("grain");
     grain.style.backgroundImage = `url(${c.toDataURL()})`;
+    if (GRAIN !== "film") return;
     onFrame((t) => {
       const q = rng(Math.floor(t * 24) + 11);
       grain.style.backgroundPosition = `${Math.floor(q() * size)}px ${Math.floor(q() * size)}px`;
