@@ -20,7 +20,11 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().default(""),
 
   RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
-  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
+  // Relevé de 300 à 600 : l'accueil à lui seul déclenche ~7 requêtes en
+  // parallèle à chaque focus d'écran, et un usage normal (navigation entre
+  // plusieurs écrans, actualisations) épuisait le quota en quelques minutes
+  // même pour un seul utilisateur légitime.
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(600),
   AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
 
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().optional(),
