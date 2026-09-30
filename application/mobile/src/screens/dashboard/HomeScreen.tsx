@@ -7,7 +7,6 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
-import { KpiGrid } from "../../components/KpiGrid";
 import { MissionCard } from "../../components/MissionCard";
 import { WeekMiniGrid } from "../../components/WeekMiniGrid";
 import { PressableScale } from "../../components/PressableScale";
@@ -24,6 +23,7 @@ import { announcementCoverPhotoUrl } from "../../api/announcements.api";
 import { useUnreadInboxCount } from "../../hooks/useUnreadInboxCount";
 import { DASHBOARD_SECTIONS, DashboardSectionTone } from "./dashboardSections";
 import { useDashboardData } from "./useDashboardData";
+import type { KpiTile } from "./useDashboardData";
 import { timeAgo } from "../../utils/timeAgo";
 import { addDays, formatWeekRange, toLocalDateKey } from "../../utils/missionFormat";
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
@@ -48,6 +48,57 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.xl, marginBottom: spacing.sm }}>
       <Text style={[type.overline, { color: colors.inkTertiary }]}>{children}</Text>
       {action}
+    </View>
+  );
+}
+
+// Cartes "héro" pour les indicateurs de l'accueil — retour explicite du
+// client : la grille groupée façon Réglages (KpiGrid, réutilisée sur
+// Statistiques/Commercial pour des listes plus denses) rendait "trois cases
+// plates" sur la toute première page de l'app, pas assez premium pour cet
+// emplacement précis. Ici chaque indicateur a sa propre carte teintée avec
+// respiration, façon widget Apple Météo/Santé, plutôt qu'une colonne
+// partagée dans une carte unique.
+function HeroKpiRow({ tiles, tones }: { tiles: KpiTile[]; tones: Record<DashboardSectionTone, { fg: string; bg: string }> }) {
+  const { colors, spacing, radius, type } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", gap: spacing.sm }}>
+      {tiles.map((tile) => {
+        const tone = tones[tile.tone];
+        return (
+          <View
+            key={tile.key}
+            style={{
+              flex: 1,
+              backgroundColor: tone.bg,
+              borderRadius: radius.lg,
+              padding: spacing.md,
+            }}
+          >
+            {tile.icon && (
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: radius.sm,
+                  backgroundColor: tone.fg + "26",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: spacing.sm,
+                }}
+              >
+                <Ionicons name={tile.icon} size={15} color={tone.fg} />
+              </View>
+            )}
+            <Text style={[type.title2, { color: tone.fg }]} numberOfLines={1}>
+              {tile.value}
+            </Text>
+            <Text style={[type.caption, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={2}>
+              {tile.label}
+            </Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -229,7 +280,7 @@ export function HomeScreen() {
             {(state === "loading" && data.kpis.length === 0) || data.kpis.length > 0 ? (
               <>
                 <SectionTitle>EN UN COUP D'ŒIL</SectionTitle>
-                {data.kpis.length > 0 ? <KpiGrid tiles={data.kpis} /> : <Card style={{ height: 148 }} />}
+                {data.kpis.length > 0 ? <HeroKpiRow tiles={data.kpis} tones={tones} /> : <Card style={{ height: 108 }} />}
               </>
             ) : null}
 
