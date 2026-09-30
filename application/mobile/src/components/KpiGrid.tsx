@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme/ThemeProvider";
 import { useResponsive } from "../hooks/useResponsive";
 import { Card } from "./Card";
@@ -10,7 +11,7 @@ import type { KpiTile } from "../screens/dashboard/useDashboardData";
 // qui donnait un rendu "carrés non intégrés" — ici les cellules partagent un
 // même contour et sont juste séparées par un filet, comme une liste groupée.
 export function KpiGrid({ tiles }: { tiles: KpiTile[] }) {
-  const { colors, spacing, type } = useTheme();
+  const { colors, spacing, radius, type } = useTheme();
   const { isDesktopWeb } = useResponsive();
   const fg: Record<KpiTile["tone"], string> = {
     accent: colors.accentDeep,
@@ -50,6 +51,21 @@ export function KpiGrid({ tiles }: { tiles: KpiTile[] }) {
                 borderLeftColor: colors.border,
               }}
             >
+              {tile.icon && (
+                <View
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: radius.sm,
+                    backgroundColor: fg[tile.tone] + "1F",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: spacing.xs,
+                  }}
+                >
+                  <Ionicons name={tile.icon} size={13} color={fg[tile.tone]} />
+                </View>
+              )}
               <Text style={[type.statNumber, { color: fg[tile.tone] }]}>
                 {tile.value}
               </Text>

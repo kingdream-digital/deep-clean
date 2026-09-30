@@ -156,11 +156,11 @@ export function CommercialHomeScreen() {
 
   const commercialTiles: KpiTile[] | null = dashboard
     ? [
-        { key: "prospects", label: "Prospects en cours", value: String(dashboard.commercial.activeProspects), tone: "neutral" },
-        { key: "inProgress", label: "Devis en cours", value: String(dashboard.commercial.quotesInProgress), tone: "accent" },
-        { key: "toFollowUp", label: "Devis à relancer", value: String(dashboard.commercial.quotesToFollowUp), tone: "warning" },
-        { key: "accepted", label: "Devis acceptés", value: String(dashboard.commercial.quotesAccepted), tone: "success" },
-        { key: "rejected", label: "Devis refusés", value: String(dashboard.commercial.quotesRejected), tone: "danger" },
+        { key: "prospects", label: "Prospects en cours", value: String(dashboard.commercial.activeProspects), tone: "neutral", icon: "person-add-outline" },
+        { key: "inProgress", label: "Devis en cours", value: String(dashboard.commercial.quotesInProgress), tone: "accent", icon: "document-text-outline" },
+        { key: "toFollowUp", label: "Devis à relancer", value: String(dashboard.commercial.quotesToFollowUp), tone: "warning", icon: "alarm-outline" },
+        { key: "accepted", label: "Devis acceptés", value: String(dashboard.commercial.quotesAccepted), tone: "success", icon: "checkmark-circle-outline" },
+        { key: "rejected", label: "Devis refusés", value: String(dashboard.commercial.quotesRejected), tone: "danger", icon: "close-circle-outline" },
       ]
     : null;
 
@@ -171,20 +171,21 @@ export function CommercialHomeScreen() {
           label: user?.role === "SUPERVISOR" ? "Mes chantiers actifs" : "Chantiers actifs",
           value: String(dashboard.sites.activeSites),
           tone: "neutral",
+          icon: "business-outline",
         },
-        { key: "planned", label: "Prestations prévues", value: String(dashboard.sites.plannedVisits), tone: "neutral" },
-        { key: "completed", label: "Réalisées", value: String(dashboard.sites.completedVisits), tone: "success" },
-        { key: "remaining", label: "Restantes", value: String(dashboard.sites.remainingVisits), tone: "warning" },
+        { key: "planned", label: "Prestations prévues", value: String(dashboard.sites.plannedVisits), tone: "neutral", icon: "calendar-outline" },
+        { key: "completed", label: "Réalisées", value: String(dashboard.sites.completedVisits), tone: "success", icon: "checkmark-circle-outline" },
+        { key: "remaining", label: "Restantes", value: String(dashboard.sites.remainingVisits), tone: "warning", icon: "time-outline" },
       ]
     : null;
 
   const invoicing = dashboard?.invoicing ?? null;
   const invoicingTiles: KpiTile[] | null = invoicing
     ? [
-        { key: "toPrepare", label: "À préparer", value: String(invoicing.toPrepare), tone: "neutral" },
-        { key: "validated", label: "Validées", value: String(invoicing.validated), tone: "info" },
-        { key: "sent", label: "Envoyées", value: String(invoicing.sent), tone: "accent" },
-        { key: "paid", label: "Payées", value: String(invoicing.paid), tone: "success" },
+        { key: "toPrepare", label: "À préparer", value: String(invoicing.toPrepare), tone: "neutral", icon: "create-outline" },
+        { key: "validated", label: "Validées", value: String(invoicing.validated), tone: "info", icon: "shield-checkmark-outline" },
+        { key: "sent", label: "Envoyées", value: String(invoicing.sent), tone: "accent", icon: "paper-plane-outline" },
+        { key: "paid", label: "Payées", value: String(invoicing.paid), tone: "success", icon: "cash-outline" },
       ]
     : null;
 

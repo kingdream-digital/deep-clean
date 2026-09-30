@@ -143,20 +143,20 @@ export function StatsOverviewScreen() {
   }
 
   const activite: KpiTile[] = [
-    { key: "sites", label: `Chantiers actifs sur ${overview.sites.total}`, value: String(overview.sites.active), tone: "purple" },
-    { key: "employees", label: `Employés actifs sur ${overview.employees.total}`, value: String(overview.employees.active), tone: "info" },
+    { key: "sites", label: `Chantiers actifs sur ${overview.sites.total}`, value: String(overview.sites.active), tone: "purple", icon: "business-outline" },
+    { key: "employees", label: `Employés actifs sur ${overview.employees.total}`, value: String(overview.employees.active), tone: "info", icon: "people-outline" },
   ];
   const missions: KpiTile[] = [
-    { key: "upcoming", label: "À venir (7 jours)", value: String(overview.missions.upcoming7Days), tone: "accent" },
-    { key: "inProgress", label: "En cours", value: String(overview.missions.inProgress), tone: "warning" },
-    { key: "completed", label: "Terminées", value: String(overview.missions.completed), tone: "success" },
-    { key: "cancelled", label: "Annulées", value: String(overview.missions.cancelled), tone: "danger" },
+    { key: "upcoming", label: "À venir (7 jours)", value: String(overview.missions.upcoming7Days), tone: "accent", icon: "calendar-outline" },
+    { key: "inProgress", label: "En cours", value: String(overview.missions.inProgress), tone: "warning", icon: "play" },
+    { key: "completed", label: "Terminées", value: String(overview.missions.completed), tone: "success", icon: "checkmark-circle-outline" },
+    { key: "cancelled", label: "Annulées", value: String(overview.missions.cancelled), tone: "danger", icon: "close-circle-outline" },
   ];
   const problems: KpiTile[] = [
-    { key: "open", label: "Ouverts", value: String(overview.problems.open), tone: "danger" },
-    { key: "missing", label: "Matériel manquant", value: String(overview.problems.missingMaterial), tone: "warning" },
-    { key: "resolved", label: "Traités", value: String(overview.problems.resolved), tone: "accent" },
-    { key: "validated", label: "Validés", value: String(overview.problems.validated), tone: "success" },
+    { key: "open", label: "Ouverts", value: String(overview.problems.open), tone: "danger", icon: "warning-outline" },
+    { key: "missing", label: "Matériel manquant", value: String(overview.problems.missingMaterial), tone: "warning", icon: "cube-outline" },
+    { key: "resolved", label: "Traités", value: String(overview.problems.resolved), tone: "accent", icon: "build-outline" },
+    { key: "validated", label: "Validés", value: String(overview.problems.validated), tone: "success", icon: "checkmark-done-outline" },
   ];
   const validations: KpiTile[] = [
     {
@@ -164,6 +164,7 @@ export function StatsOverviewScreen() {
       label: `${overview.validations.validatedMissions} / ${overview.validations.completedMissions} missions validées`,
       value: `${overview.validations.validationRatePercent}%`,
       tone: "success",
+      icon: "shield-checkmark-outline",
     },
   ];
 

@@ -212,11 +212,15 @@ export function HomeScreen() {
 
         {state !== "error" && (
           <>
-            {/* KPI — l'essentiel visible dès l'arrivée, sans avoir à cliquer. */}
+            {/* KPI — l'essentiel visible dès l'arrivée, sans avoir à cliquer.
+                Un titre de section comme les autres blocs ci-dessous (retour
+                explicite du client : la grille flottait seule, sans contexte,
+                ce qui la faisait paraître "à part" plutôt qu'intégrée). */}
             {(state === "loading" && data.kpis.length === 0) || data.kpis.length > 0 ? (
-              <View style={{ marginTop: spacing.lg }}>
+              <>
+                <SectionTitle>EN UN COUP D'ŒIL</SectionTitle>
                 {data.kpis.length > 0 ? <KpiGrid tiles={data.kpis} /> : <Card style={{ height: 148 }} />}
-              </View>
+              </>
             ) : null}
 
             {/* Dernière actualité (RH/Superviseur/Direction/Admin) — visible dès

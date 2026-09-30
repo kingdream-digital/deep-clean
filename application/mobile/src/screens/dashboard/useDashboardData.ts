@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
+import type { Ionicons } from "@expo/vector-icons";
 import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { listProblems } from "../../api/problems.api";
@@ -19,6 +20,9 @@ export interface KpiTile {
   label: string;
   value: string;
   tone: "accent" | "info" | "purple" | "warning" | "success" | "danger" | "neutral";
+  // Facultative (rétrocompatible) — une puce icône au-dessus du chiffre,
+  // façon Apple Santé, plutôt qu'un chiffre coloré nu (voir KpiGrid.tsx).
+  icon?: keyof typeof Ionicons.glyphMap;
 }
 
 export interface DashboardData {
@@ -93,9 +97,9 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       nextMission: null,
       latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: [
-        { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent" },
-        { key: "active", label: `Actifs sur ${total.total}`, value: String(active.total), tone: "info" },
-        { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger" },
+        { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
+        { key: "active", label: `Actifs sur ${total.total}`, value: String(active.total), tone: "info", icon: "people-outline" },
+        { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
       ],
     };
   }
@@ -137,10 +141,10 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       nextMission: null,
       latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: [
-        { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent" },
-        { key: "team", label: "Employés mobilisés", value: String(teamSize), tone: "info" },
-        { key: "sites", label: "Chantiers gérés", value: String(sitesRes.total), tone: "purple" },
-        { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger" },
+        { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
+        { key: "team", label: "Employés mobilisés", value: String(teamSize), tone: "info", icon: "people-outline" },
+        { key: "sites", label: "Chantiers gérés", value: String(sitesRes.total), tone: "purple", icon: "business-outline" },
+        { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
       ],
     };
   }
@@ -164,28 +168,36 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
     nextMission,
     latestAnnouncement: announcementRes.items[0] ?? null,
     kpis: [
-      { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent" },
-      { key: "upcoming", label: "À venir (7 jours)", value: String(upcomingRes.total), tone: "info" },
-      { key: "problems", label: "Mes signalements ouverts", value: String(openProblems), tone: "danger" },
+      { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
+      { key: "upcoming", label: "À venir (7 jours)", value: String(upcomingRes.total), tone: "info", icon: "time-outline" },
+      { key: "problems", label: "Mes signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
     ],
   };
 }
 
 function statsToKpis(overview: StatsOverview): KpiTile[] {
   return [
-    { key: "upcoming", label: "Missions à venir (7j)", value: String(overview.missions.upcoming7Days), tone: "accent" },
-    { key: "inProgress", label: "En cours", value: String(overview.missions.inProgress), tone: "success" },
+    {
+      key: "upcoming",
+      label: "Missions à venir (7j)",
+      value: String(overview.missions.upcoming7Days),
+      tone: "accent",
+      icon: "calendar-outline",
+    },
+    { key: "inProgress", label: "En cours", value: String(overview.missions.inProgress), tone: "success", icon: "play" },
     {
       key: "employees",
       label: `Actifs sur ${overview.employees.total}`,
       value: String(overview.employees.active),
       tone: "info",
+      icon: "people-outline",
     },
     {
       key: "sites",
       label: `Chantiers sur ${overview.sites.total}`,
       value: String(overview.sites.active),
       tone: "purple",
+      icon: "business-outline",
     },
   ];
 }
