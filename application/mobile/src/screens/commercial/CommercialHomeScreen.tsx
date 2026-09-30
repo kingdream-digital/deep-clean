@@ -8,6 +8,7 @@ import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
 import { StateView } from "../../components/StateView";
 import { KpiGrid } from "../../components/KpiGrid";
+import { ProgressBar } from "../../components/ProgressBar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { getCommercialDashboard } from "../../api/commercialDashboard.api";
@@ -69,20 +70,6 @@ function DistributionBar({ segments }: { segments: { value: number; color: strin
         : segments
             .filter((s) => s.value > 0)
             .map((s, i) => <View key={i} style={{ flex: s.value, backgroundColor: s.color }} />)}
-    </View>
-  );
-}
-
-// Barre de progression simple (une seule valeur / un objectif) — même
-// technique que le graphique de tendance hebdomadaire du tableau de bord
-// Statistiques (barres en `View` dimensionnées en %), pas de librairie de
-// graphiques supplémentaire pour un seul indicateur.
-function ProgressBar({ ratio, color }: { ratio: number; color: string }) {
-  const { colors, radius } = useTheme();
-  const pct = Math.max(0, Math.min(1, ratio));
-  return (
-    <View style={{ height: 8, borderRadius: radius.pill, overflow: "hidden", backgroundColor: colors.surfaceAlt }}>
-      <View style={{ width: `${pct * 100}%`, height: "100%", borderRadius: radius.pill, backgroundColor: color }} />
     </View>
   );
 }

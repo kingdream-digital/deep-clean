@@ -14,6 +14,7 @@ import { TextField } from "../../components/TextField";
 import { PressableScale } from "../../components/PressableScale";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PhotoViewerModal } from "../../components/PhotoViewerModal";
+import { ProgressRing } from "../../components/ProgressRing";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
@@ -474,12 +475,26 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
     );
   }
 
+  const targetPlannedVisits = progress.target.plannedVisits;
+  const completionRatio = targetPlannedVisits > 0 ? progress.completedVisits / targetPlannedVisits : 0;
+
   return (
     <Card>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <SiteStat label="Prévues" value={String(progress.target.plannedVisits)} />
-        <SiteStat label="Réalisées" value={String(progress.completedVisits)} color={colors.success} />
-        <SiteStat label="Restantes" value={progress.remainingVisits != null ? String(progress.remainingVisits) : "—"} color={colors.warning} />
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <ProgressRing progress={completionRatio} color={colors.success} size={84} strokeWidth={9}>
+          <Text style={[type.title3, { color: colors.ink, fontWeight: "800" }]}>{Math.round(completionRatio * 100)}%</Text>
+        </ProgressRing>
+        <View style={{ flex: 1, marginLeft: spacing.lg }}>
+          <SiteStat icon="calendar-outline" tint={colors.neutral} label="Prévues" value={String(targetPlannedVisits)} />
+          <SiteStat icon="checkmark-circle-outline" tint={colors.success} label="Réalisées" value={String(progress.completedVisits)} />
+          <SiteStat
+            icon="time-outline"
+            tint={colors.warning}
+            label="Restantes"
+            value={progress.remainingVisits != null ? String(progress.remainingVisits) : "—"}
+            last
+          />
+        </View>
       </View>
       {(progress.target.plannedHours != null || progress.plannedHours > 0) && (
         <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.sm }]}>
@@ -504,12 +519,39 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
   );
 }
 
-function SiteStat({ label, value, color }: { label: string; value: string; color?: string }) {
-  const { colors, type } = useTheme();
+// Légende façon Apple Fitness (anneau à gauche, lignes icône+libellé+valeur à
+// droite) — remplace l'ancien trio de chiffres nus côte à côte.
+function SiteStat({
+  icon,
+  tint,
+  label,
+  value,
+  last = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  tint: string;
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
+  const { colors, spacing, radius, type } = useTheme();
   return (
-    <View style={{ alignItems: "center", flex: 1 }}>
-      <Text style={[type.title2, { color: color ?? colors.ink }]}>{value}</Text>
-      <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]}>{label}</Text>
+    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: last ? 0 : spacing.sm }}>
+      <View
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: radius.sm,
+          backgroundColor: tint + "1F",
+          alignItems: "center",
+          justifyContent: "center",
+          marginRight: spacing.xs,
+        }}
+      >
+        <Ionicons name={icon} size={12} color={tint} />
+      </View>
+      <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1 }]}>{label}</Text>
+      <Text style={[type.headline, { color: colors.ink }]}>{value}</Text>
     </View>
   );
 }
