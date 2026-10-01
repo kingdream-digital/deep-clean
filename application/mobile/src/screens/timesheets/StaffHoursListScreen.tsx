@@ -105,12 +105,19 @@ export function StaffHoursListScreen() {
   );
 }
 
+// Photo de profil devant le nom, comme sur téléphone (le tableau sur
+// ordinateur n'affichait que le nom).
 function StaffNameCell({ item }: { item: DirectoryUser }) {
-  const { colors, type } = useTheme();
+  const { colors, spacing, type } = useTheme();
   return (
-    <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]} numberOfLines={1}>
-      {item.firstName} {item.lastName}
-    </Text>
+    <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <View style={{ opacity: item.isActive === false ? 0.45 : 1 }}>
+        <Avatar user={item} size={28} />
+      </View>
+      <Text style={[type.callout, { color: colors.ink, fontWeight: "600", marginLeft: spacing.sm, flex: 1 }]} numberOfLines={1}>
+        {item.firstName} {item.lastName}
+      </Text>
+    </View>
   );
 }
 

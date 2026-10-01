@@ -15,7 +15,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 |---|---|
 | **Branche de travail** | `feat/messagerie-groupe` (poussée sur GitHub) |
 | **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
-| **`master`** | **À jour** : la branche y a été fusionnée le 1er octobre 2026, à la demande du client (« Pousse sur master pour déploiement, je vais tester de mon côté »). |
+| **`master`** | **À jour** : la branche y a été fusionnée le 1er octobre 2026 (deux fois : après les fiches, puis en fin de revue), à la demande du client (« je déploie tout quand c'est fini de ton côté »). |
 | **Déployé en ligne ?** | **À faire par le client dans Coolify** (le redéploiement n'est pas automatique) — procédure exacte au §7. |
 | **Tests** | 242 backend + 46 mobile, **tous au vert** |
 | **En attente de** | Les retours du client après ses tests sur la version en ligne, puis la suite de la revue (liste au §1, « Reste à passer en revue »). |
@@ -172,9 +172,17 @@ l'application — un navigateur en français affiche 01/10/2026.
 Revus sans défaut : formulaires de création de mission, compte et chantier,
 signalement d'un problème.
 
-**Reste à passer en revue :** profil (photo, mot de passe), statistiques en
-détail, fiche de poste, formulaires devis et facture, version ordinateur
-écran par écran.
+- *Ordinateur, tableaux Comptes et Dossiers d'heures* — photo devant le nom,
+  comme sur téléphone.
+
+Revus sans défaut : profil, statistiques, fiche de poste, formulaires devis et
+facture, version ordinateur (accueil, missions, messagerie, comptes,
+chantiers, problèmes).
+
+**Revue écran par écran terminée** (1er octobre 2026). Pistes notées, non
+traitées : saisie du « mois facturé » au clavier (AAAA-MM) plutôt qu'un
+sélecteur de mois ; photos dans « Charge par employé » (statistiques) ; titre
+de l'écran Problèmes sur ordinateur plus petit que ceux de Comptes/Chantiers.
 
 ### Mise en ligne
 
