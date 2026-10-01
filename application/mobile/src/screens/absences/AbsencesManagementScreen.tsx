@@ -5,6 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/Button";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
@@ -14,9 +15,8 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { cancelAbsence, listAbsences, decideAbsence } from "../../api/absences.api";
 import type { Absence, AbsenceStatus } from "../../api/absences.api";
-import { frenchDateFormat } from "../../utils/frenchDate";
-
-const dateFmt = frenchDateFormat({ day: "numeric", month: "short", year: "numeric" });
+import { formatAbsencePeriod } from "../../utils/frenchDate";
+import { formatDaysWithUnit } from "../../utils/leaveDays";
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",
@@ -25,10 +25,10 @@ const TYPE_LABELS: Record<Absence["type"], string> = {
   OTHER: "Autre",
 };
 
+// « 19 – 23 oct. 2026 », jours calendaires tels qu'enregistrés : voir
+// formatAbsencePeriod (la date de fin s'affichait le lendemain à Paris).
 function formatRange(start: string, end: string): string {
-  const s = dateFmt.format(new Date(start));
-  const e = dateFmt.format(new Date(end));
-  return s === e ? s : `${s} → ${e}`;
+  return formatAbsencePeriod(start, end);
 }
 
 const FILTERS: { label: string; value: AbsenceStatus | "ALL" }[] = [
@@ -214,19 +214,33 @@ export function AbsencesManagementScreen() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderItem={({ item }) => (
             <Card>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                <View style={{ flex: 1, marginRight: spacing.sm }}>
-                  <Text style={[type.headline, { color: colors.ink }]}>
+              {/* Qui demande (photo à l'appui), quoi, quand. Le statut n'est
+                  affiché que dans « Approuvées » et « Toutes » : dans « En
+                  attente », il répétait sur chaque carte le nom de l'onglet et
+                  coupait le nom en deux (« Emma / Rousseau »). */}
+              <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                <View style={{ marginRight: spacing.sm }}>
+                  <Avatar user={item.user} size={40} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
                     {item.user.firstName} {item.user.lastName}
                   </Text>
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
-                    {TYPE_LABELS[item.type]} · {formatRange(item.startDate, item.endDate)} · {item.daysCount} j
+                    {TYPE_LABELS[item.type]} · {formatDaysWithUnit(item.daysCount)}
+                  </Text>
+                  <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>
+                    {formatRange(item.startDate, item.endDate)}
                   </Text>
                   {item.reason && (
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]}>{item.reason}</Text>
                   )}
+                  {filter !== "PENDING" && (
+                    <View style={{ marginTop: spacing.xs }}>
+                      <AbsenceStatusBadge status={item.status} />
+                    </View>
+                  )}
                 </View>
-                <AbsenceStatusBadge status={item.status} />
               </View>
 
               {item.status === "PENDING" && (

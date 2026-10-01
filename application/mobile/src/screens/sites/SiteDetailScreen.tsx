@@ -3,12 +3,13 @@ import { ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
+import { StatusBadge } from "../../components/StatusBadge";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/TextField";
 import { PressableScale } from "../../components/PressableScale";
@@ -24,7 +25,7 @@ import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { listProblems } from "../../api/problems.api";
 import type { Problem } from "../../api/problems.api";
-import { formatMissionDay, formatMissionTimeRange, todayKey } from "../../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, todayKey } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
 const periodFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
@@ -105,21 +106,13 @@ export function SiteDetailScreen() {
 
   return (
     <ScreenContainer style={{ paddingHorizontal: 0 }}>
-      {site.hasPhoto ? (
+      {/* La photo du chantier quand il en a une. Sans photo, plus de bandeau
+          dégradé de 140 px autour d'une simple icône : la fiche commence
+          directement par le nom, comme la liste des chantiers. */}
+      {site.hasPhoto && (
         <PressableScale onPress={() => setViewerOpen(true)}>
           <AuthenticatedImage uri={sitePhotoUrl(site.id)} style={{ width: "100%", height: 140, backgroundColor: colors.surfaceAlt }} />
         </PressableScale>
-      ) : (
-        <View style={{ height: 140 }}>
-          <LinearGradient
-            colors={colors.accentGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-          >
-            <Ionicons name="business-outline" size={44} color="rgba(255,255,255,0.85)" />
-          </LinearGradient>
-        </View>
       )}
 
       <ScrollView
@@ -127,21 +120,22 @@ export function SiteDetailScreen() {
         style={{ paddingHorizontal: spacing.lg }}
         contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>{site.name}</Text>
-          <View
-            style={{
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 4,
-              borderRadius: 999,
-              backgroundColor: site.isActive ? colors.successSoft : colors.neutralSoft,
-            }}
-          >
-            <Text style={[type.caption, { color: site.isActive ? colors.success : colors.neutral, fontWeight: "600" }]}>
-              {site.isActive ? "Actif" : "Inactif"}
-            </Text>
-          </View>
+        {/* Statut au-dessus du nom : placé à côté, il le coupait en deux
+            (« Clinique Saint- / Michel »). */}
+        <View
+          style={{
+            alignSelf: "flex-start",
+            paddingHorizontal: spacing.sm,
+            paddingVertical: 4,
+            borderRadius: 999,
+            backgroundColor: site.isActive ? colors.successSoft : colors.neutralSoft,
+          }}
+        >
+          <Text style={[type.caption, { color: site.isActive ? colors.success : colors.neutral, fontWeight: "600" }]}>
+            {site.isActive ? "Actif" : "Inactif"}
+          </Text>
         </View>
+        <Text style={[type.title1, { color: colors.ink, marginTop: spacing.sm }]}>{site.name}</Text>
         <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: 4 }]}>{site.address}</Text>
         {/* Lien commercial (module commercial §20-21) — absent pour un
             chantier opérationnel classique, purement informatif ici. */}
@@ -160,21 +154,7 @@ export function SiteDetailScreen() {
         {site.manager ? (
           <PressableScale onPress={() => navigation.navigate("UserDetail", { userId: site.manager!.id })}>
             <Card style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  backgroundColor: colors.purpleSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={[type.footnote, { color: colors.purple, fontWeight: "700" }]}>
-                  {site.manager.firstName[0]}
-                  {site.manager.lastName[0]}
-                </Text>
-              </View>
+              <Avatar user={site.manager} size={36} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
                 <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
                   {site.manager.firstName} {site.manager.lastName}
@@ -199,21 +179,7 @@ export function SiteDetailScreen() {
         {site.supervisor ? (
           <PressableScale onPress={() => navigation.navigate("UserDetail", { userId: site.supervisor!.id })}>
             <Card style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  backgroundColor: colors.accentSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={[type.footnote, { color: colors.accent, fontWeight: "700" }]}>
-                  {site.supervisor.firstName[0]}
-                  {site.supervisor.lastName[0]}
-                </Text>
-              </View>
+              <Avatar user={site.supervisor} size={36} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
                 <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
                   {site.supervisor.firstName} {site.supervisor.lastName}
@@ -319,7 +285,10 @@ export function SiteDetailScreen() {
                       {formatMissionTimeRange(mission.startTime, mission.endTime)} · {mission.title}
                     </Text>
                   </View>
-                  <MissionStatusPill status={mission.status} />
+                  {/* Même badge que partout ailleurs (couleurs et « non démarrée »
+                      comprises) : cette fiche avait sa propre pastille, aux
+                      couleurs différentes du reste de l'application. */}
+                  <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} />
                 </View>
               </PressableScale>
             ))}
@@ -552,22 +521,6 @@ function SiteStat({
       </View>
       <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1 }]}>{label}</Text>
       <Text style={[type.headline, { color: colors.ink }]}>{value}</Text>
-    </View>
-  );
-}
-
-function MissionStatusPill({ status }: { status: Mission["status"] }) {
-  const { colors, type } = useTheme();
-  const tone: Record<Mission["status"], { bg: string; fg: string; label: string }> = {
-    SCHEDULED: { bg: colors.neutralSoft, fg: colors.neutral, label: "À venir" },
-    IN_PROGRESS: { bg: colors.successSoft, fg: colors.success, label: "En cours" },
-    COMPLETED: { bg: colors.accentSoft, fg: colors.accent, label: "Terminée" },
-    CANCELLED: { bg: colors.dangerSoft, fg: colors.danger, label: "Annulée" },
-  };
-  const t = tone[status];
-  return (
-    <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: t.bg, flexShrink: 0 }}>
-      <Text style={[type.caption, { color: t.fg, fontWeight: "600" }]}>{t.label}</Text>
     </View>
   );
 }

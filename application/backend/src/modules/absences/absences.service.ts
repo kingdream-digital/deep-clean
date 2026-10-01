@@ -37,7 +37,7 @@ async function canDecideAbsence(actor: Actor, _absenceUserId: string): Promise<b
 const absenceSelect = {
   id: true,
   userId: true,
-  user: { select: { id: true, firstName: true, lastName: true, role: true } },
+  user: { select: { id: true, firstName: true, lastName: true, role: true, avatarKey: true } },
   type: true,
   startDate: true,
   endDate: true,
@@ -56,8 +56,17 @@ const absenceSelect = {
 // stocké, toujours recalculé à partir de startDate/endDate via la même
 // fonction que la déduction réelle (voir leave.service.ts), pour qu'un
 // affichage "3 jours" corresponde toujours exactement à ce qui sera déduit.
-function presentAbsence<T extends { startDate: Date; endDate: Date }>(absence: T): T & { daysCount: number } {
-  return { ...absence, daysCount: countBusinessDays(absence.startDate, absence.endDate) };
+//
+// La photo de la personne : un simple booléen `hasAvatar`, jamais la clé de
+// stockage (même principe que users.service.ts::presentUser), pour que la
+// liste des demandes montre qui demande, photo à l'appui.
+function presentAbsence<T extends { startDate: Date; endDate: Date; user: { avatarKey: string | null } }>(absence: T) {
+  const { avatarKey, ...user } = absence.user;
+  return {
+    ...absence,
+    user: { ...user, hasAvatar: Boolean(avatarKey) },
+    daysCount: countBusinessDays(absence.startDate, absence.endDate),
+  };
 }
 
 function toDayStart(dateStr: string): Date {

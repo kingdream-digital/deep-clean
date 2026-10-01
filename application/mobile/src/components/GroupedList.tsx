@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme/ThemeProvider";
 import { Card } from "./Card";
@@ -15,15 +15,17 @@ interface ListGroupProps {
   title?: string;
   /** Nombre affiché à droite du titre (ex. effectif d'un rôle). */
   count?: number;
+  /** Marges du groupe (par défaut : un espace sous le bloc, pour enchaîner les groupes). */
+  style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }
 
-export function ListGroup({ title, count, children }: ListGroupProps) {
+export function ListGroup({ title, count, style, children }: ListGroupProps) {
   const { colors, spacing, type } = useTheme();
   const rows = React.Children.toArray(children).filter(Boolean);
 
   return (
-    <View style={{ marginBottom: spacing.xl }}>
+    <View style={[{ marginBottom: spacing.xl }, style]}>
       {title && (
         <View style={{ flexDirection: "row", alignItems: "baseline", marginBottom: spacing.xs, paddingHorizontal: spacing.xxs }}>
           <Text style={[type.overline, { color: colors.inkTertiary, flex: 1 }]}>{title.toUpperCase()}</Text>

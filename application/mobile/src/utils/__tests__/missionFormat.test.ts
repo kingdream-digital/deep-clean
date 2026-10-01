@@ -1,5 +1,6 @@
 import { dayOfMonthLabel, frenchDateFormat, withFirstOfMonth } from "../frenchDate";
 import { formatMissionDay, formatWeekRange, isMissionOverdue } from "../missionFormat";
+import { formatAbsencePeriod, formatDateRange } from "../frenchDate";
 import { formatDays, formatDaysWithUnit } from "../leaveDays";
 
 describe("frenchDateFormat", () => {
@@ -89,5 +90,36 @@ describe("formatDays (soldes de congés)", () => {
     expect(formatDaysWithUnit(1)).toBe("1 jour");
     expect(formatDaysWithUnit(1.5)).toBe("1,5 jour");
     expect(formatDaysWithUnit(2)).toBe("2 jours");
+  });
+});
+
+describe("formatDateRange (périodes d'absence)", () => {
+  it("même mois : le mois et l'année une seule fois", () => {
+    expect(formatDateRange(new Date(2026, 9, 19), new Date(2026, 9, 23))).toBe("19 – 23 oct. 2026");
+  });
+  it("à cheval sur deux mois, et le 1er", () => {
+    expect(formatDateRange(new Date(2026, 8, 28), new Date(2026, 9, 4))).toBe("28 sept. – 4 oct. 2026");
+    expect(formatDateRange(new Date(2026, 9, 1), new Date(2026, 9, 2))).toBe("1er – 2 oct. 2026");
+  });
+  it("un seul jour, ou deux années différentes", () => {
+    expect(formatDateRange(new Date(2026, 9, 5), new Date(2026, 9, 5))).toBe("5 oct. 2026");
+    expect(formatDateRange(new Date(2026, 11, 28), new Date(2027, 0, 3))).toBe("28 déc. 2026 – 3 janv. 2027");
+  });
+});
+
+describe("formatAbsencePeriod (fuseau horaire)", () => {
+  const original = process.env.TZ;
+  afterEach(() => {
+    process.env.TZ = original;
+  });
+
+  it("une absence du 19 au 23 octobre reste du 19 au 23, même à l'heure de Paris", () => {
+    process.env.TZ = "Europe/Paris";
+    expect(formatAbsencePeriod("2026-10-19T00:00:00.000Z", "2026-10-23T23:59:59.999Z")).toBe("19 – 23 oct. 2026");
+  });
+
+  it("et en heure universelle", () => {
+    process.env.TZ = "UTC";
+    expect(formatAbsencePeriod("2026-10-05T00:00:00.000Z", "2026-10-05T23:59:59.999Z")).toBe("5 oct. 2026");
   });
 });

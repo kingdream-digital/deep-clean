@@ -18,10 +18,9 @@ import { getLeaveBalance } from "../../api/leave.api";
 import type { LeaveBalance } from "../../api/leave.api";
 import { extractErrorMessage } from "../../api/client";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
-import { frenchDateFormat } from "../../utils/frenchDate";
-import { formatDays } from "../../utils/leaveDays";
+import { formatDays, formatDaysWithUnit } from "../../utils/leaveDays";
+import { formatAbsencePeriod } from "../../utils/frenchDate";
 
-const dateFmt = frenchDateFormat({ day: "numeric", month: "short", year: "numeric" });
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",
@@ -30,10 +29,10 @@ const TYPE_LABELS: Record<Absence["type"], string> = {
   OTHER: "Autre",
 };
 
+// Jours calendaires tels qu'enregistrés (voir formatAbsencePeriod) : lue à
+// l'heure de Paris, la date de fin tombait jusqu'ici le lendemain.
 function formatRange(start: string, end: string): string {
-  const s = dateFmt.format(new Date(start));
-  const e = dateFmt.format(new Date(end));
-  return s === e ? s : `${s} → ${e}`;
+  return formatAbsencePeriod(start, end);
 }
 
 export function MyAbsencesScreen() {
@@ -138,7 +137,7 @@ export function MyAbsencesScreen() {
                 <View style={{ flex: 1, marginRight: spacing.sm }}>
                   <Text style={[type.headline, { color: colors.ink }]}>{TYPE_LABELS[item.type]}</Text>
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
-                    {formatRange(item.startDate, item.endDate)} · {item.daysCount} jour{item.daysCount > 1 ? "s" : ""}
+                    {formatRange(item.startDate, item.endDate)} · {formatDaysWithUnit(item.daysCount)}
                   </Text>
                   {item.reason && (
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]}>{item.reason}</Text>

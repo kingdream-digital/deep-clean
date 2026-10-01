@@ -440,7 +440,7 @@ export async function getEmployeeDossier(actorRole: Role, targetId: string) {
         orderBy: { mission: { date: "desc" } },
         take: RECENT_ITEMS_LIMIT,
         select: {
-          mission: { select: { id: true, title: true, date: true, status: true, site: { select: { id: true, name: true } } } },
+          mission: { select: { id: true, title: true, date: true, endTime: true, status: true, site: { select: { id: true, name: true } } } },
         },
       }),
       prisma.missionAssignment

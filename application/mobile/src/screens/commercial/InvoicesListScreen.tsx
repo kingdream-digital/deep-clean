@@ -82,15 +82,16 @@ export function InvoicesListScreen() {
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: item.id })}>
                 <Card>
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <Text style={[type.footnote, { color: colors.inkTertiary }]}>{item.invoiceNumber}</Text>
-                      <Text style={[type.headline, { color: colors.ink, marginTop: 1 }]} numberOfLines={1}>
-                        {item.client.companyName}
-                      </Text>
-                    </View>
+                  {/* Le statut sur la ligne du numéro (court), le nom du client
+                      sur toute la largeur : à côté du nom, le badge le coupait
+                      (« Syndic Résid… »). */}
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={[type.footnote, { color: colors.inkTertiary }]}>{item.invoiceNumber}</Text>
                     <InvoiceStatusBadge status={item.status} />
                   </View>
+                  <Text style={[type.headline, { color: colors.ink, marginTop: spacing.xxs }]} numberOfLines={2}>
+                    {item.client.companyName}
+                  </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm }}>
                     <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalTtc)}</Text>
                     {item.dueDate && (

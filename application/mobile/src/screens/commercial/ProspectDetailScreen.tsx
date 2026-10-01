@@ -108,18 +108,15 @@ export function ProspectDetailScreen() {
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={[type.title2, { color: colors.ink }]}>{prospect.companyName}</Text>
-              {contactName && (
-                <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
-                  {contactName}
-                  {prospect.jobTitle ? ` · ${prospect.jobTitle}` : ""}
-                </Text>
-              )}
-            </View>
-            <ProspectStatusBadge status={prospect.status} />
-          </View>
+          {/* Statut au-dessus du nom, qui garde toute la largeur. */}
+          <ProspectStatusBadge status={prospect.status} />
+          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{prospect.companyName}</Text>
+          {contactName && (
+            <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
+              {contactName}
+              {prospect.jobTitle ? ` · ${prospect.jobTitle}` : ""}
+            </Text>
+          )}
 
           {prospect.phone && (
             <PressableScale onPress={() => Linking.openURL(`tel:${prospect.phone}`)}>

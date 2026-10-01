@@ -6,7 +6,7 @@ export type AbsenceStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 export interface Absence {
   id: string;
   userId: string;
-  user: { id: string; firstName: string; lastName: string; role: string };
+  user: { id: string; firstName: string; lastName: string; role: string; hasAvatar?: boolean };
   type: AbsenceType;
   startDate: string;
   endDate: string;

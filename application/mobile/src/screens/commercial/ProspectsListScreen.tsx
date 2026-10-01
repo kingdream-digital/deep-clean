@@ -82,20 +82,19 @@ export function ProspectsListScreen() {
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale onPress={() => navigation.navigate("ProspectDetail", { prospectId: item.id })}>
                 <Card>
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
-                        {item.companyName}
-                      </Text>
-                      {contactName(item) && (
-                        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
-                          {contactName(item)}
-                          {item.jobTitle ? ` · ${item.jobTitle}` : ""}
-                        </Text>
-                      )}
-                    </View>
-                    <ProspectStatusBadge status={item.status} />
-                  </View>
+                  {/* Le statut en tête de carte, le nom de l'entreprise sur toute
+                      la largeur dessous : à côté du nom, le badge le coupait
+                      (« Studio Yoga An… »). */}
+                  <ProspectStatusBadge status={item.status} />
+                  <Text style={[type.headline, { color: colors.ink, marginTop: spacing.xs }]} numberOfLines={2}>
+                    {item.companyName}
+                  </Text>
+                  {contactName(item) && (
+                    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
+                      {contactName(item)}
+                      {item.jobTitle ? ` · ${item.jobTitle}` : ""}
+                    </Text>
+                  )}
 
                   {item.nextFollowUpAt && (
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}>

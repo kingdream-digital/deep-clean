@@ -138,6 +138,7 @@ export interface DossierMission {
   id: string;
   title: string;
   date: string;
+  endTime: string;
   status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   site: { id: string; name: string };
 }

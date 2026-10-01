@@ -166,7 +166,7 @@ export function HomeStack() {
         })}
       />
 
-      <Stack.Screen name="Timesheet" component={TimesheetScreen} options={{ title: "Pointage" }} />
+      <Stack.Screen name="Timesheet" component={TimesheetScreen} options={{ title: "Mes heures" }} />
       <Stack.Screen name="TimesheetValidation" component={TimesheetValidationScreen} options={{ title: "Validation des heures" }} />
       <Stack.Screen
         name="TimesheetReject"

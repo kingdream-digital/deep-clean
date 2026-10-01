@@ -203,9 +203,12 @@ export function TimesheetScreen() {
 
   const weekSummaryCard = (
     <Card style={{ marginBottom: spacing.lg }}>
-      <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-        CETTE SEMAINE (remis à 0 chaque lundi)
-      </Text>
+      {/* Un petit titre en capitales, la précision à côté en clair : la
+          parenthèse en minuscules au milieu des capitales se lisait mal. */}
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm }}>
+        <Text style={[type.overline, { color: colors.inkTertiary }]}>CETTE SEMAINE</Text>
+        <Text style={[type.caption, { color: colors.inkTertiary }]}>Remis à zéro chaque lundi</Text>
+      </View>
       <View style={{ flexDirection: "row" }}>
         <View style={{ flex: 1 }}>
           <Text style={[type.caption, { color: colors.inkTertiary }]}>Total travaillé</Text>

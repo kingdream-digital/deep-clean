@@ -134,13 +134,14 @@ export function InvoiceDetailScreen() {
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={[type.footnote, { color: colors.inkTertiary }]}>{invoice.invoiceNumber}</Text>
-              <Text style={[type.title2, { color: colors.ink, marginTop: 1 }]}>{invoice.client.companyName}</Text>
-            </View>
+          {/* Numéro et statut sur une ligne, le nom du client sur toute la
+              largeur dessous : à côté du nom, le badge le réduisait à une
+              colonne étroite (« Syndic / Résidence / Les Tilleuls »). */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[type.footnote, { color: colors.inkTertiary }]}>{invoice.invoiceNumber}</Text>
             <InvoiceStatusBadge status={invoice.status} />
           </View>
+          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{invoice.client.companyName}</Text>
 
           <InfoRow icon="calendar-outline" label="Émise le" value={dateFmt.format(new Date(invoice.issueDate))} />
           {invoice.dueDate && <InfoRow icon="hourglass-outline" label="Échéance" value={dateFmt.format(new Date(invoice.dueDate))} />}

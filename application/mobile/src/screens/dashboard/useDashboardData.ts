@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
+import NetInfo from "@react-native-community/netinfo";
 import type { Ionicons } from "@expo/vector-icons";
 import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
@@ -15,6 +16,7 @@ import { listAnnouncements } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import type { AuthUser } from "../../api/auth.api";
 import { addDays, isMissionOverdue, mondayOf, toLocalDateKey } from "../../utils/missionFormat";
+import { readCache, writeCache } from "../../offline/cache";
 
 export interface KpiTile {
   key: string;
@@ -268,16 +270,33 @@ function statsToKpis(overview: StatsOverview): KpiTile[] {
 export function useDashboardData(user: AuthUser | null) {
   const [data, setData] = useState<DashboardData>(EMPTY);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
+    // Clé propre à la personne : le cache est vidé à chaque fin de session
+    // (voir offline/cache.ts), mais on ne mélange jamais deux comptes.
+    const cacheKey = `dashboard.${user.id}`;
     try {
       setState("loading");
       const result = await loadForRole(user);
       setData(result);
+      setOfflineCachedAt(null);
       setState("ready");
+      void writeCache(cacheKey, result);
     } catch {
-      setState("error");
+      // Hors connexion : on ressert le dernier tableau de bord connu, avec le
+      // bandeau « Hors connexion » (comme le Planning), plutôt qu'un « Un
+      // problème est survenu » affiché au-dessus de ces mêmes données.
+      const net = await NetInfo.fetch();
+      const cached = net.isConnected === false ? await readCache<DashboardData>(cacheKey) : null;
+      if (cached) {
+        setData({ ...cached.data, weekStart: new Date(cached.data.weekStart) });
+        setOfflineCachedAt(cached.cachedAt);
+        setState("ready");
+      } else {
+        setState("error");
+      }
     }
   }, [user]);
 
@@ -287,5 +306,5 @@ export function useDashboardData(user: AuthUser | null) {
     }, [load])
   );
 
-  return { data, state, reload: load };
+  return { data, state, offlineCachedAt, reload: load };
 }

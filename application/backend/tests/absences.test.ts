@@ -217,3 +217,28 @@ describe("Congés — déduction et recrédit automatiques du solde", () => {
     expect(cancelled.status).toBe(403);
   });
 });
+
+describe("Congés — photo de la personne qui demande", () => {
+  it("expose `hasAvatar`, jamais la clé de stockage de la photo", async () => {
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "abs-photo@deepclean.test", leaveAccrualRate: 10 });
+    const hr = await createTestUser({ role: Role.HR, email: "hr-abs-photo@deepclean.test" });
+    await prisma.user.update({ where: { id: employee.id }, data: { avatarKey: "avatars/employe.webp" } });
+
+    const employeeToken = await loginAs(employee);
+    const { startDate, endDate } = futureRange(20, 21);
+    const created = await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${employeeToken}`)
+      .send({ type: "UNPAID_LEAVE", startDate, endDate });
+    expect(created.status).toBe(201);
+    expect(created.body.absence.user.hasAvatar).toBe(true);
+
+    const hrToken = await loginAs(hr);
+    const list = await request(app).get("/api/v1/absences").set("Authorization", `Bearer ${hrToken}`);
+    expect(list.status).toBe(200);
+    const mine = list.body.items.find((a: { userId: string }) => a.userId === employee.id);
+    expect(mine.user.hasAvatar).toBe(true);
+    expect(JSON.stringify(list.body)).not.toContain("avatarKey");
+    expect(JSON.stringify(list.body)).not.toContain("avatars/employe.webp");
+  });
+});

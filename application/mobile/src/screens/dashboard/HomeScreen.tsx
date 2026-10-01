@@ -6,6 +6,7 @@ import { useNavigation, NavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
+import { OfflineBanner } from "../../components/OfflineBanner";
 import { Card } from "../../components/Card";
 import { MissionCard } from "../../components/MissionCard";
 import { WeekMiniGrid } from "../../components/WeekMiniGrid";
@@ -132,7 +133,7 @@ export function HomeScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
-  const { data, state, reload } = useDashboardData(user);
+  const { data, state, offlineCachedAt, reload } = useDashboardData(user);
   const onboardingScrollProps = useOnboardingScrollProps("Home");
 
   const tones: Record<DashboardSectionTone, { fg: string; bg: string }> = {
@@ -259,6 +260,7 @@ export function HomeScreen() {
         </ImageBackground>
 
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
         {state === "error" && (
           <View style={{ marginTop: spacing.lg }}>
             <StateView kind="error" onRetry={reload} />

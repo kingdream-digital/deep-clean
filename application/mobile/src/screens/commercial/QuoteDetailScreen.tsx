@@ -161,14 +161,15 @@ export function QuoteDetailScreen() {
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={[type.footnote, { color: colors.inkTertiary }]}>{quote.quoteNumber}</Text>
-              <Text style={[type.title2, { color: colors.ink, marginTop: 1 }]}>{quote.client.companyName}</Text>
-              {quote.subject && <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{quote.subject}</Text>}
-            </View>
+          {/* Numéro et statut sur une ligne, le nom du client sur toute la
+              largeur dessous : à côté du nom, le badge le réduisait à une
+              colonne étroite (« Syndic / Résidence / Les Tilleuls »). */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[type.footnote, { color: colors.inkTertiary }]}>{quote.quoteNumber}</Text>
             <QuoteStatusBadge status={quote.status} />
           </View>
+          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{quote.client.companyName}</Text>
+          {quote.subject && <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{quote.subject}</Text>}
 
           <InfoRow icon="calendar-outline" label="Émis le" value={dateFmt.format(new Date(quote.issueDate))} />
           {quote.validUntil && <InfoRow icon="hourglass-outline" label="Valable jusqu'au" value={dateFmt.format(new Date(quote.validUntil))} />}

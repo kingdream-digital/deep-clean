@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -89,6 +89,10 @@ export function AbsenceFormScreen() {
       >
         <Text style={[typeScale.subhead, { color: colors.inkSecondary, marginBottom: spacing.md }]}>Type d'absence</Text>
         <SegmentedControl value={type} onChange={setType} options={TYPE_OPTIONS} />
+
+        {/* Respiration entre le choix du type et les dates : le libellé « Du »
+            touchait le sélecteur. */}
+        <View style={{ height: spacing.lg }} />
 
         <DateTimeField
           label="Du"

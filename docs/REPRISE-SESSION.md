@@ -17,7 +17,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
 | **`master`** | **Pas touché.** Le site en ligne tourne toujours sur l'ancienne version. |
 | **Déployé en ligne ?** | **Non.** Rien n'a été redéployé. |
-| **Tests** | 238 backend + 41 mobile, **tous au vert** |
+| **Tests** | 241 backend + 46 mobile, **tous au vert** |
 | **En attente de** | La validation du client sur la démo (voir §2) |
 
 ### Journal de bord (mis à jour au fil du travail)
@@ -31,7 +31,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | 1 | Messagerie de groupe, appel, partage de documents | ✅ commit `a846301` |
 | 2 | Dossier de reprise + captures versionnées | ✅ commits `3f6f952`, `fdf0f82` |
 | 3 | Outils d'audit visuel versionnés (`tools/audit-visuel/`) | ✅ commit `dba68b5` |
-| 4 | Revue complète de l'application, écran par écran | 🔄 en cours — employé ✅ `8461838`, encadrement ✅ (voir `git log`) |
+| 4 | Revue complète de l'application, écran par écran | 🔄 en cours — employé ✅ `8461838`, encadrement ✅ `3137e2a`, fiches et formulaires ✅ (voir `git log`) |
 
 **Déjà revu et corrigé :**
 
@@ -116,9 +116,54 @@ lettres était coupé (« Plannina »). On garde la police système, comme les
 apps d'Apple, plutôt que de toucher à la hauteur de la barre (risque sur
 iPhone et Android).
 
-**Reste à passer en revue :** détail d'une mission, fiche chantier, fiche de
-compte, pointage, congés (formulaires), module commercial, statistiques,
-états d'erreur et de chargement, mode hors connexion.
+**Revue des fiches et formulaires** (mission, chantier, compte, pointage,
+congés, commercial, hors connexion) :
+
+- *Fiche mission* — statut au-dessus du titre (à côté, il réduisait le titre
+  à une colonne : « Entretien / quotidien / espace / coworking ») ; chef
+  d'équipe et équipe en liste groupée avec les photos (initiales avant).
+- *Fiche chantier* — plus de bandeau dégradé de 140 px quand il n'y a pas de
+  photo ; statut au-dessus du nom ; photos du chef d'équipe et du
+  superviseur (l'API renvoie maintenant `hasAvatar`, jamais la clé de
+  stockage) ; badge de mission commun à toute l'app (la fiche avait sa
+  propre pastille, aux couleurs différentes), « non démarrée » compris.
+- *Fiche de compte* — en-tête façon fiche contact (photo, nom, statut) ;
+  journal d'activité en français (« Connexion réussie » au lieu de
+  `AUTH_LOGIN_SUCCESS`) avec l'heure ; missions récentes « non démarrée »
+  (le dossier renvoie maintenant `endTime`) ; texte du mot de passe
+  temporaire sans « il ».
+- *Congés — BUG corrigé* — les dates de fin d'absence s'affichaient **le
+  lendemain** à l'heure de Paris (une absence du 19 au 23 octobre affichait
+  « → 24 oct. ») : le serveur enregistre la fin à 23:59:59 en heure
+  universelle. `calendarDay()` / `formatAbsencePeriod()` dans
+  `utils/frenchDate.ts`, avec un test qui force `TZ=Europe/Paris`.
+- *Congés* — périodes compactes (« 19 – 23 oct. 2026 » au lieu de « 19 oct.
+  2026 → 23 oct. 2026 », coupé en deux), « 5 jours » au lieu de « 5 j »,
+  photo de la personne qui demande, statut masqué dans l'onglet « En
+  attente » (redondant), espace sous le choix du type d'absence.
+- *Champs date et heure (web)* — police de l'app (ils s'affichaient en
+  Times) et une seule icône (on en voyait deux).
+- *Pointage* — titre « Mes heures » (comme le lien du Menu) ; « CETTE SEMAINE
+  (remis à 0 chaque lundi) » → titre + précision séparés.
+- *Hors connexion* — l'accueil ressert le dernier tableau de bord connu avec
+  le bandeau, au lieu de « Un problème est survenu » (cache par personne,
+  vidé à la déconnexion comme le reste) ; bandeau « mis à jour à 14:07 »,
+  avec la date si ce n'est pas aujourd'hui.
+- *Commercial* — listes et fiches devis / factures / prospects : statut sur
+  la ligne du numéro ou au-dessus du nom, qui n'est plus coupé (« Syndic
+  Résid… », « Studio Yoga An… »).
+
+**Testé, rien à corriger :** états « serveur indisponible » (message clair +
+Réessayer, sans détail technique), Planning hors connexion (bandeau + cache).
+
+**À savoir pour les captures :** le Chromium de test affiche les champs date
+au format américain (10/01/2026) ; c'est la langue du navigateur de test, pas
+l'application — un navigateur en français affiche 01/10/2026.
+
+**Reste à passer en revue :** statistiques (détail), formulaires de création
+(mission, chantier, compte, devis, facture), fiche de poste, signalement d'un
+problème avec photos, annonces, profil (photo, mot de passe), version
+ordinateur écran par écran.
 
 ### Ce qui bloque la mise en ligne
 
