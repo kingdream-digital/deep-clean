@@ -14,8 +14,9 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { cancelAbsence, listAbsences, decideAbsence } from "../../api/absences.api";
 import type { Absence, AbsenceStatus } from "../../api/absences.api";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "short", year: "numeric" });
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",

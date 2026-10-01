@@ -15,10 +15,11 @@ import type { TimeEntry } from "../../api/timesheets.api";
 import { formatDuration } from "../../utils/duration";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { DISTANCE_ALERT_METERS, formatDistance } from "../../utils/distance";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<{ TimeEntryDetail: { entryId: string } }, "TimeEntryDetail">;
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+const dayFmt = frenchDateFormat({ weekday: "long", day: "numeric", month: "long" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {

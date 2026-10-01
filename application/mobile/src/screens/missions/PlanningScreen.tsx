@@ -249,13 +249,12 @@ export function PlanningScreen() {
     // ScreenContainer (pensé pour du texte/formulaire) la rendait cramée,
     // avec une grosse bande vide à droite sur un écran large.
     <ScreenContainer fullBleed>
-      <View style={[styles.heroBleed, { marginHorizontal: -spacing.lg }]}>
-        <LinearGradient
-          colors={isDark ? [colors.background, colors.surfaceAlt] : [colors.background, colors.surface]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+      {/* Même fond que l'en-tête de navigation juste au-dessus : la bande
+          prolonge l'en-tête en un seul bloc, arrondi des deux côtés. L'ancien
+          dégradé partait de la couleur du fond de page en haut à gauche — le
+          coin gauche se fondait dans la page et seul le coin droit restait
+          visible, comme une carte mal coupée. */}
+      <View style={[styles.heroBleed, { marginHorizontal: -spacing.lg, backgroundColor: colors.backgroundElevated }]}>
         <OnboardingTarget
           id="planning.week"
           style={{ paddingTop: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}

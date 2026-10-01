@@ -18,8 +18,9 @@ import { getLeaveBalance } from "../../api/leave.api";
 import type { LeaveBalance } from "../../api/leave.api";
 import { extractErrorMessage } from "../../api/client";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "short", year: "numeric" });
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",

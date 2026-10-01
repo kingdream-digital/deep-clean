@@ -33,6 +33,7 @@ import { shareFile } from "../../utils/shareFile";
 import { formatFileSize } from "../../utils/fileSize";
 import { ROLE_LABELS_SHORT } from "../../utils/roleLabels";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 // L'écran s'ouvre soit sur un fil déjà connu (liste, notification), soit sur
 // une personne (fiche contact, équipe d'une mission) — dans ce second cas le
@@ -43,7 +44,7 @@ type Route = RouteProp<
 >;
 
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+const dayFmt = frenchDateFormat({ weekday: "long", day: "numeric", month: "long" });
 
 // Sondage léger pendant que le fil est à l'écran — pas d'infrastructure temps
 // réel (websockets) dans ce projet, cohérent avec le reste de l'app

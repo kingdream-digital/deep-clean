@@ -14,9 +14,10 @@ import { extractErrorMessage } from "../../api/client";
 import { markQuoteAccepted, markQuoteRejected, recordQuoteFollowUp, sendQuote, QUOTE_FOLLOW_UP_METHOD_LABELS } from "../../api/quotes.api";
 import type { QuoteFollowUpMethod } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "QuoteAction">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 function tomorrow(): Date {
   const d = new Date();

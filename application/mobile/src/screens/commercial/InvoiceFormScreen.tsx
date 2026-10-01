@@ -24,9 +24,10 @@ import type { SiteBillingMode } from "../../api/sites.api";
 import { createInvoice, getInvoice, updateInvoice } from "../../api/invoices.api";
 import type { InvoiceItemInput } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "InvoiceForm">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = {

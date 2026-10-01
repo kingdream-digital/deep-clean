@@ -8,7 +8,7 @@ import { StatusBadge } from "./StatusBadge";
 import { AssigneeAvatar } from "./AssigneeAvatar";
 import { PulsingDot } from "./PulsingDot";
 import type { Mission, MissionAssignee } from "../api/missions.api";
-import { formatMissionDay, formatMissionTimeRange, relativeDayLabel } from "../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, relativeDayLabel } from "../utils/missionFormat";
 
 interface MissionCardProps {
   mission: Mission;
@@ -48,7 +48,7 @@ function AssigneesRow({ assignments }: { assignments: MissionAssignee[] }) {
   const avatarSize = 26;
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.md }}>
+    <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 1 }}>
       {/* Avatars imbriqués (léger chevauchement + liseré de la couleur de la
           carte) : rendu "groupe d'équipe" plus premium qu'une simple liste. */}
       <View style={{ flexDirection: "row" }}>
@@ -84,7 +84,7 @@ function AssigneesRow({ assignments }: { assignments: MissionAssignee[] }) {
           </View>
         )}
       </View>
-      <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: spacing.sm }]} numberOfLines={1}>
+      <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: spacing.sm, flexShrink: 1 }]} numberOfLines={1}>
         {assignments.length} {assignments.length > 1 ? "personnes" : "personne"}
       </Text>
     </View>
@@ -94,7 +94,12 @@ function AssigneesRow({ assignments }: { assignments: MissionAssignee[] }) {
 export function MissionCard({ mission, onPress }: MissionCardProps) {
   const theme = useTheme();
   const { colors, radius, spacing, type, isDark } = theme;
-  const tint = STATUS_TINT[mission.status](colors);
+  // Horaire passé sans démarrage : toute la carte passe en teinte d'alerte
+  // (icône, jour, badge), comme sur l'accueil — une même mission ne doit pas
+  // se lire « non démarrée » à un endroit et « planifiée » à un autre.
+  const overdue = isMissionOverdue(mission);
+  const tint = overdue ? { bg: colors.warningSoft, fg: colors.warning } : STATUS_TINT[mission.status](colors);
+  const icon = overdue ? "alert-circle-outline" : STATUS_ICON[mission.status];
   const dayLabel = relativeDayLabel(mission.date);
   const isLive = mission.status === "IN_PROGRESS";
 
@@ -130,7 +135,7 @@ export function MissionCard({ mission, onPress }: MissionCardProps) {
                 style={{ position: "absolute", borderRadius: radius.md, opacity: 0.18 }}
               />
             )}
-            <Ionicons name={STATUS_ICON[mission.status]} size={18} color={tint.fg} />
+            <Ionicons name={icon} size={18} color={tint.fg} />
           </View>
 
           <View style={{ flex: 1 }}>
@@ -195,10 +200,24 @@ export function MissionCard({ mission, onPress }: MissionCardProps) {
               </View>
             </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            {/* Le badge passe à la ligne, calé à droite, quand il ne tient pas
+                à côté de l'équipe (« NON DÉMARRÉE », ou quatre avatars) — il
+                débordait de la carte et chevauchait « N personnes ». */}
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                alignItems: "center",
+                marginTop: spacing.md,
+                // Écart minimal seulement : un écart plus large faisait passer
+                // à la ligne des badges qui tenaient très bien à côté.
+                columnGap: spacing.xxs,
+                rowGap: spacing.xs,
+              }}
+            >
               <AssigneesRow assignments={mission.assignments} />
-              <View style={{ marginTop: spacing.md }}>
-                <StatusBadge status={mission.status} />
+              <View style={{ marginLeft: "auto" }}>
+                <StatusBadge status={mission.status} overdue={overdue} />
               </View>
             </View>
           </View>

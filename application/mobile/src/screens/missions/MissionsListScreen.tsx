@@ -24,6 +24,7 @@ import {
   formatMissionDay,
   formatMissionTimeRange,
   groupMissionsByDate,
+  isMissionOverdue,
   relativeDayLabel,
 } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
@@ -60,7 +61,7 @@ const TABLE_COLUMNS: DataTableColumn<Mission>[] = [
   {
     key: "status",
     label: "Statut",
-    render: (item) => <StatusBadge status={item.status} />,
+    render: (item) => <StatusBadge status={item.status} overdue={isMissionOverdue(item)} />,
   },
 ];
 

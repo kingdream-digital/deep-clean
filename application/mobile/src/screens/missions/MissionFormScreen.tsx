@@ -32,11 +32,12 @@ import { listStandards } from "../../api/standards.api";
 import type { CleaningStandard } from "../../api/standards.api";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
 import { toLocalDateKey } from "../../utils/missionFormat";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<{ MissionForm: { missionId?: string; initialDate?: string } | undefined }, "MissionForm">;
 
 const NONE = "__none__";
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 // 0 = dimanche ... 6 = samedi (JS Date#getDay) — même convention que le serveur.

@@ -18,8 +18,9 @@ import { countBusinessDaysPreview, getLeaveBalance } from "../../api/leave.api";
 import type { LeaveBalance } from "../../api/leave.api";
 import { toLocalDateKey } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
 const TYPE_OPTIONS: { label: string; value: AbsenceType }[] = [
   { label: "Congé payé", value: "PAID_LEAVE" },

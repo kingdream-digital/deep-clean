@@ -31,19 +31,20 @@ import type { Problem } from "../../api/problems.api";
 import { ProblemStatusBadge } from "../../components/ProblemStatusBadge";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { extractErrorMessage } from "../../api/client";
-import { formatMissionDay, formatMissionTimeRange } from "../../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue } from "../../utils/missionFormat";
 import { formatDuration } from "../../utils/duration";
 import { formatFileSize } from "../../utils/fileSize";
 import { openDirectionsTo } from "../../utils/openMaps";
 import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<{ MissionDetail: { missionId: string } }, "MissionDetail">;
 
 const entryTimeFormatter = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-const validatedAtFormatter = new Intl.DateTimeFormat("fr-FR", {
+const validatedAtFormatter = frenchDateFormat({
   day: "numeric",
   month: "long",
   hour: "2-digit",
@@ -291,7 +292,7 @@ export function MissionDetailScreen() {
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>{mission.title}</Text>
-          <StatusBadge status={mission.status} />
+          <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} />
         </View>
 
         <Card style={{ marginTop: spacing.lg }}>

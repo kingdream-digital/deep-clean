@@ -141,8 +141,14 @@ export function MenuStack() {
         headerBackButtonDisplayMode: "minimal",
       }}
     >
-      <Stack.Screen name="MenuHome" component={MenuScreen} options={{ title: isDesktopWeb ? "" : "Menu" }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: isDesktopWeb ? "" : "Profil" }} />
+      {/* Menu, Profil et Commercial affichent déjà leur propre grand titre :
+          l'en-tête natif ne doit pas le répéter (il apparaissait deux fois sur
+          téléphone, « Menu » au-dessus de « Menu »). Menu, racine de l'onglet,
+          n'a pas d'en-tête du tout (comme la Messagerie) ; Profil et Commercial
+          gardent l'en-tête pour la flèche retour, sans texte. `title` reste
+          renseigné : c'est lui qui nomme l'onglet du navigateur sur web. */}
+      <Stack.Screen name="MenuHome" component={MenuScreen} options={{ title: "Menu", headerShown: false }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profil", headerTitle: "" }} />
 
       <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: isDesktopWeb ? "" : "Comptes" }} />
       <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: "Compte" }} />
@@ -247,7 +253,7 @@ export function MenuStack() {
       />
       <Stack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
 
-      <Stack.Screen name="CommercialHome" component={CommercialHomeScreen} options={{ title: isDesktopWeb ? "" : "Commercial" }} />
+      <Stack.Screen name="CommercialHome" component={CommercialHomeScreen} options={{ title: "Commercial", headerTitle: "" }} />
       <Stack.Screen name="ProspectsList" component={ProspectsListScreen} options={{ title: "Prospects" }} />
       <Stack.Screen name="ProspectDetail" component={ProspectDetailScreen} options={{ title: "Prospect" }} />
       <Stack.Screen

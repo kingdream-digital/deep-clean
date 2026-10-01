@@ -173,7 +173,7 @@ export function MenuScreen() {
   }
 
   return (
-    <ScreenContainer>
+    <ScreenContainer noHeader>
       <ScrollView
         {...onboardingScrollProps}
         showsVerticalScrollIndicator={false}

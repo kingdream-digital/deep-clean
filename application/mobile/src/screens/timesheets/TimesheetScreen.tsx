@@ -23,8 +23,9 @@ import { useWeeklyTimesheetSummary } from "../../hooks/useWeeklyTimesheetSummary
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { useClockStatus, elapsedLabel, REFERENCE_WORKDAY_MINUTES } from "../../hooks/useClockStatus";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const dayFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 // Écran "Pointage" dédié — reprend l'anneau/bouton du widget d'accueil (même

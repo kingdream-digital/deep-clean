@@ -14,6 +14,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { listInvoices } from "../../api/invoices.api";
 import type { Invoice, InvoiceStatus } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Tab = "toPrepare" | "sent" | "paid";
 
@@ -23,7 +24,7 @@ const TAB_STATUSES: Record<Tab, InvoiceStatus[]> = {
   paid: ["PAID"],
 };
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "short" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 export function InvoicesListScreen() {

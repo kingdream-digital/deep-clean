@@ -13,7 +13,7 @@ import type { AppNotification } from "../../api/notifications.api";
 import { listAnnouncements } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import type { AuthUser } from "../../api/auth.api";
-import { addDays, mondayOf, toLocalDateKey } from "../../utils/missionFormat";
+import { addDays, isMissionOverdue, mondayOf, toLocalDateKey } from "../../utils/missionFormat";
 
 export interface KpiTile {
   key: string;
@@ -71,8 +71,8 @@ function findCurrentAndNextMission(missions: Mission[]): {
   // qui est réellement encore à venir.
   return {
     currentMission: sorted.find((m) => m.status === "IN_PROGRESS") ?? null,
-    nextMission: scheduled.find((m) => new Date(m.endTime).getTime() > now) ?? null,
-    overdueMission: scheduled.find((m) => new Date(m.endTime).getTime() <= now) ?? null,
+    nextMission: scheduled.find((m) => !isMissionOverdue(m, now)) ?? null,
+    overdueMission: scheduled.find((m) => isMissionOverdue(m, now)) ?? null,
   };
 }
 

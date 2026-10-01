@@ -16,6 +16,7 @@ import type { Announcement } from "../../api/announcements.api";
 import type { Role } from "../../api/auth.api";
 import { Alert } from "../../utils/alert";
 import { extractErrorMessage } from "../../api/client";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<{ AnnouncementDetail: { announcementId: string } }, "AnnouncementDetail">;
 type Nav = NativeStackNavigationProp<Record<string, object | undefined>>;
@@ -35,7 +36,7 @@ const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administration",
 };
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+const dateFmt = frenchDateFormat({ weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
 export function AnnouncementDetailScreen() {
   const { colors, spacing, radius, type } = useTheme();

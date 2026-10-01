@@ -14,10 +14,10 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | | |
 |---|---|
 | **Branche de travail** | `feat/messagerie-groupe` (poussée sur GitHub) |
-| **Commit** | `a846301` — « Messagerie de groupe, appel et partage de documents » |
+| **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
 | **`master`** | **Pas touché.** Le site en ligne tourne toujours sur l'ancienne version. |
 | **Déployé en ligne ?** | **Non.** Rien n'a été redéployé. |
-| **Tests** | 237 backend + 25 mobile, **tous au vert** |
+| **Tests** | 238 backend + 36 mobile, **tous au vert** |
 | **En attente de** | La validation du client sur la démo (voir §2) |
 
 ### Journal de bord (mis à jour au fil du travail)
@@ -30,7 +30,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 |---|---|---|
 | 1 | Messagerie de groupe, appel, partage de documents | ✅ commit `a846301` |
 | 2 | Dossier de reprise + captures versionnées | ✅ commits `3f6f952`, `fdf0f82` |
-| 3 | Outils d'audit visuel versionnés (`tools/audit-visuel/`) | ✅ en cours de commit |
+| 3 | Outils d'audit visuel versionnés (`tools/audit-visuel/`) | ✅ commit `dba68b5` |
 | 4 | Revue complète de l'application, écran par écran | 🔄 en cours |
 
 **Déjà revu et corrigé :**
@@ -46,11 +46,34 @@ arrêté, sans rien redécouvrir et sans rien perdre.
   qu'elles ont déjà leur onglet. Nouveau filtre d'API `excludeMessages`.
 - *Comptes utilisateurs (RH)* — la liste n'affichait que des initiales alors
   que les photos de profil existaient déjà : composant `Avatar` partagé.
+- *Menu, Profil, Commercial* — titre affiché deux fois sur téléphone (« Menu »
+  dans l'en-tête puis « Menu » en grand juste dessous). Menu n'a plus d'en-tête
+  (comme la Messagerie) ; Profil et Commercial gardent la flèche retour sans
+  texte. `title` reste renseigné : il nomme l'onglet du navigateur sur web.
+- *Planning (semaine)* — la bande des jours était un dégradé qui partait de la
+  couleur du fond : coin gauche invisible, seul le coin droit apparaissait,
+  comme une carte mal coupée. Fond uni, raccord avec l'en-tête.
+- *Dates, partout* — « Jeudi 1 octobre » au lieu de « Jeudi 1er octobre ».
+  Toute date avec le jour du mois passe par `utils/frenchDate.ts`
+  (`frenchDateFormat()` au lieu de `new Intl.DateTimeFormat("fr-FR", …)`).
+- *Cartes de mission* — une mission jamais démarrée dont l'horaire est passé
+  restait « PLANIFIÉE » dans Planning et Missions alors que l'accueil la
+  signalait « non démarrée ». Règle unique `isMissionOverdue()`
+  (`utils/missionFormat.ts`) : badge « Non démarrée » et carte en orange,
+  partout. Affichage seulement, le statut en base ne change pas.
+- *Cartes de mission* — le badge de statut débordait de la carte quand il ne
+  tenait pas à côté de l'équipe (3 personnes + « TERMINÉE », ou « NON
+  DÉMARRÉE ») : il passe désormais à la ligne, calé à droite.
 
-**Reste à passer en revue :** menu employé, planning (vue semaine),
-accueil et écrans RH, superviseur, directeur, chef d'équipe, chantiers,
-pointage, congés, module commercial, profil, états d'erreur et de chargement,
-mode hors connexion.
+Captures avant/après de ce lot : `docs/captures-revue-ecrans/`.
+
+**Repéré, pas encore traité :** les grilles de planning sur ordinateur
+(`DesktopWeekGrid`, `TeamWeekGrid`) n'affichent pas encore « non démarrée »
+(couleur « planifiée ») — à faire pendant la revue superviseur/RH/direction.
+
+**Reste à passer en revue :** accueil et écrans RH, superviseur, directeur,
+chef d'équipe, chantiers, pointage, congés, module commercial, états d'erreur
+et de chargement, mode hors connexion.
 
 ### Ce qui bloque la mise en ligne
 
@@ -249,6 +272,11 @@ UPDATE users SET phone='+33 6 12 34 56 78' WHERE username='mdupont';
 - **La visite guidée (onboarding) bloque les captures** : elle se relance tant
   qu'elle n'est pas marquée vue **par utilisateur**. La neutraliser avant le
   premier rendu : `localStorage.setItem("deepclean.onboardingSeen." + userId, "1")`.
+- **`pkill -f "expo start"` dans la même commande que `npx expo start` tue
+  la commande elle-même** (le motif figure dans sa propre ligne de commande).
+  Arrêter Metro dans un appel séparé, avec le motif `"[e]xpo start"`.
+- **`page.mouse.wheel()` ne fait défiler que ce qui est sous la souris** :
+  `page.mouse.move(195, 600)` d'abord, sinon la capture reste en haut.
 - **Chromium pour Playwright est déjà installé** dans l'environnement :
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, à lancer avec
   `--no-sandbox`. Ne pas lancer `playwright install`.

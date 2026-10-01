@@ -15,8 +15,9 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { listProspects } from "../../api/prospects.api";
 import type { Prospect } from "../../api/prospects.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "short" });
 
 function contactName(p: Prospect): string | null {
   const name = [p.contactFirstName, p.contactLastName].filter(Boolean).join(" ");
