@@ -10,6 +10,7 @@ import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
+import { Avatar } from "../../components/Avatar";
 import { useAuth } from "../../auth/AuthContext";
 import { announcementCoverPhotoUrl, deleteAnnouncement, getAnnouncement } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
@@ -104,7 +105,6 @@ export function AnnouncementDetailScreen() {
   if (state === "loading") return <ScreenContainer><StateView kind="loading" /></ScreenContainer>;
   if (state === "error" || !announcement) return <ScreenContainer><StateView kind="error" onRetry={load} /></ScreenContainer>;
 
-  const initials = `${announcement.author.firstName[0] ?? ""}${announcement.author.lastName[0] ?? ""}`.toUpperCase();
 
   return (
     <ScreenContainer>
@@ -119,38 +119,17 @@ export function AnnouncementDetailScreen() {
             </PressableScale>
           )}
           <View style={{ padding: spacing.lg }}>
+          {/* L'auteur comme dans le reste de l'app : sa photo, son nom sur
+              toute la largeur, puis son rôle et la date — le badge de rôle
+              collé au nom le coupait en deux (« Marie / Dupont »). */}
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <View
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: radius.pill,
-                backgroundColor: colors.purpleSoft,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={[type.callout, { color: colors.purple, fontWeight: "700" }]}>{initials}</Text>
-            </View>
+            <Avatar user={announcement.author} size={42} />
             <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text style={[type.headline, { color: colors.ink }]}>
-                  {announcement.author.firstName} {announcement.author.lastName}
-                </Text>
-                <View
-                  style={{
-                    marginLeft: spacing.xs,
-                    backgroundColor: colors.purpleSoft,
-                    borderRadius: 999,
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                  }}
-                >
-                  <Text style={[type.caption, { color: colors.purple }]}>{ROLE_LABELS[announcement.author.role]}</Text>
-                </View>
-              </View>
+              <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                {announcement.author.firstName} {announcement.author.lastName}
+              </Text>
               <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 1 }]}>
-                {dateFmt.format(new Date(announcement.createdAt))} · toute l'entreprise
+                {ROLE_LABELS[announcement.author.role]} · {dateFmt.format(new Date(announcement.createdAt))}
               </Text>
             </View>
           </View>

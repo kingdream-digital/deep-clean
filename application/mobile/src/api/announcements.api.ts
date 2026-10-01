@@ -16,6 +16,7 @@ export interface Announcement {
     firstName: string;
     lastName: string;
     role: Role;
+    hasAvatar?: boolean;
   };
 }
 

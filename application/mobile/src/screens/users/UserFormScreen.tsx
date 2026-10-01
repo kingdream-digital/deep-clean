@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -153,7 +154,7 @@ export function UserFormScreen() {
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Rôle</Text>
           <Card padded={false}>
-            <Picker selectedValue={role} onValueChange={(v) => setRole(v as Role)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker selectedValue={role} onValueChange={(v) => setRole(v as Role)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               {assignableRoleOptionsFor(actor?.role).map((opt) => (
                 <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
               ))}

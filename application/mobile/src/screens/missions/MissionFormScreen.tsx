@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -337,7 +338,7 @@ export function MissionFormScreen() {
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Chantier</Text>
             <Card padded={false}>
-              <Picker selectedValue={siteId} onValueChange={setSiteId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={siteId} onValueChange={setSiteId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 {sites.map((site) => (
                   <Picker.Item key={site.id} label={site.name} value={site.id} />
                 ))}
@@ -352,7 +353,7 @@ export function MissionFormScreen() {
               Standard de nettoyage (optionnel)
             </Text>
             <Card padded={false}>
-              <Picker selectedValue={standardId} onValueChange={setStandardId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={standardId} onValueChange={setStandardId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 <Picker.Item label="Aucun — consignes libres" value="" />
                 {standards.map((standard) => (
                   <Picker.Item key={standard.id} label={standard.name} value={standard.id} />
@@ -457,7 +458,7 @@ export function MissionFormScreen() {
             Chef d'équipe (optionnel)
           </Text>
           <Card padded={false}>
-            <Picker selectedValue={leadId ?? NONE} onValueChange={(v) => setLeadId(v === NONE ? undefined : v)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker selectedValue={leadId ?? NONE} onValueChange={(v) => setLeadId(v === NONE ? undefined : v)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               <Picker.Item label="Aucun pour cette mission" value={NONE} />
               {teamLeads.map((t) => (
                 <Picker.Item key={t.id} label={`${t.firstName} ${t.lastName}`} value={t.id} />

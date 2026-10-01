@@ -150,3 +150,23 @@ describe("Actualités — suppression", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("Actualités — photo de l'auteur", () => {
+  it("expose `hasAvatar` pour l'auteur, jamais la clé de stockage", async () => {
+    const { user, accessToken } = await loginAs(Role.HR, "hr-annonce-photo@deepclean.test");
+    await prisma.user.update({ where: { id: user.id }, data: { avatarKey: "avatars/rh.webp" } });
+
+    const created = await request(app)
+      .post("/api/v1/announcements")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .field("title", "Info")
+      .field("body", "Une information pour toute l'équipe.");
+    expect(created.status).toBe(201);
+
+    const list = await request(app).get("/api/v1/announcements").set("Authorization", `Bearer ${accessToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body.items[0].author.hasAvatar).toBe(true);
+    expect(JSON.stringify(list.body)).not.toContain("avatarKey");
+    expect(JSON.stringify(list.body)).not.toContain("avatars/rh.webp");
+  });
+});

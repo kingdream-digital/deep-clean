@@ -17,7 +17,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
 | **`master`** | **À jour** : la branche y a été fusionnée le 1er octobre 2026, à la demande du client (« Pousse sur master pour déploiement, je vais tester de mon côté »). |
 | **Déployé en ligne ?** | **À faire par le client dans Coolify** (le redéploiement n'est pas automatique) — procédure exacte au §7. |
-| **Tests** | 241 backend + 46 mobile, **tous au vert** |
+| **Tests** | 242 backend + 46 mobile, **tous au vert** |
 | **En attente de** | Les retours du client après ses tests sur la version en ligne, puis la suite de la revue (liste au §1, « Reste à passer en revue »). |
 
 ### Journal de bord (mis à jour au fil du travail)
@@ -160,10 +160,21 @@ Réessayer, sans détail technique), Planning hors connexion (bandeau + cache).
 au format américain (10/01/2026) ; c'est la langue du navigateur de test, pas
 l'application — un navigateur en français affiche 01/10/2026.
 
-**Reste à passer en revue :** statistiques (détail), formulaires de création
-(mission, chantier, compte, devis, facture), fiche de poste, signalement d'un
-problème avec photos, annonces, profil (photo, mot de passe), version
-ordinateur écran par écran.
+**Après la mise sur `master` (sur la branche, pas encore en ligne) :**
+
+- *Listes déroulantes (17, tous les formulaires)* — sur le web, des `<select>`
+  bruts du navigateur, minuscules et en police système. Style commun
+  `components/pickerStyle.ts` : hauteur, police et marge des autres champs.
+- *Actualités* — photo de l'auteur (initiales avant ; l'API renvoie
+  `hasAvatar`, jamais la clé) ; nom sur une ligne, rôle et date dessous (le
+  badge de rôle coupait le nom en deux).
+
+Revus sans défaut : formulaires de création de mission, compte et chantier,
+signalement d'un problème.
+
+**Reste à passer en revue :** profil (photo, mot de passe), statistiques en
+détail, fiche de poste, formulaires devis et facture, version ordinateur
+écran par écran.
 
 ### Mise en ligne
 
