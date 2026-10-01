@@ -6,6 +6,7 @@ import { useNavigation, NavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
+import { OfflineBanner } from "../../components/OfflineBanner";
 import { Card } from "../../components/Card";
 import { MissionCard } from "../../components/MissionCard";
 import { WeekMiniGrid } from "../../components/WeekMiniGrid";
@@ -18,6 +19,7 @@ import { LogoMark } from "../../components/LogoMark";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
+import { useResponsive } from "../../hooks/useResponsive";
 import { avatarUrl } from "../../api/users.api";
 import { announcementCoverPhotoUrl } from "../../api/announcements.api";
 import { useUnreadInboxCount } from "../../hooks/useUnreadInboxCount";
@@ -61,44 +63,68 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 // partagée dans une carte unique.
 function HeroKpiRow({ tiles, tones }: { tiles: KpiTile[]; tones: Record<DashboardSectionTone, { fg: string; bg: string }> }) {
   const { colors, spacing, radius, type } = useTheme();
+  const { width } = useResponsive();
+  // Sur téléphone, deux cartes par ligne au plus : à trois ou quatre de front,
+  // chaque carte faisait 75 px de large et les libellés se coupaient en plein
+  // mot (« Chantie / rs », « Employ / és »). Une carte seule en fin de grille
+  // prend toute la largeur, en ligne, plutôt que de laisser une demi-ligne vide.
+  const perRow = tiles.length <= 2 || width >= 600 ? tiles.length : 2;
+  const rows: KpiTile[][] = [];
+  for (let i = 0; i < tiles.length; i += perRow) rows.push(tiles.slice(i, i + perRow));
+
   return (
-    <View style={{ flexDirection: "row", gap: spacing.sm }}>
-      {tiles.map((tile) => {
-        const tone = tones[tile.tone];
-        return (
-          <View
-            key={tile.key}
-            style={{
-              flex: 1,
-              backgroundColor: tone.bg,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-            }}
-          >
-            {tile.icon && (
+    <View style={{ gap: spacing.sm }}>
+      {rows.map((row) => (
+        <View key={row.map((t) => t.key).join("-")} style={{ flexDirection: "row", gap: spacing.sm }}>
+          {row.map((tile) => {
+            const tone = tones[tile.tone];
+            const wide = row.length === 1 && tiles.length > 1;
+            return (
               <View
+                key={tile.key}
                 style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: radius.sm,
-                  backgroundColor: tone.fg + "26",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: spacing.sm,
+                  flex: 1,
+                  backgroundColor: tone.bg,
+                  borderRadius: radius.lg,
+                  padding: spacing.md,
+                  flexDirection: wide ? "row" : "column",
+                  alignItems: wide ? "center" : "stretch",
                 }}
               >
-                <Ionicons name={tile.icon} size={15} color={tone.fg} />
+                {tile.icon && (
+                  <View
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: radius.sm,
+                      backgroundColor: tone.fg + "26",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: wide ? 0 : spacing.sm,
+                      marginRight: wide ? spacing.sm : 0,
+                    }}
+                  >
+                    <Ionicons name={tile.icon} size={15} color={tone.fg} />
+                  </View>
+                )}
+                <Text style={[type.title2, { color: tone.fg }]} numberOfLines={1}>
+                  {tile.value}
+                </Text>
+                <Text
+                  style={[
+                    type.caption,
+                    { color: colors.inkSecondary },
+                    wide ? { marginLeft: spacing.sm, flex: 1 } : { marginTop: 2 },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {tile.label}
+                </Text>
               </View>
-            )}
-            <Text style={[type.title2, { color: tone.fg }]} numberOfLines={1}>
-              {tile.value}
-            </Text>
-            <Text style={[type.caption, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={2}>
-              {tile.label}
-            </Text>
-          </View>
-        );
-      })}
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -107,7 +133,7 @@ export function HomeScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
-  const { data, state, reload } = useDashboardData(user);
+  const { data, state, offlineCachedAt, reload } = useDashboardData(user);
   const onboardingScrollProps = useOnboardingScrollProps("Home");
 
   const tones: Record<DashboardSectionTone, { fg: string; bg: string }> = {
@@ -152,7 +178,7 @@ export function HomeScreen() {
       navigation.navigate("MyAbsences");
     } else if (notif.relatedEntityType === "Conversation" && notif.relatedEntityId) {
       // relatedEntityId porte l'identifiant de l'expéditeur (pas du message).
-      tabNavigation?.navigate("Messagerie", { screen: "ConversationThread", params: { userId: notif.relatedEntityId } });
+      tabNavigation?.navigate("Messagerie", { screen: "ConversationThread", params: { conversationId: notif.relatedEntityId } });
     } else {
       tabNavigation?.navigate("Messagerie");
     }
@@ -234,6 +260,7 @@ export function HomeScreen() {
         </ImageBackground>
 
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
         {state === "error" && (
           <View style={{ marginTop: spacing.lg }}>
             <StateView kind="error" onRetry={reload} />
@@ -254,20 +281,44 @@ export function HomeScreen() {
             (cahier des charges §13/§16) — mission en cours en priorité, sinon
             la prochaine à venir. Seul l'employé reçoit ces champs (voir
             useDashboardData.ts), donc ce bloc ne s'affiche que pour lui. */}
-        {(data.currentMission || data.nextMission) && (
+        {(data.currentMission || data.overdueMission || data.nextMission) && (
           <View style={{ marginTop: spacing.lg }}>
-            <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-              {data.currentMission ? "MISSION EN COURS" : "PROCHAINE MISSION"}
-            </Text>
-            <MissionCard
-              mission={(data.currentMission ?? data.nextMission)!}
-              onPress={() =>
-                tabNavigation?.navigate("Missions", {
-                  screen: "MissionDetail",
-                  params: { missionId: (data.currentMission ?? data.nextMission)!.id },
-                })
-              }
-            />
+            {(() => {
+              // Priorité d'affichage : ce qui se passe maintenant, puis ce qui
+              // aurait dû être fait, puis ce qui vient. Une mission non
+              // démarrée dont l'horaire est passé mérite d'être signalée comme
+              // telle — annoncée comme "prochaine", elle envoyait l'employé sur
+              // un chantier dont l'intervention était terminée depuis des heures.
+              const highlighted = data.currentMission ?? data.overdueMission ?? data.nextMission!;
+              const isOverdue = !data.currentMission && !!data.overdueMission;
+              return (
+                <>
+                  <Text
+                    style={[
+                      type.overline,
+                      { color: isOverdue ? colors.warning : colors.inkTertiary, marginBottom: spacing.sm },
+                    ]}
+                  >
+                    {data.currentMission ? "MISSION EN COURS" : isOverdue ? "MISSION NON DÉMARRÉE" : "PROCHAINE MISSION"}
+                  </Text>
+                  <MissionCard
+                    mission={highlighted}
+                    onPress={() =>
+                      tabNavigation?.navigate("Missions", {
+                        screen: "MissionDetail",
+                        params: { missionId: highlighted.id },
+                      })
+                    }
+                  />
+                  {isOverdue && (
+                    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xs }]}>
+                      L'horaire est passé et la mission n'a pas été démarrée. Prévenez votre chef d'équipe si
+                      elle n'a pas eu lieu.
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
           </View>
         )}
 

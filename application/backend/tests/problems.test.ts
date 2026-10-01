@@ -35,13 +35,16 @@ function tomorrowDateString(): string {
 
 async function createMissionWithEmployee() {
   const { user: manager, accessToken: managerToken } = await loginAs(Role.SITE_MANAGER, "problems-manager@deepclean.test");
+  // Depuis le retour explicite du client, le chef d'équipe ne crée plus le
+  // planning : c'est le superviseur qui crée la mission sur son chantier.
+  const { accessToken: supervisorToken } = await loginAs(Role.SUPERVISOR, "problems-supervisor@deepclean.test");
   const employee = await createTestUser({ role: Role.EMPLOYEE, email: "problems-emp@deepclean.test" });
   const outsider = await createTestUser({ role: Role.EMPLOYEE, email: "problems-outsider@deepclean.test" });
   const site = await createTestSite({ managerId: manager.id });
 
   const mission = await request(app)
     .post("/api/v1/missions")
-    .set("Authorization", `Bearer ${managerToken}`)
+    .set("Authorization", `Bearer ${supervisorToken}`)
     .send({
       siteId: site.id,
       title: "Nettoyage",
@@ -85,15 +88,18 @@ describe("Signalement de problème depuis une mission", () => {
     expect(res.status).toBe(403);
   });
 
-  it("refuse à la RH de signaler un problème, mais lui laisse une visibilité globale en lecture", async () => {
+  it("laisse la RH signaler un problème (retour explicite du client) et garder une visibilité globale", async () => {
     const { employee, missionId } = await createMissionWithEmployee();
     const { accessToken } = await loginAs(Role.HR, "problems-hr@deepclean.test");
 
+    // Signaler un problème est ouvert à tous les rôles depuis le retour
+    // explicite du client (voir CLAUDE.md, section CHEF D'ÉQUIPE) : la RH en
+    // était exclue à l'origine, elle ne l'est plus.
     const create = await request(app)
       .post("/api/v1/problems")
       .set("Authorization", `Bearer ${accessToken}`)
       .send({ missionId, description: "Problème quelconque." });
-    expect(create.status).toBe(403);
+    expect(create.status).toBe(201);
 
     const employeeLogin = await request(app).post("/api/v1/auth/login").send({ username: employee.username, password: TEST_PASSWORD });
     const reported = await request(app)

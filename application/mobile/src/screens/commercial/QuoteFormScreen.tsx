@@ -30,10 +30,11 @@ import {
 } from "../../api/quotes.api";
 import type { QuoteItemFrequency, QuoteItemInput, QuoteItemUnit } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "QuoteForm">;
 const NONE = "__none__";
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const CAN_REASSIGN_ROLES = ["HR", "DIRECTOR", "ADMIN"];
 

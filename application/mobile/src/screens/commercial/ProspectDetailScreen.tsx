@@ -15,9 +15,10 @@ import { extractErrorMessage } from "../../api/client";
 import { convertProspectToClient, getProspect } from "../../api/prospects.api";
 import type { Prospect } from "../../api/prospects.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "ProspectDetail">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
   const { colors, spacing, type } = useTheme();
@@ -107,18 +108,15 @@ export function ProspectDetailScreen() {
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={[type.title2, { color: colors.ink }]}>{prospect.companyName}</Text>
-              {contactName && (
-                <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
-                  {contactName}
-                  {prospect.jobTitle ? ` · ${prospect.jobTitle}` : ""}
-                </Text>
-              )}
-            </View>
-            <ProspectStatusBadge status={prospect.status} />
-          </View>
+          {/* Statut au-dessus du nom, qui garde toute la largeur. */}
+          <ProspectStatusBadge status={prospect.status} />
+          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{prospect.companyName}</Text>
+          {contactName && (
+            <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
+              {contactName}
+              {prospect.jobTitle ? ` · ${prospect.jobTitle}` : ""}
+            </Text>
+          )}
 
           {prospect.phone && (
             <PressableScale onPress={() => Linking.openURL(`tel:${prospect.phone}`)}>

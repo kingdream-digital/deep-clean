@@ -19,9 +19,9 @@ const siteSelect = {
   description: true,
   isActive: true,
   managerId: true,
-  manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+  manager: { select: { id: true, firstName: true, lastName: true, email: true, avatarKey: true } },
   supervisorId: true,
-  supervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
+  supervisor: { select: { id: true, firstName: true, lastName: true, email: true, avatarKey: true } },
   photoKey: true,
   latitude: true,
   longitude: true,
@@ -34,12 +34,25 @@ const siteSelect = {
   updatedAt: true,
 } as const;
 
+type PersonWithAvatarKey = { id: string; firstName: string; lastName: string; email: string | null; avatarKey: string | null };
+
+// Même principe pour la photo de profil du chef d'équipe et du superviseur
+// (voir users.service.ts::presentUser) : un booléen `hasAvatar`, jamais la
+// clé de stockage — la fiche chantier peut ainsi afficher leur photo.
+function presentPerson(person: PersonWithAvatarKey | null) {
+  if (!person) return null;
+  const { avatarKey, ...rest } = person;
+  return { ...rest, hasAvatar: Boolean(avatarKey) };
+}
+
 // Retire `photoKey` (jamais exposé tel quel, même principe que
 // `Announcement.coverPhotoKey`) au profit d'un simple booléen — le client
 // récupère la photo via la route authentifiée dédiée (GET /:id/photo/file).
-function presentSite<T extends { photoKey: string | null }>(site: T): Omit<T, "photoKey"> & { hasPhoto: boolean } {
-  const { photoKey, ...rest } = site;
-  return { ...rest, hasPhoto: Boolean(photoKey) };
+function presentSite<T extends { photoKey: string | null; manager: PersonWithAvatarKey | null; supervisor: PersonWithAvatarKey | null }>(
+  site: T
+) {
+  const { photoKey, manager, supervisor, ...rest } = site;
+  return { ...rest, manager: presentPerson(manager), supervisor: presentPerson(supervisor), hasPhoto: Boolean(photoKey) };
 }
 
 async function findSiteOrThrow(id: string) {

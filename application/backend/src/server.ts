@@ -4,6 +4,7 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { prisma } from "./db/prisma";
 import { runPhotoRetentionJob } from "./jobs/photoRetention";
+import { runMessagesMigration } from "./db/migrateMessagesToConversations";
 
 const app = createApp();
 
@@ -17,6 +18,12 @@ const server = app.listen(env.PORT, () => {
 // serveur était endormi (hébergement gratuit qui se met en veille en cas
 // d'inactivité — sans effet sur un serveur qui tourne en continu).
 if (!env.isTest) {
+  // Reprise des fils de messagerie d'avant les groupes : idempotente, sous
+  // verrou PostgreSQL, et sans effet une fois faite — elle peut donc rester
+  // au démarrage sans coût. Volontairement automatique plutôt que manuelle :
+  // oubliée après un redéploiement, les conversations existantes
+  // disparaîtraient de l'écran de leurs utilisateurs.
+  void runMessagesMigration(prisma);
   void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (démarrage)"));
   cron.schedule("0 3 * * *", () => {
     void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (planifiée)"));

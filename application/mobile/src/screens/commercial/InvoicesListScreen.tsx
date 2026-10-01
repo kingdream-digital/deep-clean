@@ -14,6 +14,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { listInvoices } from "../../api/invoices.api";
 import type { Invoice, InvoiceStatus } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Tab = "toPrepare" | "sent" | "paid";
 
@@ -23,7 +24,7 @@ const TAB_STATUSES: Record<Tab, InvoiceStatus[]> = {
   paid: ["PAID"],
 };
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "short" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 export function InvoicesListScreen() {
@@ -81,15 +82,16 @@ export function InvoicesListScreen() {
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: item.id })}>
                 <Card>
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <Text style={[type.footnote, { color: colors.inkTertiary }]}>{item.invoiceNumber}</Text>
-                      <Text style={[type.headline, { color: colors.ink, marginTop: 1 }]} numberOfLines={1}>
-                        {item.client.companyName}
-                      </Text>
-                    </View>
+                  {/* Le statut sur la ligne du numéro (court), le nom du client
+                      sur toute la largeur : à côté du nom, le badge le coupait
+                      (« Syndic Résid… »). */}
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={[type.footnote, { color: colors.inkTertiary }]}>{item.invoiceNumber}</Text>
                     <InvoiceStatusBadge status={item.status} />
                   </View>
+                  <Text style={[type.headline, { color: colors.ink, marginTop: spacing.xxs }]} numberOfLines={2}>
+                    {item.client.companyName}
+                  </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm }}>
                     <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalTtc)}</Text>
                     {item.dueDate && (
@@ -114,7 +116,7 @@ export function InvoicesListScreen() {
           onPress={() => navigation.navigate("InvoiceForm", undefined)}
           accessibilityRole="button"
           accessibilityLabel="Nouvelle facture"
-          style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+          style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
         >
           <Ionicons name="add" size={26} color={colors.onAccent} />
         </PressableScale>

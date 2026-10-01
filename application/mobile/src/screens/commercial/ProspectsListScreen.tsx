@@ -15,8 +15,9 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { listProspects } from "../../api/prospects.api";
 import type { Prospect } from "../../api/prospects.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "short" });
 
 function contactName(p: Prospect): string | null {
   const name = [p.contactFirstName, p.contactLastName].filter(Boolean).join(" ");
@@ -81,20 +82,19 @@ export function ProspectsListScreen() {
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale onPress={() => navigation.navigate("ProspectDetail", { prospectId: item.id })}>
                 <Card>
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
-                        {item.companyName}
-                      </Text>
-                      {contactName(item) && (
-                        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
-                          {contactName(item)}
-                          {item.jobTitle ? ` · ${item.jobTitle}` : ""}
-                        </Text>
-                      )}
-                    </View>
-                    <ProspectStatusBadge status={item.status} />
-                  </View>
+                  {/* Le statut en tête de carte, le nom de l'entreprise sur toute
+                      la largeur dessous : à côté du nom, le badge le coupait
+                      (« Studio Yoga An… »). */}
+                  <ProspectStatusBadge status={item.status} />
+                  <Text style={[type.headline, { color: colors.ink, marginTop: spacing.xs }]} numberOfLines={2}>
+                    {item.companyName}
+                  </Text>
+                  {contactName(item) && (
+                    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
+                      {contactName(item)}
+                      {item.jobTitle ? ` · ${item.jobTitle}` : ""}
+                    </Text>
+                  )}
 
                   {item.nextFollowUpAt && (
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}>
@@ -125,7 +125,7 @@ export function ProspectsListScreen() {
           onPress={() => navigation.navigate("ProspectForm", undefined)}
           accessibilityRole="button"
           accessibilityLabel="Nouveau prospect"
-          style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+          style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
         >
           <Ionicons name="add" size={26} color={colors.onAccent} />
         </PressableScale>

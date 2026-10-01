@@ -3,8 +3,12 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import * as notificationsService from "./notifications.service";
 
 export const listNotificationsHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { page, pageSize } = req.query as unknown as { page: number; pageSize: number };
-  const result = await notificationsService.listNotifications(req.auth!.userId, page, pageSize);
+  const { page, pageSize, excludeMessages } = req.query as unknown as {
+    page: number;
+    pageSize: number;
+    excludeMessages?: boolean;
+  };
+  const result = await notificationsService.listNotifications(req.auth!.userId, page, pageSize, { excludeMessages });
   res.status(200).json(result);
 });
 

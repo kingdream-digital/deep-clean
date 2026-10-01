@@ -1,7 +1,9 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { useTheme } from "../theme/ThemeProvider";
+import { useStackScreenOptions } from "./stackScreenOptions";
 import { useResponsive } from "../hooks/useResponsive";
+import { useAuth } from "../auth/AuthContext";
+import { ABSENCES_MANAGEMENT_TITLE, MY_ABSENCES_TITLE, sitesListTitle, usersListTitle } from "./screenTitles";
 import { MenuScreen } from "../screens/dashboard/MenuScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
 import { LegalScreen } from "../screens/profile/LegalScreen";
@@ -128,23 +130,24 @@ export type MenuStackParamList = {
 const Stack = createNativeStackNavigator<MenuStackParamList>();
 
 export function MenuStack() {
-  const { colors } = useTheme();
+  const screenOptions = useStackScreenOptions();
   const { isDesktopWeb } = useResponsive();
+  const { user } = useAuth();
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundElevated },
-        headerTintColor: colors.ink,
-        headerShadowVisible: false,
-        headerTitleStyle: { color: colors.ink },
-        headerBackButtonDisplayMode: "minimal",
-      }}
+      screenOptions={screenOptions}
     >
-      <Stack.Screen name="MenuHome" component={MenuScreen} options={{ title: isDesktopWeb ? "" : "Menu" }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: isDesktopWeb ? "" : "Profil" }} />
+      {/* Menu, Profil et Commercial affichent déjà leur propre grand titre :
+          l'en-tête natif ne doit pas le répéter (il apparaissait deux fois sur
+          téléphone, « Menu » au-dessus de « Menu »). Menu, racine de l'onglet,
+          n'a pas d'en-tête du tout (comme la Messagerie) ; Profil et Commercial
+          gardent l'en-tête pour la flèche retour, sans texte. `title` reste
+          renseigné : c'est lui qui nomme l'onglet du navigateur sur web. */}
+      <Stack.Screen name="MenuHome" component={MenuScreen} options={{ title: "Menu", headerShown: false }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profil", headerTitle: "" }} />
 
-      <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: isDesktopWeb ? "" : "Comptes" }} />
+      <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: usersListTitle(user?.role), headerTitle: isDesktopWeb ? "" : undefined }} />
       <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: "Compte" }} />
       <Stack.Screen
         name="UserForm"
@@ -155,7 +158,7 @@ export function MenuStack() {
         })}
       />
 
-      <Stack.Screen name="SitesList" component={SitesListScreen} options={{ title: isDesktopWeb ? "" : "Chantiers" }} />
+      <Stack.Screen name="SitesList" component={SitesListScreen} options={{ title: sitesListTitle(user?.role), headerTitle: isDesktopWeb ? "" : undefined }} />
       <Stack.Screen name="SiteDetail" component={SiteDetailScreen} options={{ title: "Chantier" }} />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />
       <Stack.Screen
@@ -200,7 +203,7 @@ export function MenuStack() {
       />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
 
-      <Stack.Screen name="Timesheet" component={TimesheetScreen} options={{ title: "Pointage" }} />
+      <Stack.Screen name="Timesheet" component={TimesheetScreen} options={{ title: "Mes heures" }} />
       <Stack.Screen name="TimesheetValidation" component={TimesheetValidationScreen} options={{ title: "Validation des heures" }} />
       <Stack.Screen
         name="TimesheetReject"
@@ -226,13 +229,13 @@ export function MenuStack() {
         options={({ route }) => ({ title: route.params.fullName })}
       />
 
-      <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: "Mes absences" }} />
+      <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: MY_ABSENCES_TITLE }} />
       <Stack.Screen
         name="AbsenceForm"
         component={AbsenceFormScreen}
         options={{ title: "Demander une absence", presentation: "modal" }}
       />
-      <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: "Absences" }} />
+      <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: ABSENCES_MANAGEMENT_TITLE }} />
       <Stack.Screen name="ActivityLog" component={ActivityLogScreen} options={{ title: "Journal d'activité" }} />
 
       <Stack.Screen name="ProblemsList" component={ProblemsListScreen} options={{ title: "Problèmes" }} />
@@ -247,7 +250,7 @@ export function MenuStack() {
       />
       <Stack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
 
-      <Stack.Screen name="CommercialHome" component={CommercialHomeScreen} options={{ title: isDesktopWeb ? "" : "Commercial" }} />
+      <Stack.Screen name="CommercialHome" component={CommercialHomeScreen} options={{ title: "Commercial", headerTitle: "" }} />
       <Stack.Screen name="ProspectsList" component={ProspectsListScreen} options={{ title: "Prospects" }} />
       <Stack.Screen name="ProspectDetail" component={ProspectDetailScreen} options={{ title: "Prospect" }} />
       <Stack.Screen

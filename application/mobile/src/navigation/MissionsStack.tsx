@@ -1,6 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { useTheme } from "../theme/ThemeProvider";
+import { useStackScreenOptions } from "./stackScreenOptions";
 import { useResponsive } from "../hooks/useResponsive";
 import { MissionsListScreen } from "../screens/missions/MissionsListScreen";
 import { MissionDetailScreen } from "../screens/missions/MissionDetailScreen";
@@ -27,18 +27,12 @@ export type MissionsStackParamList = {
 const Stack = createNativeStackNavigator<MissionsStackParamList>();
 
 export function MissionsStack() {
-  const { colors } = useTheme();
+  const screenOptions = useStackScreenOptions();
   const { isDesktopWeb } = useResponsive();
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundElevated },
-        headerTintColor: colors.ink,
-        headerShadowVisible: false,
-        headerTitleStyle: { color: colors.ink },
-        headerBackButtonDisplayMode: "minimal",
-      }}
+      screenOptions={screenOptions}
     >
       <Stack.Screen name="MissionsList" component={MissionsListScreen} options={{ title: isDesktopWeb ? "" : "Missions" }} />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />

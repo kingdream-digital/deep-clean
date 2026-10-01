@@ -21,8 +21,9 @@ import { toLocalDateKey } from "../../utils/missionFormat";
 import { shareCsv } from "../../utils/exportCsv";
 import { shareFile } from "../../utils/shareFile";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const dayFmt = frenchDateFormat({ day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 

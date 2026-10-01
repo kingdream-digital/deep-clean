@@ -85,17 +85,21 @@ export function DateTimeField({ label, value, mode, onChange, minimumDate, maxim
               }
               onChange(next);
             },
+            // Police de l'application, explicitement : « inherit » remontait
+            // jusqu'à la police par défaut du navigateur (Times), seul texte
+            // de l'app à s'afficher ainsi. Pas d'icône ajoutée à côté : le
+            // navigateur affiche déjà la sienne, cliquable — on en voyait deux.
             style: {
               border: "none",
               background: "transparent",
-              font: "inherit",
+              fontFamily: fontFamily.regular,
+              fontSize: type.body.fontSize,
               color: colors.ink,
               outline: "none",
               width: "100%",
               cursor: "pointer",
             },
           })}
-          <Ionicons name={mode === "date" ? "calendar-outline" : "time-outline"} size={18} color={colors.inkTertiary} />
         </View>
       </View>
     );

@@ -24,6 +24,7 @@ import {
   formatMissionDay,
   formatMissionTimeRange,
   groupMissionsByDate,
+  isMissionOverdue,
   relativeDayLabel,
 } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
@@ -60,7 +61,7 @@ const TABLE_COLUMNS: DataTableColumn<Mission>[] = [
   {
     key: "status",
     label: "Statut",
-    render: (item) => <StatusBadge status={item.status} />,
+    render: (item) => <StatusBadge status={item.status} overdue={isMissionOverdue(item)} />,
   },
 ];
 
@@ -146,7 +147,7 @@ export function MissionsListScreen() {
           {canManage && (
             <View style={{ width: 200 }}>
               <PressableScale onPress={() => navigation.navigate("MissionForm", undefined)}>
-                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accent, borderRadius: 12 }]}>
+                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: 12 }]}>
                   <Ionicons name="add" size={18} color={colors.onAccent} />
                   <Text style={{ color: colors.onAccent, fontWeight: "600", marginLeft: 6, fontSize: 15 }}>
                     Nouvelle mission
@@ -222,7 +223,7 @@ export function MissionsListScreen() {
             onPress={() => navigation.navigate("MissionForm", undefined)}
             accessibilityRole="button"
             accessibilityLabel="Nouvelle mission"
-            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+            style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>

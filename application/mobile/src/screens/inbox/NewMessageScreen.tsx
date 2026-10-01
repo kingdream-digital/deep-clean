@@ -1,20 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
-import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
+import { Avatar } from "../../components/Avatar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { listContacts } from "../../api/messages.api";
 import type { Contact } from "../../api/messages.api";
+import { ROLE_LABELS } from "../../utils/roleLabels";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
 
 // Annuaire complet de l'entreprise (tout compte actif) pour démarrer une
-// nouvelle conversation — on ouvre d'abord la fiche contact (nom, téléphone),
-// conformément à la demande : "cliquer sur les profils de tout le monde".
+// conversation — à deux en touchant un nom, ou à plusieurs via « Nouveau
+// groupe » (retour explicite du client : "parler à plusieurs personnes").
 export function NewMessageScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<InboxStackParamList>>();
@@ -45,6 +47,35 @@ export function NewMessageScreen() {
 
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: 12 }}>
+      <PressableScale onPress={() => navigation.navigate("NewGroup")} pressedScale={0.98}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingVertical: spacing.sm,
+            marginBottom: spacing.xs,
+          }}
+        >
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: radius.pill,
+              backgroundColor: colors.accentSoft,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="people" size={21} color={colors.accent} />
+          </View>
+          <Text style={[type.body, { color: colors.accent, marginLeft: spacing.sm, fontWeight: "600" }]}>
+            Nouveau groupe
+          </Text>
+        </View>
+      </PressableScale>
+
+      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginBottom: spacing.sm }} />
+
       <TextField
         label="Rechercher"
         placeholder="Nom d'un collègue"
@@ -64,30 +95,37 @@ export function NewMessageScreen() {
           data={filtered}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: spacing.xxl }}
-          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-          renderItem={({ item }) => (
-            <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: item.id })}>
-              <Card style={{ flexDirection: "row", alignItems: "center" }}>
+          renderItem={({ item, index }) => (
+            <>
+              <PressableScale
+                // Ouvre directement la conversation plutôt que la fiche
+                // contact : écrire est l'action attendue depuis cet écran.
+                onPress={() => navigation.replace("ConversationThread", { userId: item.id })}
+                pressedScale={0.985}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm }}>
+                  <Avatar user={item} size={40} />
+                  <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                    <Text style={[type.body, { color: colors.ink }]} numberOfLines={1}>
+                      {item.firstName} {item.lastName}
+                    </Text>
+                    <Text style={[type.footnote, { color: colors.inkTertiary }]} numberOfLines={1}>
+                      {ROLE_LABELS[item.role]}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={17} color={colors.inkTertiary} />
+                </View>
+              </PressableScale>
+              {index < filtered.length - 1 && (
                 <View
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: radius.pill,
-                    backgroundColor: colors.purpleSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
+                    height: StyleSheet.hairlineWidth,
+                    backgroundColor: colors.border,
+                    marginLeft: 40 + spacing.sm,
                   }}
-                >
-                  <Text style={[type.caption, { color: colors.purple, fontWeight: "700" }]}>
-                    {item.firstName[0]}
-                    {item.lastName[0]}
-                  </Text>
-                </View>
-                <Text style={[type.body, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>
-                  {item.firstName} {item.lastName}
-                </Text>
-              </Card>
-            </PressableScale>
+                />
+              )}
+            </>
           )}
         />
       )}

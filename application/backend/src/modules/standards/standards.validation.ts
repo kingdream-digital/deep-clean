@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stringList } from "../../utils/validation";
 
 export const listStandardsQuerySchema = {
   // BUG CORRIGE (audit standards) : cette route n'avait aucune pagination,
@@ -24,8 +25,8 @@ export const createStandardSchema = {
   body: z.object({
     siteId: z.string().uuid(),
     name: z.string().trim().min(1).max(150),
-    tasks: z.array(z.string().trim().min(1).max(300)).max(50).default([]),
-    equipment: z.array(z.string().trim().min(1).max(150)).max(50).default([]),
+    tasks: stringList(300).default([]),
+    equipment: stringList(150).default([]),
     safetyInstructions: z.string().trim().max(2000).optional(),
     notes: z.string().trim().max(2000).optional(),
   }),
@@ -36,8 +37,8 @@ export const updateStandardSchema = {
   body: z
     .object({
       name: z.string().trim().min(1).max(150).optional(),
-      tasks: z.array(z.string().trim().min(1).max(300)).max(50).optional(),
-      equipment: z.array(z.string().trim().min(1).max(150)).max(50).optional(),
+      tasks: stringList(300).optional(),
+      equipment: stringList(150).optional(),
       safetyInstructions: z.string().trim().max(2000).nullable().optional(),
       notes: z.string().trim().max(2000).nullable().optional(),
     })

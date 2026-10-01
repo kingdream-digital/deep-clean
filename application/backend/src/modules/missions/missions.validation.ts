@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stringList } from "../../utils/validation";
 import { MissionStatus } from "@prisma/client";
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).");
@@ -116,8 +117,8 @@ export const validateMissionSchema = {
 export const upsertJobSheetSchema = {
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
-    tasks: z.array(z.string().trim().min(1).max(300)).max(50).default([]),
-    equipment: z.array(z.string().trim().min(1).max(150)).max(50).default([]),
+    tasks: stringList(300).default([]),
+    equipment: stringList(150).default([]),
     safetyInstructions: z.string().trim().max(2000).nullable().optional(),
     notes: z.string().trim().max(2000).nullable().optional(),
   }),

@@ -13,8 +13,9 @@ import { getReconciliationDetail } from "../../api/timesheets.api";
 import type { ReconciliationDetail, ReconciliationMissionEntry } from "../../api/timesheets.api";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const dayFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 const GAP_TOLERANCE_MINUTES = 15;
 

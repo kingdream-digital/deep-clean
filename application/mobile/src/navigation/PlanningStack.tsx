@@ -1,6 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { useTheme } from "../theme/ThemeProvider";
+import { useStackScreenOptions } from "./stackScreenOptions";
 import { PlanningScreen } from "../screens/missions/PlanningScreen";
 import { MissionDetailScreen } from "../screens/missions/MissionDetailScreen";
 import { MissionFormScreen } from "../screens/missions/MissionFormScreen";
@@ -30,17 +30,11 @@ export type PlanningStackParamList = {
 const Stack = createNativeStackNavigator<PlanningStackParamList>();
 
 export function PlanningStack() {
-  const { colors } = useTheme();
+  const screenOptions = useStackScreenOptions();
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundElevated },
-        headerTintColor: colors.ink,
-        headerShadowVisible: false,
-        headerTitleStyle: { color: colors.ink },
-        headerBackButtonDisplayMode: "minimal",
-      }}
+      screenOptions={screenOptions}
     >
       <Stack.Screen name="PlanningHome" component={PlanningScreen} options={{ title: "Planning" }} />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />

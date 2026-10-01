@@ -12,6 +12,7 @@ import { SegmentedControl } from "../../components/SegmentedControl";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
 import { StatusBadge } from "../../components/StatusBadge";
+import { Avatar } from "../../components/Avatar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
@@ -27,7 +28,9 @@ import type { DirectoryUser, EmployeeDossier } from "../../api/users.api";
 import { decideAbsence } from "../../api/absences.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { formatMinutes } from "../../utils/duration";
-import { toLocalDateKey } from "../../utils/missionFormat";
+import { isMissionOverdue, toLocalDateKey } from "../../utils/missionFormat";
+import { formatAbsencePeriod, frenchDateFormat } from "../../utils/frenchDate";
+import { formatAction } from "../../utils/activityLogLabels";
 import { shareFile } from "../../utils/shareFile";
 
 type Route = RouteProp<{ UserDetail: { userId: string; temporaryPassword?: string } }, "UserDetail">;
@@ -54,6 +57,8 @@ const ABSENCE_TYPE_LABELS: Record<string, string> = {
 };
 
 const shortDateFormatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+// Date et heure : huit connexions le même jour se distinguent enfin.
+const activityDateFormatter = frenchDateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 type ExportPeriod = "week" | "month";
 
@@ -245,11 +250,10 @@ export function UserDetailScreen() {
   }
 
   function confirmRejectAbsence(absence: { id: string; type: string; startDate: string; endDate: string }) {
-    const start = shortDateFormatter.format(new Date(absence.startDate));
-    const end = shortDateFormatter.format(new Date(absence.endDate));
+    const period = formatAbsencePeriod(absence.startDate, absence.endDate);
     Alert.alert(
       "Refuser cette demande ?",
-      `${ABSENCE_TYPE_LABELS[absence.type] ?? absence.type} · ${start === end ? start : `${start} → ${end}`}`,
+      `${ABSENCE_TYPE_LABELS[absence.type] ?? absence.type} · ${period}`,
       [
         { text: "Annuler", style: "cancel" },
         { text: "Refuser", style: "destructive", onPress: () => void handleDecideAbsence(absence.id, "REJECTED") },
@@ -260,24 +264,34 @@ export function UserDetailScreen() {
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>
-            {account.firstName} {account.lastName}
-          </Text>
-          {account.isActive !== undefined && (
-            <View
-              style={{
-                paddingHorizontal: spacing.sm,
-                paddingVertical: 4,
-                borderRadius: 999,
-                backgroundColor: account.isActive ? colors.successSoft : colors.neutralSoft,
-              }}
-            >
-              <Text style={[type.caption, { color: account.isActive ? colors.success : colors.neutral }]}>
-                {account.isActive ? "Actif" : "Désactivé"}
-              </Text>
-            </View>
-          )}
+        {/* La personne d'abord, comme une fiche de contact : sa photo (elle
+            n'apparaissait nulle part sur sa propre fiche), son nom sur toute
+            la largeur, puis son statut — le badge n'écrase plus le nom. */}
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ opacity: account.isActive === false ? 0.45 : 1 }}>
+            <Avatar user={account} size={64} />
+          </View>
+          <View style={{ flex: 1, marginLeft: spacing.md }}>
+            <Text style={[type.title2, { color: colors.ink }]}>
+              {account.firstName} {account.lastName}
+            </Text>
+            {account.isActive !== undefined && (
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  marginTop: spacing.xxs,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 3,
+                  borderRadius: 999,
+                  backgroundColor: account.isActive ? colors.successSoft : colors.neutralSoft,
+                }}
+              >
+                <Text style={[type.caption, { color: account.isActive ? colors.success : colors.neutral }]}>
+                  {account.isActive ? "Actif" : "Désactivé"}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <Card style={{ marginTop: spacing.lg }}>
@@ -403,7 +417,7 @@ export function UserDetailScreen() {
                     <View key={absence.id} style={{ marginTop: spacing.xs }}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                         <Text style={[type.footnote, { color: colors.inkSecondary }]} numberOfLines={1}>
-                          {ABSENCE_TYPE_LABELS[absence.type]} · {shortDateFormatter.format(new Date(absence.startDate))}
+                          {ABSENCE_TYPE_LABELS[absence.type]} · {formatAbsencePeriod(absence.startDate, absence.endDate)}
                         </Text>
                         <AbsenceStatusBadge status={absence.status} />
                       </View>
@@ -452,7 +466,7 @@ export function UserDetailScreen() {
                       <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1, marginRight: spacing.xs }]} numberOfLines={1}>
                         {mission.title} · {mission.site.name}
                       </Text>
-                      <StatusBadge status={mission.status} />
+                      <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} />
                     </View>
                   ))}
                 </View>
@@ -475,11 +489,13 @@ export function UserDetailScreen() {
                       marginTop: index === 0 ? 0 : spacing.xxs,
                     }}
                   >
+                    {/* Libellé en français (« Connexion réussie ») : le code
+                        brut AUTH_LOGIN_SUCCESS s'affichait tel quel. */}
                     <Text style={[type.footnote, { color: colors.ink, flex: 1, marginRight: spacing.xs }]} numberOfLines={1}>
-                      {entry.action}
+                      {formatAction(entry.action)}
                     </Text>
                     <Text style={[type.caption, { color: colors.inkTertiary }]}>
-                      {shortDateFormatter.format(new Date(entry.createdAt))}
+                      {activityDateFormatter.format(new Date(entry.createdAt))}
                     </Text>
                   </View>
                 ))}
@@ -492,8 +508,8 @@ export function UserDetailScreen() {
           <Card style={{ marginTop: spacing.lg, borderColor: colors.accentDeep }}>
             <Text style={[type.headline, { color: colors.ink }]}>Identifiants de connexion</Text>
             <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
-              À transmettre à {account.firstName} — il devra changer ce mot de passe à sa prochaine connexion. Ce
-              mot de passe ne sera plus jamais affiché.
+              À transmettre à {account.firstName} : ce mot de passe devra être changé à la prochaine connexion. Il
+              ne sera plus jamais affiché.
             </Text>
             <View
               style={{

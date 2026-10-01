@@ -248,6 +248,24 @@ mobile/src/
 └── hooks/              Hooks partagés (ex: compteur de notifications non lues)
 ```
 
+### Navigation web : barre latérale ou barre d'onglets
+
+`AppTabs.web.tsx` (résolu par le bundler uniquement pour le bundle web, le
+bundle iOS/Android gardant `AppTabs.tsx` inchangé) choisit sa présentation
+selon la largeur de la fenêtre, au seuil `breakpoints.sidebar` (900 px) :
+
+- **au-dessus** : barre latérale façon panel entreprise, toujours affichée en
+  entier, libellés compris (demande explicite du client, jamais un rail
+  d'icônes seules) ;
+- **en dessous** : barre d'onglets en bas, exactement comme l'application
+  mobile. Sans cette bascule, un téléphone ouvrant le site se voyait imposer
+  une barre latérale de 264 px sur 390 px de large, qui écrasait tout le
+  contenu à droite — chaque mot sur sa propre ligne.
+
+Les écrans de la messagerie limitent en plus leur largeur de lecture à 860 px
+centrés dès que la barre latérale est présente (`useResponsive().hasSidebar`) :
+une conversation étalée sur 1 500 px oblige l'œil à balayer toute la largeur.
+
 ### Flux d'authentification
 
 1. `LoginScreen` appelle `POST /auth/login`.
@@ -315,6 +333,22 @@ jamais un aplat de couleur pleine, qui lit "kit UI gratuit".
 Les cartes de mission (`MissionCard`) portent une fine barre verticale de 3px
 à gauche, colorée selon le statut — un repère visuel immédiat, en plus du
 badge, qui donne un sens à chaque carte d'un coup d'œil dans une liste.
+
+#### Fonds pleins en couleur d'accent (`accentFill`)
+
+`accent` est la teinte d'un **texte ou d'une icône** d'accent posé sur un fond
+neutre : en mode sombre, c'est la valeur la plus vive de la rampe
+(`accentBright #22D3EE`), choisie pour sa lisibilité sur l'anthracite. Elle ne
+convient jamais comme **fond plein** sous du texte clair — le contraste y
+tombe à ~1,8:1, illisible.
+
+`accentFill` (= `accentBase #0E7490` dans les deux thèmes, ~7:1 avec
+`onAccent`) est donc le token à utiliser pour tout aplat portant du contenu
+`onAccent` : boutons flottants, bulles de message, pastilles de compteur,
+cases cochées. La distinction est explicite dans `theme/colors.ts` : elle a
+été introduite après avoir constaté que tous les boutons flottants de
+l'application (missions, planning, chantiers, comptes, module commercial)
+étaient effectivement illisibles en mode sombre.
 
 #### Typographie (Inter)
 
@@ -547,35 +581,96 @@ micro-interactions) :
 
 ### Messagerie interne (`messages`)
 
-Messagerie directe entre deux comptes quelconques de l'entreprise (retour
-explicite du client : "communiquer directement avec tout le monde") —
-`backend/src/modules/messages/`, modèle `Message` (`prisma/schema.prisma`).
+Messagerie interne de l'entreprise — à deux ou en groupe (retour explicite du
+client : "communiquer directement avec tout le monde", puis "un système de
+messagerie de groupe pour parler à plusieurs personnes") —
+`backend/src/modules/messages/`, modèles `Conversation`,
+`ConversationParticipant` et `Message` (`prisma/schema.prisma`).
 
-- Pas d'entité "Conversation" en base : un fil entre deux utilisateurs se
-  déduit en filtrant `Message` sur `(senderId, recipientId)` dans les deux
-  sens (`getThread()`), plutôt qu'une table à maintenir en plus. La liste des
-  fils actifs (`listConversations()`) part des identifiants des
-  interlocuteurs déjà échangés (coût proportionnel au nombre de collègues
-  contactés, pas au volume total de messages).
-- Aucune restriction de rôle sur les routes : tout compte actif peut
-  contacter n'importe quel autre compte actif. La portée d'un fil est de
-  toute façon verrouillée par construction de la requête — un utilisateur ne
-  peut techniquement pas voir un fil dont il ne fait pas partie, quel que
-  soit l'id demandé dans l'URL.
-- `GET /messages/contacts` : annuaire léger (nom, téléphone, rôle — jamais
-  l'email ni les champs de gestion RH) de tous les comptes actifs sauf
-  soi-même, pour démarrer une conversation ou consulter une fiche contact.
-- Chaque message envoyé déclenche une alerte push directe
-  (`sendExpoPushNotifications`) vers le destinataire, **sans** créer de
-  `Notification` interne dupliquée : le segment "Messages" de l'onglet
-  Messagerie a déjà son propre badge de non-lus, inutile de doubler avec une
-  entrée dans le centre de notifications.
-- Mobile (`mobile/src/screens/inbox/`) : un seul onglet **Messagerie**
-  regroupe Notifications et Messages sous un contrôle segmenté
-  (`InboxHomeScreen`), pour ajouter une vraie messagerie sans faire passer la
-  barre d'onglets à 7 entrées (retour explicite du client). Fil de
-  discussion avec sondage léger (5 s) pendant qu'il est à l'écran — pas
-  d'infrastructure temps réel (websockets), cohérent avec le reste de l'app.
+**Modèle de données.** Un fil est une `Conversation`, à deux
+(`isGroup = false`, sans nom : il s'affiche sous le nom de l'interlocuteur) ou
+à plusieurs (`isGroup = true`, nom choisi à la création). Les fils à deux
+étaient auparavant déduits à la volée des couples `(senderId, recipientId)`
+sans entité dédiée — impossible à généraliser à N participants (nom du groupe,
+arrivées et départs, lecture par personne), d'où cette entité introduite
+ensuite.
+
+- **Lecture par personne** : un curseur `lastReadAt` sur
+  `ConversationParticipant` remplace le booléen `isRead` qui était porté par
+  le message. À plusieurs, un message est lu par certains et pas par d'autres :
+  un booléen unique ne peut plus l'exprimer. Les compteurs de non-lus se
+  calculent en une seule requête pour tous les fils (`unreadWhere()`).
+- **Reprise des fils existants** : `src/db/migrateMessagesToConversations.ts`
+  crée la conversation de chaque couple ayant déjà échangé, y rattache les
+  messages, reconstitue l'état de lecture de chacun à partir de l'ancien
+  `isRead`/`readAt`, et redirige les notifications déjà reçues (qui pointaient
+  vers l'expéditeur) vers le fil. Exécutée automatiquement au démarrage du
+  serveur, sous verrou PostgreSQL (`pg_advisory_lock`) pour qu'un redémarrage
+  simultané de plusieurs instances ne la lance qu'une fois, et idempotente :
+  elle ne traite que les messages encore rattachés à aucun fil. Volontairement
+  automatique plutôt que manuelle — oubliée après un redéploiement, les
+  conversations existantes disparaîtraient de l'écran de leurs utilisateurs.
+  Les colonnes `recipientId`/`isRead`/`readAt` de `Message` sont conservées le
+  temps de valider la reprise, mais ne sont plus ni écrites ni lues.
+
+**Permissions.** Aucune restriction de rôle sur les routes : tout compte actif
+peut contacter n'importe quel autre compte actif, seul ou en groupe, et tout
+compte actif peut créer un groupe. La portée d'un fil est verrouillée par
+construction (`requireParticipant()`) : un utilisateur ne peut techniquement
+pas voir un fil dont il ne fait pas partie, quel que soit l'identifiant
+demandé dans l'URL — et la réponse est un **404**, jamais un 403, pour ne pas
+même révéler son existence. Dans un groupe, seuls les **administrateurs** (le
+créateur, puis toute personne qu'il désigne, et par défaut le membre le plus
+ancien si le dernier administrateur quitte le groupe) peuvent renommer,
+ajouter et retirer. Une personne retirée ou partie perd l'accès au fil mais
+l'historique qu'elle a écrit reste lisible par les autres (jamais de
+suppression silencieuse de messages déjà reçus).
+
+**Pièces jointes.** Un message peut porter du texte, une photo *ou* un
+document PDF (retour explicite du client : "un partage de document"), mais
+jamais être entièrement vide. Comme partout ailleurs dans l'application, les
+fichiers ne sont jamais accessibles par une URL publique : ils passent par une
+route authentifiée (`GET /messages/:id/photo`, `GET /messages/:id/document`)
+qui revérifie l'appartenance au fil. Le PDF est validé sur ses octets réels
+(signature `%PDF-`, `utils/storage.ts`) et non sur le type déclaré par le
+client, qui est falsifiable.
+
+**Vie du groupe.** La création, les arrivées, les départs et les renommages
+sont inscrits dans le fil comme messages système (`Message.systemEvent`),
+affichés centrés sans bulle, jamais comptés comme non-lus ni notifiés — et
+tracés en parallèle dans le journal d'activité.
+
+**Notifications.** Chaque message notifie tous les membres actifs du fil sauf
+son auteur, via le centre de notifications **et** le push. Les destinataires
+ne dépendent jamais du rôle de qui écrit, uniquement de l'appartenance réelle
+au fil (voir CLAUDE.md §8). Dans un groupe, le titre de la notification porte
+le nom du groupe et le corps rappelle qui parle — sans quoi une notification
+de groupe serait indistinguable d'un message privé de la même personne.
+`relatedEntityId` porte l'identifiant du **fil** (et non plus de l'expéditeur,
+qui ne suffirait pas à désigner un groupe), ce dont l'écran de conversation a
+besoin pour ouvrir directement le bon fil.
+
+**Mobile** (`mobile/src/screens/inbox/`) : un seul onglet **Messagerie**
+regroupe Notifications et Messages sous un contrôle segmenté
+(`InboxHomeScreen`), pour ajouter une vraie messagerie sans faire passer la
+barre d'onglets à 7 entrées (retour explicite du client).
+
+- `ConversationsList` : fils triés par dernier message, avatars réels (photo
+  de profil quand il y en a une, initiales colorées sinon — `components/Avatar.tsx`),
+  avatars superposés pour un groupe, aperçu préfixé du prénom de qui a parlé.
+- `ConversationThreadScreen` : messages groupés par auteur en blocs, avec
+  séparateurs de jour, avatar et nom uniquement en tête de bloc, heure une
+  seule fois en fin de bloc. En-tête cliquable (ouvre la fiche du fil) avec
+  **bouton d'appel** à droite (retour explicite du client : "une fonction
+  téléphone, icône en haut à droite") : appel direct de l'interlocuteur à
+  deux, choix du participant à appeler dans un groupe.
+- `ConversationInfoScreen` : participants, appel direct de chacun, ajout,
+  retrait, renommage et départ du groupe.
+- `NewMessageScreen` / `NewGroupScreen` : annuaire complet de l'entreprise,
+  avec création de groupe (nom + au moins deux collègues — à deux, c'est une
+  conversation directe, qui doublonnerait le fil existant).
+- Sondage léger (5 s) pendant que le fil est à l'écran — pas d'infrastructure
+  temps réel (websockets), cohérent avec le reste de l'application.
 
 ### Notifications push réelles
 

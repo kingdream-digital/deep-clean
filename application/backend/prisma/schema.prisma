@@ -90,6 +90,8 @@ model User {
   createdStandards   CleaningStandard[]  @relation("StandardCreatedBy")
   sentMessages       Message[]           @relation("MessageSender")
   receivedMessages   Message[]           @relation("MessageRecipient")
+  conversations        ConversationParticipant[] @relation("ConversationParticipantUser")
+  createdConversations Conversation[]            @relation("ConversationCreatedBy")
   absences           Absence[]           @relation("AbsenceUser")
   decidedAbsences    Absence[]           @relation("AbsenceDecidedBy")
   leaveTransactions        LeaveTransaction[] @relation("LeaveTransactionUser")
@@ -718,31 +720,107 @@ model PushToken {
 // Messagerie interne
 // ---------------------------------------------------------------------------
 
-/// Message direct entre deux comptes de l'entreprise — pas de notion de
-/// "conversation" en base : un fil entre deux utilisateurs se déduit en
-/// filtrant sur (senderId, recipientId) dans les deux sens (voir
-/// messages.service.ts), plutôt qu'une entité séparée à maintenir en plus.
+/// Fil de discussion — à deux (`isGroup = false`) ou à plusieurs
+/// (`isGroup = true`, retour explicite du client : "parler à plusieurs
+/// personnes"). Les fils à deux étaient auparavant déduits à la volée des
+/// couples (senderId, recipientId) sans entité dédiée ; impossible à
+/// généraliser à N participants (nom du groupe, arrivées/départs, lecture par
+/// personne), d'où cette entité. Les fils existants ont été repris
+/// automatiquement au premier démarrage qui suit la mise à jour (voir
+/// src/db/migrateMessagesToConversations.ts).
+model Conversation {
+  id      String  @id @default(uuid())
+  isGroup Boolean @default(false)
+  /// Nom du groupe, choisi à la création et modifiable ensuite par ses
+  /// administrateurs — toujours null pour un fil à deux, qui s'affiche sous
+  /// le nom de l'interlocuteur.
+  title   String?
+
+  createdById String?
+  createdBy   User?   @relation("ConversationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Date du dernier message, dénormalisée pour trier la liste des
+  /// conversations sans sous-requête sur `messages` (l'écran d'accueil de la
+  /// messagerie est un des plus sollicités de l'app, rafraîchi à chaque
+  /// retour sur l'onglet).
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+/// Appartenance d'un compte à un fil. Porte aussi l'état de lecture : un
+/// curseur `lastReadAt` par personne remplace le `isRead` qui était porté par
+/// le message lui-même — à plusieurs, un message est lu par certains et pas
+/// par d'autres, un booléen unique ne peut plus l'exprimer.
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("ConversationParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+  /// Peut renommer le groupe, ajouter et retirer des participants. Jamais
+  /// utilisé pour un fil à deux.
+  isAdmin        Boolean      @default(false)
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+  /// Renseigné quand la personne quitte le groupe ou en est retirée : son
+  /// accès au fil s'arrête là, mais l'historique des messages qu'elle a
+  /// écrits reste lisible par les autres (jamais de suppression silencieuse
+  /// de messages déjà reçus).
+  leftAt         DateTime?
+
+  @@unique([conversationId, userId])
+  @@index([userId, leftAt])
+  @@map("conversation_participants")
+}
+
+/// Message posté dans un fil (`conversationId`) par son auteur (`senderId`).
 model Message {
-  id          String    @id @default(uuid())
-  senderId    String
-  sender      User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  recipientId String
-  recipient   User      @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  senderId       String
+  sender         User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   // Optionnel depuis l'ajout de la photo jointe (retour explicite du client)
-  // : un message peut être une photo seule, sans texte — jamais les deux
-  // absents à la fois (voir messages.service.ts::sendMessage).
-  body        String?
+  // : un message peut être une photo seule, sans texte — jamais texte, photo
+  // et document tous absents à la fois (voir messages.service.ts::sendMessage).
+  body           String?
   // Photo jointe au message (retour explicite du client) — même principe que
   // les autres photos de l'app : jamais d'URL publique, clé opaque résolue
   // par une route authentifiée dédiée (voir messages.service.ts
-  // `getMessagePhoto`), réservée à l'expéditeur et au destinataire.
-  photoKey    String?
+  // `getMessagePhoto`), réservée aux participants du fil.
+  photoKey       String?
+  // Document joint (retour explicite du client : "un partage de document") —
+  // PDF uniquement, vérifié sur les octets réels du fichier et non sur le
+  // type déclaré (utils/storage.ts::storePdfDocument). Nom et taille
+  // d'origine conservés pour l'affichage, le fichier lui-même restant sous
+  // une clé opaque servie par une route authentifiée.
+  documentKey    String?
+  documentName   String?
+  documentSize   Int?
+  /// Événement de vie du groupe (création, arrivée, départ, renommage) plutôt
+  /// qu'un message écrit : affiché centré sans bulle, jamais compté comme
+  /// non-lu et jamais notifié. `senderId` porte l'auteur de l'action.
+  systemEvent    String?
+  createdAt      DateTime      @default(now())
+
+  // Colonnes de l'ancienne messagerie à deux, conservées le temps de valider
+  // la reprise des fils existants (voir Conversation ci-dessus) : plus jamais
+  // écrites ni lues par le code. `recipientId` est devenu optionnel — un
+  // message de groupe n'a pas de destinataire unique.
+  recipientId String?
+  recipient   User?     @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   isRead      Boolean   @default(false)
   readAt      DateTime?
-  createdAt   DateTime  @default(now())
 
-  @@index([senderId, recipientId, createdAt])
-  @@index([recipientId, senderId, isRead])
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
   @@map("messages")
 }
 

@@ -47,6 +47,19 @@ export function StateView({ kind, title, message, icon, retryLabel = "Réessayer
   const { colors, spacing, type } = useTheme();
   const preset = PRESETS[kind];
 
+  // État vide sans titre dédié : la phrase propre à l'écran (« Aucun compte
+  // pour le moment. ») devient le titre. Avant, chaque écran vide affichait
+  // un « Rien à afficher » générique, suivi de la même idée en plus petit.
+  // Une deuxième phrase éventuelle (« Créez d'abord un chantier. ») reste en
+  // dessous, comme explication.
+  let heading = title ?? preset.title;
+  let body = message ?? preset.message;
+  if (kind === "empty" && !title && message) {
+    const cut = message.indexOf(". ");
+    heading = (cut === -1 ? message : message.slice(0, cut)).replace(/\.$/, "");
+    body = cut === -1 ? "" : message.slice(cut + 2);
+  }
+
   if (kind === "loading") {
     return (
       <View style={styles.center}>
@@ -59,16 +72,18 @@ export function StateView({ kind, title, message, icon, retryLabel = "Réessayer
     <View style={[styles.center, { padding: spacing.xxl }]}>
       <Ionicons name={icon ?? preset.icon} size={40} color={colors.inkTertiary} />
       <Text style={[type.headline, { color: colors.ink, marginTop: spacing.md, textAlign: "center" }]}>
-        {title ?? preset.title}
+        {heading}
       </Text>
-      <Text
-        style={[
-          type.subhead,
-          { color: colors.inkSecondary, marginTop: spacing.xxs, textAlign: "center" },
-        ]}
-      >
-        {message ?? preset.message}
-      </Text>
+      {body ? (
+        <Text
+          style={[
+            type.subhead,
+            { color: colors.inkSecondary, marginTop: spacing.xxs, textAlign: "center", maxWidth: 320 },
+          ]}
+        >
+          {body}
+        </Text>
+      ) : null}
       {onRetry && (
         <View style={{ marginTop: spacing.lg, width: 160 }}>
           <Button label={retryLabel} variant="secondary" onPress={onRetry} size="md" />

@@ -187,7 +187,7 @@ export function CommercialHomeScreen() {
       >
         <Text style={[type.largeTitle, { color: colors.ink, marginBottom: spacing.xs }]}>Commercial</Text>
         <Text style={[type.footnote, { color: colors.inkSecondary, marginBottom: spacing.lg }]}>
-          Le client final ne reçoit que des devis/factures par email — il n'a jamais accès à DeepClean.
+          Le client final ne reçoit que des devis/factures par email — il n'a jamais accès à Deep Clean.
         </Text>
 
         {state === "loading" && !dashboard && <StateView kind="loading" />}

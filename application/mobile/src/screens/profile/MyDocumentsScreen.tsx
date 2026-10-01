@@ -13,8 +13,9 @@ import { downloadDocument, listMyDocuments } from "../../api/documents.api";
 import type { EmployeeDocument } from "../../api/documents.api";
 import { shareFile } from "../../utils/shareFile";
 import { formatFileSize } from "../../utils/fileSize";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dayFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 // Espace documents personnel (retour explicite du client) : ce que la
 // RH/direction a déposé dans l'espace de la personne connectée — contrat,

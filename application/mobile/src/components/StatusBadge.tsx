@@ -15,7 +15,11 @@ const LABELS: Record<MissionStatus, string> = {
 // statut terminal, pour que le mouvement signale vraiment quelque chose.
 const ACTIVE_STATUSES: MissionStatus[] = ["IN_PROGRESS"];
 
-export function StatusBadge({ status }: { status: MissionStatus }) {
+// `overdue` : mission planifiée dont l'horaire est passé sans démarrage (voir
+// isMissionOverdue) — affichée « Non démarrée », pas « Planifiée ». Même teinte
+// d'alerte que l'en-tête « MISSION NON DÉMARRÉE » de l'accueil ; la pastille
+// reste fixe, ce qui la distingue de « En cours ».
+export function StatusBadge({ status, overdue = false }: { status: MissionStatus; overdue?: boolean }) {
   const { colors, radius, spacing, type } = useTheme();
 
   const tone: Record<MissionStatus, { bg: string; fg: string }> = {
@@ -24,7 +28,7 @@ export function StatusBadge({ status }: { status: MissionStatus }) {
     COMPLETED: { bg: colors.successSoft, fg: colors.success },
     CANCELLED: { bg: colors.dangerSoft, fg: colors.danger },
   };
-  const t = tone[status];
+  const t = overdue ? { bg: colors.warningSoft, fg: colors.warning } : tone[status];
 
   return (
     <View
@@ -39,7 +43,7 @@ export function StatusBadge({ status }: { status: MissionStatus }) {
         <View style={[styles.staticDot, { backgroundColor: t.fg }]} />
       )}
       <Text style={[type.caption, { color: t.fg, textTransform: "uppercase", letterSpacing: 0.4 }]}>
-        {LABELS[status]}
+        {overdue ? "Non démarrée" : LABELS[status]}
       </Text>
     </View>
   );

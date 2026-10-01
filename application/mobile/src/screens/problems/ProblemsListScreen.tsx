@@ -14,6 +14,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { listProblems } from "../../api/problems.api";
 import type { Problem } from "../../api/problems.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { timeAgo } from "../../utils/timeAgo";
 
 type Tab = "open" | "closed";
 
@@ -21,7 +22,7 @@ type Tab = "open" | "closed";
 // tous les chantiers pour la RH/direction/admin, ses propres chantiers pour
 // un chef d'équipe — est entièrement déterminée côté serveur.
 export function ProblemsListScreen() {
-  const { colors, spacing, type: typeScale } = useTheme();
+  const { colors, spacing, radius, type: typeScale } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
 
   const [tab, setTab] = useState<Tab>("open");
@@ -85,25 +86,43 @@ export function ProblemsListScreen() {
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 45).duration(300)}>
               <PressableScale onPress={() => navigation.navigate("ProblemDetail", { problemId: item.id })}>
+                {/* Le problème lui-même d'abord, en titre ; où il a été
+                    signalé ensuite, sur une ligne. L'ordre inverse faisait
+                    passer l'adresse sur trois lignes avant un titre coupé
+                    (« Plus de recharges de savon pour les … »). */}
                 <Card>
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <Ionicons
-                          name={item.type === "MISSING_MATERIAL" ? "cube-outline" : "warning-outline"}
-                          size={14}
-                          color={colors.inkTertiary}
-                        />
-                        <Text style={[typeScale.footnote, { color: colors.inkTertiary, marginLeft: 4 }]}>
-                          {item.site.name}
-                          {item.mission ? ` · ${item.mission.title}` : ""}
-                        </Text>
-                      </View>
-                      <Text style={[typeScale.headline, { color: colors.ink, marginTop: spacing.xxs }]} numberOfLines={2}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: radius.md,
+                        backgroundColor: item.type === "MISSING_MATERIAL" ? colors.warningSoft : colors.dangerSoft,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: spacing.md,
+                      }}
+                    >
+                      <Ionicons
+                        name={item.type === "MISSING_MATERIAL" ? "cube-outline" : "warning-outline"}
+                        size={18}
+                        color={item.type === "MISSING_MATERIAL" ? colors.warning : colors.danger}
+                      />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[typeScale.headline, { color: colors.ink }]} numberOfLines={2}>
                         {item.description}
                       </Text>
+                      <Text style={[typeScale.footnote, { color: colors.inkSecondary, marginTop: 3 }]} numberOfLines={1}>
+                        {item.site.name}
+                        {item.mission ? ` · ${item.mission.title}` : ""}
+                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm }}>
+                        <ProblemStatusBadge status={item.status} />
+                        <Text style={[typeScale.caption, { color: colors.inkTertiary }]}>{timeAgo(item.createdAt)}</Text>
+                      </View>
                     </View>
-                    <ProblemStatusBadge status={item.status} />
+                    <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />
                   </View>
                 </Card>
               </PressableScale>

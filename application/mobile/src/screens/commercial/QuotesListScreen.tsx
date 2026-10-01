@@ -80,20 +80,21 @@ export function QuotesListScreen() {
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale onPress={() => navigation.navigate("QuoteDetail", { quoteId: item.id })}>
                 <Card>
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <Text style={[type.footnote, { color: colors.inkTertiary }]}>{item.quoteNumber}</Text>
-                      <Text style={[type.headline, { color: colors.ink, marginTop: 1 }]} numberOfLines={1}>
-                        {item.client.companyName}
-                      </Text>
-                      {item.subject && (
-                        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
-                          {item.subject}
-                        </Text>
-                      )}
-                    </View>
+                  {/* Le statut sur la ligne du numéro (court), le nom du client
+                      sur toute la largeur : à côté du nom, le badge le coupait
+                      (« Syndic Résid… »). */}
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={[type.footnote, { color: colors.inkTertiary }]}>{item.quoteNumber}</Text>
                     <QuoteStatusBadge status={item.status} />
                   </View>
+                  <Text style={[type.headline, { color: colors.ink, marginTop: spacing.xxs }]} numberOfLines={2}>
+                    {item.client.companyName}
+                  </Text>
+                  {item.subject && (
+                    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
+                      {item.subject}
+                    </Text>
+                  )}
 
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm }}>
                     <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalTtc)}</Text>
@@ -116,7 +117,7 @@ export function QuotesListScreen() {
           onPress={() => navigation.navigate("QuoteForm", undefined)}
           accessibilityRole="button"
           accessibilityLabel="Nouveau devis"
-          style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+          style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
         >
           <Ionicons name="add" size={26} color={colors.onAccent} />
         </PressableScale>

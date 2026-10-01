@@ -17,10 +17,11 @@ import type { EmployeeDocument, LocalDocumentAsset } from "../../api/documents.a
 import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
 import { formatFileSize } from "../../utils/fileSize";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<{ UserDocuments: { userId: string; fullName: string } }, "UserDocuments">;
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dayFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 // Gestion RH/direction de l'espace documents d'un collaborateur (retour
 // explicite du client) : déposer un document (contrat, avenant...) dans son

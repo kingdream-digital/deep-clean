@@ -23,8 +23,9 @@ import { useWeeklyTimesheetSummary } from "../../hooks/useWeeklyTimesheetSummary
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { useClockStatus, elapsedLabel, REFERENCE_WORKDAY_MINUTES } from "../../hooks/useClockStatus";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const dayFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 // Écran "Pointage" dédié — reprend l'anneau/bouton du widget d'accueil (même
@@ -117,7 +118,7 @@ export function TimesheetScreen() {
       ) : (
         <View style={{ alignItems: "center" }}>
           <Ionicons name="time-outline" size={40} color={colors.inkTertiary} />
-          <Text style={[type.headline, { color: colors.ink, marginTop: spacing.sm }]}>Vous n'êtes pas pointé</Text>
+          <Text style={[type.headline, { color: colors.ink, marginTop: spacing.sm }]}>Vous n'êtes pas en poste</Text>
         </View>
       )}
 
@@ -202,9 +203,12 @@ export function TimesheetScreen() {
 
   const weekSummaryCard = (
     <Card style={{ marginBottom: spacing.lg }}>
-      <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-        CETTE SEMAINE (remis à 0 chaque lundi)
-      </Text>
+      {/* Un petit titre en capitales, la précision à côté en clair : la
+          parenthèse en minuscules au milieu des capitales se lisait mal. */}
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm }}>
+        <Text style={[type.overline, { color: colors.inkTertiary }]}>CETTE SEMAINE</Text>
+        <Text style={[type.caption, { color: colors.inkTertiary }]}>Remis à zéro chaque lundi</Text>
+      </View>
       <View style={{ flexDirection: "row" }}>
         <View style={{ flex: 1 }}>
           <Text style={[type.caption, { color: colors.inkTertiary }]}>Total travaillé</Text>

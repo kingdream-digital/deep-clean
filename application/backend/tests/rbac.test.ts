@@ -216,3 +216,30 @@ describe("Mot de passe temporaire non changé — accès bloqué côté serveur"
     expect(notifications.status).toBe(200);
   });
 });
+
+describe("Dossier employé — missions récentes", () => {
+  it("donne l'heure de fin de chaque mission, pour pouvoir signaler une mission non démarrée", async () => {
+    const { accessToken } = await loginAs(Role.HR);
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "dossier-emp@deepclean.test" });
+    const creator = await createTestUser({ role: Role.SUPERVISOR, email: "dossier-sup@deepclean.test" });
+    const site = await prisma.site.create({ data: { name: "Chantier dossier", address: "1 rue de Test, 75000 Paris" } });
+    const mission = await prisma.mission.create({
+      data: {
+        siteId: site.id,
+        title: "Mission passée jamais démarrée",
+        date: new Date("2026-01-05T00:00:00.000Z"),
+        startTime: new Date("2026-01-05T07:00:00.000Z"),
+        endTime: new Date("2026-01-05T09:00:00.000Z"),
+        createdById: creator.id,
+      },
+    });
+    await prisma.missionAssignment.create({ data: { missionId: mission.id, userId: employee.id } });
+
+    const res = await request(app).get(`/api/v1/users/${employee.id}/dossier`).set("Authorization", `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.missions.recent).toEqual([
+      expect.objectContaining({ id: mission.id, status: "SCHEDULED", endTime: "2026-01-05T09:00:00.000Z" }),
+    ]);
+  });
+});

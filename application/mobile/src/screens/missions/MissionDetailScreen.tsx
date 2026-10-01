@@ -8,6 +8,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { StatusBadge } from "../../components/StatusBadge";
+import { Avatar } from "../../components/Avatar";
+import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
@@ -31,19 +33,20 @@ import type { Problem } from "../../api/problems.api";
 import { ProblemStatusBadge } from "../../components/ProblemStatusBadge";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { extractErrorMessage } from "../../api/client";
-import { formatMissionDay, formatMissionTimeRange } from "../../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue } from "../../utils/missionFormat";
 import { formatDuration } from "../../utils/duration";
 import { formatFileSize } from "../../utils/fileSize";
 import { openDirectionsTo } from "../../utils/openMaps";
 import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<{ MissionDetail: { missionId: string } }, "MissionDetail">;
 
 const entryTimeFormatter = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-const validatedAtFormatter = new Intl.DateTimeFormat("fr-FR", {
+const validatedAtFormatter = frenchDateFormat({
   day: "numeric",
   month: "long",
   hour: "2-digit",
@@ -289,10 +292,10 @@ export function MissionDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>{mission.title}</Text>
-          <StatusBadge status={mission.status} />
-        </View>
+        {/* Statut au-dessus du titre : placé à côté, il réduisait le titre à
+            une colonne étroite (« Entretien / quotidien / espace / coworking »). */}
+        <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} />
+        <Text style={[type.title1, { color: colors.ink, marginTop: spacing.sm }]}>{mission.title}</Text>
 
         <Card style={{ marginTop: spacing.lg }}>
           <InfoRow icon="calendar-outline" label={formatMissionDay(mission.date)} />
@@ -476,91 +479,41 @@ export function MissionDetailScreen() {
           )}
         </View>
 
+        {/* Mêmes lignes que les autres listes de personnes : la photo de
+            profil (des initiales jusqu'ici, alors que la photo existait). */}
         {mission.assignments.some((a) => a.isLead) && (
-          <>
-            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-              CHEF D'ÉQUIPE
-            </Text>
-            <Card padded={false}>
-              {mission.assignments
-                .filter((a) => a.isLead)
-                .map((a) => (
-                  <PressableScale key={a.userId} onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: spacing.md,
-                        paddingHorizontal: spacing.lg,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: radius.pill,
-                          backgroundColor: colors.warningSoft,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text style={[type.caption, { color: colors.warning }]}>
-                          {a.user.firstName[0]}
-                          {a.user.lastName[0]}
-                        </Text>
-                      </View>
-                      <Text style={[type.body, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>
-                        {a.user.firstName} {a.user.lastName}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
-                    </View>
-                  </PressableScale>
-                ))}
-            </Card>
-          </>
+          <ListGroup title="Chef d'équipe" style={{ marginTop: spacing.xl, marginBottom: 0 }}>
+            {mission.assignments
+              .filter((a) => a.isLead)
+              .map((a) => (
+                <ListRow
+                  key={a.userId}
+                  title={`${a.user.firstName} ${a.user.lastName}`}
+                  leading={<Avatar user={a.user} size={40} />}
+                  onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}
+                />
+              ))}
+          </ListGroup>
         )}
 
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          ÉQUIPE ({mission.assignments.filter((a) => !a.isLead).length})
-        </Text>
-        <Card padded={false}>
-          {mission.assignments
-            .filter((a) => !a.isLead)
-            .map((a, index) => (
-              <PressableScale key={a.userId} onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: spacing.md,
-                    paddingHorizontal: spacing.lg,
-                    borderTopWidth: index === 0 ? 0 : 1,
-                    borderTopColor: colors.border,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: radius.pill,
-                      backgroundColor: colors.accentSoft,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={[type.caption, { color: colors.accent }]}>
-                      {a.user.firstName[0]}
-                      {a.user.lastName[0]}
-                    </Text>
-                  </View>
-                  <Text style={[type.body, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>
-                    {a.user.firstName} {a.user.lastName}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
-                </View>
-              </PressableScale>
-            ))}
-        </Card>
+        {mission.assignments.some((a) => !a.isLead) && (
+          <ListGroup
+            title="Équipe"
+            count={mission.assignments.filter((a) => !a.isLead).length}
+            style={{ marginTop: spacing.xl, marginBottom: 0 }}
+          >
+            {mission.assignments
+              .filter((a) => !a.isLead)
+              .map((a) => (
+                <ListRow
+                  key={a.userId}
+                  title={`${a.user.firstName} ${a.user.lastName}`}
+                  leading={<Avatar user={a.user} size={40} />}
+                  onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}
+                />
+              ))}
+          </ListGroup>
+        )}
 
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.md }]}>
           Créée par {mission.createdBy.firstName} {mission.createdBy.lastName}

@@ -163,9 +163,10 @@ export function NotificationsList() {
     } else if (notification.relatedEntityType === "Announcement") {
       navigation.navigate("AnnouncementDetail", { announcementId: notification.relatedEntityId });
     } else if (notification.relatedEntityType === "Conversation") {
-      // relatedEntityId porte l'identifiant de l'EXPÉDITEUR (pas du message) —
-      // voir messages.service.ts::sendMessage.
-      navigation.navigate("ConversationThread", { userId: notification.relatedEntityId });
+      // relatedEntityId porte l'identifiant du FIL de discussion (et non plus
+      // de l'expéditeur, qui ne suffirait pas à désigner un groupe) — voir
+      // messages.service.ts::notifyUsers.
+      navigation.navigate("ConversationThread", { conversationId: notification.relatedEntityId });
     }
   }
 
@@ -174,7 +175,14 @@ export function NotificationsList() {
   if (state === "loading") return <StateView kind="loading" />;
   if (state === "error") return <StateView kind="error" onRetry={load} />;
   if (items.length === 0) {
-    return <StateView kind="empty" icon="notifications-outline" message="Vous n'avez aucune notification." />;
+    return (
+      <StateView
+        kind="empty"
+        icon="notifications-outline"
+        title="Aucune notification"
+        message="Nouvelles missions, changements d'horaire, consignes : tout ce qui vous concerne s'affichera ici."
+      />
+    );
   }
 
   return (

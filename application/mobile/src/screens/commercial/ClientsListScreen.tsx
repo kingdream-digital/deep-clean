@@ -103,7 +103,7 @@ export function ClientsListScreen() {
           onPress={() => navigation.navigate("ClientForm", undefined)}
           accessibilityRole="button"
           accessibilityLabel="Nouveau client"
-          style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+          style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
         >
           <Ionicons name="add" size={26} color={colors.onAccent} />
         </PressableScale>

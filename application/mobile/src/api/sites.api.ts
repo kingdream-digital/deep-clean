@@ -13,12 +13,12 @@ export interface Site {
   // le même principe que Announcement.hasCoverPhoto/User.hasAvatar.
   hasPhoto: boolean;
   managerId: string | null;
-  manager: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  manager: { id: string; firstName: string; lastName: string; email: string | null; hasAvatar?: boolean } | null;
   // Superviseur fixe du chantier — retour explicite du client : distinct du
   // chef d'équipe (manager/managerId), qui peut varier d'un jour à l'autre
   // sur les missions. Le superviseur, lui, ne change pas.
   supervisorId: string | null;
-  supervisor: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  supervisor: { id: string; firstName: string; lastName: string; email: string | null; hasAvatar?: boolean } | null;
   // Position GPS de référence du chantier — calculée automatiquement par le
   // serveur à partir de `address` (géocodage, voir sites.service.ts), jamais
   // envoyée par le client. Absente si l'adresse n'a pas été reconnue ; permet

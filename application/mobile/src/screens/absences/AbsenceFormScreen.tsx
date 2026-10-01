@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -18,8 +18,10 @@ import { countBusinessDaysPreview, getLeaveBalance } from "../../api/leave.api";
 import type { LeaveBalance } from "../../api/leave.api";
 import { toLocalDateKey } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { formatDaysWithUnit } from "../../utils/leaveDays";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
 const TYPE_OPTIONS: { label: string; value: AbsenceType }[] = [
   { label: "Congé payé", value: "PAID_LEAVE" },
@@ -88,6 +90,10 @@ export function AbsenceFormScreen() {
         <Text style={[typeScale.subhead, { color: colors.inkSecondary, marginBottom: spacing.md }]}>Type d'absence</Text>
         <SegmentedControl value={type} onChange={setType} options={TYPE_OPTIONS} />
 
+        {/* Respiration entre le choix du type et les dates : le libellé « Du »
+            touchait le sélecteur. */}
+        <View style={{ height: spacing.lg }} />
+
         <DateTimeField
           label="Du"
           mode="date"
@@ -111,8 +117,8 @@ export function AbsenceFormScreen() {
           {type === "PAID_LEAVE" && balance && (
             <Text style={[typeScale.footnote, { color: wouldExceedBalance ? colors.danger : colors.inkTertiary, marginTop: 2 }]}>
               {wouldExceedBalance
-                ? `⚠️ Solde restant : ${balance.remaining} jour${balance.remaining > 1 ? "s" : ""} — cette demande le dépasse.`
-                : `Solde restant après cette demande : ${(balance.remaining - requestedDays).toFixed(1)} jour(s).`}
+                ? `⚠️ Solde restant : ${formatDaysWithUnit(balance.remaining)} — cette demande le dépasse.`
+                : `Solde restant après cette demande : ${formatDaysWithUnit(balance.remaining - requestedDays)}.`}
             </Text>
           )}
         </Card>

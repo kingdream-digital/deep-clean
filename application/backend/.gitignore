@@ -7,3 +7,5 @@ dist/
 coverage/
 .DS_Store
 uploads/
+# Fichiers écrits par la suite de tests (UPLOAD_DIR de .env.test)
+uploads-test/

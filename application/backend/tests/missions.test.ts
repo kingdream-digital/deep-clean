@@ -140,13 +140,14 @@ describe("Création de mission — réservée aux rôles de gestion du planning"
 describe("Statut de suivi terrain d'une mission — une mission terminée est un état final", () => {
   it("refuse de repasser une mission terminée en cours", async () => {
     const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-status1@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-status1@deepclean.test" });
     const site = await createTestSite();
     const token = await loginAs(supervisor);
 
     const created = await request(app)
       .post("/api/v1/missions")
       .set("Authorization", `Bearer ${token}`)
-      .send({ ...basePayload(), siteId: site.id, assigneeIds: [] });
+      .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
     const missionId = created.body.mission.id as string;
 
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "IN_PROGRESS" });
@@ -472,7 +473,10 @@ describe("Validation d'une mission terminée — chef d'équipe propriétaire, R
       .post(`/api/v1/missions/${missionId}/validate`)
       .set("Authorization", `Bearer ${intruderToken}`);
 
-    expect(res.status).toBe(403);
+    // 404 et non 403 : ce chef d'équipe ne peut pas voir cette mission (autre
+    // chantier, il n'y est pas affecté), et la réponse ne doit pas lui
+    // apprendre qu'elle existe — même principe que la messagerie.
+    expect(res.status).toBe(404);
   });
 
   it("refuse de valider une mission qui n'est pas terminée", async () => {
@@ -550,11 +554,14 @@ describe("Modification des affectations — notifie aussi bien l'ajout que le re
     const addedNotifs = await prisma.notification.findMany({ where: { userId: added.id, type: "MISSION_ASSIGNED" } });
     expect(addedNotifs).toHaveLength(1);
 
-    // Celui qui reste affecté ne reçoit aucune de ces deux notifications.
+    // Celui qui reste affecté n'est pas renotifié par la modification : il
+    // garde la seule notification reçue à la création de la mission, et
+    // surtout aucun MISSION_UNASSIGNED.
     const stayingNotifs = await prisma.notification.findMany({
       where: { userId: staying.id, type: { in: ["MISSION_ASSIGNED", "MISSION_UNASSIGNED"] } },
     });
-    expect(stayingNotifs).toHaveLength(0);
+    expect(stayingNotifs).toHaveLength(1);
+    expect(stayingNotifs[0]!.type).toBe("MISSION_ASSIGNED");
   });
 });
 

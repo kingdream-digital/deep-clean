@@ -18,10 +18,11 @@ import type { ProspectStatus } from "../../api/prospects.api";
 import { listUsers } from "../../api/users.api";
 import type { DirectoryUser } from "../../api/users.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "ProspectForm">;
 const NONE = "__none__";
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
 // Seuls RH/Direction/Admin peuvent réassigner un prospect à un autre
 // commercial (retour explicite du cahier des charges §3) — un superviseur

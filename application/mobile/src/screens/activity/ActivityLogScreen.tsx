@@ -13,8 +13,9 @@ import { listActivityLogs } from "../../api/activityLog.api";
 import type { ActivityLogEntry } from "../../api/activityLog.api";
 import { formatAction } from "../../utils/activityLogLabels";
 import { toLocalDateKey } from "../../utils/missionFormat";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dateTimeFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const dateTimeFmt = frenchDateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 type Period = "today" | "7d" | "30d" | "all";
 

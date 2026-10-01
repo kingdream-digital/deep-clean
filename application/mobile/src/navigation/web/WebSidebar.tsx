@@ -11,6 +11,7 @@ import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { avatarUrl } from "../../api/users.api";
 import type { Role } from "../../api/auth.api";
 import type { MenuStackParamList } from "../MenuStack";
+import { MY_ABSENCES_TITLE } from "../screenTitles";
 import { TOOL_ENTRIES } from "../../screens/dashboard/MenuScreen";
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -33,7 +34,7 @@ interface SidebarLink {
 // ici affichées directement plutôt que derrière un onglet "Menu".
 const PERSONAL_LINKS: SidebarLink[] = [
   { icon: "person-outline", label: "Mon profil", screen: "Profile" },
-  { icon: "calendar-outline", label: "Congés & absences", screen: "MyAbsences" },
+  { icon: "calendar-outline", label: MY_ABSENCES_TITLE, screen: "MyAbsences" },
 ];
 
 /**
