@@ -116,7 +116,7 @@ export function QuotesListScreen() {
           onPress={() => navigation.navigate("QuoteForm", undefined)}
           accessibilityRole="button"
           accessibilityLabel="Nouveau devis"
-          style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+          style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
         >
           <Ionicons name="add" size={26} color={colors.onAccent} />
         </PressableScale>

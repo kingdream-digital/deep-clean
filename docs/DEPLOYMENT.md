@@ -86,6 +86,16 @@ GitHub (`Settings > Deploy keys`). Les deux applications Coolify
    ```
    npx prisma db push
    ```
+   **Messagerie de groupe** : cette mise à jour ajoute les tables
+   `conversations` et `conversation_participants` — le `npx prisma db push`
+   ci-dessus est donc obligatoire avant que la messagerie refonctionne. La
+   reprise des conversations existantes, elle, est automatique : le backend la
+   lance seul au démarrage suivant (voir
+   `application/backend/src/db/migrateMessagesToConversations.ts`), sans perte
+   des messages ni de leur état lu/non lu. Elle est idempotente et sans effet
+   une fois faite ; en cas de besoin elle se relance à la main depuis le même
+   terminal avec
+   `npx tsx src/db/migrateMessagesToConversations.ts`.
 4. Si `CORS_ORIGINS` doit changer (nouvelle URL web, nouveau domaine) :
    Environment Variables du backend → éditer la variable → **attention à ne
    coller QUE la valeur dans le champ Value, jamais `CORS_ORIGINS=` en plus**

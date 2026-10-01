@@ -87,7 +87,7 @@ export function SitesListScreen() {
           {canCreate && (
             <View style={{ width: 200 }}>
               <PressableScale onPress={() => navigation.navigate("SiteForm", undefined)}>
-                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accent, borderRadius: 12 }]}>
+                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: 12 }]}>
                   <Ionicons name="add" size={18} color={colors.onAccent} />
                   <Text style={[type.callout, { color: colors.onAccent, fontWeight: "600", marginLeft: 6 }]}>
                     Nouveau chantier
@@ -192,7 +192,7 @@ export function SitesListScreen() {
             onPress={() => navigation.navigate("SiteForm", undefined)}
             accessibilityRole="button"
             accessibilityLabel="Nouveau chantier"
-            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+            style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>

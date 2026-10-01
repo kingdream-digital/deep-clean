@@ -5,6 +5,10 @@ import { InboxHomeScreen } from "../screens/inbox/InboxHomeScreen";
 import { ConversationThreadScreen } from "../screens/inbox/ConversationThreadScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 import { NewMessageScreen } from "../screens/inbox/NewMessageScreen";
+import { NewGroupScreen } from "../screens/inbox/NewGroupScreen";
+import { ConversationInfoScreen } from "../screens/inbox/ConversationInfoScreen";
+import { AddParticipantsScreen } from "../screens/inbox/AddParticipantsScreen";
+import { RenameGroupScreen } from "../screens/inbox/RenameGroupScreen";
 import { MissionDetailScreen } from "../screens/missions/MissionDetailScreen";
 import { MissionFormScreen } from "../screens/missions/MissionFormScreen";
 import { JobSheetFormScreen } from "../screens/missions/JobSheetFormScreen";
@@ -25,9 +29,16 @@ import { AnnouncementDetailScreen } from "../screens/announcements/AnnouncementD
 // pile plutôt que de changer d'onglet, avec une vraie flèche retour native.
 export type InboxStackParamList = {
   InboxHome: undefined;
-  ConversationThread: { userId: string };
+  // Un fil s'ouvre soit par son identifiant (liste, notification), soit par
+  // la personne avec qui discuter (fiche contact, équipe d'une mission) — le
+  // fil à deux est alors récupéré ou créé à l'ouverture.
+  ConversationThread: { conversationId: string } | { userId: string };
+  ConversationInfo: { conversationId: string };
+  AddParticipants: { conversationId: string };
+  RenameGroup: { conversationId: string; currentTitle: string };
   ContactProfile: { userId: string };
   NewMessage: undefined;
+  NewGroup: undefined;
   MissionDetail: { missionId: string };
   MissionForm: { missionId?: string } | undefined;
   JobSheetForm: { missionId: string };
@@ -73,11 +84,27 @@ export function InboxStack() {
     >
       <Stack.Screen name="InboxHome" component={InboxHomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ConversationThread" component={ConversationThreadScreen} options={{ title: "" }} />
+      <Stack.Screen name="ConversationInfo" component={ConversationInfoScreen} options={{ title: "Infos" }} />
+      <Stack.Screen
+        name="AddParticipants"
+        component={AddParticipantsScreen}
+        options={{ title: "Ajouter des participants", presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="RenameGroup"
+        component={RenameGroupScreen}
+        options={{ title: "Renommer le groupe", presentation: "modal" }}
+      />
       <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ title: "Profil" }} />
       <Stack.Screen
         name="NewMessage"
         component={NewMessageScreen}
         options={{ title: "Nouveau message", presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="NewGroup"
+        component={NewGroupScreen}
+        options={{ title: "Nouveau groupe", presentation: "modal" }}
       />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />
       <Stack.Screen

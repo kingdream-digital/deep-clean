@@ -283,7 +283,7 @@ export function PlanningScreen() {
           {isDesktopWeb && canManagePlanning && (
             <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: spacing.md }}>
               <PressableScale onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}>
-                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accent, borderRadius: radius.md }]}>
+                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: radius.md }]}>
                   <Ionicons name="add" size={18} color={colors.onAccent} />
                   <Text style={{ color: colors.onAccent, fontWeight: "600", marginLeft: 6, fontSize: 15 }}>
                     Nouvelle mission
@@ -457,7 +457,7 @@ export function PlanningScreen() {
             onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}
             accessibilityRole="button"
             accessibilityLabel="Nouvelle mission"
-            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+            style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>

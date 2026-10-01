@@ -28,6 +28,8 @@ export async function resetDatabase() {
   await prisma.site.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.message.deleteMany();
+  await prisma.conversationParticipant.deleteMany();
+  await prisma.conversation.deleteMany();
   await prisma.pushToken.deleteMany();
   await prisma.session.deleteMany();
   // Module commercial : `createdById` est aussi en onDelete: Restrict sur

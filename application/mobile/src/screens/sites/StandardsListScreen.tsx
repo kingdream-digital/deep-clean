@@ -108,7 +108,7 @@ export function StandardsListScreen() {
             onPress={() => navigation.navigate("StandardForm", { siteId })}
             accessibilityRole="button"
             accessibilityLabel="Nouveau standard"
-            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+            style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>

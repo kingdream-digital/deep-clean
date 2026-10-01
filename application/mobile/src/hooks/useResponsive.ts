@@ -9,6 +9,12 @@ interface Responsive {
   isDesktopWeb: boolean;
   /** Web sous le seuil "bureau" — sidebar en rail d'icônes, grilles resserrées. */
   isCompactWeb: boolean;
+  /**
+   * Fenêtre assez large pour la barre latérale (voir navigation/AppTabs.web.tsx).
+   * En dessous, la version web se comporte exactement comme l'application
+   * mobile, barre d'onglets du bas comprise.
+   */
+  hasSidebar: boolean;
 }
 
 /**
@@ -22,9 +28,15 @@ export function useResponsive(): Responsive {
   const isWeb = Platform.OS === "web";
 
   if (!isWeb) {
-    return { width, isWeb: false, isDesktopWeb: false, isCompactWeb: false };
+    return { width, isWeb: false, isDesktopWeb: false, isCompactWeb: false, hasSidebar: false };
   }
 
   const isDesktopWeb = width >= breakpoints.expanded;
-  return { width, isWeb: true, isDesktopWeb, isCompactWeb: !isDesktopWeb };
+  return {
+    width,
+    isWeb: true,
+    isDesktopWeb,
+    isCompactWeb: !isDesktopWeb,
+    hasSidebar: width >= breakpoints.sidebar,
+  };
 }

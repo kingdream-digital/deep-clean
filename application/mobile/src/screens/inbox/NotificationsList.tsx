@@ -163,9 +163,10 @@ export function NotificationsList() {
     } else if (notification.relatedEntityType === "Announcement") {
       navigation.navigate("AnnouncementDetail", { announcementId: notification.relatedEntityId });
     } else if (notification.relatedEntityType === "Conversation") {
-      // relatedEntityId porte l'identifiant de l'EXPÉDITEUR (pas du message) —
-      // voir messages.service.ts::sendMessage.
-      navigation.navigate("ConversationThread", { userId: notification.relatedEntityId });
+      // relatedEntityId porte l'identifiant du FIL de discussion (et non plus
+      // de l'expéditeur, qui ne suffirait pas à désigner un groupe) — voir
+      // messages.service.ts::notifyUsers.
+      navigation.navigate("ConversationThread", { conversationId: notification.relatedEntityId });
     }
   }
 

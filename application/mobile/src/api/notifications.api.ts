@@ -50,6 +50,12 @@ interface ListNotificationsResponse {
   page: number;
   pageSize: number;
   unreadCount: number;
+  /**
+   * Non-lues hors « nouveau message » : un message reçu crée à la fois une
+   * notification et un message non lu dans son fil, qu'il ne faut pas compter
+   * deux fois dans le badge de l'onglet (voir hooks/useUnreadInboxCount.ts).
+   */
+  unreadCountExcludingMessages: number;
 }
 
 export async function listNotifications(page = 1, pageSize = 20): Promise<ListNotificationsResponse> {

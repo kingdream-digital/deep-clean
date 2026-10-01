@@ -152,7 +152,7 @@ export function HomeScreen() {
       navigation.navigate("MyAbsences");
     } else if (notif.relatedEntityType === "Conversation" && notif.relatedEntityId) {
       // relatedEntityId porte l'identifiant de l'expéditeur (pas du message).
-      tabNavigation?.navigate("Messagerie", { screen: "ConversationThread", params: { userId: notif.relatedEntityId } });
+      tabNavigation?.navigate("Messagerie", { screen: "ConversationThread", params: { conversationId: notif.relatedEntityId } });
     } else {
       tabNavigation?.navigate("Messagerie");
     }

@@ -51,7 +51,7 @@ export async function createNotification(input: CreateNotificationInput) {
 }
 
 export async function listNotifications(userId: string, page: number, pageSize: number) {
-  const [items, total, unreadCount] = await Promise.all([
+  const [items, total, unreadCount, unreadCountExcludingMessages] = await Promise.all([
     prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -60,9 +60,17 @@ export async function listNotifications(userId: string, page: number, pageSize: 
     }),
     prisma.notification.count({ where: { userId } }),
     prisma.notification.count({ where: { userId, isRead: false } }),
+    // Un nouveau message crée à la fois une notification (la cloche, demandée
+    // explicitement par le client) ET un message non lu dans son fil. Le badge
+    // de l'onglet Messagerie, qui additionne les deux compteurs, comptait donc
+    // chaque message deux fois — 10 affiché pour 5 messages réellement reçus.
+    // Ce second total permet de n'en compter qu'un.
+    prisma.notification.count({
+      where: { userId, isRead: false, type: { not: NotificationType.MESSAGE_RECEIVED } },
+    }),
   ]);
 
-  return { items, total, page, pageSize, unreadCount };
+  return { items, total, page, pageSize, unreadCount, unreadCountExcludingMessages };
 }
 
 export async function markAsRead(userId: string, notificationId: string) {

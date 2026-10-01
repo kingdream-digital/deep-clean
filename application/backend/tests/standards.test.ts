@@ -71,10 +71,12 @@ describe("Standards de nettoyage — création et permissions", () => {
     expect(res.status).toBe(403);
   });
 
-  it("liste les standards d'un chantier, lisible par n'importe quel rôle authentifié", async () => {
+  it("liste les standards d'un chantier à l'équipe qui y travaille, et à personne d'autre", async () => {
     const { accessToken: hrToken } = await loginAs(Role.HR, "hr-std1@deepclean.test");
-    const { accessToken: empToken } = await loginAs(Role.EMPLOYEE, "emp-std2@deepclean.test");
+    const { user: member, accessToken: memberToken } = await loginAs(Role.EMPLOYEE, "emp-std2@deepclean.test");
+    const { accessToken: outsiderToken } = await loginAs(Role.EMPLOYEE, "emp-std3@deepclean.test");
     const site = await createTestSite();
+    await prisma.siteMember.create({ data: { siteId: site.id, userId: member.id } });
 
     await request(app)
       .post("/api/v1/cleaning-standards")
@@ -83,11 +85,18 @@ describe("Standards de nettoyage — création et permissions", () => {
 
     const res = await request(app)
       .get(`/api/v1/cleaning-standards?siteId=${site.id}`)
-      .set("Authorization", `Bearer ${empToken}`);
+      .set("Authorization", `Bearer ${memberToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].name).toBe("Standard A");
+
+    // Un employé qui ne travaille pas sur ce chantier n'y a pas accès, et la
+    // réponse ne lui apprend pas que le chantier existe (404, jamais 403).
+    const outsider = await request(app)
+      .get(`/api/v1/cleaning-standards?siteId=${site.id}`)
+      .set("Authorization", `Bearer ${outsiderToken}`);
+    expect(outsider.status).toBe(404);
   });
 
   it("permet de modifier et supprimer un standard", async () => {
