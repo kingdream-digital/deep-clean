@@ -20,6 +20,26 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | **Tests** | 237 backend + 25 mobile, **tous au vert** |
 | **En attente de** | La validation du client sur la démo (voir §2) |
 
+### Journal de bord (mis à jour au fil du travail)
+
+> Cette section est actualisée **à chaque lot terminé**, pour qu'une coupure
+> ne fasse jamais perdre le fil. Chaque lot est testé, commité et poussé avant
+> d'être inscrit ici.
+
+| # | Lot | Statut |
+|---|---|---|
+| 1 | Messagerie de groupe, appel, partage de documents | ✅ commit `a846301` |
+| 2 | Dossier de reprise + captures versionnées | ✅ commits `3f6f952`, `fdf0f82` |
+| 3 | Outils d'audit visuel versionnés (`tools/audit-visuel/`) | ✅ en cours de commit |
+| 4 | Revue complète de l'application, écran par écran | 🔄 en cours |
+
+**Revue en cours — ce qui a déjà été passé en revue :** (rien pour l'instant,
+la revue démarre)
+
+**Ce qui reste à passer en revue :** accueil par rôle, planning, missions,
+chantiers, pointage, congés, comptes RH, module commercial, profil,
+états d'erreur et de chargement, mode hors connexion.
+
 ### Ce qui bloque la mise en ligne
 
 **Uniquement l'accord du client.** Il a demandé explicitement :
