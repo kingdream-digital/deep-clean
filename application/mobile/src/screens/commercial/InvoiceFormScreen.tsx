@@ -48,6 +48,22 @@ function itemTotal(item: EditableItem): number {
   return Math.round(item.quantity * item.unitPriceHt * 100) / 100;
 }
 
+// Mois facturé choisi dans une liste (« octobre 2026 ») plutôt que tapé au
+// format technique AAAA-MM : les 12 mois passés, le mois en cours et les 2
+// suivants couvrent tous les cas réels (rattrapage, facture à l'avance).
+function billingPeriodOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+  const options: { value: string; label: string }[] = [];
+  for (let offset = 2; offset >= -12; offset--) {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = fmt.format(d);
+    options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+  }
+  return options;
+}
+
 export function InvoiceFormScreen() {
   const { colors, spacing, type } = useTheme();
   const route = useRoute<Route>();
@@ -278,7 +294,17 @@ export function InvoiceFormScreen() {
                 </Text>
               )}
             </View>
-            <TextField label="Mois facturé (AAAA-MM, optionnel)" placeholder={currentPeriod()} value={period} onChangeText={setPeriod} />
+            <View style={{ marginBottom: spacing.md }}>
+              <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mois facturé</Text>
+              <Card padded={false}>
+                <Picker selectedValue={period} onValueChange={(v) => setPeriod(String(v))} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
+                  <Picker.Item label="Aucun mois précis" value="" />
+                  {billingPeriodOptions().map(({ value, label }) => (
+                    <Picker.Item key={value} label={label} value={value} />
+                  ))}
+                </Picker>
+              </Card>
+            </View>
           </>
         )}
 

@@ -1,11 +1,12 @@
 import React, { useCallback, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/TextField";
 import { PressableScale } from "../../components/PressableScale";
@@ -268,20 +269,26 @@ export function ProblemDetailScreen() {
               <View
                 key={comment.id}
                 style={{
+                  flexDirection: "row",
+                  gap: spacing.md,
                   padding: spacing.lg,
-                  borderTopWidth: index === 0 ? 0 : 1,
+                  borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
                   borderTopColor: colors.border,
                 }}
               >
-                <Text
-                  style={[typeScale.subhead, { color: colors.ink, fontFamily: fontFamily.semibold, fontWeight: "600" }]}
-                >
-                  {comment.author.firstName} {comment.author.lastName}
-                </Text>
-                <Text style={[typeScale.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{comment.comment}</Text>
-                <Text style={[typeScale.caption, { color: colors.inkTertiary, marginTop: spacing.xs }]}>
-                  {timeAgo(comment.createdAt)}
-                </Text>
+                <Avatar user={comment.author} size={36} />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: spacing.sm }}>
+                    <Text
+                      numberOfLines={1}
+                      style={[typeScale.subhead, { flexShrink: 1, color: colors.ink, fontFamily: fontFamily.semibold, fontWeight: "600" }]}
+                    >
+                      {comment.author.firstName} {comment.author.lastName}
+                    </Text>
+                    <Text style={[typeScale.caption, { color: colors.inkTertiary }]}>{timeAgo(comment.createdAt)}</Text>
+                  </View>
+                  <Text style={[typeScale.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{comment.comment}</Text>
+                </View>
               </View>
             ))}
           </Card>

@@ -63,7 +63,7 @@ async function canValidate(actor: Actor, targetUserId: string): Promise<boolean>
 export const timeEntrySelect = {
   id: true,
   userId: true,
-  user: { select: { id: true, firstName: true, lastName: true, role: true } },
+  user: { select: { id: true, firstName: true, lastName: true, role: true, avatarKey: true } },
   clockIn: true,
   clockOut: true,
   status: true,
@@ -118,11 +118,14 @@ async function lockTimeEntryRow(tx: Prisma.TransactionClient, id: string): Promi
 // profit d'un simple booléen : le client récupère le fichier via la route
 // authentifiée dédiée (GET /:id/clock-in-photo ou /clock-out-photo), jamais
 // par la clé elle-même.
-function presentEntry<T extends { clockInPhotoKey?: string | null; clockOutPhotoKey?: string | null }>(
-  entry: T
-): Omit<T, "clockInPhotoKey" | "clockOutPhotoKey"> & { hasClockInPhoto: boolean; hasClockOutPhoto: boolean } {
+// Même principe pour la photo de profil de la personne (`hasAvatar`), affichée
+// sur l'écran de validation des heures.
+function presentEntry<
+  T extends { clockInPhotoKey?: string | null; clockOutPhotoKey?: string | null; user?: { avatarKey?: string | null } }
+>(entry: T) {
   const { clockInPhotoKey, clockOutPhotoKey, ...rest } = entry;
-  return { ...rest, hasClockInPhoto: Boolean(clockInPhotoKey), hasClockOutPhoto: Boolean(clockOutPhotoKey) };
+  const user = rest.user ? (({ avatarKey, ...u }) => ({ ...u, hasAvatar: Boolean(avatarKey) }))(rest.user) : rest.user;
+  return { ...rest, user, hasClockInPhoto: Boolean(clockInPhotoKey), hasClockOutPhoto: Boolean(clockOutPhotoKey) };
 }
 
 export async function clockIn(actor: Actor, position: ClockPosition, photoBuffer: Buffer) {

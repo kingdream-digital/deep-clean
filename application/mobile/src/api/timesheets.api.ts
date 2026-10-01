@@ -7,7 +7,7 @@ export type TimeEntryStatus = "PENDING" | "VALIDATED" | "REJECTED";
 export interface TimeEntry {
   id: string;
   userId: string;
-  user: { id: string; firstName: string; lastName: string; role: Role };
+  user: { id: string; firstName: string; lastName: string; role: Role; hasAvatar?: boolean };
   clockIn: string;
   clockOut: string | null;
   status: TimeEntryStatus;

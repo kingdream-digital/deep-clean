@@ -8,6 +8,7 @@ import { JobSheetFormScreen } from "../screens/missions/JobSheetFormScreen";
 import { ReportProblemScreen } from "../screens/missions/ReportProblemScreen";
 import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
 import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
+import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 
 export type PlanningStackParamList = {
@@ -24,6 +25,7 @@ export type PlanningStackParamList = {
   ReportProblem: { missionId: string };
   ProblemDetail: { problemId: string };
   StandardDetail: { standardId: string };
+  StandardForm: { siteId: string; standardId?: string };
   ContactProfile: { userId: string };
 };
 
@@ -58,6 +60,14 @@ export function PlanningStack() {
       />
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
+      <Stack.Screen
+        name="StandardForm"
+        component={StandardFormScreen}
+        options={({ route }) => ({
+          title: route.params.standardId ? "Modifier le standard" : "Nouveau standard",
+          presentation: "modal",
+        })}
+      />
       <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ title: "Profil" }} />
     </Stack.Navigator>
   );

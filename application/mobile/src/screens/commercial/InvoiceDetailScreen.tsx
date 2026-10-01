@@ -13,7 +13,7 @@ import { InvoiceStatusBadge } from "../../components/InvoiceStatusBadge";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
 import { shareFile } from "../../utils/shareFile";
-import { QUOTE_ITEM_UNIT_LABELS } from "../../api/quotes.api";
+import { formatQuantityWithUnit } from "../../api/quotes.api";
 import {
   cancelInvoice,
   downloadInvoicePdf,
@@ -162,7 +162,7 @@ export function InvoiceDetailScreen() {
               <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalHt)}</Text>
             </View>
             <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>
-              {item.quantity} {QUOTE_ITEM_UNIT_LABELS[item.unit]} · {currencyFmt.format(item.unitPriceHt)}
+              {formatQuantityWithUnit(item.quantity, item.unit)} × {currencyFmt.format(item.unitPriceHt)}
             </Text>
           </Card>
         ))}

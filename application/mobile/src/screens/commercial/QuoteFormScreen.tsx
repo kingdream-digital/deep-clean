@@ -419,7 +419,7 @@ export function QuoteFormScreen() {
             <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(quoteTotals.totalTtc)}</Text>
           </View>
           {quoteTotals.monthlyAmountHt > 0 && (
-            <Text style={[type.footnote, { color: colors.accentDeep, marginTop: 6 }]}>
+            <Text style={[type.footnote, { color: colors.accentText, marginTop: 6 }]}>
               Prévisionnel : {currencyFmt.format(quoteTotals.monthlyAmountHt)} HT / mois
             </Text>
           )}

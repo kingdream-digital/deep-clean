@@ -70,7 +70,7 @@ export function StandardsListScreen() {
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale
-                onPress={() => navigation.navigate("StandardForm", { siteId, standardId: item.id })}
+                onPress={() => navigation.navigate("StandardDetail", { standardId: item.id })}
               >
                 <Card style={{ flexDirection: "row", alignItems: "center" }}>
                   <View
@@ -86,7 +86,7 @@ export function StandardsListScreen() {
                     <Ionicons name="document-text-outline" size={18} color={colors.purple} />
                   </View>
                   <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={2}>
                       {item.name}
                     </Text>
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]} numberOfLines={1}>

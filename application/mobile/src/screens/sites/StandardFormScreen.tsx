@@ -107,7 +107,12 @@ export function StandardFormScreen() {
           setDeleting(true);
           try {
             await deleteStandard(standardId);
-            navigation.goBack();
+            // Ouvert depuis la fiche du standard : elle n'existe plus, on
+            // revient directement à l'écran d'avant (liste ou mission).
+            const routes = navigation.getState().routes;
+            const openedFromDetail = routes[routes.length - 2]?.name === "StandardDetail";
+            if (openedFromDetail) navigation.pop(2);
+            else navigation.goBack();
           } catch (err) {
             Alert.alert("Suppression impossible", extractErrorMessage(err));
           } finally {

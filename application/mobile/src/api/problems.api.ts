@@ -19,7 +19,7 @@ export interface ProblemComment {
   id: string;
   comment: string;
   createdAt: string;
-  author: { id: string; firstName: string; lastName: string };
+  author: { id: string; firstName: string; lastName: string; hasAvatar?: boolean };
 }
 
 export interface Problem {
@@ -31,7 +31,7 @@ export interface Problem {
   updatedAt: string;
   site: { id: string; name: string; managerId: string | null };
   mission: { id: string; title: string; date: string } | null;
-  reportedBy: { id: string; firstName: string; lastName: string; role: string };
+  reportedBy: { id: string; firstName: string; lastName: string; role: string; hasAvatar?: boolean };
   photos: ProblemPhoto[];
   comments: ProblemComment[];
 }

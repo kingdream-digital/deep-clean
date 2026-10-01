@@ -266,10 +266,10 @@ export function ConversationThreadScreen() {
       // Retour explicite du client : l'icône téléphone en haut à droite.
       headerRight: () => (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <PressableScale onPress={handleCall} hitSlop={10} style={{ padding: 6 }} pressedScale={0.9}>
+          <PressableScale onPress={handleCall} hitSlop={10} style={{ padding: 6 }} pressedScale={0.9} accessibilityRole="button" accessibilityLabel="Appeler">
             <Ionicons name="call" size={21} color={colors.accent} />
           </PressableScale>
-          <PressableScale onPress={openInfo} hitSlop={10} style={{ padding: 6, marginLeft: 2 }} pressedScale={0.9}>
+          <PressableScale onPress={openInfo} hitSlop={10} style={{ padding: 6, marginLeft: 2 }} pressedScale={0.9} accessibilityRole="button" accessibilityLabel="Infos de la conversation">
             <Ionicons name="information-circle-outline" size={23} color={colors.accent} />
           </PressableScale>
         </View>

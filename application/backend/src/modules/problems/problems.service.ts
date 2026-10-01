@@ -32,11 +32,24 @@ function daysUntilPhotoDeletion(createdAt: Date): number {
   return Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / MS_PER_DAY));
 }
 
-function withPhotoRetention<T extends { photos: { createdAt: Date }[] }>(
-  problem: T
-): T & { photos: (T["photos"][number] & { daysUntilDeletion: number })[] } {
+// La clé de stockage d'une photo de profil ne quitte jamais le serveur :
+// l'app reçoit seulement `hasAvatar` et passe par la route protégée de la
+// photo (même règle que pour les comptes, chantiers et pointages).
+function withAvatarFlag<U extends { avatarKey?: string | null }>({ avatarKey, ...user }: U) {
+  return { ...user, hasAvatar: Boolean(avatarKey) };
+}
+
+function withPhotoRetention<
+  T extends {
+    photos: { createdAt: Date }[];
+    reportedBy: { avatarKey?: string | null };
+    comments: { author: { avatarKey?: string | null } }[];
+  },
+>(problem: T) {
   return {
     ...problem,
+    reportedBy: withAvatarFlag(problem.reportedBy),
+    comments: problem.comments.map((c) => ({ ...c, author: withAvatarFlag(c.author) })),
     photos: problem.photos.map((photo) => ({ ...photo, daysUntilDeletion: daysUntilPhotoDeletion(photo.createdAt) })),
   };
 }
@@ -57,7 +70,7 @@ const problemSelect = {
   updatedAt: true,
   site: { select: { id: true, name: true, managerId: true } },
   mission: { select: { id: true, title: true, date: true } },
-  reportedBy: { select: { id: true, firstName: true, lastName: true, role: true } },
+  reportedBy: { select: { id: true, firstName: true, lastName: true, role: true, avatarKey: true } },
   photos: {
     where: { isDeleted: false },
     select: { id: true, mimeType: true, sizeBytes: true, createdAt: true, uploadedById: true },
@@ -68,7 +81,7 @@ const problemSelect = {
       id: true,
       comment: true,
       createdAt: true,
-      author: { select: { id: true, firstName: true, lastName: true } },
+      author: { select: { id: true, firstName: true, lastName: true, avatarKey: true } },
     },
     orderBy: { createdAt: "asc" as const },
   },
@@ -322,7 +335,7 @@ export async function addComment(actor: Actor, problemId: string, comment: strin
       id: true,
       comment: true,
       createdAt: true,
-      author: { select: { id: true, firstName: true, lastName: true } },
+      author: { select: { id: true, firstName: true, lastName: true, avatarKey: true } },
     },
   });
 
@@ -345,7 +358,7 @@ export async function addComment(actor: Actor, problemId: string, comment: strin
     });
   }
 
-  return created;
+  return { ...created, author: withAvatarFlag(created.author) };
 }
 
 export async function addPhoto(actor: Actor, problemId: string, fileBuffer: Buffer) {

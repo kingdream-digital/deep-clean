@@ -9,6 +9,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
@@ -206,10 +207,16 @@ export function TimesheetValidationScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
+              {/* Photo et nom sur toute la largeur ; le statut seulement dans
+                  « Traités » — dans « En attente », il répétait le nom de
+                  l'onglet et coupait chaque ligne en deux (« (4 / h 15) »). */}
               <Card>
-                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                  <View style={{ flex: 1, marginRight: spacing.sm }}>
-                    <Text style={[type.headline, { color: colors.ink }]}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                  <View style={{ marginRight: spacing.sm }}>
+                    <Avatar user={item.user} size={40} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
                       {item.user.firstName} {item.user.lastName}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
@@ -245,7 +252,7 @@ export function TimesheetValidationScreen() {
                     {item.isRetroactive && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="time-outline" size={12} color={colors.purple} />
-                        <Text style={[type.caption, { color: colors.purple, marginLeft: 3 }]}>Pointage différé (saisi après coup)</Text>
+                        <Text style={[type.caption, { color: colors.purple, marginLeft: 3 }]}>Pointage différé</Text>
                       </View>
                     )}
                     {item.overtimeMinutes != null && (
@@ -272,8 +279,12 @@ export function TimesheetValidationScreen() {
                         </Text>
                       </PressableScale>
                     )}
+                    {tab !== "pending" && (
+                      <View style={{ marginTop: spacing.xs }}>
+                        <TimeEntryStatusBadge status={item.status} />
+                      </View>
+                    )}
                   </View>
-                  <TimeEntryStatusBadge status={item.status} />
                 </View>
 
                 {tab === "pending" && (

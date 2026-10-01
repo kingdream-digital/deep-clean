@@ -178,28 +178,12 @@ export function ProfileScreen() {
           <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: spacing.md }]}>— facultative</Text>
         </View>
 
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          CONGÉS & ABSENCES
-        </Text>
-        <Card padded={false}>
-          <Row
-            icon="calendar-outline"
-            label="Mes absences"
-            onPress={() => navigation.navigate("MyAbsences")}
-          />
-        </Card>
-
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          DOCUMENTS
-        </Text>
-        <Card padded={false}>
+        {/* Regroupé comme les réglages d'iOS : quelques blocs de plusieurs
+            lignes plutôt qu'une carte d'une seule ligne par rubrique, qui
+            étirait l'écran sur trois hauteurs pour sept réglages. */}
+        <SettingsGroup title="Mon espace" first>
+          <Row icon="calendar-outline" label="Mes absences" onPress={() => navigation.navigate("MyAbsences")} />
           <Row icon="folder-open-outline" label="Mes documents" onPress={() => navigation.navigate("MyDocuments")} />
-        </Card>
-
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          SÉCURITÉ
-        </Text>
-        <Card padded={false}>
           <Row
             icon="key-outline"
             label="Modifier mon mot de passe"
@@ -207,16 +191,13 @@ export function ProfileScreen() {
               navigation.getParent()?.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate("ChangePassword")
             }
           />
-        </Card>
+        </SettingsGroup>
 
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          APPARENCE
-        </Text>
-        <Card padded={false}>
+        <SettingsGroup title="Apparence">
           <View
             style={[
               styles.rowTouchable,
-              { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, justifyContent: "space-between" },
+              { paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.lg, justifyContent: "space-between" },
             ]}
           >
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
@@ -225,24 +206,15 @@ export function ProfileScreen() {
             </View>
             <Switch value={isDark} onValueChange={setDarkMode} accessibilityLabel="Activer le thème sombre" />
           </View>
-        </Card>
+        </SettingsGroup>
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xs, paddingHorizontal: spacing.xxs }]}>
           Deep Clean s'affiche en clair par défaut. Activez cette option pour passer l'application en thème sombre à tout moment.
         </Text>
 
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          AIDE
-        </Text>
-        <Card padded={false}>
+        <SettingsGroup title="Aide">
           <Row icon="school-outline" label="Revoir le tutoriel" onPress={replayOnboarding} />
-        </Card>
-
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          À PROPOS
-        </Text>
-        <Card padded={false}>
           <Row icon="shield-checkmark-outline" label="Mentions légales" onPress={() => navigation.navigate("Legal")} />
-        </Card>
+        </SettingsGroup>
 
         <View style={{ marginTop: spacing.xxl }}>
           <Button label="Se déconnecter" variant="destructive" onPress={handleLogout} loading={loggingOut} />
@@ -261,6 +233,40 @@ export function ProfileScreen() {
   );
 }
 
+function SettingsGroup({ title, first = false, children }: { title: string; first?: boolean; children: React.ReactNode }) {
+  const { colors, spacing, type } = useTheme();
+  const rows = React.Children.toArray(children).filter(Boolean);
+  return (
+    <>
+      <Text
+        style={[
+          type.overline,
+          { color: colors.inkTertiary, marginTop: first ? spacing.xl : spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.xxs },
+        ]}
+      >
+        {title.toUpperCase()}
+      </Text>
+      <Card padded={false}>
+        {rows.map((row, index) => (
+          <View key={index}>
+            {index > 0 && (
+              // Trait fin qui démarre après l'icône, comme dans les réglages d'iOS.
+              <View
+                style={{
+                  height: StyleSheet.hairlineWidth,
+                  backgroundColor: colors.border,
+                  marginLeft: spacing.lg + 20 + spacing.sm,
+                }}
+              />
+            )}
+            {row}
+          </View>
+        ))}
+      </Card>
+    </>
+  );
+}
+
 function Row({
   icon,
   label,
@@ -274,7 +280,11 @@ function Row({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.rowTouchable, { paddingVertical: spacing.md, paddingHorizontal: spacing.lg }]}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.rowTouchable,
+        { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, backgroundColor: pressed ? colors.surfaceAlt : "transparent" },
+      ]}
     >
       <Ionicons name={icon} size={20} color={colors.inkSecondary} />
       <Text style={[type.body, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>{label}</Text>

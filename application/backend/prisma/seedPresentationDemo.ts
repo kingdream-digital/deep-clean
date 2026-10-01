@@ -363,6 +363,9 @@ async function main() {
     await prisma.siteMember.createMany({ data: [{ siteId: sitePhare.id, userId: sophie.id }, { siteId: sitePhare.id, userId: thomas.id }, { siteId: sitePhare.id, userId: ines.id }] });
 
     const period = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    // Libellé de ligne lisible par le client (« octobre 2026 »), pas la clé technique AAAA-MM.
+    const monthLabel = (d: Date) => new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(d);
+    const periodLabel = monthLabel(today);
     await sitesService.upsertSiteTarget(hrActor, sitePhare.id, { period, plannedVisits: 22, plannedHours: 44, billingMode: "FLAT_RATE" });
 
     // Quelques prestations déjà réalisées ce mois-ci sur le nouveau chantier,
@@ -393,14 +396,14 @@ async function main() {
     await invoicesService.createInvoice(hrActor, {
       clientId: clientTilleuls.id, period,
       contactName: "Patrick Morel", contactEmail: "p.morel@syndic-tilleuls.fr", billingAddress: "12 Rue des Tilleuls, 75015 Paris",
-      items: [{ description: "Nettoyage parties communes — " + period, quantity: 36, unit: QuoteItemUnit.HOUR, unitPriceHt: 28 }],
+      items: [{ description: "Nettoyage parties communes — " + periodLabel, quantity: 36, unit: QuoteItemUnit.HOUR, unitPriceHt: 28 }],
     });
 
     // Facture n°2 — envoyée (référencée au devis et au chantier acceptés).
     const invoiceSent = await invoicesService.createInvoice(hrActor, {
       clientId: clientPhare.id, quoteId: quoteAccepted.id, siteId: sitePhare.id, period,
       contactName: "Camille Nguyen", contactEmail: "camille@lephare-coworking.fr", billingAddress: "27 Quai de Seine, 75019 Paris",
-      items: [{ description: "Entretien quotidien espace coworking — " + period, quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
+      items: [{ description: "Entretien quotidien espace coworking — " + periodLabel, quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
     });
     await invoicesService.validateInvoice(hrActor, invoiceSent.id);
     await invoicesService.sendInvoice(hrActor, invoiceSent.id);
@@ -411,7 +414,7 @@ async function main() {
     const invoicePaid = await invoicesService.createInvoice(hrActor, {
       clientId: clientPhare.id, quoteId: quoteAccepted.id, siteId: sitePhare.id, period: lastPeriod,
       contactName: "Camille Nguyen", contactEmail: "camille@lephare-coworking.fr", billingAddress: "27 Quai de Seine, 75019 Paris",
-      items: [{ description: "Entretien quotidien espace coworking — " + lastPeriod, quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
+      items: [{ description: "Entretien quotidien espace coworking — " + monthLabel(lastPeriodDate), quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
     });
     await invoicesService.validateInvoice(hrActor, invoicePaid.id);
     await invoicesService.sendInvoice(hrActor, invoicePaid.id);

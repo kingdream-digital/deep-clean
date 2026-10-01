@@ -11,6 +11,8 @@ import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
 import { ProblemStatusBadge } from "../../components/ProblemStatusBadge";
 import { useTheme } from "../../theme/ThemeProvider";
+import { useAuth } from "../../auth/AuthContext";
+import { useResponsive } from "../../hooks/useResponsive";
 import { listProblems } from "../../api/problems.api";
 import type { Problem } from "../../api/problems.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
@@ -24,6 +26,8 @@ type Tab = "open" | "closed";
 export function ProblemsListScreen() {
   const { colors, spacing, radius, type: typeScale } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const { user } = useAuth();
+  const { isDesktopWeb } = useResponsive();
 
   const [tab, setTab] = useState<Tab>("open");
   const [items, setItems] = useState<Problem[]>([]);
@@ -59,6 +63,22 @@ export function ProblemsListScreen() {
 
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
+      {/* Même grand titre que les autres listes sur ordinateur (Chantiers,
+          Missions, Comptes) — seule cette liste n'avait que le petit titre
+          de la barre du haut. */}
+      {isDesktopWeb && (
+        <View style={{ marginBottom: spacing.lg }}>
+          <Text style={[typeScale.title1, { color: colors.ink }]}>
+            {user?.role === "EMPLOYEE" ? "Mes signalements" : "Problèmes"}
+          </Text>
+          {state === "ready" && (
+            <Text style={[typeScale.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
+              {filtered.length} {filtered.length > 1 ? "signalements" : "signalement"}{" "}
+              {tab === "open" ? (filtered.length > 1 ? "ouverts" : "ouvert") : filtered.length > 1 ? "résolus" : "résolu"}
+            </Text>
+          )}
+        </View>
+      )}
       <SegmentedControl
         value={tab}
         onChange={setTab}

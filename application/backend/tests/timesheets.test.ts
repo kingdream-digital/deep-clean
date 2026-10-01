@@ -723,3 +723,27 @@ describe("Rapprochement pointage <-> mission (menu RH — qui a un écart à exa
     expect(detail.body.missions[0].matchedEntries).toHaveLength(2);
   });
 });
+
+describe("Pointages — photo de la personne", () => {
+  it("expose `hasAvatar`, jamais la clé de stockage", async () => {
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "ts-photo@deepclean.test" });
+    const hr = await createTestUser({ role: Role.HR, email: "ts-photo-hr@deepclean.test" });
+    await prisma.user.update({ where: { id: employee.id }, data: { avatarKey: "avatars/pointage.webp" } });
+
+    const created = await request(app)
+      .post("/api/v1/time-entries/retroactive")
+      .set("Authorization", `Bearer ${await loginAs(employee)}`)
+      .send({
+        clockIn: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        clockOut: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+        comment: "Oubli",
+      });
+    expect(created.status).toBe(201);
+
+    const list = await request(app).get("/api/v1/time-entries").set("Authorization", `Bearer ${await loginAs(hr)}`);
+    expect(list.status).toBe(200);
+    expect(list.body.items[0].user.hasAvatar).toBe(true);
+    expect(JSON.stringify(list.body)).not.toContain("avatarKey");
+    expect(JSON.stringify(list.body)).not.toContain("avatars/pointage.webp");
+  });
+});

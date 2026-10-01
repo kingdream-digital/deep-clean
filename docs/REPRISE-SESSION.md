@@ -184,6 +184,52 @@ traitées : saisie du « mois facturé » au clavier (AAAA-MM) plutôt qu'un
 sélecteur de mois ; photos dans « Charge par employé » (statistiques) ; titre
 de l'écran Problèmes sur ordinateur plus petit que ceux de Comptes/Chantiers.
 
+**Passes 1 et 2 — « parcourir l'app dans tous les sens » (1er octobre 2026,
+fusionné sur `master` à la demande du client) :**
+
+*Passe 1 — écrans pas encore vus, avec de vraies données* (messagerie, groupe,
+validation des heures, documents, mentions légales, signalement avec
+commentaires, client, facture, standards, mode sombre) :
+
+- *Mode sombre* — notifications teintées de rouge (le fond « Supprimer » du
+  glissement transparaissait : fond opaque sous chaque ligne,
+  `SwipeableRow`) ; texte « aujourd'hui » illisible (nouvelle couleur
+  `accentText`, claire en sombre, utilisée pour tout texte accentué posé sur
+  un fond teinté).
+- *Validation des heures* — photo de la personne, nom sur une ligne, badge
+  de statut seulement hors de l'onglet « À valider », « Pointage différé ».
+  L'API des pointages renvoie `hasAvatar`.
+- *Standards de nettoyage* — **vrai défaut** : toucher un standard ouvrait
+  directement le formulaire de modification, pour tout le monde (un chef
+  d'équipe tombait sur un formulaire qu'il ne pouvait pas enregistrer), et la
+  fiche (avec le dépôt du PDF) n'était jamais atteignable depuis la liste.
+  La liste ouvre maintenant la fiche ; « Modifier » en haut à droite,
+  réservé aux rôles de gestion. Le formulaire est déclaré dans toutes les
+  piles qui montrent la fiche ; après une suppression depuis la fiche, retour
+  direct à la liste.
+- *Champs sur plusieurs lignes* — hauteur calée sur le nombre de lignes
+  (4 par défaut) : les consignes de sécurité étaient coupées au milieu.
+- *Signalement* — photo de chaque personne dans le fil de suivi, heure à
+  droite du nom (`hasAvatar` côté API, test qui vérifie que la clé de
+  stockage ne sort jamais).
+- *Devis et factures* — « 36 h × 28,00 € » au lieu de « 36 Heure · 28,00 € »
+  (`formatQuantityWithUnit`) ; jeu de démo : « octobre 2026 » au lieu de
+  « 2026-10 » dans les libellés.
+
+*Passe 2 — design global :*
+
+- *Profil* — regroupé comme les réglages d'iOS (Mon espace / Apparence /
+  Aide) au lieu d'une carte par ligne ; surbrillance au toucher.
+- *États vides et erreurs* (`StateView`, partout) — icône dans une pastille
+  teintée (bleu vide, rouge erreur, orange hors connexion), apparition en
+  fondu.
+- Les trois pistes notées en fin de revue sont faites : mois facturé en liste
+  déroulante (« Octobre 2026 », 12 mois passés → 2 à venir) ; photos dans
+  « Charge par employé » ; grand titre « Problèmes » sur ordinateur.
+
+Captures : `captures-revue-ecrans/passe1-*.jpg` et `passe2-*.jpg`.
+Pas de changement de schéma Prisma : un redéploiement API + web suffit.
+
 ### Mise en ligne
 
 Le client a donné son accord le 1er octobre 2026 (« Pousse sur master pour

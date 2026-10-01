@@ -115,7 +115,7 @@ export async function getTrends() {
     }),
     prisma.missionAssignment.findMany({
       where: { mission: { status: MissionStatus.COMPLETED, date: { gte: loadRangeStart } } },
-      select: { userId: true, user: { select: { firstName: true, lastName: true } } },
+      select: { userId: true, user: { select: { firstName: true, lastName: true, avatarKey: true } } },
     }),
   ]);
 
@@ -159,14 +159,29 @@ export async function getTrends() {
     .sort((a, b) => b.problemCount - a.problemCount)
     .slice(0, TOP_SITES_LIMIT);
 
-  const loadByEmployee = new Map<string, { name: string; count: number }>();
+  // Prénom/nom séparés et `hasAvatar` (jamais la clé de stockage) : l'app
+  // affiche la photo de chaque personne, comme dans le reste des listes.
+  const loadByEmployee = new Map<string, { name: string; firstName: string; lastName: string; hasAvatar: boolean; count: number }>();
   for (const a of completedAssignmentsInRange) {
-    const entry = loadByEmployee.get(a.userId) ?? { name: `${a.user.firstName} ${a.user.lastName}`, count: 0 };
+    const entry = loadByEmployee.get(a.userId) ?? {
+      name: `${a.user.firstName} ${a.user.lastName}`,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      hasAvatar: Boolean(a.user.avatarKey),
+      count: 0,
+    };
     entry.count += 1;
     loadByEmployee.set(a.userId, entry);
   }
   const employeeLoad = [...loadByEmployee.entries()]
-    .map(([userId, v]) => ({ userId, name: v.name, completedMissions: v.count }))
+    .map(([userId, v]) => ({
+      userId,
+      name: v.name,
+      firstName: v.firstName,
+      lastName: v.lastName,
+      hasAvatar: v.hasAvatar,
+      completedMissions: v.count,
+    }))
     .sort((a, b) => b.completedMissions - a.completedMissions);
 
   return {
