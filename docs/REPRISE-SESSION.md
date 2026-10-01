@@ -69,6 +69,21 @@ La documentation technique détaillée est dans
 `application/docs/ARCHITECTURE.md`, section **« Messagerie interne »** —
 elle a été réécrite entièrement et fait foi.
 
+### Captures montrées au client
+
+Les captures avant/après envoyées pour validation sont conservées dans
+`docs/captures-messagerie-groupe/` (elles survivent ainsi à la session et au
+compte sur lequel la démo avait été publiée) :
+
+| Fichier | Ce qu'il montre |
+|---|---|
+| `avant-fil.jpg` / `apres-fil-groupe.jpg` | Conversation : avant (à deux) / après (groupe, document PDF, bouton d'appel) |
+| `avant-accueil-telephone.jpg` / `apres-accueil-telephone.jpg` | L'app sur téléphone : écrasée par la barre latérale / lisible |
+| `avant-liste-bureau.jpg` / `apres-bureau-fil.jpg` | Grand écran : pleine largeur / colonne de lecture centrée |
+| `apres-liste.jpg` | Liste des conversations avec photos et groupes |
+| `apres-nouveau-message.jpg`, `apres-creation-groupe.jpg`, `apres-infos-groupe.jpg` | Parcours de création et de gestion d'un groupe |
+| `apres-sombre-fil.jpg`, `apres-sombre-missions.jpg` | Mode sombre après correction du contraste |
+
 ---
 
 ## 3. Décisions prises (ne pas les refaire autrement sans raison)
