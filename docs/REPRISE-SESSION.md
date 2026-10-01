@@ -15,10 +15,10 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 |---|---|
 | **Branche de travail** | `feat/messagerie-groupe` (poussée sur GitHub) |
 | **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
-| **`master`** | **Pas touché.** Le site en ligne tourne toujours sur l'ancienne version. |
-| **Déployé en ligne ?** | **Non.** Rien n'a été redéployé. |
+| **`master`** | **À jour** : la branche y a été fusionnée le 1er octobre 2026, à la demande du client (« Pousse sur master pour déploiement, je vais tester de mon côté »). |
+| **Déployé en ligne ?** | **À faire par le client dans Coolify** (le redéploiement n'est pas automatique) — procédure exacte au §7. |
 | **Tests** | 241 backend + 46 mobile, **tous au vert** |
-| **En attente de** | La validation du client sur la démo (voir §2) |
+| **En attente de** | Les retours du client après ses tests sur la version en ligne, puis la suite de la revue (liste au §1, « Reste à passer en revue »). |
 
 ### Journal de bord (mis à jour au fil du travail)
 
@@ -165,13 +165,15 @@ l'application — un navigateur en français affiche 01/10/2026.
 problème avec photos, annonces, profil (photo, mot de passe), version
 ordinateur écran par écran.
 
-### Ce qui bloque la mise en ligne
+### Mise en ligne
 
-**Uniquement l'accord du client.** Il a demandé explicitement :
-« rend moi une démo avant que je valide et pousse vers le redéploiement ».
-La démo lui a été envoyée sous forme de page web avec les captures avant/après.
+Le client a donné son accord le 1er octobre 2026 (« Pousse sur master pour
+déploiement, je vais tester de mon côté ») : tout le travail de cette branche
+est sur `master`. Le redéploiement dans Coolify est fait par lui (§7).
 
-**Ne jamais pousser sur `master` ni redéployer sans son « c'est bon ».**
+**Règle qui reste valable pour la suite :** ne jamais pousser sur `master` ni
+redéployer sans son « c'est bon » explicite. Travailler sur une branche, lui
+montrer les captures, attendre son accord.
 
 ---
 
@@ -394,33 +396,39 @@ qui est un vrai bug.
 
 ---
 
-## 7. Mise en ligne, le jour où le client valide
+## 7. Mise en ligne
 
-```bash
-# 1. Passer le travail sur master
-git checkout master && git pull origin master
-git merge feat/messagerie-groupe
-git push origin master
-```
+Le code est sur `master` depuis le 1er octobre 2026. Reste le redéploiement,
+**dans cet ordre** (Coolify : `http://141.253.112.12:8000`) :
 
-2. Dans **Coolify** (`http://141.253.112.12:8000`) : redéployer **le backend**,
-   puis **le web** (Actions → Redeploy pour chacun).
-
-3. **Obligatoire, une seule fois**, dans le Terminal du backend sur Coolify :
+1. **Backend → Redeploy.** Attendre « Running ».
+2. **Backend → Terminal**, une seule fois :
 
    ```bash
    npx prisma db push
    ```
 
-   Crée les tables `conversations` et `conversation_participants`. Sans cette
-   commande, la messagerie ne fonctionne plus.
+   Crée les tables `conversations` et `conversation_participants`, rend
+   facultatives des colonnes de `messages` et en ajoute de nouvelles,
+   facultatives elles aussi. **Aucune perte de données** : répété le 1er
+   octobre sur une copie de la base de `master` avec des messages existants,
+   la commande passe sans `--accept-data-loss`.
+3. **Backend → Restart.** Indispensable : c'est au démarrage que le backend
+   rattache les anciens messages à leurs conversations. Au redéploiement de
+   l'étape 1, les tables n'existaient pas encore et cette reprise a échoué
+   (proprement, le serveur continue de tourner) ; sans ce redémarrage, les
+   conversations existantes resteraient invisibles. Alternative sans
+   redémarrer, depuis le Terminal : `npx tsx src/db/migrateMessagesToConversations.ts`.
+   Répétition du 1er octobre : 4 messages → 2 conversations, état lu / non lu
+   conservé, une deuxième exécution ne change rien.
+4. **Web → Redeploy** (après le backend, jamais avant : le nouveau web appelle
+   les nouvelles routes de la messagerie).
+5. Vérifier : ouvrir la messagerie avec un compte qui avait déjà des
+   conversations — elles doivent être là, avec leur historique et leurs
+   non-lus.
 
-4. La **reprise des anciennes conversations est automatique** au démarrage
-   suivant. Pour la relancer à la main si besoin :
-   `npx tsx src/db/migrateMessagesToConversations.ts`
-
-5. Vérifier après coup : ouvrir la messagerie avec un compte qui avait déjà des
-   conversations — elles doivent être là, avec leur historique et leurs non-lus.
+Entre les étapes 1 et 3, la messagerie est indisponible : enchaîner les étapes
+sans attendre.
 
 Le détail de l'infrastructure (serveur, pare-feu, variables, pièges Coolify
 déjà rencontrés) est dans **`docs/DEPLOYMENT.md`**.
