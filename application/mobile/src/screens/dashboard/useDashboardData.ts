@@ -35,6 +35,8 @@ export interface DashboardData {
   // l'appli, sans avoir à taper jusqu'au Planning (cahier des charges §13/§16).
   currentMission: Mission | null;
   nextMission: Mission | null;
+  /** Mission planifiée dont l'heure de fin est déjà passée, jamais démarrée. */
+  overdueMission: Mission | null;
   // Dernière actualité publiée (RH/Superviseur/Direction/Admin) — même
   // logique que "mission en cours" ci-dessus : visible dès l'accueil, sans
   // avoir à aller jusqu'à l'écran "Actualités" dédié.
@@ -48,14 +50,29 @@ const EMPTY: DashboardData = {
   recentActivity: [],
   currentMission: null,
   nextMission: null,
+  overdueMission: null,
   latestAnnouncement: null,
 };
 
-function findCurrentAndNextMission(missions: Mission[]): { currentMission: Mission | null; nextMission: Mission | null } {
+function findCurrentAndNextMission(missions: Mission[]): {
+  currentMission: Mission | null;
+  nextMission: Mission | null;
+  overdueMission: Mission | null;
+} {
   const sorted = [...missions].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  const now = Date.now();
+  const scheduled = sorted.filter((m) => m.status === "SCHEDULED");
+
+  // Une mission planifiée dont l'heure de fin est passée sans que personne ne
+  // l'ait démarrée n'est pas "la prochaine" : elle était présentée comme telle
+  // à 14h alors qu'elle se terminait à 9h le matin même, laissant croire à
+  // l'employé qu'il devait encore s'y rendre. On la signale pour ce qu'elle
+  // est — une mission non démarrée — et "la prochaine" devient la première
+  // qui est réellement encore à venir.
   return {
     currentMission: sorted.find((m) => m.status === "IN_PROGRESS") ?? null,
-    nextMission: sorted.find((m) => m.status === "SCHEDULED") ?? null,
+    nextMission: scheduled.find((m) => new Date(m.endTime).getTime() > now) ?? null,
+    overdueMission: scheduled.find((m) => new Date(m.endTime).getTime() <= now) ?? null,
   };
 }
 
@@ -95,6 +112,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       recentActivity: notifRes.items,
       currentMission: null,
       nextMission: null,
+      overdueMission: null,
       latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: [
         { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
@@ -117,6 +135,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       recentActivity: notifRes.items,
       currentMission: null,
       nextMission: null,
+      overdueMission: null,
       latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: statsToKpis(overview),
     };
@@ -139,6 +158,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       recentActivity: notifRes.items,
       currentMission: null,
       nextMission: null,
+      overdueMission: null,
       latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: [
         { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
@@ -159,13 +179,14 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
   ]);
   const today = toLocalDateKey(new Date());
   const todayCount = weekRes.items.filter((m) => m.date.slice(0, 10) === today).length;
-  const { currentMission, nextMission } = findCurrentAndNextMission(upcomingRes.items);
+  const { currentMission, nextMission, overdueMission } = findCurrentAndNextMission(upcomingRes.items);
   return {
     weekMissions: weekRes.items,
     weekStart,
     recentActivity: notifRes.items,
     currentMission,
     nextMission,
+    overdueMission,
     latestAnnouncement: announcementRes.items[0] ?? null,
     kpis: [
       { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },

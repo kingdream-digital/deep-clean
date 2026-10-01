@@ -33,12 +33,19 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | 3 | Outils d'audit visuel versionnés (`tools/audit-visuel/`) | ✅ en cours de commit |
 | 4 | Revue complète de l'application, écran par écran | 🔄 en cours |
 
-**Revue en cours — ce qui a déjà été passé en revue :** (rien pour l'instant,
-la revue démarre)
+**Déjà revu et corrigé :**
 
-**Ce qui reste à passer en revue :** accueil par rôle, planning, missions,
-chantiers, pointage, congés, comptes RH, module commercial, profil,
-états d'erreur et de chargement, mode hors connexion.
+- *Accueil employé* — le titre des missions était coupé (« Désinfection salles
+  de c… ») : passé sur deux lignes dans `MissionCard`, partout dans l'app.
+- *Accueil employé* — une mission du matin jamais démarrée était encore
+  annoncée « PROCHAINE MISSION » l'après-midi, laissant croire qu'il fallait
+  s'y rendre. Elle est maintenant signalée « MISSION NON DÉMARRÉE », et la
+  prochaine mission est réellement la suivante à venir.
+
+**Reste à passer en revue :** menu employé, planning (vue semaine),
+accueil et écrans RH, superviseur, directeur, chef d'équipe, chantiers,
+pointage, congés, module commercial, profil, états d'erreur et de chargement,
+mode hors connexion.
 
 ### Ce qui bloque la mise en ligne
 

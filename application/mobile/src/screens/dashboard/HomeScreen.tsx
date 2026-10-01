@@ -254,20 +254,44 @@ export function HomeScreen() {
             (cahier des charges §13/§16) — mission en cours en priorité, sinon
             la prochaine à venir. Seul l'employé reçoit ces champs (voir
             useDashboardData.ts), donc ce bloc ne s'affiche que pour lui. */}
-        {(data.currentMission || data.nextMission) && (
+        {(data.currentMission || data.overdueMission || data.nextMission) && (
           <View style={{ marginTop: spacing.lg }}>
-            <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-              {data.currentMission ? "MISSION EN COURS" : "PROCHAINE MISSION"}
-            </Text>
-            <MissionCard
-              mission={(data.currentMission ?? data.nextMission)!}
-              onPress={() =>
-                tabNavigation?.navigate("Missions", {
-                  screen: "MissionDetail",
-                  params: { missionId: (data.currentMission ?? data.nextMission)!.id },
-                })
-              }
-            />
+            {(() => {
+              // Priorité d'affichage : ce qui se passe maintenant, puis ce qui
+              // aurait dû être fait, puis ce qui vient. Une mission non
+              // démarrée dont l'horaire est passé mérite d'être signalée comme
+              // telle — annoncée comme "prochaine", elle envoyait l'employé sur
+              // un chantier dont l'intervention était terminée depuis des heures.
+              const highlighted = data.currentMission ?? data.overdueMission ?? data.nextMission!;
+              const isOverdue = !data.currentMission && !!data.overdueMission;
+              return (
+                <>
+                  <Text
+                    style={[
+                      type.overline,
+                      { color: isOverdue ? colors.warning : colors.inkTertiary, marginBottom: spacing.sm },
+                    ]}
+                  >
+                    {data.currentMission ? "MISSION EN COURS" : isOverdue ? "MISSION NON DÉMARRÉE" : "PROCHAINE MISSION"}
+                  </Text>
+                  <MissionCard
+                    mission={highlighted}
+                    onPress={() =>
+                      tabNavigation?.navigate("Missions", {
+                        screen: "MissionDetail",
+                        params: { missionId: highlighted.id },
+                      })
+                    }
+                  />
+                  {isOverdue && (
+                    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xs }]}>
+                      L'horaire est passé et la mission n'a pas été démarrée. Prévenez votre chef d'équipe si
+                      elle n'a pas eu lieu.
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
           </View>
         )}
 

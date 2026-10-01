@@ -136,7 +136,11 @@ export function MissionCard({ mission, onPress }: MissionCardProps) {
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
               <View style={{ flex: 1, marginRight: spacing.sm }}>
-                <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                {/* Deux lignes : un intitulé de mission réel ("Désinfection
+                    des salles de consultation") tient rarement sur une seule,
+                    et s'affichait coupé en "Désinfection salles de c…" alors
+                    que la place existe juste en dessous. */}
+                <Text style={[type.headline, { color: colors.ink }]} numberOfLines={2}>
                   {mission.title}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
