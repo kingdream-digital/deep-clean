@@ -58,9 +58,22 @@ de 30 secondes sans explication claire.
 
 ## Pièges à connaître
 
-- **Metro en mode CI ne recharge pas les fichiers.** Après toute modification
-  du code mobile : tuer et relancer `expo start`, sinon vous auditez l'ancien
-  bundle.
+- **Metro en mode CI ne recharge pas les fichiers, et son cache disque survit
+  au redémarrage.** Après toute modification du code mobile, relancer avec
+  l'option `--clear` :
+
+  ```bash
+  pkill -f "expo start"
+  CI=1 BROWSER=none npx expo start --web --port 8081 --clear
+  ```
+
+  Sans `--clear`, Metro ressert le bundle transformé d'avant la modification :
+  on croit auditer le nouveau code alors qu'il s'agit de l'ancien. Vérification
+  rapide en cas de doute — observer les requêtes réellement émises :
+
+  ```js
+  page.on("request", (r) => r.url().includes("/api/") && console.log(r.url()));
+  ```
 - **La visite guidée bloque les clics.** `login()` la neutralise déjà en
   écrivant `deepclean.onboardingSeen.<userId>` dans le `localStorage` avant le
   premier rendu.

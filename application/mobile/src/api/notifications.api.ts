@@ -58,9 +58,17 @@ interface ListNotificationsResponse {
   unreadCountExcludingMessages: number;
 }
 
-export async function listNotifications(page = 1, pageSize = 20): Promise<ListNotificationsResponse> {
+export async function listNotifications(
+  page = 1,
+  pageSize = 20,
+  options: { excludeMessages?: boolean } = {}
+): Promise<ListNotificationsResponse> {
   const { data } = await apiClient.get<ListNotificationsResponse>("/notifications", {
-    params: { page, pageSize },
+    params: {
+      page,
+      pageSize,
+      ...(options.excludeMessages ? { excludeMessages: "true" } : {}),
+    },
   });
   return data;
 }

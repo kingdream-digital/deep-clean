@@ -89,7 +89,11 @@ async function countOpenProblems(params: { missionId?: string } = {}): Promise<n
 async function loadForRole(user: AuthUser): Promise<DashboardData> {
   const weekStart = mondayOf(new Date());
   const weekEnd = addDays(weekStart, 6);
-  const notifPromise = listNotifications(1, 5);
+  // « Activité récente » = l'activité de l'entreprise (missions, pointages,
+  // signalements, validations, congés). Les notifications de nouveaux messages
+  // en sont écartées : elles occupaient les cinq lignes du bloc, ne laissant
+  // rien voir du métier, alors qu'elles ont déjà leur onglet dédié et son badge.
+  const notifPromise = listNotifications(1, 5, { excludeMessages: true });
   const announcementPromise = listAnnouncements(1, 1);
 
   if (user.role === "HR") {

@@ -50,15 +50,27 @@ export async function createNotification(input: CreateNotificationInput) {
   return notification;
 }
 
-export async function listNotifications(userId: string, page: number, pageSize: number) {
+export async function listNotifications(
+  userId: string,
+  page: number,
+  pageSize: number,
+  options: { excludeMessages?: boolean } = {}
+) {
+  // Le filtre ne porte que sur la LISTE renvoyée : les compteurs ci-dessous
+  // restent ceux de tout le centre de notifications, sans quoi le badge de
+  // l'onglet dépendrait de l'écran qui l'interroge.
+  const listWhere = options.excludeMessages
+    ? { userId, type: { not: NotificationType.MESSAGE_RECEIVED } }
+    : { userId };
+
   const [items, total, unreadCount, unreadCountExcludingMessages] = await Promise.all([
     prisma.notification.findMany({
-      where: { userId },
+      where: listWhere,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.notification.count({ where: { userId } }),
+    prisma.notification.count({ where: listWhere }),
     prisma.notification.count({ where: { userId, isRead: false } }),
     // Un nouveau message crée à la fois une notification (la cloche, demandée
     // explicitement par le client) ET un message non lu dans son fil. Le badge

@@ -41,6 +41,11 @@ arrêté, sans rien redécouvrir et sans rien perdre.
   annoncée « PROCHAINE MISSION » l'après-midi, laissant croire qu'il fallait
   s'y rendre. Elle est maintenant signalée « MISSION NON DÉMARRÉE », et la
   prochaine mission est réellement la suivante à venir.
+- *Accueil (tous rôles)* — « Activité récente » n'affichait que des
+  notifications de messagerie, qui noyaient toute l'activité métier alors
+  qu'elles ont déjà leur onglet. Nouveau filtre d'API `excludeMessages`.
+- *Comptes utilisateurs (RH)* — la liste n'affichait que des initiales alors
+  que les photos de profil existaient déjà : composant `Avatar` partagé.
 
 **Reste à passer en revue :** menu employé, planning (vue semaine),
 accueil et écrans RH, superviseur, directeur, chef d'équipe, chantiers,
@@ -201,10 +206,15 @@ UPDATE users SET phone='+33 6 12 34 56 78' WHERE username='mdupont';
 
 ## 5. Pièges rencontrés (vous feront gagner des heures)
 
-- **Metro en mode CI ne recharge pas les fichiers.** `CI=1` évite un plantage
-  de React Native DevTools sous root, mais désactive la surveillance des
-  fichiers : **après chaque modification du code mobile, il faut tuer et
-  relancer `expo start`**, sinon vous regardez l'ancien bundle sans le savoir.
+- **Metro en mode CI ne recharge pas les fichiers, et son cache disque survit
+  au redémarrage.** `CI=1` évite un plantage de React Native DevTools sous
+  root, mais désactive la surveillance des fichiers. Après chaque modification
+  du code mobile, relancer **avec `--clear`** :
+  `CI=1 BROWSER=none npx expo start --web --port 8081 --clear`.
+  Sans cette option, Metro ressert le bundle d'avant la modification et on
+  croit vérifier le nouveau code. En cas de doute, observer les requêtes
+  réellement émises par la page (`page.on("request", …)`) : c'est ainsi que le
+  piège a été repéré.
 - **Les tests backend doivent tourner en série.** `npm test` inclut
   `--runInBand`. Un `npx jest` nu fait tourner les suites en parallèle, elles
   se vident la base entre elles et ~130 tests échouent sans raison réelle.

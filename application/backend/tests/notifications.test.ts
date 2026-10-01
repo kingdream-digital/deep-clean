@@ -115,4 +115,39 @@ describe("Compteurs de non-lus du centre de notifications", () => {
     expect(notifications.body.unreadCountExcludingMessages + messages.body.unreadCount).toBe(3);
     void sender;
   });
+
+  it("peut écarter les notifications de message, pour que l'activité récente montre le métier", async () => {
+    const { accessToken: senderToken } = await loginAs(Role.SUPERVISOR, "notif-filter-sender@deepclean.test");
+    const { accessToken: recipientToken } = await loginAs(Role.EMPLOYEE, "notif-filter-recipient@deepclean.test");
+    const recipientId = (await request(app).get("/api/v1/auth/me").set("Authorization", `Bearer ${recipientToken}`)).body
+      .user.id;
+
+    await request(app)
+      .post("/api/v1/announcements")
+      .set("Authorization", `Bearer ${senderToken}`)
+      .send({ title: "Réunion de service", body: "Jeudi 14h au dépôt." });
+
+    const conversation = await request(app)
+      .post("/api/v1/messages/conversations/direct")
+      .set("Authorization", `Bearer ${senderToken}`)
+      .send({ userId: recipientId });
+    await request(app)
+      .post("/api/v1/messages")
+      .set("Authorization", `Bearer ${senderToken}`)
+      .field("conversationId", conversation.body.conversation.id)
+      .field("body", "Un message qui ne doit pas noyer l'activité");
+
+    const all = await request(app).get("/api/v1/notifications").set("Authorization", `Bearer ${recipientToken}`);
+    expect(all.body.items).toHaveLength(2);
+
+    const filtered = await request(app)
+      .get("/api/v1/notifications?excludeMessages=true")
+      .set("Authorization", `Bearer ${recipientToken}`);
+    expect(filtered.body.items).toHaveLength(1);
+    expect(filtered.body.items[0].type).toBe("ANNOUNCEMENT_POSTED");
+    // Les compteurs restent ceux de tout le centre de notifications : le badge
+    // de l'onglet ne doit pas dépendre de l'écran qui interroge l'API.
+    expect(filtered.body.unreadCount).toBe(2);
+    expect(filtered.body.unreadCountExcludingMessages).toBe(1);
+  });
 });

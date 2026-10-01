@@ -7,6 +7,7 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { PressableScale } from "../../components/PressableScale";
 import { DataTable, DataTableColumn } from "../../components/DataTable";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -130,20 +131,12 @@ export function UsersListScreen() {
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale onPress={() => navigation.navigate("UserDetail", { userId: item.id })}>
                 <Card style={styles.row}>
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: radius.pill,
-                      backgroundColor: item.isActive === false ? colors.neutralSoft : colors.accentSoft,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={[type.callout, { color: item.isActive === false ? colors.neutral : colors.accent }]}>
-                      {item.firstName[0]}
-                      {item.lastName[0]}
-                    </Text>
+                  {/* Même avatar que partout ailleurs : la photo de profil
+                      quand la personne en a une (elle existait déjà en base et
+                      n'était affichée nulle part ici), les initiales sinon.
+                      Un compte désactivé reste grisé pour rester repérable. */}
+                  <View style={{ opacity: item.isActive === false ? 0.45 : 1 }}>
+                    <Avatar user={item} size={40} />
                   </View>
                   <View style={{ marginLeft: spacing.md, flex: 1 }}>
                     <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
