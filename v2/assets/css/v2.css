@@ -73,6 +73,7 @@ body {
   overflow-x: clip;
 }
 img, svg, video, canvas { display: block; max-width: 100%; }
+svg.w { max-width: none; } /* bandes de vagues : 200 % de large, glissent de -50 % en boucle */
 main, .foot { overflow-x: clip; }
 img { height: auto; }
 a { color: inherit; }
