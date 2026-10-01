@@ -40,7 +40,10 @@ export interface StatsTrends {
     validationRatePercent: number;
   }[];
   topProblemSites: { siteId: string; siteName: string; problemCount: number }[];
-  employeeLoad: { windowDays: number; items: { userId: string; name: string; completedMissions: number }[] };
+  employeeLoad: {
+    windowDays: number;
+    items: { userId: string; name: string; firstName: string; lastName: string; hasAvatar: boolean; completedMissions: number }[];
+  };
 }
 
 // Réservé Direction / Admin — voir backend/src/modules/stats/stats.routes.ts.

@@ -1,10 +1,11 @@
 import React, { useCallback, useState } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { KpiGrid } from "../../components/KpiGrid";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { getStatsOverview, getStatsTrends } from "../../api/stats.api";
 import type { StatsOverview, StatsTrends } from "../../api/stats.api";
@@ -57,7 +58,7 @@ function formatShortDate(iso?: string): string {
   return `${day}/${month}`;
 }
 
-function ListRow({ label, value }: { label: string; value: string }) {
+function ListRow({ label, value, leading }: { label: string; value: string; leading?: React.ReactNode }) {
   const { colors, spacing, type } = useTheme();
   return (
     <View
@@ -67,8 +68,10 @@ function ListRow({ label, value }: { label: string; value: string }) {
         alignItems: "center",
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.md,
+        gap: spacing.sm,
       }}
     >
+      {leading}
       <Text style={[type.body, { color: colors.ink, flex: 1 }]} numberOfLines={1}>
         {label}
       </Text>
@@ -201,7 +204,7 @@ export function StatsOverviewScreen() {
               {trends.topProblemSites.map((s, i) => (
                 <View
                   key={s.siteId}
-                  style={{ borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.border }}
+                  style={{ borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: colors.border }}
                 >
                   <ListRow label={s.siteName} value={`${s.problemCount} signalement${s.problemCount > 1 ? "s" : ""}`} />
                 </View>
@@ -217,9 +220,13 @@ export function StatsOverviewScreen() {
               {trends.employeeLoad.items.slice(0, 10).map((e, i) => (
                 <View
                   key={e.userId}
-                  style={{ borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.border }}
+                  style={{ borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: colors.border }}
                 >
-                  <ListRow label={e.name} value={`${e.completedMissions} mission${e.completedMissions > 1 ? "s" : ""}`} />
+                  <ListRow
+                    leading={<Avatar user={{ id: e.userId, firstName: e.firstName, lastName: e.lastName, hasAvatar: e.hasAvatar }} size={32} />}
+                    label={e.name}
+                    value={`${e.completedMissions} mission${e.completedMissions > 1 ? "s" : ""}`}
+                  />
                 </View>
               ))}
             </Card>

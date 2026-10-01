@@ -525,7 +525,7 @@ export function UserDetailScreen() {
               </Text>
               <View style={{ height: spacing.sm }} />
               <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Mot de passe</Text>
-              <Text style={[type.title3, { color: colors.accentDeep, textAlign: "center" }]} selectable>
+              <Text style={[type.title3, { color: colors.accentText, textAlign: "center" }]} selectable>
                 {temporaryPassword}
               </Text>
             </View>

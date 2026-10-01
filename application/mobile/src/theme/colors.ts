@@ -39,6 +39,13 @@ interface PaletteShape {
    */
   accentFill: string;
   accentDeep: string;
+  /**
+   * Texte ou icône accentué posé sur un fond teinté (`accentSoft`) ou neutre.
+   * Bleu profond en clair ; en sombre, `accentDeep` (même valeur) devenait
+   * illisible sur l'anthracite — cette teinte reste lisible dans les deux modes.
+   * `accentDeep` reste réservé aux aplats et aux bordures.
+   */
+  accentText: string;
   accentBright: string;
   accentGradient: [string, string];
   accentPressed: string;
@@ -79,6 +86,7 @@ const light: PaletteShape = {
   accent: accent.base,
   accentFill: accent.base,
   accentDeep: accent.deep,
+  accentText: accent.deep,
   accentBright: accent.bright,
   accentGradient: [accent.deep, accent.base],
   accentPressed: accent.deep,
@@ -127,6 +135,7 @@ const dark: PaletteShape = {
   // (contraste ~1.8:1 avec `onAccent`, contre ~7:1 avec cette valeur).
   accentFill: accent.base,
   accentDeep: accent.deep,
+  accentText: "#67D4E6",
   accentBright: accent.bright,
   accentGradient: [accent.deep, accent.base],
   accentPressed: accent.deep,

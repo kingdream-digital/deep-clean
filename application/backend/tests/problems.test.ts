@@ -203,6 +203,30 @@ describe("Commentaires et photos", () => {
     expect(res.body.comment.comment).toBe("Pris en compte, intervention prévue demain.");
   });
 
+  it("indique si l'auteur a une photo, sans jamais exposer sa clé de stockage", async () => {
+    const { manager, managerToken, employee, missionId } = await createMissionWithEmployee();
+    await prisma.user.update({ where: { id: manager.id }, data: { avatarKey: "avatars/secret-key.jpg" } });
+    const employeeLogin = await request(app).post("/api/v1/auth/login").send({ username: employee.username, password: TEST_PASSWORD });
+    const created = await request(app)
+      .post("/api/v1/problems")
+      .set("Authorization", `Bearer ${employeeLogin.body.accessToken}`)
+      .send({ missionId, description: "Vitre fissurée." });
+    const comment = await request(app)
+      .post(`/api/v1/problems/${created.body.problem.id}/comments`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ comment: "Vu." });
+
+    const detail = await request(app)
+      .get(`/api/v1/problems/${created.body.problem.id}`)
+      .set("Authorization", `Bearer ${managerToken}`);
+
+    expect(comment.body.comment.author.hasAvatar).toBe(true);
+    expect(detail.body.problem.comments[0].author.hasAvatar).toBe(true);
+    expect(detail.body.problem.reportedBy.hasAvatar).toBe(false);
+    expect(JSON.stringify(detail.body)).not.toContain("secret-key");
+    expect(JSON.stringify(comment.body)).not.toContain("secret-key");
+  });
+
   it("permet d'uploader une photo, de la télécharger de façon authentifiée, et refuse l'accès à un tiers", async () => {
     const { employee, outsider, missionId } = await createMissionWithEmployee();
     const employeeLogin = await request(app).post("/api/v1/auth/login").send({ username: employee.username, password: TEST_PASSWORD });

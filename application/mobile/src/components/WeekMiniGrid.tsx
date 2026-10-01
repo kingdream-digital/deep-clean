@@ -63,7 +63,7 @@ export function WeekMiniGrid({ weekStart, missions, onPressDay }: WeekMiniGridPr
               <Text
                 style={[
                   type.caption,
-                  { color: isToday ? colors.accentDeep : colors.inkTertiary, textAlign: "center", fontWeight: "700" },
+                  { color: isToday ? colors.accentText : colors.inkTertiary, textAlign: "center", fontWeight: "700" },
                 ]}
               >
                 {WEEKDAY_LABELS[index]}
@@ -71,7 +71,7 @@ export function WeekMiniGrid({ weekStart, missions, onPressDay }: WeekMiniGridPr
               <Text
                 style={[
                   type.footnote,
-                  { color: isToday ? colors.accentDeep : colors.ink, textAlign: "center", fontWeight: "700", marginBottom: 4 },
+                  { color: isToday ? colors.accentText : colors.ink, textAlign: "center", fontWeight: "700", marginBottom: 4 },
                 ]}
               >
                 {day.getDate()}

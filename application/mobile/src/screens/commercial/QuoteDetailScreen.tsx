@@ -23,7 +23,7 @@ import {
   submitQuoteForValidation,
   validateQuote,
   QUOTE_ITEM_FREQUENCY_LABELS,
-  QUOTE_ITEM_UNIT_LABELS,
+  formatQuantityWithUnit,
 } from "../../api/quotes.api";
 import type { Quote, QuoteEvent } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
@@ -190,7 +190,7 @@ export function QuoteDetailScreen() {
               <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalHt)}</Text>
             </View>
             <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>
-              {item.quantity} {QUOTE_ITEM_UNIT_LABELS[item.unit]} · {currencyFmt.format(item.unitPriceHt)}
+              {formatQuantityWithUnit(item.quantity, item.unit)} × {currencyFmt.format(item.unitPriceHt)}
               {item.discount > 0 ? ` · -${item.discount}%` : ""}
             </Text>
             {item.frequency !== "ONE_TIME" && (
@@ -222,7 +222,7 @@ export function QuoteDetailScreen() {
             <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(quote.totalTtc)}</Text>
           </View>
           {quote.monthlyAmountHt > 0 && (
-            <Text style={[type.footnote, { color: colors.accentDeep, marginTop: 6 }]}>
+            <Text style={[type.footnote, { color: colors.accentText, marginTop: 6 }]}>
               Prévisionnel : {currencyFmt.format(quote.monthlyAmountHt)} HT / mois
             </Text>
           )}

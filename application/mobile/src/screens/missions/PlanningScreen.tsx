@@ -484,7 +484,7 @@ const MISSION_SOFT_BG: Record<Mission["status"], (c: ReturnType<typeof useTheme>
   CANCELLED: (c) => c.dangerSoft,
 };
 const MISSION_SOFT_TEXT: Record<Mission["status"], (c: ReturnType<typeof useTheme>["colors"]) => string> = {
-  SCHEDULED: (c) => c.accentDeep,
+  SCHEDULED: (c) => c.accentText,
   IN_PROGRESS: (c) => c.warning,
   COMPLETED: (c) => c.success,
   CANCELLED: (c) => c.danger,
@@ -526,10 +526,10 @@ function DesktopWeekGrid({
                 backgroundColor: isToday ? colors.accentSoft : "transparent",
               }}
             >
-              <Text style={[type.caption, { color: isToday ? colors.accentDeep : colors.inkTertiary, fontWeight: "700" }]}>
+              <Text style={[type.caption, { color: isToday ? colors.accentText : colors.inkTertiary, fontWeight: "700" }]}>
                 {WEEKDAY_LABELS[index]}
               </Text>
-              <Text style={[type.headline, { color: isToday ? colors.accentDeep : colors.ink, marginTop: 1 }]}>
+              <Text style={[type.headline, { color: isToday ? colors.accentText : colors.ink, marginTop: 1 }]}>
                 {day.getDate()}
               </Text>
             </View>

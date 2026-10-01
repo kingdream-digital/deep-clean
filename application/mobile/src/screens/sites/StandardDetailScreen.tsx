@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { useRoute, RouteProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -18,6 +19,7 @@ import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
 
 type Route = RouteProp<{ StandardDetail: { standardId: string } }, "StandardDetail">;
+type Navigation = NativeStackNavigationProp<{ StandardForm: { siteId: string; standardId?: string } }>;
 
 // Qui peut déposer/remplacer/retirer le PDF — mêmes droits que la gestion du
 // standard lui-même (backend standards.service.ts::MANAGE_ROLES). Le reste de
@@ -33,6 +35,7 @@ export function StandardDetailScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const { user } = useAuth();
   const route = useRoute<Route>();
+  const navigation = useNavigation<Navigation>();
   const { standardId } = route.params;
 
   const [standard, setStandard] = useState<CleaningStandard | null>(null);
@@ -43,7 +46,7 @@ export function StandardDetailScreen() {
 
   const load = useCallback(async () => {
     try {
-      setState("loading");
+      setState((prev) => (prev === "ready" ? prev : "loading"));
       setStandard(await getStandard(standardId));
       setState("ready");
     } catch {
@@ -51,9 +54,30 @@ export function StandardDetailScreen() {
     }
   }, [standardId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Rechargé à chaque retour sur l'écran : la fiche reflète tout de suite
+  // une modification faite dans le formulaire.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  const siteId = standard?.siteId;
+  useLayoutEffect(() => {
+    if (!canManage || !siteId) return;
+    navigation.setOptions({
+      headerRight: () => (
+        <PressableScale
+          onPress={() => navigation.navigate("StandardForm", { siteId, standardId })}
+          accessibilityRole="button"
+          accessibilityLabel="Modifier le standard"
+          style={{ paddingHorizontal: spacing.xs, paddingVertical: spacing.xxs }}
+        >
+          <Text style={[type.callout, { color: colors.accent, fontWeight: "600" }]}>Modifier</Text>
+        </PressableScale>
+      ),
+    });
+  }, [canManage, siteId, standardId, navigation, colors.accent, spacing, type.callout]);
 
   async function handleAttachDocument() {
     try {

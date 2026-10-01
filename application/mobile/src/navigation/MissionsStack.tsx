@@ -9,6 +9,7 @@ import { JobSheetFormScreen } from "../screens/missions/JobSheetFormScreen";
 import { ReportProblemScreen } from "../screens/missions/ReportProblemScreen";
 import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
 import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
+import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 import { TimeEntryDetailScreen } from "../screens/timesheets/TimeEntryDetailScreen";
 
@@ -20,6 +21,7 @@ export type MissionsStackParamList = {
   ReportProblem: { missionId: string };
   ProblemDetail: { problemId: string };
   StandardDetail: { standardId: string };
+  StandardForm: { siteId: string; standardId?: string };
   ContactProfile: { userId: string };
   TimeEntryDetail: { entryId: string };
 };
@@ -56,6 +58,14 @@ export function MissionsStack() {
       />
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
+      <Stack.Screen
+        name="StandardForm"
+        component={StandardFormScreen}
+        options={({ route }) => ({
+          title: route.params.standardId ? "Modifier le standard" : "Nouveau standard",
+          presentation: "modal",
+        })}
+      />
       <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ title: "Profil" }} />
       <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
     </Stack.Navigator>

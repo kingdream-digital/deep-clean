@@ -14,7 +14,7 @@ export function KpiGrid({ tiles }: { tiles: KpiTile[] }) {
   const { colors, spacing, radius, type } = useTheme();
   const { isDesktopWeb } = useResponsive();
   const fg: Record<KpiTile["tone"], string> = {
-    accent: colors.accentDeep,
+    accent: colors.accentText,
     info: colors.info,
     purple: colors.purple,
     warning: colors.warning,

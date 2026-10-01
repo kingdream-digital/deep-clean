@@ -19,7 +19,7 @@ interface AvatarUser {
 // l'autre — jamais une pastille grise uniforme, ni une couleur aléatoire.
 function initialsColor(userId: string, colors: Palette): { fg: string; bg: string } {
   const palette = [
-    { fg: colors.accentDeep, bg: colors.accentSoft },
+    { fg: colors.accentText, bg: colors.accentSoft },
     { fg: colors.info, bg: colors.infoSoft },
     { fg: colors.purple, bg: colors.purpleSoft },
     { fg: colors.success, bg: colors.successSoft },

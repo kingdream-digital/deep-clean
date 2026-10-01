@@ -30,6 +30,26 @@ export const QUOTE_ITEM_UNIT_LABELS: Record<QuoteItemUnit, string> = {
   OTHER: "Autre",
 };
 
+// Quantité lue comme une phrase sur une ligne de devis ou de facture :
+// « 36 h », « 2 jours », « 1 intervention », « 120 m² » — plutôt que
+// « 36 Heure », qui reprenait tel quel le libellé du menu de choix d'unité.
+const UNIT_IN_SENTENCE: Record<QuoteItemUnit, [singular: string, plural: string]> = {
+  HOUR: ["h", "h"],
+  DAY: ["jour", "jours"],
+  INTERVENTION: ["intervention", "interventions"],
+  SQUARE_METER: ["m²", "m²"],
+  FLAT_RATE: ["forfait", "forfaits"],
+  MONTH: ["mois", "mois"],
+  OTHER: ["", ""],
+};
+
+export function formatQuantityWithUnit(quantity: number, unit: QuoteItemUnit): string {
+  const [singular, plural] = UNIT_IN_SENTENCE[unit];
+  const qty = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(quantity);
+  const label = quantity > 1 ? plural : singular;
+  return label ? `${qty} ${label}` : qty;
+}
+
 export type QuoteItemFrequency = "ONE_TIME" | "DAILY" | "MULTIPLE_PER_WEEK" | "WEEKLY" | "MULTIPLE_PER_MONTH" | "MONTHLY" | "CUSTOM";
 
 export const QUOTE_ITEM_FREQUENCY_LABELS: Record<QuoteItemFrequency, string> = {

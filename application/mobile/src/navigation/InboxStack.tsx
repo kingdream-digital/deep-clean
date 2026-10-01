@@ -17,6 +17,7 @@ import { ReportProblemScreen } from "../screens/missions/ReportProblemScreen";
 import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
 import { TimeEntryDetailScreen } from "../screens/timesheets/TimeEntryDetailScreen";
 import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
+import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { MyAbsencesScreen } from "../screens/absences/MyAbsencesScreen";
 import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
 import { UserDetailScreen } from "../screens/users/UserDetailScreen";
@@ -47,6 +48,7 @@ export type InboxStackParamList = {
   ProblemDetail: { problemId: string };
   TimeEntryDetail: { entryId: string };
   StandardDetail: { standardId: string };
+  StandardForm: { siteId: string; standardId?: string };
   // Ajoutés (audit notifications) : ABSENCE_DECIDED pointe vers relatedEntityType
   // "Absence", qui n'avait aucun écran cible sur cette pile jusqu'ici — la
   // notification ne menait nulle part. AbsenceForm est dupliqué en plus de
@@ -121,6 +123,14 @@ export function InboxStack() {
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
       <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
+      <Stack.Screen
+        name="StandardForm"
+        component={StandardFormScreen}
+        options={({ route }) => ({
+          title: route.params.standardId ? "Modifier le standard" : "Nouveau standard",
+          presentation: "modal",
+        })}
+      />
       <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: MY_ABSENCES_TITLE }} />
       <Stack.Screen
         name="AbsenceForm"
