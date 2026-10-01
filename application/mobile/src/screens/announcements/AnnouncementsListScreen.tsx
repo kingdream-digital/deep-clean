@@ -10,6 +10,7 @@ import { Card } from "../../components/Card";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
+import { Avatar } from "../../components/Avatar";
 import { useAuth } from "../../auth/AuthContext";
 import { announcementCoverPhotoUrl, listAnnouncements } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
@@ -32,7 +33,6 @@ const ROLE_LABELS: Record<Role, string> = {
 // revérifiée de toute façon côté serveur : ceci ne fait qu'afficher ou non le bouton).
 const CAN_POST_ROLES: Role[] = ["HR", "SUPERVISOR", "DIRECTOR", "ADMIN"];
 
-const initialsOf = (firstName: string, lastName: string) => `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
 
 export function AnnouncementsListScreen() {
   const { colors, spacing, radius, type, isDark } = useTheme();
@@ -95,39 +95,13 @@ export function AnnouncementsListScreen() {
                   )}
                   <View style={{ padding: spacing.lg }}>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <View
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: radius.pill,
-                        backgroundColor: colors.purpleSoft,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text style={[type.caption, { color: colors.purple, fontWeight: "700" }]}>
-                        {initialsOf(item.author.firstName, item.author.lastName)}
-                      </Text>
-                    </View>
+                    <Avatar user={item.author} size={34} />
                     <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
-                          {item.author.firstName} {item.author.lastName}
-                        </Text>
-                        <View
-                          style={{
-                            marginLeft: spacing.xs,
-                            backgroundColor: colors.purpleSoft,
-                            borderRadius: 999,
-                            paddingHorizontal: 8,
-                            paddingVertical: 2,
-                          }}
-                        >
-                          <Text style={[type.caption, { color: colors.purple }]}>{ROLE_LABELS[item.author.role]}</Text>
-                        </View>
-                      </View>
+                      <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]} numberOfLines={1}>
+                        {item.author.firstName} {item.author.lastName}
+                      </Text>
                       <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 1 }]}>
-                        {timeAgo(item.createdAt)} · toute l'entreprise
+                        {ROLE_LABELS[item.author.role]} · {timeAgo(item.createdAt)}
                       </Text>
                     </View>
                   </View>

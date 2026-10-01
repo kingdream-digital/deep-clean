@@ -26,6 +26,7 @@ const authorSelect = {
   firstName: true,
   lastName: true,
   role: true,
+  avatarKey: true,
 } as const;
 
 const announcementSelect = {
@@ -41,11 +42,15 @@ const announcementSelect = {
 // TimeEntry.clockInPhotoKey, jamais exposée telle quelle) au profit d'un
 // simple booléen : le client récupère la photo via la route authentifiée
 // dédiée (GET /:id/cover-photo), jamais par la clé elle-même.
-function presentAnnouncement<T extends { coverPhotoKey: string | null }>(
-  announcement: T
-): Omit<T, "coverPhotoKey"> & { hasCoverPhoto: boolean } {
-  const { coverPhotoKey, ...rest } = announcement;
-  return { ...rest, hasCoverPhoto: Boolean(coverPhotoKey) };
+//
+// Même principe pour la photo de profil de l'auteur : `hasAvatar`, jamais la
+// clé de stockage — la liste des actualités montre ainsi sa photo.
+function presentAnnouncement<
+  T extends { coverPhotoKey: string | null; author: { avatarKey: string | null } }
+>(announcement: T) {
+  const { coverPhotoKey, author, ...rest } = announcement;
+  const { avatarKey, ...authorRest } = author;
+  return { ...rest, author: { ...authorRest, hasAvatar: Boolean(avatarKey) }, hasCoverPhoto: Boolean(coverPhotoKey) };
 }
 
 /**

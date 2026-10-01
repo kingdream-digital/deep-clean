@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -77,7 +78,7 @@ export function QuoteActionScreen() {
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Moyen de contact</Text>
             <Card padded={false}>
-              <Picker selectedValue={method} onValueChange={(v) => setMethod(v as QuoteFollowUpMethod)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={method} onValueChange={(v) => setMethod(v as QuoteFollowUpMethod)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 {Object.entries(QUOTE_FOLLOW_UP_METHOD_LABELS).map(([value, label]) => (
                   <Picker.Item key={value} label={label} value={value} />
                 ))}
