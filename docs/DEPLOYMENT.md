@@ -103,6 +103,42 @@ GitHub (`Settings > Deploy keys`). Les deux applications Coolify
    coller QUE la valeur dans le champ Value, jamais `CORS_ORIGINS=` en plus**
    (bug rencontré une fois, voir §5) → sauvegarder → Redeploy.
 
+## 3 bis. Charger la démo complète (présentation au client)
+
+Script : `application/backend/prisma/seedPresentationDemo.ts`. Il remplit une
+base **vide** avec une entreprise fictive complète : 11 comptes avec photo
+(RH, direction, superviseur, chefs d'équipe, employés), 4 chantiers, une
+semaine de planning datée autour du jour de la démo (une mission en cours ce
+jour-là), signalements avec photo et fil de suivi, messagerie (fils à deux et
+groupe avec PDF), pointages à valider, congés à approuver, standards de
+nettoyage, fiche de poste, actualités, et tout le module commercial
+(prospects, clients, devis, factures).
+
+Dans Coolify, backend → **Terminal** :
+
+```
+DEMO_MODE=1 DEMO_DATE=2026-10-02 npx tsx prisma/seedPresentationDemo.ts
+```
+
+- `DEMO_DATE` = le jour où la démo sera montrée (format AAAA-MM-JJ). Sans
+  lui, le jour de lancement est pris.
+- Mot de passe de tous les comptes : `DemoClean2026!` (identifiants affichés
+  à la fin du script : `lpetit` employé, `kbenali` chef d'équipe, `ytraore`
+  superviseur, `mdupont` RH, `jlefevre` direction).
+- **Garde-fous** : sans `DEMO_MODE=1`, le script refuse de tourner sur un
+  serveur en production. Et il s'arrête sans rien modifier dès que la base
+  contient un seul compte qui n'est pas un compte de démo (hors admin
+  technique) : impossible de mélanger la démo avec de vraies données.
+- Aucun e-mail n'est envoyé pendant le chargement, même si le SMTP est
+  configuré (les adresses de la démo sont inventées).
+- Relancer le script ne crée pas de doublons.
+- Les heures sont calculées en heure de Paris, quel que soit le fuseau du
+  serveur.
+
+**Avant la vraie mise en service**, la base de démo doit être vidée (les
+comptes de démo ont un mot de passe public). À faire ensemble, ce n'est pas
+une commande à lancer seul.
+
 ## 4. Pare-feu / accès réseau
 
 Deux couches de pare-feu à tenir synchronisées :

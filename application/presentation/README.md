@@ -1,6 +1,6 @@
 # Présentation Deep Clean
 
-Deck de vente au format PDF, généré depuis `index.html` via Playwright.
+Deck de vente au format PDF 16:9 (20 pages), généré depuis `index.html`.
 
 ## Régénérer le PDF
 
@@ -9,4 +9,8 @@ npm install playwright
 node render.js
 ```
 
-Cela produit `Deep-Clean-Presentation-KingDream.pdf` dans ce dossier, à partir de `index.html` (mise en page) et des polices/images dans `fonts/`, `assets/` et `shots/` (captures d'écran réelles de l'application).
+`render.js` photographie chaque page de `index.html` en 3840 × 2160 puis
+assemble les images dans `Deep-Clean-Presentation-KingDream.pdf`. Les
+captures d'écran réelles de l'application sont dans `shots/` (téléphone en
+390 × 844, ordinateur en 1440 × 900, prises avec les données de démo et une
+horloge réglée sur un jeudi à 6 h 45 pour montrer une journée en cours).

@@ -1,7 +1,13 @@
 /**
  * Jeu de données de démonstration pour la présentation commerciale
- * (application/presentation) — jamais utilisé en production (voir
- * assertNotProduction ci-dessous, même garde-fou que seedDemo.ts).
+ * (application/presentation) et pour une démo en ligne à montrer au client.
+ *
+ * En développement : `npx tsx prisma/seedPresentationDemo.ts`.
+ * Sur un serveur (NODE_ENV=production) : uniquement sur un serveur de
+ * démonstration, avec `DEMO_MODE=1 npx tsx prisma/seedPresentationDemo.ts`.
+ * Le script refuse alors de tourner dès que la base contient un seul compte
+ * qui n'appartient pas à la démo (voir assertSafeTarget) : il ne peut jamais
+ * mélanger de faux comptes, au mot de passe public, avec de vraies données.
  *
  * Contrairement à seedDemo.ts (données minimales pour développer), ce script
  * vise un rendu "vivant" pour les captures d'écran : photos de profil
@@ -12,6 +18,7 @@
  * exactement comme il le serait en conditions réelles.
  */
 import { PrismaClient, Role, MissionStatus, ProblemType, QuoteItemUnit, QuoteItemFrequency, QuoteFollowUpMethod } from "@prisma/client";
+import PDFDocument from "pdfkit";
 import { hashPassword } from "../src/utils/password";
 import { generateUsername } from "../src/utils/username";
 import { env } from "../src/config/env";
@@ -22,16 +29,57 @@ import * as quotesService from "../src/modules/quotes/quotes.service";
 import * as invoicesService from "../src/modules/invoices/invoices.service";
 import * as sitesService from "../src/modules/sites/sites.service";
 import * as problemsService from "../src/modules/problems/problems.service";
+import * as messagesService from "../src/modules/messages/messages.service";
+import * as timesheetsService from "../src/modules/timesheets/timesheets.service";
+import * as absencesService from "../src/modules/absences/absences.service";
+import * as standardsService from "../src/modules/standards/standards.service";
+import * as missionsService from "../src/modules/missions/missions.service";
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = "DemoClean2026!";
 
-function assertNotProduction(): void {
-  if (env.isProduction) {
+// Adresses des comptes créés par ce script : tout autre compte (hors admin
+// technique) est considéré comme une vraie donnée de l'entreprise.
+const DEMO_EMAILS = [
+  "rh@deepclean.fr", "directeur@deepclean.fr", "yasmine.superviseur@deepclean.fr", "karim.chef@deepclean.fr",
+  "sophie.chef@deepclean.fr", "lucas.employe@deepclean.fr", "emma.employe@deepclean.fr", "nathan.employe@deepclean.fr",
+  "chloe.employe@deepclean.fr", "ines.employe@deepclean.fr", "thomas.employe@deepclean.fr",
+];
+
+async function assertSafeTarget(): Promise<void> {
+  if (!env.isProduction) return;
+  if (process.env.DEMO_MODE !== "1") {
     throw new Error(
-      "Ce script de démo ne doit jamais être exécuté en production (NODE_ENV=production) : il crée des comptes avec un mot de passe fixe et public."
+      "Serveur en production : ce script crée des comptes au mot de passe public. Il ne se lance que sur un serveur de démonstration, avec DEMO_MODE=1 devant la commande."
     );
   }
+  const realAccounts = await prisma.user.count({ where: { role: { not: Role.ADMIN }, email: { notIn: DEMO_EMAILS } } });
+  if (realAccounts > 0) {
+    throw new Error(
+      `Arrêt : la base contient ${realAccounts} compte(s) qui ne font pas partie de la démo. Rien n'a été modifié. La démo ne se charge que sur une base vide (hors admin technique).`
+    );
+  }
+}
+
+// Petit PDF réel (consignes de chantier) joint dans le groupe de messagerie.
+function buildSafetyPdf(): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const doc = new PDFDocument({ size: "A4", margin: 56 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c: Buffer) => chunks.push(c));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.fontSize(20).text("Consignes de sécurité · Coworking Le Phare");
+    doc.moveDown().fontSize(11).fillColor("#444");
+    [
+      "Port des gants obligatoire pour les produits désinfectants.",
+      "Signalisation « sol glissant » pendant et après le lavage des sols.",
+      "Local technique : ne jamais laisser les produits sans surveillance.",
+      "Ascenseur réservé au matériel entre 7 h et 9 h.",
+      "Tout incident est signalé le jour même depuis l'application.",
+    ].forEach((line, i) => doc.text(`${i + 1}. ${line}`).moveDown(0.4));
+    doc.moveDown().fillColor("#888").fontSize(9).text("Deep Clean · document interne");
+    doc.end();
+  });
 }
 
 function isoDate(d: Date): string {
@@ -42,8 +90,23 @@ function addDays(base: Date, days: number): Date {
   d.setDate(d.getDate() + days);
   return d;
 }
+// Heure « murale » de Paris, quel que soit le fuseau du serveur : l'équipe et
+// le client regardent la démo en France, une mission de 8 h doit s'afficher
+// à 8 h même si le serveur tourne en heure universelle.
 function combineDateTime(date: string, time: string): Date {
-  return new Date(`${date}T${time}:00`);
+  const asUtc = new Date(`${date}T${time}:00Z`);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+      .formatToParts(asUtc)
+      .map((p) => [p.type, p.value])
+  );
+  const parisWallAsUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute));
+  return new Date(asUtc.getTime() - (parisWallAsUtc - asUtc.getTime()));
+}
+// Jour calendaire d'une mission (colonne « date seule ») : minuit UTC, quel
+// que soit le fuseau du serveur.
+function dayOnly(date: string): Date {
+  return new Date(`${date}T00:00:00Z`);
 }
 
 // Photos de démo (jamais de vraies personnes) : pravatar.cc fournit des
@@ -89,7 +152,12 @@ async function upsertUser(params: { email: string; firstName: string; lastName: 
 }
 
 async function main() {
-  assertNotProduction();
+  await assertSafeTarget();
+  // Les devis et factures de démo passent par le vrai workflow, qui envoie un
+  // e-mail au client à chaque étape. Les adresses de la démo sont inventées :
+  // l'envoi est coupé pour toute la durée du script (simulation, voir
+  // utils/mailer.ts), même si le serveur a un SMTP configuré.
+  (env as { SMTP_HOST?: string }).SMTP_HOST = undefined;
 
   const admin = await prisma.user.findFirst({ where: { role: Role.ADMIN } });
 
@@ -148,55 +216,50 @@ async function main() {
   console.log("Chantiers démo prêts.");
 
   // ---------------------------------------------------------------- Planning : une semaine bien remplie
-  const today = new Date();
-  const monday = addDays(today, 1 - (today.getDay() === 0 ? 7 : today.getDay()));
+  // Tout est daté par rapport au jour de la démonstration : une mission en
+  // cours « aujourd'hui », l'historique les jours d'avant, le planning à
+  // venir ensuite. DEMO_DATE=AAAA-MM-JJ permet de préparer la démo la veille
+  // pour le jour de la présentation (par défaut : aujourd'hui).
+  const demoDate = process.env.DEMO_DATE;
+  if (demoDate && !/^\d{4}-\d{2}-\d{2}$/.test(demoDate)) throw new Error("DEMO_DATE doit être au format AAAA-MM-JJ.");
+  const today = demoDate ? new Date(`${demoDate}T12:00:00`) : new Date();
   const missionIds: Record<string, string> = {};
 
-  // Ne recrée pas la semaine de démo si elle existe déjà pour CETTE semaine
-  // précisément (jamais de suppression des données existantes d'une exécution
-  // précédente, même d'un autre jeu de seed — uniquement une vérification
-  // avant ajout).
-  const currentWeekMissionCount = await prisma.mission.count({
-    where: { date: { gte: new Date(`${isoDate(monday)}T00:00:00`), lte: new Date(`${isoDate(addDays(monday, 6))}T23:59:59`) } },
-  });
-
-  if (currentWeekMissionCount === 0) {
+  // Ne recrée jamais le planning de démo s'il existe déjà (aucune suppression,
+  // uniquement une vérification avant ajout).
+  if ((await prisma.mission.count()) === 0) {
     type MissionSeed = { site: { id: string }; title: string; dayOffset: number; start: string; end: string; instructions: string; assignees: string[]; leadId?: string; status: MissionStatus; key?: string };
 
     const missionSeeds: MissionSeed[] = [
-      // Semaine dernière — historique
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: -7, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.COMPLETED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -6, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: -5, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id], leadId: karim.id, status: MissionStatus.COMPLETED },
-      // Lundi
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 0, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id], leadId: karim.id, status: MissionStatus.COMPLETED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 0, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires. Réunion en salle B jusqu'à 18h30.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
-      // Mardi
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 1, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTilleuls, title: "Vitrerie extérieure", dayOffset: 1, start: "14:00", end: "16:00", instructions: "Façade rue des Tilleuls, rez-de-chaussée et 1er étage.", assignees: [emma.id, ines.id], leadId: undefined, status: MissionStatus.SCHEDULED },
-      // Aujourd'hui (mission en cours pour la démo, + une terminée le matin)
-      { site: siteTechcorp, title: "Grand nettoyage open space", dayOffset: 2, start: "07:00", end: "09:30", instructions: "Vitres intérieures, moquette, cuisine partagée.", assignees: [nathan.id, chloe.id, sophie.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 2, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.IN_PROGRESS, key: "todayInProgress" },
-      // Mercredi
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 3, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 7 à 12.", assignees: [lucas.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 3, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
-      // Jeudi
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 4, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 4, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.CANCELLED },
-      // Vendredi
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 5, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTilleuls, title: "Grand ménage mensuel", dayOffset: 5, start: "13:00", end: "17:00", instructions: "Ascenseurs, local poubelles, parking sous-sol.", assignees: [emma.id, ines.id, thomas.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      // Samedi
-      { site: siteTechcorp, title: "Entretien week-end", dayOffset: 6, start: "09:00", end: "12:00", instructions: "Nettoyage léger, accueil dégagé pour le lundi.", assignees: [chloe.id], leadId: undefined, status: MissionStatus.SCHEDULED },
+      // Historique (déjà fait)
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: -9, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -8, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: -7, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: -3, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -3, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires. Réunion en salle B jusqu'à 18 h 30.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: -2, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTilleuls, title: "Vitrerie extérieure", dayOffset: -2, start: "14:00", end: "16:00", instructions: "Façade rue des Tilleuls, rez-de-chaussée et 1er étage.", assignees: [emma.id, ines.id], leadId: undefined, status: MissionStatus.COMPLETED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -1, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      // Aujourd'hui : une terminée tôt, une en cours, une cet après-midi
+      { site: siteTechcorp, title: "Grand nettoyage open space", dayOffset: 0, start: "06:30", end: "08:30", instructions: "Vitres intérieures, moquette, cuisine partagée.", assignees: [nathan.id, chloe.id, sophie.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 0, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.IN_PROGRESS, key: "todayInProgress" },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 0, start: "14:00", end: "16:00", instructions: "Protocole sanitaire renforcé, salles 7 à 12.", assignees: [lucas.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      // À venir
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 1, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 2, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 2, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [emma.id, ines.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 3, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.CANCELLED },
+      { site: siteTilleuls, title: "Grand ménage mensuel", dayOffset: 4, start: "13:00", end: "17:00", instructions: "Ascenseurs, local poubelles, parking sous-sol.", assignees: [emma.id, ines.id, thomas.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      { site: siteTechcorp, title: "Entretien week-end", dayOffset: 5, start: "09:00", end: "12:00", instructions: "Nettoyage léger, accueil dégagé pour le lundi.", assignees: [chloe.id], leadId: undefined, status: MissionStatus.SCHEDULED },
     ];
 
     for (const seed of missionSeeds) {
-      const dateStr = isoDate(addDays(monday, seed.dayOffset));
+      const dateStr = isoDate(addDays(today, seed.dayOffset));
       const mission = await prisma.mission.create({
         data: {
           siteId: seed.site.id,
           title: seed.title,
-          date: new Date(`${dateStr}T00:00:00`),
+          date: dayOnly(dateStr),
           startTime: combineDateTime(dateStr, seed.start),
           endTime: combineDateTime(dateStr, seed.end),
           instructions: seed.instructions,
@@ -376,7 +439,7 @@ async function main() {
       await prisma.mission.create({
         data: {
           siteId: sitePhare.id, title: "Entretien quotidien espace coworking",
-          date: new Date(`${dateStr}T00:00:00`), startTime: combineDateTime(dateStr, "07:00"), endTime: combineDateTime(dateStr, "09:00"),
+          date: dayOnly(dateStr), startTime: combineDateTime(dateStr, "07:00"), endTime: combineDateTime(dateStr, "09:00"),
           instructions: "Accueil, open space, sanitaires, salles de réunion.", status: MissionStatus.COMPLETED, createdById: rh.id,
           assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: thomas.id }] },
         },
@@ -385,7 +448,7 @@ async function main() {
     await prisma.mission.create({
       data: {
         siteId: sitePhare.id, title: "Entretien quotidien espace coworking",
-        date: new Date(`${isoDate(today)}T00:00:00`), startTime: combineDateTime(isoDate(today), "07:00"), endTime: combineDateTime(isoDate(today), "09:00"),
+        date: dayOnly(isoDate(today)), startTime: combineDateTime(isoDate(today), "07:00"), endTime: combineDateTime(isoDate(today), "09:00"),
         instructions: "Accueil, open space, sanitaires, salles de réunion.", status: MissionStatus.SCHEDULED, createdById: rh.id,
         assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: ines.id }] },
       },
@@ -423,6 +486,133 @@ async function main() {
     console.log("Module commercial démo prêt : 5 prospects, 3 clients, 4 devis, 3 factures, 1 chantier créé depuis un devis accepté.");
   } else {
     console.log("Des prospects existent déjà, création des données commerciales démo ignorée.");
+  }
+
+
+  // ================================================================ VIE QUOTIDIENNE
+  // Tout ce qui rend la démo vivante écran par écran : messagerie, pointages
+  // à valider, congés, standards, fiche de poste, suivi des signalements,
+  // validations. Chaque bloc ne s'ajoute qu'une fois (jamais de doublon si le
+  // script est relancé) et passe par les vrais services de l'application.
+  const actor = (u: { id: string; role: Role }) => ({ userId: u.id, role: u.role });
+
+  // Téléphones (le bouton d'appel de la messagerie a besoin d'un numéro).
+  const phones: Array<[{ id: string }, string]> = [
+    [rh, "+33 6 12 34 56 78"], [directeur, "+33 6 23 45 67 89"], [superviseur, "+33 6 34 56 78 90"], [karim, "+33 6 45 67 89 01"],
+    [sophie, "+33 6 56 78 90 12"], [lucas, "+33 6 67 89 01 23"], [emma, "+33 6 78 90 12 34"], [nathan, "+33 6 89 01 23 45"],
+    [chloe, "+33 6 90 12 34 56"], [ines, "+33 7 01 23 45 67"], [thomas, "+33 7 12 34 56 78"],
+  ];
+  for (const [u, phone] of phones) await prisma.user.update({ where: { id: u.id }, data: { phone } });
+
+  // Messagerie : trois fils à deux et un groupe de chantier avec un PDF.
+  if ((await prisma.conversation.count()) === 0) {
+    const say = (u: { id: string; role: Role }, conversationId: string, body: string) =>
+      messagesService.sendMessage(actor(u), { conversationId, body });
+    const withKarim = await messagesService.getOrCreateDirectConversation(actor(karim), rh.id);
+    await say(karim, withKarim.id, "Bonjour Marie, l'équipe est au complet ce matin au Phare.");
+    await say(rh, withKarim.id, "Parfait, merci Karim ! Pensez à faire pointer tout le monde.");
+    await say(karim, withKarim.id, "C'est fait 👍 On attaque le 2e étage à 10 h.");
+    const withLucas = await messagesService.getOrCreateDirectConversation(actor(lucas), rh.id);
+    await say(lucas, withLucas.id, "Bonjour, est-ce que je peux poser mon vendredi 17 ?");
+    const withYasmine = await messagesService.getOrCreateDirectConversation(actor(superviseur), rh.id);
+    await say(superviseur, withYasmine.id, "Planning de la semaine prochaine validé, je l'envoie à l'équipe.");
+
+    const group = await messagesService.createGroupConversation(actor(rh), {
+      title: "Chantier Le Phare",
+      participantIds: [karim.id, superviseur.id, lucas.id, emma.id],
+    });
+    await say(rh, group.id, "Bonjour à tous 👋 Point d'équipe demain 8 h devant le Phare.");
+    await say(karim, group.id, "Bien noté, je préviens l'équipe du matin.");
+    await say(superviseur, group.id, "Je passe vers 9 h pour la validation des heures.");
+    await messagesService.sendMessage(actor(rh), { conversationId: group.id, body: "Les consignes de sécurité mises à jour 👇" }, {
+      document: { buffer: await buildSafetyPdf(), fileName: "Consignes-securite-Le-Phare.pdf" },
+    });
+    await say(emma, group.id, "Merci, c'est noté !");
+    console.log("Messagerie démo prête (3 conversations + 1 groupe avec PDF).");
+  }
+
+  // Pointages différés en attente : de quoi remplir « Validation des heures ».
+  if ((await prisma.timeEntry.count()) === 0) {
+    const at = (daysAgo: number, time: string) => combineDateTime(isoDate(addDays(today, -daysAgo)), time).toISOString();
+    const entries: Array<[{ id: string; role: Role }, number, string, string, string | undefined]> = [
+      // Jamais plus de 7 jours en arrière (règle des pointages différés), et
+      // toujours dans le passé même si la démo est préparée la veille.
+      [lucas, 2, "07:02", "09:05", "Badgeuse en panne à l'arrivée"],
+      [lucas, 3, "08:00", "11:10", undefined],
+      [emma, 3, "07:55", "11:00", "Oubli de pointer"],
+      [nathan, 3, "18:00", "20:30", undefined],
+      [chloe, 3, "18:05", "20:40", "Téléphone déchargé"],
+    ];
+    for (const [u, daysAgo, start, end, comment] of entries) {
+      await timesheetsService.createRetroactiveTimeEntry(actor(u), { clockIn: at(daysAgo, start), clockOut: at(daysAgo, end), comment });
+    }
+    console.log("Pointages démo prêts (5 en attente de validation).");
+  }
+
+  // Deux demandes de congé à approuver.
+  if ((await prisma.absence.count()) === 0) {
+    await absencesService.createAbsence(actor(emma), {
+      type: "PAID_LEAVE", startDate: isoDate(addDays(today, 18)), endDate: isoDate(addDays(today, 22)), reason: "Vacances en famille",
+    });
+    await absencesService.createAbsence(actor(nathan), {
+      type: "SICK_LEAVE", startDate: isoDate(addDays(today, 4)), endDate: isoDate(addDays(today, 5)),
+    });
+    console.log("Demandes de congé démo prêtes.");
+  }
+
+  // Standards de nettoyage de la Résidence Les Tilleuls.
+  if ((await prisma.cleaningStandard.count()) === 0) {
+    await standardsService.createStandard(actor(superviseur), {
+      siteId: siteTilleuls.id,
+      name: "Parties communes · passage hebdomadaire",
+      tasks: ["Balayer et laver le hall d'entrée", "Nettoyer les vitres de la porte d'entrée", "Dépoussiérer les boîtes aux lettres", "Laver les escaliers du RDC au 5e étage", "Vider les poubelles du local vélos"],
+      equipment: ["Autolaveuse compacte", "Seau et frange microfibre", "Produit vitres", "Gants nitrile"],
+      safetyInstructions: "Poser le panneau « Sol glissant » pendant le lavage du hall. Ne jamais mélanger javel et détartrant.",
+      notes: "Passage le mardi matin, avant 10 h.",
+    });
+    await standardsService.createStandard(actor(superviseur), {
+      siteId: siteTilleuls.id,
+      name: "Local poubelles · désinfection mensuelle",
+      tasks: ["Sortir les conteneurs", "Laver le sol au jet", "Désinfecter les conteneurs"],
+      equipment: ["Nettoyeur haute pression", "Désinfectant bactéricide"],
+      safetyInstructions: "Porter lunettes et gants pendant la désinfection.",
+    });
+    console.log("Standards de nettoyage démo prêts.");
+  }
+
+  // Fiche de poste sur la prochaine désinfection de la clinique.
+  if ((await prisma.jobSheet.count()) === 0) {
+    const nextClinic = await prisma.mission.findFirst({
+      where: { siteId: siteClinique.id, status: MissionStatus.SCHEDULED, date: { gte: dayOnly(isoDate(today)) } },
+      orderBy: { startTime: "asc" },
+    });
+    if (nextClinic) {
+      await missionsService.upsertJobSheet(actor(superviseur), nextClinic.id, {
+        tasks: ["Aérer chaque salle 10 minutes avant de commencer", "Désinfecter tables d'examen, poignées et interrupteurs", "Nettoyer les lavabos et recharger savon et essuie-mains", "Laver le sol du couloir à la frange microfibre", "Vider les poubelles DASRI dans le local dédié"],
+        equipment: ["Désinfectant virucide EN 14476", "Lingettes à usage unique", "Chariot de lavage double seau", "Gants nitrile et masque FFP2"],
+        safetyInstructions: "Ne jamais toucher le contenu des boîtes à aiguilles. Respecter le circuit propre / sale indiqué par la clinique.",
+        notes: "Badge d'accès à récupérer à l'accueil, porte B.",
+      });
+      console.log("Fiche de poste démo prête.");
+    }
+  }
+
+  // Suivi d'un signalement (fil de commentaires).
+  const leak = await prisma.problem.findFirst({ where: { description: { startsWith: "Infiltration d'eau" } } });
+  if (leak && (await prisma.problemComment.count({ where: { problemId: leak.id } })) === 0) {
+    await problemsService.addComment(actor(karim), leak.id, "J'ai prévenu le syndic, un plombier passe demain matin.");
+    await problemsService.addComment(actor(directeur), leak.id, "Merci. Pensez à baliser la zone en attendant.");
+    console.log("Suivi de signalement démo prêt.");
+  }
+
+  // Missions terminées validées par la superviseure (sauf les deux dernières,
+  // laissées « à valider » pour la démonstration).
+  if ((await prisma.validation.count()) === 0) {
+    const completed = await prisma.mission.findMany({ where: { status: MissionStatus.COMPLETED }, orderBy: { endTime: "desc" } });
+    for (const mission of completed.slice(2)) {
+      await missionsService.validateMission(actor(superviseur), mission.id);
+    }
+    console.log(`${Math.max(0, completed.length - 2)} missions terminées validées.`);
   }
 
   console.log("\nTerminé. Comptes de démo (mot de passe commun : " + DEMO_PASSWORD + ") :");
