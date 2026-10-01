@@ -42,3 +42,23 @@ describe("StateView", () => {
     expect(screen.queryByText("Réessayer")).toBeNull();
   });
 });
+
+describe("StateView — état vide", () => {
+  it("prend la phrase propre à l'écran comme titre, sans « Rien à afficher » générique", () => {
+    renderWithTheme(<StateView kind="empty" message="Aucun compte pour le moment." />);
+    expect(screen.getByText("Aucun compte pour le moment")).toBeTruthy();
+    expect(screen.queryByText("Rien à afficher")).toBeNull();
+  });
+
+  it("garde la deuxième phrase comme explication sous le titre", () => {
+    renderWithTheme(<StateView kind="empty" message="Aucun chantier disponible. Créez d'abord un chantier." />);
+    expect(screen.getByText("Aucun chantier disponible")).toBeTruthy();
+    expect(screen.getByText("Créez d'abord un chantier.")).toBeTruthy();
+  });
+
+  it("respecte un titre explicite", () => {
+    renderWithTheme(<StateView kind="empty" title="Aucun pointage à valider" message="Les pointages apparaîtront ici." />);
+    expect(screen.getByText("Aucun pointage à valider")).toBeTruthy();
+    expect(screen.getByText("Les pointages apparaîtront ici.")).toBeTruthy();
+  });
+});

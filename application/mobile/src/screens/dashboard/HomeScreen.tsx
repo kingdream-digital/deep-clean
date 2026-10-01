@@ -18,6 +18,7 @@ import { LogoMark } from "../../components/LogoMark";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
+import { useResponsive } from "../../hooks/useResponsive";
 import { avatarUrl } from "../../api/users.api";
 import { announcementCoverPhotoUrl } from "../../api/announcements.api";
 import { useUnreadInboxCount } from "../../hooks/useUnreadInboxCount";
@@ -61,44 +62,68 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 // partagée dans une carte unique.
 function HeroKpiRow({ tiles, tones }: { tiles: KpiTile[]; tones: Record<DashboardSectionTone, { fg: string; bg: string }> }) {
   const { colors, spacing, radius, type } = useTheme();
+  const { width } = useResponsive();
+  // Sur téléphone, deux cartes par ligne au plus : à trois ou quatre de front,
+  // chaque carte faisait 75 px de large et les libellés se coupaient en plein
+  // mot (« Chantie / rs », « Employ / és »). Une carte seule en fin de grille
+  // prend toute la largeur, en ligne, plutôt que de laisser une demi-ligne vide.
+  const perRow = tiles.length <= 2 || width >= 600 ? tiles.length : 2;
+  const rows: KpiTile[][] = [];
+  for (let i = 0; i < tiles.length; i += perRow) rows.push(tiles.slice(i, i + perRow));
+
   return (
-    <View style={{ flexDirection: "row", gap: spacing.sm }}>
-      {tiles.map((tile) => {
-        const tone = tones[tile.tone];
-        return (
-          <View
-            key={tile.key}
-            style={{
-              flex: 1,
-              backgroundColor: tone.bg,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-            }}
-          >
-            {tile.icon && (
+    <View style={{ gap: spacing.sm }}>
+      {rows.map((row) => (
+        <View key={row.map((t) => t.key).join("-")} style={{ flexDirection: "row", gap: spacing.sm }}>
+          {row.map((tile) => {
+            const tone = tones[tile.tone];
+            const wide = row.length === 1 && tiles.length > 1;
+            return (
               <View
+                key={tile.key}
                 style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: radius.sm,
-                  backgroundColor: tone.fg + "26",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: spacing.sm,
+                  flex: 1,
+                  backgroundColor: tone.bg,
+                  borderRadius: radius.lg,
+                  padding: spacing.md,
+                  flexDirection: wide ? "row" : "column",
+                  alignItems: wide ? "center" : "stretch",
                 }}
               >
-                <Ionicons name={tile.icon} size={15} color={tone.fg} />
+                {tile.icon && (
+                  <View
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: radius.sm,
+                      backgroundColor: tone.fg + "26",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: wide ? 0 : spacing.sm,
+                      marginRight: wide ? spacing.sm : 0,
+                    }}
+                  >
+                    <Ionicons name={tile.icon} size={15} color={tone.fg} />
+                  </View>
+                )}
+                <Text style={[type.title2, { color: tone.fg }]} numberOfLines={1}>
+                  {tile.value}
+                </Text>
+                <Text
+                  style={[
+                    type.caption,
+                    { color: colors.inkSecondary },
+                    wide ? { marginLeft: spacing.sm, flex: 1 } : { marginTop: 2 },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {tile.label}
+                </Text>
               </View>
-            )}
-            <Text style={[type.title2, { color: tone.fg }]} numberOfLines={1}>
-              {tile.value}
-            </Text>
-            <Text style={[type.caption, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={2}>
-              {tile.label}
-            </Text>
-          </View>
-        );
-      })}
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }

@@ -28,6 +28,7 @@ import {
   formatMissionDay,
   formatMissionTimeRange,
   formatWeekRange,
+  isMissionOverdue,
   isSameLocalDay,
   mondayOf,
   toLocalDateKey,
@@ -546,15 +547,22 @@ function DesktopWeekGrid({
                     }}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <View
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 3,
-                          marginRight: 5,
-                          backgroundColor: MISSION_DOT_COLOR[mission.status](colors),
-                        }}
-                      />
+                      {/* Même signal que sur téléphone : une mission dont
+                          l'horaire est passé sans démarrage n'a pas la couleur
+                          d'une mission « planifiée ». */}
+                      {isMissionOverdue(mission) ? (
+                        <Ionicons name="alert-circle" size={12} color={colors.warning} style={{ marginRight: 4 }} />
+                      ) : (
+                        <View
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            marginRight: 5,
+                            backgroundColor: MISSION_DOT_COLOR[mission.status](colors),
+                          }}
+                        />
+                      )}
                       <Text style={[type.caption, { color: colors.ink, fontWeight: "700", flex: 1 }]} numberOfLines={1}>
                         {mission.site.name}
                       </Text>
@@ -715,28 +723,33 @@ function TeamWeekGrid({
                       backgroundColor: isToday ? colors.accentSoft : "transparent",
                     }}
                   >
-                    {dayMissions.map((mission) => (
-                      <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
-                        <View
-                          style={{
-                            backgroundColor: MISSION_SOFT_BG[mission.status](colors),
-                            borderRadius: radius.sm,
-                            paddingVertical: 5,
-                            paddingHorizontal: 7,
-                          }}
-                        >
-                          <Text style={[type.caption, { color: MISSION_SOFT_TEXT[mission.status](colors), fontWeight: "700" }]} numberOfLines={1}>
-                            {mission.site.name}
-                          </Text>
-                          <Text
-                            style={[type.caption, { color: MISSION_SOFT_TEXT[mission.status](colors), opacity: 0.8, marginTop: 1 }]}
-                            numberOfLines={1}
+                    {dayMissions.map((mission) => {
+                      const overdue = isMissionOverdue(mission);
+                      const fg = overdue ? colors.warning : MISSION_SOFT_TEXT[mission.status](colors);
+                      return (
+                        <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
+                          <View
+                            accessibilityLabel={overdue ? `${mission.site.name}, non démarrée` : undefined}
+                            style={{
+                              backgroundColor: overdue ? colors.warningSoft : MISSION_SOFT_BG[mission.status](colors),
+                              borderRadius: radius.sm,
+                              paddingVertical: 5,
+                              paddingHorizontal: 7,
+                            }}
                           >
-                            {formatMissionTimeRange(mission.startTime, mission.endTime)}
-                          </Text>
-                        </View>
-                      </PressableScale>
-                    ))}
+                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                              {overdue && <Ionicons name="alert-circle" size={12} color={fg} style={{ marginRight: 3 }} />}
+                              <Text style={[type.caption, { color: fg, fontWeight: "700", flex: 1 }]} numberOfLines={1}>
+                                {mission.site.name}
+                              </Text>
+                            </View>
+                            <Text style={[type.caption, { color: fg, opacity: 0.8, marginTop: 1 }]} numberOfLines={1}>
+                              {formatMissionTimeRange(mission.startTime, mission.endTime)}
+                            </Text>
+                          </View>
+                        </PressableScale>
+                      );
+                    })}
                   </View>
                 );
               })}

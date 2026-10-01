@@ -7,6 +7,7 @@ import { listProblems } from "../../api/problems.api";
 import { listUsers } from "../../api/users.api";
 import { listSites } from "../../api/sites.api";
 import { getStatsOverview } from "../../api/stats.api";
+import { listTimeEntries } from "../../api/timesheets.api";
 import type { StatsOverview } from "../../api/stats.api";
 import { listNotifications } from "../../api/notifications.api";
 import type { AppNotification } from "../../api/notifications.api";
@@ -120,7 +121,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
       latestAnnouncement: announcementRes.items[0] ?? null,
       kpis: [
         { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
-        { key: "active", label: `Actifs sur ${total.total}`, value: String(active.total), tone: "info", icon: "people-outline" },
+        { key: "active", label: `Comptes actifs sur ${total.total}`, value: String(active.total), tone: "info", icon: "people-outline" },
         { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
       ],
     };
@@ -173,6 +174,40 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
     };
   }
 
+  if (user.role === "SUPERVISOR") {
+    // Le superviseur pilote le planning et valide les heures : ses indicateurs
+    // sont ceux de l'équipe, pas ceux d'un employé. Il tombait jusqu'ici dans
+    // la branche employé ci-dessous — « Mes signalements ouverts » comptait en
+    // réalité ceux de toute l'entreprise, et une mission dont il n'était pas
+    // membre lui était présentée comme « sa » mission non démarrée, avec le
+    // conseil « Prévenez votre chef d'équipe ».
+    const [weekRes, openProblems, pendingRes, notifRes, announcementRes] = await Promise.all([
+      listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) }),
+      countOpenProblems(),
+      listTimeEntries({ status: "PENDING", pageSize: 1 }),
+      notifPromise,
+      announcementPromise,
+    ]);
+    const today = toLocalDateKey(new Date());
+    const todayCount = weekRes.items.filter((m) => m.date.slice(0, 10) === today).length;
+    const overdueCount = weekRes.items.filter((m) => isMissionOverdue(m)).length;
+    return {
+      weekMissions: weekRes.items,
+      weekStart,
+      recentActivity: notifRes.items,
+      currentMission: null,
+      nextMission: null,
+      overdueMission: null,
+      latestAnnouncement: announcementRes.items[0] ?? null,
+      kpis: [
+        { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
+        { key: "overdue", label: "Non démarrées cette semaine", value: String(overdueCount), tone: "warning", icon: "alert-circle-outline" },
+        { key: "timesheets", label: "Pointages à valider", value: String(pendingRes.total), tone: "success", icon: "checkmark-done-outline" },
+        { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
+      ],
+    };
+  }
+
   // EMPLOYEE
   const [weekRes, upcomingRes, openProblems, notifRes, announcementRes] = await Promise.all([
     listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) }),
@@ -209,17 +244,17 @@ function statsToKpis(overview: StatsOverview): KpiTile[] {
       tone: "accent",
       icon: "calendar-outline",
     },
-    { key: "inProgress", label: "En cours", value: String(overview.missions.inProgress), tone: "success", icon: "play" },
+    { key: "inProgress", label: "Missions en cours", value: String(overview.missions.inProgress), tone: "success", icon: "play" },
     {
       key: "employees",
-      label: `Actifs sur ${overview.employees.total}`,
+      label: `Employés actifs sur ${overview.employees.total}`,
       value: String(overview.employees.active),
       tone: "info",
       icon: "people-outline",
     },
     {
       key: "sites",
-      label: `Chantiers sur ${overview.sites.total}`,
+      label: `Chantiers actifs sur ${overview.sites.total}`,
       value: String(overview.sites.active),
       tone: "purple",
       icon: "business-outline",

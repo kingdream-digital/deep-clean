@@ -17,7 +17,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
 | **`master`** | **Pas touché.** Le site en ligne tourne toujours sur l'ancienne version. |
 | **Déployé en ligne ?** | **Non.** Rien n'a été redéployé. |
-| **Tests** | 238 backend + 36 mobile, **tous au vert** |
+| **Tests** | 238 backend + 41 mobile, **tous au vert** |
 | **En attente de** | La validation du client sur la démo (voir §2) |
 
 ### Journal de bord (mis à jour au fil du travail)
@@ -31,7 +31,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | 1 | Messagerie de groupe, appel, partage de documents | ✅ commit `a846301` |
 | 2 | Dossier de reprise + captures versionnées | ✅ commits `3f6f952`, `fdf0f82` |
 | 3 | Outils d'audit visuel versionnés (`tools/audit-visuel/`) | ✅ commit `dba68b5` |
-| 4 | Revue complète de l'application, écran par écran | 🔄 en cours |
+| 4 | Revue complète de l'application, écran par écran | 🔄 en cours — employé ✅ `8461838`, encadrement ✅ (voir `git log`) |
 
 **Déjà revu et corrigé :**
 
@@ -65,15 +65,60 @@ arrêté, sans rien redécouvrir et sans rien perdre.
   tenait pas à côté de l'équipe (3 personnes + « TERMINÉE », ou « NON
   DÉMARRÉE ») : il passe désormais à la ligne, calé à droite.
 
-Captures avant/après de ce lot : `docs/captures-revue-ecrans/`.
+**Revue des rôles d'encadrement (RH, superviseur, directeur, chef d'équipe)**
+— demande du client : « si tu vois des design pas cohérent change et rend
+l'app plus moderne type Apple ».
 
-**Repéré, pas encore traité :** les grilles de planning sur ordinateur
-(`DesktopWeekGrid`, `TeamWeekGrid`) n'affichent pas encore « non démarrée »
-(couleur « planifiée ») — à faire pendant la revue superviseur/RH/direction.
+- *Accueil* — les tuiles « En un coup d'œil » se mettaient à 3 ou 4 de front
+  sur téléphone : libellés coupés en plein mot (« Chantie / rs »). Deux par
+  ligne au plus sous 600 px ; une tuile seule prend la ligne, en long.
+  Libellés précisés (« Comptes actifs sur 12 », « Employés actifs sur 6 »).
+- *Accueil superviseur* — il recevait le tableau de bord de l'**employé**
+  (branche manquante dans `useDashboardData.ts`) : « Mes signalements » qui
+  comptait toute l'entreprise, et une mission d'un autre présentée comme la
+  sienne avec « Prévenez votre chef d'équipe ». Il a maintenant le sien :
+  missions du jour, non démarrées de la semaine, pointages à valider,
+  signalements ouverts.
+- *Accueil, mini-planning* — noms de chantiers coupés en 9 px (« Cow… ») :
+  pastilles à la couleur du chantier sur téléphone, noms gardés sur grand écran.
+- *Accueil, accès rapide* — Planning et Missions retirés : déjà dans la barre
+  d'onglets.
+- *Pointage* — « Vous n'êtes pas pointé » (masculin pour tout le monde) →
+  « Vous n'êtes pas en poste », pendant de « En poste ». Visite guidée :
+  « Vous êtes prêt / prête » → « Tout est prêt », « vous seule » → neutre.
+- *Listes de personnes* (Comptes, Équipes, Mon équipe, Dossiers d'heures) —
+  une carte par personne → liste groupée façon iOS (`components/GroupedList.tsx`),
+  rangée par rôle et par nom (`groupByRole`, `utils/roleLabels.ts`), avec les
+  photos (Dossiers d'heures affichait des initiales).
+- *Titres* — l'écran porte le nom du lien du Menu (`navigation/screenTitles.ts`) :
+  « Équipes » / « Mon équipe » au lieu de « Comptes », « Mes chantiers »,
+  « Validation des congés » (le Menu affichait deux fois « Congés & absences »),
+  « Mes absences ».
+- *Menu* — sous-titres raccourcis, plus aucun n'est coupé.
+- *Écrans vides* — « Rien à afficher » + la même idée en petit → un vrai titre
+  (« Aucun pointage à valider », « Aucune notification »…), réglé une fois dans
+  `StateView`.
+- *Chantiers* — plus de grand bandeau vide quand il n'y a pas de photo.
+- *Problèmes* — le problème en titre, le lieu en dessous (l'adresse passait
+  avant, sur trois lignes, et coupait le titre).
+- *Congés* — soldes en « 0,08 » et non « 0.08 » (`utils/leaveDays.ts`).
+- *Commercial* — « DeepClean » → « Deep Clean ».
+- *En-têtes* — titres dans la police de l'app (Inter), réglage commun
+  `navigation/stackScreenOptions.ts` au lieu de cinq copies.
+- *Ordinateur, planning d'équipe* — les missions non démarrées sont signalées
+  (orange + icône), comme sur téléphone.
 
-**Reste à passer en revue :** accueil et écrans RH, superviseur, directeur,
-chef d'équipe, chantiers, pointage, congés, module commercial, états d'erreur
-et de chargement, mode hors connexion.
+Captures avant/après : `docs/captures-revue-ecrans/`.
+
+**Essayé puis écarté :** la police Inter dans la barre d'onglets du bas. La
+barre a une hauteur fixe qui ne laisse que 10 px au libellé : le bas des
+lettres était coupé (« Plannina »). On garde la police système, comme les
+apps d'Apple, plutôt que de toucher à la hauteur de la barre (risque sur
+iPhone et Android).
+
+**Reste à passer en revue :** détail d'une mission, fiche chantier, fiche de
+compte, pointage, congés (formulaires), module commercial, statistiques,
+états d'erreur et de chargement, mode hors connexion.
 
 ### Ce qui bloque la mise en ligne
 

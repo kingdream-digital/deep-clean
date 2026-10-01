@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Role } from "../../api/auth.api";
 import type { AppTabsParamList } from "../../navigation/AppTabs";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { sitesListTitle, usersListTitle } from "../../navigation/screenTitles";
 
 export type DashboardSectionTone = "accent" | "info" | "warning" | "danger" | "success" | "neutral" | "purple";
 
@@ -19,28 +20,25 @@ export interface DashboardSection {
 // Chaque entrée mène désormais à un écran réel ou à un onglet existant —
 // jamais de carte "Bientôt disponible" : mieux vaut une liste plus courte
 // et entièrement fonctionnelle qu'une fausse fonctionnalité (cahier des
-// charges, section 27).
+// charges, section 27). Planning et Missions n'y figurent plus : ce sont
+// déjà des onglets, toujours visibles en bas de l'écran — les répéter ici
+// allongeait la page pour deux raccourcis vers ce qui est déjà à un doigt.
 export const DASHBOARD_SECTIONS: Record<Role, DashboardSection[]> = {
   EMPLOYEE: [
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },
-    { icon: "calendar-outline", label: "Planning", tab: "Planning", tone: "accent" },
     { icon: "megaphone-outline", label: "Actualités", screen: "AnnouncementsList", tone: "purple" },
     { icon: "warning-outline", label: "Mes signalements", screen: "ProblemsList", tone: "danger" },
   ],
   SITE_MANAGER: [
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },
-    { icon: "business-outline", label: "Chantiers", screen: "SitesList", tone: "warning" },
-    { icon: "people-outline", label: "Équipe", screen: "UsersList", tone: "info" },
-    { icon: "calendar-outline", label: "Planning", tab: "Planning", tone: "accent" },
-    { icon: "briefcase-outline", label: "Missions", tab: "Missions", tone: "accent" },
+    { icon: "business-outline", label: sitesListTitle("SITE_MANAGER"), screen: "SitesList", tone: "warning" },
+    { icon: "people-outline", label: usersListTitle("SITE_MANAGER"), screen: "UsersList", tone: "info" },
     { icon: "megaphone-outline", label: "Actualités", screen: "AnnouncementsList", tone: "purple" },
     { icon: "warning-outline", label: "Problèmes", screen: "ProblemsList", tone: "danger" },
   ],
   SUPERVISOR: [
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },
     { icon: "checkmark-done-outline", label: "Validation des heures", screen: "TimesheetValidation", tone: "success" },
-    { icon: "calendar-outline", label: "Planning", tab: "Planning", tone: "accent" },
-    { icon: "briefcase-outline", label: "Missions", tab: "Missions", tone: "accent" },
     { icon: "business-outline", label: "Chantiers", screen: "SitesList", tone: "warning" },
     { icon: "megaphone-outline", label: "Actualités", screen: "AnnouncementsList", tone: "purple" },
     { icon: "warning-outline", label: "Problèmes", screen: "ProblemsList", tone: "danger" },
@@ -49,8 +47,6 @@ export const DASHBOARD_SECTIONS: Record<Role, DashboardSection[]> = {
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },
     { icon: "person-add-outline", label: "Comptes utilisateurs", screen: "UsersList", tone: "success" },
     { icon: "business-outline", label: "Chantiers", screen: "SitesList", tone: "warning" },
-    { icon: "calendar-outline", label: "Planning", tab: "Planning", tone: "accent" },
-    { icon: "briefcase-outline", label: "Missions", tab: "Missions", tone: "accent" },
     { icon: "megaphone-outline", label: "Actualités", screen: "AnnouncementsList", tone: "purple" },
     { icon: "warning-outline", label: "Problèmes", screen: "ProblemsList", tone: "danger" },
   ],
@@ -58,8 +54,6 @@ export const DASHBOARD_SECTIONS: Record<Role, DashboardSection[]> = {
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },
     { icon: "business-outline", label: "Chantiers", screen: "SitesList", tone: "warning" },
     { icon: "people-outline", label: "Comptes utilisateurs", screen: "UsersList", tone: "info" },
-    { icon: "calendar-outline", label: "Planning", tab: "Planning", tone: "accent" },
-    { icon: "briefcase-outline", label: "Missions", tab: "Missions", tone: "accent" },
     { icon: "megaphone-outline", label: "Actualités", screen: "AnnouncementsList", tone: "purple" },
     { icon: "warning-outline", label: "Problèmes", screen: "ProblemsList", tone: "danger" },
     { icon: "stats-chart-outline", label: "Statistiques", screen: "StatsOverview", tone: "info" },

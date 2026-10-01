@@ -175,7 +175,14 @@ export function NotificationsList() {
   if (state === "loading") return <StateView kind="loading" />;
   if (state === "error") return <StateView kind="error" onRetry={load} />;
   if (items.length === 0) {
-    return <StateView kind="empty" icon="notifications-outline" message="Vous n'avez aucune notification." />;
+    return (
+      <StateView
+        kind="empty"
+        icon="notifications-outline"
+        title="Aucune notification"
+        message="Nouvelles missions, changements d'horaire, consignes : tout ce qui vous concerne s'affichera ici."
+      />
+    );
   }
 
   return (

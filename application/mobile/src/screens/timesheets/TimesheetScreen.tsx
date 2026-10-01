@@ -118,7 +118,7 @@ export function TimesheetScreen() {
       ) : (
         <View style={{ alignItems: "center" }}>
           <Ionicons name="time-outline" size={40} color={colors.inkTertiary} />
-          <Text style={[type.headline, { color: colors.ink, marginTop: spacing.sm }]}>Vous n'êtes pas pointé</Text>
+          <Text style={[type.headline, { color: colors.ink, marginTop: spacing.sm }]}>Vous n'êtes pas en poste</Text>
         </View>
       )}
 

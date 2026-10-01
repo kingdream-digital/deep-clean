@@ -185,7 +185,12 @@ export function TimesheetValidationScreen() {
       {state === "loading" && <StateView kind="loading" />}
       {state === "error" && <StateView kind="error" onRetry={load} />}
       {state === "ready" && filtered.length === 0 && (
-        <StateView kind="empty" icon="time-outline" message="Rien à afficher ici pour le moment." />
+        <StateView
+          kind="empty"
+          icon={tab === "pending" ? "checkmark-done-outline" : "time-outline"}
+          title={tab === "pending" ? "Aucun pointage à valider" : "Aucun pointage traité"}
+          message={tab === "pending" ? "Les pointages de l'équipe à vérifier apparaîtront ici." : "Les pointages validés ou refusés apparaîtront ici."}
+        />
       )}
 
       {state === "ready" && filtered.length > 0 && isDesktopWeb && (

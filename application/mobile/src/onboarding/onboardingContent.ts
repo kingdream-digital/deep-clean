@@ -95,7 +95,7 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -114,7 +114,7 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -127,13 +127,13 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     MESSAGERIE,
     menuStep({
       icon: "calendar-number-outline",
-      title: "Congés & absences",
-      body: "Depuis Menu → Congés & absences, approuvez ou refusez les demandes de toute l'équipe. C'est aussi vous qui créez et modifiez les missions sur tous les chantiers.",
+      title: "Validation des congés",
+      body: "Depuis Menu → Validation des congés, approuvez ou refusez les demandes de toute l'équipe. C'est aussi vous qui créez et modifiez les missions sur tous les chantiers.",
       targetId: "menu.AbsencesManagement",
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -147,12 +147,12 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     menuStep({
       icon: "person-add-outline",
       title: "Comptes utilisateurs",
-      body: "Depuis Menu → Comptes utilisateurs : vous seule créez les comptes, attribuez les rôles, et pouvez activer, désactiver ou réinitialiser l'accès de chacun.",
+      body: "Depuis Menu → Comptes utilisateurs : vous êtes la seule personne à créer les comptes et à attribuer les rôles, et vous pouvez activer, désactiver ou réinitialiser l'accès de chacun.",
       targetId: "menu.UsersList",
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prête",
+      title: "Tout est prêt",
       body: "Vous êtes le point de contact pour tout problème de connexion ou de compte d'un collaborateur. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -171,7 +171,7 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -190,7 +190,7 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour un problème de compte, la RH reste le premier contact. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],

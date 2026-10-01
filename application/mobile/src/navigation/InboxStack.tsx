@@ -1,7 +1,8 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { useTheme } from "../theme/ThemeProvider";
+import { useStackScreenOptions } from "./stackScreenOptions";
 import { InboxHomeScreen } from "../screens/inbox/InboxHomeScreen";
+import { MY_ABSENCES_TITLE } from "./screenTitles";
 import { ConversationThreadScreen } from "../screens/inbox/ConversationThreadScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 import { NewMessageScreen } from "../screens/inbox/NewMessageScreen";
@@ -68,19 +69,11 @@ export type InboxStackParamList = {
 const Stack = createNativeStackNavigator<InboxStackParamList>();
 
 export function InboxStack() {
-  const { colors } = useTheme();
+  const screenOptions = useStackScreenOptions();
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundElevated },
-        headerTintColor: colors.ink,
-        headerShadowVisible: false,
-        headerTitleStyle: { color: colors.ink },
-        // Juste la flèche au retour — jamais le titre de l'écran précédent
-        // affiché à côté (ex. "InboxHome"), qui n'a aucun sens pour l'utilisateur.
-        headerBackButtonDisplayMode: "minimal",
-      }}
+      screenOptions={screenOptions}
     >
       <Stack.Screen name="InboxHome" component={InboxHomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ConversationThread" component={ConversationThreadScreen} options={{ title: "" }} />
@@ -128,7 +121,7 @@ export function InboxStack() {
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
       <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
-      <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: "Mes absences" }} />
+      <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: MY_ABSENCES_TITLE }} />
       <Stack.Screen
         name="AbsenceForm"
         component={AbsenceFormScreen}

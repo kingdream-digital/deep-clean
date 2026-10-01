@@ -1,7 +1,9 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { useTheme } from "../theme/ThemeProvider";
+import { useStackScreenOptions } from "./stackScreenOptions";
 import { useResponsive } from "../hooks/useResponsive";
+import { useAuth } from "../auth/AuthContext";
+import { ABSENCES_MANAGEMENT_TITLE, MY_ABSENCES_TITLE, sitesListTitle, usersListTitle } from "./screenTitles";
 import { HomeScreen } from "../screens/dashboard/HomeScreen";
 import { ProblemsListScreen } from "../screens/problems/ProblemsListScreen";
 import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
@@ -80,21 +82,16 @@ export type HomeStackParamList = {
 const Stack = createNativeStackNavigator<HomeStackParamList>();
 
 export function HomeStack() {
-  const { colors } = useTheme();
+  const screenOptions = useStackScreenOptions();
   // Sur desktop web, ces écrans affichent déjà leur propre en-tête (titre +
   // compteur + bouton) — un titre natif-stack en plus ferait doublon,
   // d'où ce titre vidé (la flèche retour, elle, reste toujours affichée).
   const { isDesktopWeb } = useResponsive();
+  const { user } = useAuth();
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundElevated },
-        headerTintColor: colors.ink,
-        headerShadowVisible: false,
-        headerTitleStyle: { color: colors.ink },
-        headerBackButtonDisplayMode: "minimal",
-      }}
+      screenOptions={screenOptions}
     >
       <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ProblemsList" component={ProblemsListScreen} options={{ title: "Problèmes" }} />
@@ -108,7 +105,7 @@ export function HomeStack() {
         options={{ title: "Nouvelle actualité", presentation: "modal" }}
       />
 
-      <Stack.Screen name="SitesList" component={SitesListScreen} options={{ title: isDesktopWeb ? "" : "Chantiers" }} />
+      <Stack.Screen name="SitesList" component={SitesListScreen} options={{ title: sitesListTitle(user?.role), headerTitle: isDesktopWeb ? "" : undefined }} />
       <Stack.Screen name="SiteDetail" component={SiteDetailScreen} options={{ title: "Chantier" }} />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />
       <Stack.Screen
@@ -153,7 +150,7 @@ export function HomeStack() {
       />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
 
-      <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: isDesktopWeb ? "" : "Comptes" }} />
+      <Stack.Screen name="UsersList" component={UsersListScreen} options={{ title: usersListTitle(user?.role), headerTitle: isDesktopWeb ? "" : undefined }} />
       <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: "Compte" }} />
       <Stack.Screen
         name="UserDocuments"
@@ -183,13 +180,13 @@ export function HomeStack() {
       />
       <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
 
-      <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: "Mes absences" }} />
+      <Stack.Screen name="MyAbsences" component={MyAbsencesScreen} options={{ title: MY_ABSENCES_TITLE }} />
       <Stack.Screen
         name="AbsenceForm"
         component={AbsenceFormScreen}
         options={{ title: "Demander une absence", presentation: "modal" }}
       />
-      <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: "Absences" }} />
+      <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: ABSENCES_MANAGEMENT_TITLE }} />
 
       <Stack.Screen name="InvoicesList" component={InvoicesListScreen} options={{ title: "Factures" }} />
       <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: "Facture" }} />

@@ -86,7 +86,7 @@ export function TimesheetWidget({
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <PressableScale onPress={onOpenHistory} style={{ flex: 1 }}>
             <View>
-              <Text style={[type.headline, { color: colors.ink }]}>Vous n'êtes pas pointé</Text>
+              <Text style={[type.headline, { color: colors.ink }]}>Vous n'êtes pas en poste</Text>
               <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>Mon historique de pointage</Text>
             </View>
           </PressableScale>

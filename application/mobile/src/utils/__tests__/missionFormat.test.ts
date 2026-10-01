@@ -1,5 +1,6 @@
 import { dayOfMonthLabel, frenchDateFormat, withFirstOfMonth } from "../frenchDate";
 import { formatMissionDay, formatWeekRange, isMissionOverdue } from "../missionFormat";
+import { formatDays, formatDaysWithUnit } from "../leaveDays";
 
 describe("frenchDateFormat", () => {
   it("écrit « 1er » pour le premier du mois", () => {
@@ -73,5 +74,20 @@ describe("isMissionOverdue", () => {
     expect(isMissionOverdue({ status: "IN_PROGRESS", endTime: at(9) }, now)).toBe(false);
     expect(isMissionOverdue({ status: "COMPLETED", endTime: at(9) }, now)).toBe(false);
     expect(isMissionOverdue({ status: "CANCELLED", endTime: at(9) }, now)).toBe(false);
+  });
+});
+
+describe("formatDays (soldes de congés)", () => {
+  it("virgule décimale, deux décimales au plus", () => {
+    expect(formatDays(0.08)).toBe("0,08");
+    expect(formatDays(12.5)).toBe("12,5");
+    expect(formatDays(25)).toBe("25");
+    expect(formatDays(2.0833333)).toBe("2,08");
+  });
+
+  it("pluriel à partir de deux jours", () => {
+    expect(formatDaysWithUnit(1)).toBe("1 jour");
+    expect(formatDaysWithUnit(1.5)).toBe("1,5 jour");
+    expect(formatDaysWithUnit(2)).toBe("2 jours");
   });
 });

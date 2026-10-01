@@ -19,6 +19,7 @@ import type { LeaveBalance } from "../../api/leave.api";
 import { toLocalDateKey } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { formatDaysWithUnit } from "../../utils/leaveDays";
 
 const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
@@ -112,8 +113,8 @@ export function AbsenceFormScreen() {
           {type === "PAID_LEAVE" && balance && (
             <Text style={[typeScale.footnote, { color: wouldExceedBalance ? colors.danger : colors.inkTertiary, marginTop: 2 }]}>
               {wouldExceedBalance
-                ? `⚠️ Solde restant : ${balance.remaining} jour${balance.remaining > 1 ? "s" : ""} — cette demande le dépasse.`
-                : `Solde restant après cette demande : ${(balance.remaining - requestedDays).toFixed(1)} jour(s).`}
+                ? `⚠️ Solde restant : ${formatDaysWithUnit(balance.remaining)} — cette demande le dépasse.`
+                : `Solde restant après cette demande : ${formatDaysWithUnit(balance.remaining - requestedDays)}.`}
             </Text>
           )}
         </Card>

@@ -19,6 +19,7 @@ import type { LeaveBalance } from "../../api/leave.api";
 import { extractErrorMessage } from "../../api/client";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { formatDays } from "../../utils/leaveDays";
 
 const dateFmt = frenchDateFormat({ day: "numeric", month: "short", year: "numeric" });
 
@@ -170,7 +171,7 @@ function LeaveBalanceStat({ label, value, color }: { label: string; value: numbe
   const { spacing, type } = useTheme();
   return (
     <View style={{ alignItems: "center", flex: 1 }}>
-      <Text style={[type.title2, { color, fontWeight: "700" }]}>{value}</Text>
+      <Text style={[type.title2, { color, fontWeight: "700" }]}>{formatDays(value)}</Text>
       <Text style={[type.caption, { color, opacity: 0.8, marginTop: spacing.xxs }]}>{label}</Text>
     </View>
   );

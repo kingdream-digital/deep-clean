@@ -16,6 +16,7 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { listSites, sitePhotoUrl } from "../../api/sites.api";
 import type { Site } from "../../api/sites.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { sitesListTitle } from "../../navigation/screenTitles";
 
 const CREATE_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 
@@ -79,7 +80,7 @@ export function SitesListScreen() {
       {isDesktopWeb && state === "ready" && (
         <View style={[styles.desktopHeader, { paddingTop: spacing.lg, marginBottom: spacing.lg }]}>
           <View>
-            <Text style={[type.title1, { color: colors.ink }]}>Chantiers</Text>
+            <Text style={[type.title1, { color: colors.ink }]}>{sitesListTitle(user?.role)}</Text>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
               {items.length} {items.length > 1 ? "chantiers" : "chantier"}
             </Text>
@@ -130,51 +131,59 @@ export function SitesListScreen() {
               <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
                 <PressableScale onPress={() => navigation.navigate("SiteDetail", { siteId: item.id })}>
                   <Card padded={false}>
-                    {item.hasPhoto ? (
+                    {/* La photo du chantier quand il en a une. Sans photo, plus
+                        de grand bandeau teinté vide (un tiers de la carte pour
+                        une simple icône) : l'icône passe à gauche du nom. */}
+                    {item.hasPhoto && (
                       <AuthenticatedImage
                         uri={sitePhotoUrl(item.id)}
                         style={{ width: "100%", height: 90, backgroundColor: colors.surfaceAlt }}
                       />
-                    ) : (
-                      <View
-                        style={{
-                          width: "100%",
-                          height: 90,
-                          backgroundColor: item.isActive ? colors.accentSoft : colors.neutralSoft,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Ionicons name="business-outline" size={34} color={item.isActive ? colors.accent : colors.neutral} />
-                      </View>
                     )}
-                    <View style={{ padding: spacing.md }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                        <Text style={[type.headline, { color: colors.ink, flex: 1 }]} numberOfLines={1}>
-                          {item.name}
-                        </Text>
+                    <View style={{ padding: spacing.md, flexDirection: "row", alignItems: "flex-start" }}>
+                      {!item.hasPhoto && (
                         <View
                           style={{
-                            paddingHorizontal: spacing.sm,
-                            paddingVertical: 4,
-                            borderRadius: 999,
-                            backgroundColor: item.isActive ? colors.successSoft : colors.neutralSoft,
-                            marginLeft: spacing.sm,
+                            width: 40,
+                            height: 40,
+                            borderRadius: radius.md,
+                            backgroundColor: item.isActive ? colors.accentSoft : colors.neutralSoft,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginRight: spacing.md,
                           }}
                         >
-                          <Text style={[type.caption, { color: item.isActive ? colors.success : colors.neutral, fontWeight: "600" }]}>
-                            {item.isActive ? "Actif" : "Inactif"}
+                          <Ionicons name="business-outline" size={19} color={item.isActive ? colors.accent : colors.neutral} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                          <Text style={[type.headline, { color: colors.ink, flex: 1 }]} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <View
+                            style={{
+                              paddingHorizontal: spacing.sm,
+                              paddingVertical: 4,
+                              borderRadius: 999,
+                              backgroundColor: item.isActive ? colors.successSoft : colors.neutralSoft,
+                              marginLeft: spacing.sm,
+                            }}
+                          >
+                            <Text style={[type.caption, { color: item.isActive ? colors.success : colors.neutral, fontWeight: "600" }]}>
+                              {item.isActive ? "Actif" : "Inactif"}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 3 }]} numberOfLines={1}>
+                          {item.address}
+                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.xs }}>
+                          <Ionicons name="person-outline" size={14} color={colors.inkTertiary} />
+                          <Text style={[type.footnote, { color: colors.inkSecondary, marginLeft: 6 }]} numberOfLines={1}>
+                            {item.manager ? `Chef d'équipe : ${item.manager.firstName} ${item.manager.lastName}` : "Aucun chef d'équipe assigné"}
                           </Text>
                         </View>
-                      </View>
-                      <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 3 }]} numberOfLines={1}>
-                        {item.address}
-                      </Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.xs }}>
-                        <Ionicons name="person-outline" size={14} color={colors.inkTertiary} />
-                        <Text style={[type.footnote, { color: colors.inkSecondary, marginLeft: 6 }]} numberOfLines={1}>
-                          {item.manager ? `Chef d'équipe : ${item.manager.firstName} ${item.manager.lastName}` : "Aucun chef d'équipe assigné"}
-                        </Text>
                       </View>
                     </View>
                   </Card>
