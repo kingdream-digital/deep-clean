@@ -9,6 +9,7 @@ import { TextField } from "../../components/TextField";
 import { DateTimeField } from "../../components/DateTimeField";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { Button } from "../../components/Button";
+import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useAuth } from "../../auth/AuthContext";
@@ -30,6 +31,23 @@ const TYPE_OPTIONS: { label: string; value: AbsenceType }[] = [
   { label: "Sans solde", value: "UNPAID_LEAVE" },
   { label: "Autre", value: "OTHER" },
 ];
+
+// Types moins courants, proposés à part (surtout saisis par la RH).
+const MORE_TYPE_OPTIONS: { label: string; value: AbsenceType }[] = [
+  { label: "Accident du travail", value: "WORK_ACCIDENT" },
+  { label: "Maternité / paternité", value: "PARENTAL_LEAVE" },
+];
+
+// Effet de chaque type sur l'acquisition des congés payés (affiché sous le
+// choix, pour que chacun comprenne l'impact sur son compteur).
+const RIGHTS_NOTE: Record<AbsenceType, string> = {
+  PAID_LEAVE: "Décompté de votre solde, en jours ouvrables. Continue à ouvrir des droits à congés.",
+  SICK_LEAVE: "N'est pas décompté du solde. Ouvre 2 jours de congés par mois d'arrêt (au lieu de 2,5).",
+  UNPAID_LEAVE: "N'est pas décompté du solde, mais n'ouvre aucun droit à congés sur ces jours.",
+  WORK_ACCIDENT: "N'est pas décompté du solde. Assimilé à du travail : ouvre 2,5 jours par mois.",
+  PARENTAL_LEAVE: "N'est pas décompté du solde. Assimilé à du travail : ouvre 2,5 jours par mois.",
+  OTHER: "N'est pas décompté du solde. Assimilé à du travail (formation, événement familial…).",
+};
 
 // Demande d'absence — soumise à validation RH sauf pour la RH elle-même
 // (voir absences.service.ts `createAbsence` : une absence déclarée par la RH
@@ -106,6 +124,27 @@ export function AbsenceFormScreen() {
 
         <Text style={[typeScale.subhead, { color: colors.inkSecondary, marginBottom: spacing.md }]}>Type d'absence</Text>
         <SegmentedControl value={type} onChange={setType} options={TYPE_OPTIONS} />
+        <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
+          {MORE_TYPE_OPTIONS.map((opt) => (
+            <PressableScale key={opt.value} onPress={() => setType(opt.value)} style={{ flex: 1 }}>
+              <View
+                style={{
+                  paddingVertical: spacing.sm,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: type === opt.value ? colors.accent : colors.border,
+                  backgroundColor: type === opt.value ? colors.accentSoft : "transparent",
+                }}
+              >
+                <Text style={[typeScale.footnote, { color: type === opt.value ? colors.accentText : colors.inkSecondary, fontWeight: "600" }]}>
+                  {opt.label}
+                </Text>
+              </View>
+            </PressableScale>
+          ))}
+        </View>
+        <Text style={[typeScale.footnote, { color: colors.inkTertiary, marginTop: spacing.sm }]}>{RIGHTS_NOTE[type]}</Text>
 
         {/* Respiration entre le choix du type et les dates : le libellé « Du »
             touchait le sélecteur. */}
@@ -129,7 +168,8 @@ export function AbsenceFormScreen() {
 
         <Card style={{ marginBottom: spacing.md }}>
           <Text style={[typeScale.callout, { color: colors.ink }]}>
-            {requestedDays} jour{requestedDays > 1 ? "s" : ""} ouvré{requestedDays > 1 ? "s" : ""}
+            {requestedDays} jour{requestedDays > 1 ? "s" : ""} ouvrable{requestedDays > 1 ? "s" : ""}
+            {type === "PAID_LEAVE" ? " (du lundi au samedi, hors jours fériés)" : ""}
           </Text>
           {type === "PAID_LEAVE" && balance && (
             <Text style={[typeScale.footnote, { color: wouldExceedBalance ? colors.danger : colors.inkTertiary, marginTop: 2 }]}>

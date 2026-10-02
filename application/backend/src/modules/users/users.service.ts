@@ -31,6 +31,8 @@ const publicSelect = {
   isActive: true,
   hireDate: true,
   weeklyHours: true,
+  leaveAccrualRate: true,
+  leaveAccrualCap: true,
   mustChangePassword: true,
   lastLoginAt: true,
   avatarKey: true,
@@ -77,6 +79,8 @@ interface CreateUserInput {
   role: Role;
   hireDate?: string;
   weeklyHours?: number;
+  leaveAccrualRate?: number;
+  leaveAccrualCap?: number;
 }
 
 // Rôles qu'un compte RH ne peut PAS attribuer, ni à la création ni à la
@@ -152,6 +156,8 @@ export async function createUser(actorId: string, actorRole: Role, input: Create
       role: input.role,
       ...(input.hireDate ? { hireDate: calendarDay(input.hireDate) } : {}),
       ...(input.weeklyHours ? { weeklyHours: input.weeklyHours } : {}),
+      ...(input.leaveAccrualRate ? { leaveAccrualRate: input.leaveAccrualRate } : {}),
+      ...(input.leaveAccrualCap ? { leaveAccrualCap: input.leaveAccrualCap } : {}),
       passwordHash,
       mustChangePassword: true,
       createdById: actorId,

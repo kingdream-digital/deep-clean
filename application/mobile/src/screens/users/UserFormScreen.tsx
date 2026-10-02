@@ -67,6 +67,9 @@ export function UserFormScreen() {
   // Heures par semaine au contrat : le planning en déduit ce qu'il reste à
   // planifier pour la personne chaque semaine.
   const [weeklyHoursText, setWeeklyHoursText] = useState("");
+  // Congés : vide = règle légale (2,5 jours ouvrables / mois, 30 / an).
+  const [accrualRateText, setAccrualRateText] = useState("");
+  const [accrualCapText, setAccrualCapText] = useState("");
 
   const load = useCallback(async () => {
     if (!isEdit || !userId) return;
@@ -80,6 +83,8 @@ export function UserFormScreen() {
       setRole(account.role);
       if (account.hireDate) setHireDate(calendarDay(account.hireDate));
       setWeeklyHoursText(account.weeklyHours != null ? String(account.weeklyHours).replace(".", ",") : "");
+      setAccrualRateText(account.leaveAccrualRate != null ? String(account.leaveAccrualRate).replace(".", ",") : "");
+      setAccrualCapText(account.leaveAccrualCap != null ? String(account.leaveAccrualCap).replace(".", ",") : "");
       setLoadState("ready");
     } catch {
       setLoadState("error");
@@ -103,6 +108,16 @@ export function UserFormScreen() {
       setError("Heures par semaine : indiquez un nombre entre 1 et 60, par exemple 35.");
       return;
     }
+    const rateValue = accrualRateText.trim() ? Number(accrualRateText.replace(",", ".")) : null;
+    const capValue = accrualCapText.trim() ? Number(accrualCapText.replace(",", ".")) : null;
+    if (rateValue != null && (Number.isNaN(rateValue) || rateValue <= 0 || rateValue > 5)) {
+      setError("Congés acquis par mois : indiquez un nombre entre 0 et 5, par exemple 2,5.");
+      return;
+    }
+    if (capValue != null && (Number.isNaN(capValue) || capValue <= 0 || capValue > 60)) {
+      setError("Plafond annuel : indiquez un nombre de jours, par exemple 30.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -114,6 +129,8 @@ export function UserFormScreen() {
           role,
           hireDate: toLocalDateKey(hireDate),
           weeklyHours: weeklyHoursValue,
+          leaveAccrualRate: rateValue,
+          leaveAccrualCap: capValue,
         });
         navigation.goBack();
       } else {
@@ -125,6 +142,8 @@ export function UserFormScreen() {
           role,
           hireDate: toLocalDateKey(hireDate),
           ...(weeklyHoursValue != null ? { weeklyHours: weeklyHoursValue } : {}),
+          ...(rateValue != null ? { leaveAccrualRate: rateValue } : {}),
+          ...(capValue != null ? { leaveAccrualCap: capValue } : {}),
         });
         navigation.replace("UserDetail", { userId: user.id, temporaryPassword });
       }
@@ -186,7 +205,7 @@ export function UserFormScreen() {
         </View>
 
         <DateTimeField
-          label="Date d'entrée dans l'entreprise"
+          label="Début du contrat"
           mode="date"
           value={hireDate}
           onChange={setHireDate}
@@ -194,7 +213,7 @@ export function UserFormScreen() {
           formatValue={(d) => hireDateFormat.format(d)}
         />
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
-          Sert au calcul des congés acquis. Pour un salarié déjà présent, indiquez sa vraie date d'arrivée.
+          Le compteur de congés part de 0 et s'incrémente chaque mois à partir de cette date. Pour un salarié déjà présent, reportez son solde actuel depuis sa fiche (« Ajuster le solde »).
         </Text>
 
         <TextField
@@ -206,6 +225,25 @@ export function UserFormScreen() {
         />
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
           Le planning affiche ensuite combien d'heures il reste à planifier pour la personne chaque semaine.
+        </Text>
+
+        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>CONGÉS PAYÉS DU CONTRAT</Text>
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <TextField
+              label="Acquis par mois"
+              placeholder="2,5"
+              keyboardType="decimal-pad"
+              value={accrualRateText}
+              onChangeText={setAccrualRateText}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextField label="Plafond par an" placeholder="30" keyboardType="decimal-pad" value={accrualCapText} onChangeText={setAccrualCapText} />
+          </View>
+        </View>
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          En jours ouvrables. Laissez vide pour la règle légale : 2,5 jours par mois de travail, 30 jours (5 semaines) par période de référence.
         </Text>
 
         {!isEdit && (

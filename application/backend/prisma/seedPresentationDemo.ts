@@ -37,6 +37,7 @@ import * as timesheetsService from "../src/modules/timesheets/timesheets.service
 import * as absencesService from "../src/modules/absences/absences.service";
 import * as standardsService from "../src/modules/standards/standards.service";
 import * as missionsService from "../src/modules/missions/missions.service";
+import * as leaveService from "../src/modules/leave/leave.service";
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = "DemoClean2026!";
@@ -790,14 +791,18 @@ async function main() {
     // début de semaine, Emma la semaine prochaine, Lucas une semaine en été
     // (retirée de son historique de missions et de pointages plus bas).
     // Aucune ne tombe sur une mission de la personne concernée.
-    const approvedLeaves: Array<[{ id: string; role: Role }, number, number, string]> = [
-      [ines, -4, -3, "Congé payé"],
-      [emma, 5, 9, "Vacances d'automne"],
-      [lucas, -55, -51, "Vacances d'été"],
+    // Plus, le mois dernier, un arrêt maladie (Karim) et un congé sans
+    // solde (Chloé) : leurs congés acquis du mois en tiennent compte.
+    const approvedLeaves: Array<[{ id: string; role: Role }, number, number, string, "PAID_LEAVE" | "SICK_LEAVE" | "UNPAID_LEAVE"]> = [
+      [ines, -4, -3, "Congé payé", "PAID_LEAVE"],
+      [emma, 5, 9, "Vacances d'automne", "PAID_LEAVE"],
+      [lucas, -55, -51, "Vacances d'été", "PAID_LEAVE"],
+      [karim, -25, -21, "Grippe", "SICK_LEAVE"],
+      [chloe, -18, -14, "Déménagement", "UNPAID_LEAVE"],
     ];
-    for (const [person, from, to, reason] of approvedLeaves) {
+    for (const [person, from, to, reason, type] of approvedLeaves) {
       const leave = await absencesService.createAbsence(actor(person), {
-        type: "PAID_LEAVE", startDate: isoDate(addDays(today, from)), endDate: isoDate(addDays(today, to)), reason,
+        type, startDate: isoDate(addDays(today, from)), endDate: isoDate(addDays(today, to)), reason,
       });
       await absencesService.decideAbsence(actor(superviseur), leave.id, { status: "APPROVED", decisionNote: "Bonnes vacances !" });
     }
@@ -962,6 +967,34 @@ async function main() {
     }
     await prisma.timeEntry.createMany({ data: entries });
     console.log(`Historique démo prêt : ${created} missions et ${entries.length} pointages validés sur 4 mois.`);
+  }
+
+  // Congés acquis : application en service depuis le début de la période de
+  // référence (1er juin), solde de chacun repris à cette date par la RH,
+  // puis relevés mensuels calculés automatiquement ; les mois passés sont
+  // validés, le dernier mois reste « à valider » pour la démonstration.
+  if ((await prisma.leaveAccrual.count()) === 0) {
+    const periodStartYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
+    const goLive = new Date(`${periodStartYear}-06-01T00:00:00.000Z`);
+    const staff = [rh, directeur, superviseur, karim, sophie, lucas, emma, nathan, chloe, ines, thomas];
+    const carriedOver: Record<string, number> = {
+      [rh.id]: 20, [directeur.id]: 25, [superviseur.id]: 16, [karim.id]: 18, [sophie.id]: 14, [lucas.id]: 12,
+      [emma.id]: 8, [nathan.id]: 15, [chloe.id]: 4, [ines.id]: 6, [thomas.id]: 10,
+    };
+    for (const person of staff) {
+      await prisma.user.update({ where: { id: person.id }, data: { createdAt: goLive } });
+      await leaveService.createLeaveAdjustment(actor(rh.id === person.id ? directeur : rh), person.id, {
+        days: carriedOver[person.id]!,
+        note: "Reprise du solde au 1er juin (mise en service de l'application)",
+      });
+    }
+    await leaveService.generateAccruals();
+    const lastMonth = isoDate(new Date(today.getFullYear(), today.getMonth() - 1, 1)).slice(0, 7);
+    const toValidate = await prisma.leaveAccrual.findMany({ where: { month: { lt: lastMonth } }, select: { id: true, userId: true } });
+    for (const accrual of toValidate) {
+      await leaveService.validateAccrual(actor(accrual.userId === rh.id ? directeur : rh), accrual.id, {});
+    }
+    console.log(`Congés acquis démo prêts : ${toValidate.length} relevés validés, ceux de ${lastMonth} à valider.`);
   }
 
   console.log("\nTerminé. Comptes de démo (mot de passe commun : " + DEMO_PASSWORD + ") :");

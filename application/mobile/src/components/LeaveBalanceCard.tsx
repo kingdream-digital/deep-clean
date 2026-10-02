@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { Card } from "./Card";
 import { Button } from "./Button";
 import { TextField } from "./TextField";
+import { LeaveBalanceDetails } from "./LeaveBalanceDetails";
 import { useTheme } from "../theme/ThemeProvider";
 import { extractErrorMessage } from "../api/client";
 import { createLeaveAdjustment, getLeaveBalance } from "../api/leave.api";
@@ -70,7 +71,7 @@ export function LeaveBalanceCard({ userId, canAdjust }: { userId: string; canAdj
   return (
     <Card style={{ marginTop: spacing.sm }}>
       <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-        CONGÉS PAYÉS · {balance.year}
+        CONGÉS PAYÉS
       </Text>
       <View style={{ flexDirection: "row" }}>
         {stats.map((s) => (
@@ -80,6 +81,7 @@ export function LeaveBalanceCard({ userId, canAdjust }: { userId: string; canAdj
           </View>
         ))}
       </View>
+      <LeaveBalanceDetails balance={balance} />
 
       {canAdjust && !editing && (
         <View style={{ marginTop: spacing.md }}>

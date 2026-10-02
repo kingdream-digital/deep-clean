@@ -169,6 +169,8 @@ export function PlanningScreen() {
       PAID_LEAVE: "En congé",
       SICK_LEAVE: "Arrêt maladie",
       UNPAID_LEAVE: "Congé sans solde",
+      WORK_ACCIDENT: "Accident du travail",
+      PARENTAL_LEAVE: "Congé maternité / paternité",
       OTHER: "Absent",
     };
     for (const absence of absences?.items ?? []) {

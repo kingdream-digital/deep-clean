@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { LeaveBalanceDetails } from "../../components/LeaveBalanceDetails";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
@@ -26,6 +27,8 @@ const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",
   SICK_LEAVE: "Maladie",
   UNPAID_LEAVE: "Sans solde",
+  WORK_ACCIDENT: "Accident du travail",
+  PARENTAL_LEAVE: "Maternité / paternité",
   OTHER: "Autre",
 };
 
@@ -104,7 +107,7 @@ export function MyAbsencesScreen() {
       {!!balance && (
         <Card style={{ marginBottom: spacing.lg }}>
           <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-            CONGÉS {balance.year}
+            CONGÉS PAYÉS
           </Text>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <LeaveBalanceStat label="Acquis" value={balance.acquired} color={colors.ink} />
@@ -112,6 +115,7 @@ export function MyAbsencesScreen() {
             <LeaveBalanceStat label="En attente" value={balance.pending} color={colors.warning} />
             <LeaveBalanceStat label="Restant" value={balance.remaining} color={colors.accent} />
           </View>
+          <LeaveBalanceDetails balance={balance} />
         </Card>
       )}
 

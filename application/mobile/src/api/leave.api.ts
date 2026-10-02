@@ -1,24 +1,23 @@
 import { apiClient } from "./client";
+import { countWorkableDays } from "../utils/frenchCalendar";
 
-// Détail du calcul d'acquisition — purement informatif (transparence du
-// solde), voir leave.service.ts côté serveur pour la formule exacte.
-export interface LeaveAccrualBreakdown {
-  monthlyRate: number;
-  cap: number | null;
-  daysElapsed: number;
-  monthsAccrued: number;
-  rawAccrued: number;
-  accrued: number;
-}
-
+// Solde de congés payés, en jours OUVRABLES (lundi → samedi, hors fériés) —
+// voir leave.service.ts côté serveur pour les règles d'acquisition.
 export interface LeaveBalance {
   userId: string;
   year: number;
+  // Acquis VALIDÉ par la RH (+ corrections).
   acquired: number;
   taken: number;
   pending: number;
   remaining: number;
-  breakdown: LeaveAccrualBreakdown;
+  // Acquis calculé, pas encore validé par la RH.
+  toValidate: number;
+  // Période de référence en cours (1er juin → 31 mai).
+  period: { start: string; end: string; acquired: number; cap: number };
+  // Mois en cours, estimation jusqu'à aujourd'hui.
+  currentMonth: { month: string; estimatedDays: number };
+  monthlyRate: number;
 }
 
 export async function getLeaveBalance(userId: string, year?: number): Promise<LeaveBalance> {
@@ -49,21 +48,57 @@ export async function createLeaveAdjustment(userId: string, days: number, note?:
   return data.transaction;
 }
 
-// Même calcul que countBusinessDays côté serveur (leave.service.ts) — utilisé
-// uniquement pour un aperçu instantané dans le formulaire de demande, avant
-// tout appel réseau ; la valeur qui compte réellement (affichée après
-// création, déduite à la validation) reste toujours celle calculée par le
-// serveur (voir Absence.daysCount).
+// Même calcul que le serveur (jours ouvrables, hors fériés) — aperçu
+// instantané dans le formulaire de demande ; la valeur qui compte reste celle
+// calculée par le serveur (Absence.daysCount).
 export function countBusinessDaysPreview(startDate: Date, endDate: Date): number {
-  let count = 0;
-  const cursor = new Date(startDate);
-  cursor.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
-  while (cursor <= end) {
-    const day = cursor.getDay();
-    if (day !== 0 && day !== 6) count++;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return count;
+  const asUtcDay = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  return countWorkableDays(asUtcDay(startDate), asUtcDay(endDate));
+}
+
+// ---------------------------------------------------------------------------
+// Relevés mensuels de congés acquis (RH)
+// ---------------------------------------------------------------------------
+
+export interface LeaveAccrualDetails {
+  month: string;
+  monthDays: number;
+  consideredDays: number;
+  workedDays: number;
+  assimilatedDays: number;
+  sickDays: number;
+  unpaidDays: number;
+  rate: number;
+  sickRate: number;
+  rawDays: number;
+  capped: boolean;
+}
+
+export interface LeaveAccrual {
+  id: string;
+  userId: string;
+  user: { id: string; firstName: string; lastName: string; role: string; weeklyHours: number | null };
+  month: string;
+  computedDays: number;
+  days: number;
+  details: LeaveAccrualDetails;
+  status: "PROPOSED" | "VALIDATED";
+  note: string | null;
+  validatedAt: string | null;
+  validatedBy: { id: string; firstName: string; lastName: string } | null;
+}
+
+export async function listLeaveAccruals(params: { month?: string; status?: "PROPOSED" | "VALIDATED" } = {}): Promise<LeaveAccrual[]> {
+  const { data } = await apiClient.get<{ items: LeaveAccrual[] }>("/leave/accruals", { params });
+  return data.items;
+}
+
+export async function validateLeaveAccrual(id: string, input: { days?: number; note?: string } = {}): Promise<LeaveAccrual> {
+  const { data } = await apiClient.post<{ accrual: LeaveAccrual }>(`/leave/accruals/${id}/validate`, input);
+  return data.accrual;
+}
+
+export async function validateLeaveMonth(month: string): Promise<number> {
+  const { data } = await apiClient.post<{ validated: number }>("/leave/accruals/validate-month", { month });
+  return data.validated;
 }

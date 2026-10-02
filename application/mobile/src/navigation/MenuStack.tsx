@@ -25,6 +25,7 @@ import { RetroactiveClockScreen } from "../screens/timesheets/RetroactiveClockSc
 import { TimeEntryDetailScreen } from "../screens/timesheets/TimeEntryDetailScreen";
 import { StaffHoursListScreen } from "../screens/timesheets/StaffHoursListScreen";
 import { EmployeeHoursScreen } from "../screens/timesheets/EmployeeHoursScreen";
+import { LeaveAccrualsScreen } from "../screens/absences/LeaveAccrualsScreen";
 import { ReconciliationScreen } from "../screens/timesheets/ReconciliationScreen";
 import { ReconciliationDetailScreen } from "../screens/timesheets/ReconciliationDetailScreen";
 import { MyAbsencesScreen } from "../screens/absences/MyAbsencesScreen";
@@ -92,6 +93,8 @@ export type MenuStackParamList = {
   // `initialMonth` : « AAAA-MM », mois ouvert à l'arrivée (dossier choisi).
   // `title` : titre de l'écran (« Octobre 2026 » quand on ouvre ses propres
   // heures) ; par défaut le nom de la personne.
+  // Compteurs de congés : relevés mensuels à valider (RH, direction, admin).
+  LeaveAccruals: undefined;
   EmployeeHours: { userId: string; fullName: string; initialMonth?: string; title?: string };
   Reconciliation: undefined;
   ReconciliationDetail: { userId: string; fullName: string; from: string; to: string };
@@ -223,6 +226,7 @@ export function MenuStack() {
       />
       <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
       <Stack.Screen name="StaffHoursList" component={StaffHoursListScreen} options={{ title: "Dossiers d'heures" }} />
+      <Stack.Screen name="LeaveAccruals" component={LeaveAccrualsScreen} options={{ title: "Compteurs de congés" }} />
       <Stack.Screen
         name="EmployeeHours"
         component={EmployeeHoursScreen}
