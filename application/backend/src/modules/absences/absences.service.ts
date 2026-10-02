@@ -124,7 +124,9 @@ export async function createAbsence(actor: Actor, input: CreateAbsenceInput) {
   // La RH (et direction/admin) fait autorité : une absence qu'elle déclare
   // elle-même est directement approuvée, jamais soumise à sa propre
   // validation. Un employé qui déclare la sienne reste en attente.
-  const isSelfAuthoritative = canManageAbsences(actor);
+  // Jamais pour sa propre absence : un responsable ne s'approuve pas
+  // lui-même (sa demande part en validation comme celle de tout le monde).
+  const isSelfAuthoritative = canManageAbsences(actor) && targetUserId !== actor.userId;
 
   const absence = await prisma.absence.create({
     data: {
@@ -149,6 +151,32 @@ export async function createAbsence(actor: Actor, input: CreateAbsenceInput) {
   });
 
   if (isSelfAuthoritative) {
+    // La personne concernée est toujours prévenue quand un responsable
+    // enregistre une absence pour elle (ex. arrêt maladie signalé par
+    // téléphone et saisi par la RH depuis le planning).
+    const ABSENCE_TYPE_LABELS: Record<string, string> = {
+      PAID_LEAVE: "congé payé",
+      SICK_LEAVE: "arrêt maladie",
+      UNPAID_LEAVE: "congé sans solde",
+      OTHER: "absence",
+    };
+    const author = await prisma.user.findUnique({ where: { id: actor.userId }, select: { firstName: true, lastName: true } });
+    // Jours calendaires (minuit UTC → 23:59 UTC) : lus en UTC, jamais
+    // convertis en heure de Paris (la fin tomberait sur le lendemain).
+    const dayLabel = (d: Date) => {
+      const key = d.toISOString().slice(0, 10);
+      return `${key.slice(8, 10)}/${key.slice(5, 7)}/${key.slice(0, 4)}`;
+    };
+    const from = dayLabel(startDate);
+    const to = dayLabel(endDate);
+    await createNotification({
+      userId: targetUserId,
+      type: NotificationType.ABSENCE_DECIDED,
+      title: "Absence enregistrée",
+      body: `${author ? `${author.firstName} ${author.lastName}` : "La RH"} a enregistré pour vous : ${ABSENCE_TYPE_LABELS[input.type] ?? "absence"} ${from === to ? `le ${from}` : `du ${from} au ${to}`}.`,
+      relatedEntityType: "Absence",
+      relatedEntityId: absence.id,
+    });
     await notifyMissionConflicts(absence.id, targetUserId, startDate, endDate);
   } else {
     await notifyAbsenceManagers(absence.id, target);

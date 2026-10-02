@@ -632,6 +632,13 @@ async function main() {
   ];
   for (const [u, phone] of phones) await prisma.user.update({ where: { id: u.id }, data: { phone } });
 
+  // Heures par semaine au contrat (compteur « reste à planifier » du
+  // planning) : temps plein, un temps partiel, chefs d'équipe à 39 h.
+  const weeklyHours: Array<[{ id: string }, number]> = [
+    [lucas, 35], [emma, 35], [nathan, 35], [chloe, 35], [thomas, 35], [ines, 24], [karim, 39], [sophie, 39],
+  ];
+  for (const [u, hours] of weeklyHours) await prisma.user.update({ where: { id: u.id }, data: { weeklyHours: hours } });
+
   // Messagerie : trois fils à deux et un groupe de chantier avec un PDF.
   if ((await prisma.conversation.count()) === 0) {
     const say = (u: { id: string; role: Role }, conversationId: string, body: string) =>

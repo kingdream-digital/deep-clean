@@ -209,24 +209,35 @@ export function MissionFormScreen() {
   // Disponibilité de chaque personne pour le jour et l'horaire choisis
   // (retour explicite du client) : où elle est déjà affectée et à quelle
   // heure, pour ne jamais prévoir quelqu'un qui est déjà ailleurs.
-  const [dayMissions, setDayMissions] = useState<Mission[]>([]);
+  const [weekMissions, setWeekMissions] = useState<Mission[]>([]);
   const [absentIds, setAbsentIds] = useState<Set<string>>(new Set());
   const dayKey = toLocalDateKey(date);
+  // Semaine (lundi → dimanche) de la date choisie : sert au compteur
+  // « heures restantes » face aux heures du contrat.
+  const [weekStartKey, weekEndKey] = useMemo(() => {
+    const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7));
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    return [toLocalDateKey(monday), toLocalDateKey(sunday)];
+  }, [date]);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const [missionsRes, absencesRes] = await Promise.all([
-        listMissions({ from: dayKey, to: dayKey, pageSize: 100 }).catch(() => null),
+        listMissions({ from: weekStartKey, to: weekEndKey, pageSize: 100 }).catch(() => null),
         listAbsences({ status: "APPROVED", from: dayKey, to: dayKey }).catch(() => null),
       ]);
       if (cancelled) return;
-      setDayMissions((missionsRes?.items ?? []).filter((m) => m.status !== "CANCELLED" && m.id !== missionId));
+      setWeekMissions((missionsRes?.items ?? []).filter((m) => m.status !== "CANCELLED" && m.id !== missionId));
       setAbsentIds(new Set((absencesRes?.items ?? []).map((a) => a.userId)));
     })();
     return () => {
       cancelled = true;
     };
-  }, [dayKey, missionId]);
+  }, [dayKey, weekStartKey, weekEndKey, missionId]);
+  const dayMissions = useMemo(
+    () => weekMissions.filter((m) => toLocalDateKey(new Date(m.startTime)) === dayKey),
+    [weekMissions, dayKey]
+  );
 
   const availability = useMemo(() => {
     const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
@@ -247,8 +258,33 @@ export function MissionFormScreen() {
           : { blocking: false, label: current ? `${current.label} · ${where}` : `Aussi ce jour-là : ${where}` };
       }
     }
+    // Compteur de la semaine (si la RH a renseigné les heures du contrat) :
+    // ce qui reste à planifier une fois cette mission ajoutée.
+    const missionMinutes = Math.max(0, wantedEnd - wantedStart);
+    const plannedByUser = new Map<string, number>();
+    for (const mission of weekMissions) {
+      const minutes = (new Date(mission.endTime).getTime() - new Date(mission.startTime).getTime()) / 60000;
+      for (const a of mission.assignments) plannedByUser.set(a.userId, (plannedByUser.get(a.userId) ?? 0) + minutes);
+    }
+    const fmt = (minutes: number) => {
+      const h = Math.floor(minutes / 60);
+      const m = Math.round(minutes % 60);
+      return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+    };
+    for (const person of [...employees, ...teamLeads]) {
+      if (person.weeklyHours == null) continue;
+      const remaining = person.weeklyHours * 60 - (plannedByUser.get(person.id) ?? 0);
+      const after = remaining - missionMinutes;
+      const hours =
+        remaining <= 0
+          ? { text: `Semaine déjà complète (${fmt(person.weeklyHours * 60)})`, over: true }
+          : after < 0
+            ? { text: `Reste ${fmt(remaining)} cette semaine : cette mission dépasserait de ${fmt(-after)}`, over: true }
+            : { text: `Reste ${fmt(remaining)} cette semaine sur ${fmt(person.weeklyHours * 60)}`, over: false };
+      result[person.id] = { ...(result[person.id] ?? { blocking: false, label: "" }), hours };
+    }
     return result;
-  }, [dayMissions, absentIds, startTime, endTime]);
+  }, [dayMissions, weekMissions, absentIds, startTime, endTime, employees, teamLeads]);
 
   const unavailableSelected = useMemo(
     () =>

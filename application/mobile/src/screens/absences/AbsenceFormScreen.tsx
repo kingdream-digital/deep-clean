@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Card } from "../../components/Card";
@@ -38,19 +39,25 @@ export function AbsenceFormScreen() {
   const { isDesktopWeb } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { user } = useAuth();
+  const { params } = useRoute<RouteProp<HomeStackParamList, "AbsenceForm">>();
+  // Pour quelqu'un d'autre (responsable depuis le planning) : enregistrée et
+  // approuvée directement par le serveur, la personne est prévenue.
+  const forOther = !!params?.userId && params.userId !== user?.id;
+  const targetUserId = forOther ? params!.userId! : user?.id;
+  const initialDay = params?.initialDate ? new Date(`${params.initialDate}T00:00:00`) : new Date();
 
-  const [type, setType] = useState<AbsenceType>("PAID_LEAVE");
-  const [startDate, setStartDate] = useState<Date>(new Date());
-  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [type, setType] = useState<AbsenceType>(forOther ? "SICK_LEAVE" : "PAID_LEAVE");
+  const [startDate, setStartDate] = useState<Date>(initialDay);
+  const [endDate, setEndDate] = useState<Date>(initialDay);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    getLeaveBalance(user.id).then(setBalance).catch(() => setBalance(null));
-  }, [user]);
+    if (!targetUserId) return;
+    getLeaveBalance(targetUserId).then(setBalance).catch(() => setBalance(null));
+  }, [targetUserId]);
 
   const requestedDays = useMemo(() => countBusinessDaysPreview(startDate, endDate), [startDate, endDate]);
   const wouldExceedBalance = type === "PAID_LEAVE" && balance != null && requestedDays > balance.remaining;
@@ -64,6 +71,7 @@ export function AbsenceFormScreen() {
     setSaving(true);
     try {
       await createAbsence({
+        ...(forOther ? { userId: targetUserId } : {}),
         type,
         startDate: toLocalDateKey(startDate),
         endDate: toLocalDateKey(endDate),
@@ -87,6 +95,15 @@ export function AbsenceFormScreen() {
           isDesktopWeb && { maxWidth: 640, width: "100%", alignSelf: "center" },
         ]}
       >
+        {forOther && (
+          <Card style={{ marginBottom: spacing.lg }}>
+            <Text style={[typeScale.headline, { color: colors.ink }]}>{params?.fullName}</Text>
+            <Text style={[typeScale.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
+              L'absence est enregistrée directement (sans validation) et la personne est prévenue. Elle apparaît aussitôt dans le planning.
+            </Text>
+          </Card>
+        )}
+
         <Text style={[typeScale.subhead, { color: colors.inkSecondary, marginBottom: spacing.md }]}>Type d'absence</Text>
         <SegmentedControl value={type} onChange={setType} options={TYPE_OPTIONS} />
 
@@ -133,7 +150,7 @@ export function AbsenceFormScreen() {
 
         {!!error && <Text style={[typeScale.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
-        <Button label="Envoyer la demande" onPress={handleSubmit} loading={saving} />
+        <Button label={forOther ? "Enregistrer l'absence" : "Envoyer la demande"} onPress={handleSubmit} loading={saving} />
       </ScrollView>
     </ScreenContainer>
   );

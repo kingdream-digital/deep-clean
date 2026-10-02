@@ -71,7 +71,10 @@ export type HomeStackParamList = {
   TimesheetRetroactive: undefined;
   TimeEntryDetail: { entryId: string };
   MyAbsences: undefined;
-  AbsenceForm: undefined;
+  // Absence enregistrée par un responsable POUR quelqu'un (ex. arrêt maladie
+  // annoncé par téléphone, saisi depuis le planning) : `userId`/`fullName`
+  // de la personne, `initialDate` (AAAA-MM-JJ) pour démarrer sur le jour choisi.
+  AbsenceForm: { userId?: string; fullName?: string; initialDate?: string } | undefined;
   AbsencesManagement: undefined;
   // Facturation (module commercial §29-33) — uniquement le bouton "Créer une
   // facture" depuis la fiche chantier (dupliqué ici comme SiteForm/MissionForm
@@ -193,7 +196,7 @@ export function HomeStack() {
       <Stack.Screen
         name="AbsenceForm"
         component={AbsenceFormScreen}
-        options={{ title: "Demander une absence", presentation: "modal" }}
+        options={({ route }) => ({ title: route.params?.fullName ? "Enregistrer une absence" : "Demander une absence", presentation: "modal" })}
       />
       <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: ABSENCES_MANAGEMENT_TITLE }} />
 

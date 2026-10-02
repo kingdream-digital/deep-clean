@@ -63,6 +63,10 @@ model User {
   hireDate           DateTime  @default(now())
   leaveAccrualRate   Float?
   leaveAccrualCap    Float?
+  // Heures prévues au contrat par semaine (ex. 35), saisies par la RH : le
+  // planning affiche ce qu'il reste à planifier à chacun pour la semaine.
+  // null = non renseigné (aucun compteur affiché).
+  weeklyHours        Float?
   createdById        String? // RH ayant créé le compte
   createdBy          User?     @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers       User[]    @relation("UserCreatedBy")

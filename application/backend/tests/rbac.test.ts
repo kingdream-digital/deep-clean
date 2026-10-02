@@ -243,3 +243,32 @@ describe("Dossier employé — missions récentes", () => {
     ]);
   });
 });
+
+describe("Heures par semaine au contrat — saisies par la RH, visibles pour le planning", () => {
+  it("la RH les renseigne à la création ; le superviseur les voit, pas un employé", async () => {
+    const { accessToken: hrToken } = await loginAs(Role.HR);
+    const created = await request(app)
+      .post("/api/v1/users")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ firstName: "Paul", lastName: "Martin", role: "EMPLOYEE", weeklyHours: 35 });
+    expect(created.status).toBe(201);
+    const userId = created.body.user.id as string;
+    expect(created.body.user.weeklyHours).toBe(35);
+
+    const updated = await request(app)
+      .patch(`/api/v1/users/${userId}`)
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ weeklyHours: 24 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.user.weeklyHours).toBe(24);
+
+    const { accessToken: supToken } = await loginAs(Role.SUPERVISOR);
+    const asSup = await request(app).get("/api/v1/users").query({ role: "EMPLOYEE" }).set("Authorization", `Bearer ${supToken}`);
+    expect(asSup.body.items.find((u: { id: string }) => u.id === userId).weeklyHours).toBe(24);
+
+    const { accessToken: empToken } = await loginAs(Role.EMPLOYEE);
+    const asEmp = await request(app).get("/api/v1/users").set("Authorization", `Bearer ${empToken}`);
+    const seen = asEmp.body.items?.find((u: { id: string }) => u.id === userId);
+    if (seen) expect(seen.weeklyHours).toBeUndefined();
+  });
+});

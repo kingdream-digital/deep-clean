@@ -12,6 +12,9 @@ import type { DirectoryUser } from "../api/users.api";
 export interface Availability {
   blocking: boolean;
   label: string;
+  // Heures restantes sur la semaine face au contrat (« Reste 4 h cette
+  // semaine ») ; `over` = la mission ferait dépasser (simple alerte).
+  hours?: { text: string; over: boolean };
 }
 
 interface EmployeePickerModalProps {
@@ -78,7 +81,7 @@ export function EmployeePickerModal({ visible, employees, selectedIds, availabil
                 disabled={locked}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: selected, disabled: locked }}
-                accessibilityLabel={`${item.firstName} ${item.lastName}${info ? `, ${info.label}` : ""}`}
+                accessibilityLabel={`${item.firstName} ${item.lastName}${info?.label ? `, ${info.label}` : ""}${info?.hours ? `, ${info.hours.text}` : ""}`}
                 style={({ pressed }) => [styles.row, { paddingVertical: spacing.sm, opacity: locked ? 0.55 : pressed ? 0.7 : 1 }]}
               >
                 <Avatar user={item} size={36} />
@@ -86,12 +89,20 @@ export function EmployeePickerModal({ visible, employees, selectedIds, availabil
                   <Text style={[type.body, { color: colors.ink }]} numberOfLines={1}>
                     {item.firstName} {item.lastName}
                   </Text>
-                  {!!info && (
+                  {!!info?.label && (
                     <Text
                       style={[type.footnote, { color: info.blocking ? colors.danger : colors.inkTertiary, marginTop: 1 }]}
                       numberOfLines={2}
                     >
                       {info.label}
+                    </Text>
+                  )}
+                  {!!info?.hours && (
+                    <Text
+                      style={[type.footnote, { color: info.hours.over ? colors.warning : colors.accentText, marginTop: 1, fontWeight: "600" }]}
+                      numberOfLines={2}
+                    >
+                      {info.hours.text}
                     </Text>
                   )}
                 </View>
