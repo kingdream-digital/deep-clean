@@ -21,3 +21,18 @@ export const createLeaveAdjustmentHandler = asyncHandler(async (req: Request, re
   const transaction = await leaveService.createLeaveAdjustment(actorOf(req), req.params.userId as string, req.body);
   res.status(201).json({ transaction });
 });
+
+export const listAccrualsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const items = await leaveService.listAccruals(actorOf(req), req.query as never);
+  res.status(200).json({ items });
+});
+
+export const validateAccrualHandler = asyncHandler(async (req: Request, res: Response) => {
+  const accrual = await leaveService.validateAccrual(actorOf(req), req.params.id as string, req.body);
+  res.status(200).json({ accrual });
+});
+
+export const validateMonthHandler = asyncHandler(async (req: Request, res: Response) => {
+  const count = await leaveService.validateMonth(actorOf(req), req.body.month);
+  res.status(200).json({ validated: count });
+});

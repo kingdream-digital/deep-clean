@@ -18,6 +18,10 @@ export const createUserSchema = {
     hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).").optional(),
     // Heures par semaine au contrat (ex. 35).
     weeklyHours: z.coerce.number().positive("Indiquez un nombre d'heures positif.").max(60, "60 heures par semaine au maximum.").optional(),
+    // Paramètres de congés du contrat (par défaut : 2,5 jours ouvrables par
+    // mois, plafond 30 par période de référence).
+    leaveAccrualRate: z.coerce.number().positive().max(5).optional(),
+    leaveAccrualCap: z.coerce.number().positive().max(60).optional(),
   }),
 };
 

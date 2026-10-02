@@ -228,3 +228,22 @@ active. Pour une version installée de façon autonome (surtout nécessaire
 pour iOS, qui interdit toute installation hors App Store/TestFlight sans
 compte Apple Developer à 99$/an), voir `application/README.md` section
 "Build de production" (EAS Build).
+
+## Congés payés : calcul et validation mensuelle
+
+- Unité : jours **ouvrables** (lundi → samedi, hors jours fériés légaux,
+  calculés automatiquement, Pâques comprise — voir `utils/frenchCalendar.ts`).
+- Acquisition : 2,5 jours par mois de travail (taux réglable par salarié),
+  plafond 30 jours par période de référence (1er juin → 31 mai, réglable).
+  Congé payé, accident du travail, maternité/paternité, autre absence :
+  assimilés à du travail effectif. Arrêt maladie ordinaire : 2 jours par
+  mois (loi du 22 avril 2024). Congé sans solde : aucun droit. Premier mois
+  au prorata.
+- Le 1er de chaque mois à 2 h (et au démarrage du serveur), les relevés du
+  mois écoulé sont calculés pour chaque salarié actif et la RH / la
+  direction sont prévenues. Menu → **Compteurs de congés** : la RH vérifie,
+  corrige si besoin (motif obligatoire) et valide. Seuls les relevés
+  validés comptent dans le solde ; personne ne valide le sien.
+- Le compteur d'un nouveau salarié part de 0 à la création de son compte.
+  Pour un salarié déjà présent, reporter son solde actuel depuis sa fiche
+  (« Ajuster le solde »).

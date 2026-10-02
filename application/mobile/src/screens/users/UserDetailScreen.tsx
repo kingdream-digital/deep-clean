@@ -54,6 +54,8 @@ const ABSENCE_TYPE_LABELS: Record<string, string> = {
   PAID_LEAVE: "Congé payé",
   SICK_LEAVE: "Arrêt maladie",
   UNPAID_LEAVE: "Congé sans solde",
+  WORK_ACCIDENT: "Accident du travail",
+  PARENTAL_LEAVE: "Maternité / paternité",
   OTHER: "Autre",
 };
 

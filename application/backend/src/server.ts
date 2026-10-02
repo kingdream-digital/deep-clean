@@ -6,6 +6,7 @@ import { prisma } from "./db/prisma";
 import { runPhotoRetentionJob } from "./jobs/photoRetention";
 import { runMessagesMigration } from "./db/migrateMessagesToConversations";
 import { COMPANY_TIME_ZONE } from "./utils/companyTime";
+import { runMonthlyAccrualJob } from "./modules/leave/leave.service";
 
 const app = createApp();
 
@@ -31,6 +32,18 @@ if (!env.isTest) {
     "0 3 * * *",
     () => {
       void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (planifiée)"));
+    },
+    { timezone: COMPANY_TIME_ZONE }
+  );
+
+  // Congés acquis : relevés du mois écoulé calculés le 1er à 2 h (heure de
+  // Paris), à valider par la RH. Aussi au démarrage, pour rattraper un mois
+  // manqué pendant que le serveur était arrêté (idempotent).
+  void runMonthlyAccrualJob().catch((err) => logger.error({ err }, "Échec du calcul des congés acquis (démarrage)"));
+  cron.schedule(
+    "0 2 1 * *",
+    () => {
+      void runMonthlyAccrualJob().catch((err) => logger.error({ err }, "Échec du calcul des congés acquis (planifié)"));
     },
     { timezone: COMPANY_TIME_ZONE }
   );

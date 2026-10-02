@@ -73,6 +73,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Vert si tout concorde, rouge à vérifier", tone: "neutral", screen: "Reconciliation" },
     { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export paie", tone: "accent", screen: "StaffHoursList" },
     { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Demandes à approuver ou refuser", tone: "info", screen: "AbsencesManagement" },
+    { icon: "calendar-number-outline", label: "Compteurs de congés", message: "Congés acquis à valider chaque mois", tone: "success", screen: "LeaveAccruals" },
   ],
   DIRECTOR: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
@@ -92,6 +93,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Repérer qui a un écart à examiner", tone: "neutral", screen: "Reconciliation" },
     { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export paie", tone: "accent", screen: "StaffHoursList" },
     { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Vue d'ensemble des absences", tone: "info", screen: "AbsencesManagement" },
+    { icon: "calendar-number-outline", label: "Compteurs de congés", message: "Congés acquis à valider chaque mois", tone: "success", screen: "LeaveAccruals" },
   ],
   ADMIN: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
@@ -103,6 +105,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Repérer qui a un écart à examiner", tone: "neutral", screen: "Reconciliation" },
     { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export paie", tone: "accent", screen: "StaffHoursList" },
     { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Vue d'ensemble des absences", tone: "info", screen: "AbsencesManagement" },
+    { icon: "calendar-number-outline", label: "Compteurs de congés", message: "Congés acquis à valider chaque mois", tone: "success", screen: "LeaveAccruals" },
     { icon: "time-outline", label: "Journal d'activité", message: "Qui a fait quoi, et quand", tone: "neutral", screen: "ActivityLog" },
   ],
 };
