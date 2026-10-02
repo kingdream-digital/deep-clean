@@ -25,10 +25,13 @@ import {
   createMission,
   getAssignmentConflicts,
   getMission,
+  listMissions,
   updateMission,
   updateMissionAssignments,
 } from "../../api/missions.api";
-import type { AssignmentConflict } from "../../api/missions.api";
+import type { AssignmentConflict, Mission } from "../../api/missions.api";
+import { listAbsences } from "../../api/absences.api";
+import type { Availability } from "../../components/EmployeePickerModal";
 import { listStandards } from "../../api/standards.api";
 import type { CleaningStandard } from "../../api/standards.api";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
@@ -201,6 +204,58 @@ export function MissionFormScreen() {
         .map((e) => e.firstName)
         .join(", "),
     [employees, employeeIds]
+  );
+
+  // Disponibilité de chaque personne pour le jour et l'horaire choisis
+  // (retour explicite du client) : où elle est déjà affectée et à quelle
+  // heure, pour ne jamais prévoir quelqu'un qui est déjà ailleurs.
+  const [dayMissions, setDayMissions] = useState<Mission[]>([]);
+  const [absentIds, setAbsentIds] = useState<Set<string>>(new Set());
+  const dayKey = toLocalDateKey(date);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [missionsRes, absencesRes] = await Promise.all([
+        listMissions({ from: dayKey, to: dayKey, pageSize: 100 }).catch(() => null),
+        listAbsences({ status: "APPROVED", from: dayKey, to: dayKey }).catch(() => null),
+      ]);
+      if (cancelled) return;
+      setDayMissions((missionsRes?.items ?? []).filter((m) => m.status !== "CANCELLED" && m.id !== missionId));
+      setAbsentIds(new Set((absencesRes?.items ?? []).map((a) => a.userId)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dayKey, missionId]);
+
+  const availability = useMemo(() => {
+    const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
+    const wantedStart = minutesOf(startTime);
+    const wantedEnd = minutesOf(endTime);
+    const result: Record<string, Availability> = {};
+    for (const id of absentIds) result[id] = { blocking: true, label: "Absent ce jour-là (congé ou absence approuvée)" };
+    for (const mission of dayMissions) {
+      const start = new Date(mission.startTime);
+      const end = new Date(mission.endTime);
+      const overlaps = minutesOf(start) < wantedEnd && minutesOf(end) > wantedStart;
+      const where = `${mission.site.name}, ${timeFmt.format(start)}–${timeFmt.format(end)}`;
+      for (const assignment of mission.assignments) {
+        const current = result[assignment.userId];
+        if (current?.blocking) continue;
+        result[assignment.userId] = overlaps
+          ? { blocking: true, label: `Déjà prise : ${where}` }
+          : { blocking: false, label: current ? `${current.label} · ${where}` : `Aussi ce jour-là : ${where}` };
+      }
+    }
+    return result;
+  }, [dayMissions, absentIds, startTime, endTime]);
+
+  const unavailableSelected = useMemo(
+    () =>
+      [...employees, ...teamLeads]
+        .filter((u) => (employeeIds.includes(u.id) || u.id === leadId) && availability[u.id]?.blocking)
+        .map((u) => `${u.firstName} ${u.lastName} — ${availability[u.id]!.label}`),
+    [employees, teamLeads, employeeIds, leadId, availability]
   );
 
   function toggleAssignee(userId: string) {
@@ -476,6 +531,11 @@ export function MissionFormScreen() {
               onPress={() => setPickerOpen(true)}
             />
           </Card>
+          {unavailableSelected.map((line) => (
+            <Text key={line} style={[type.footnote, { color: colors.danger, marginTop: spacing.xxs }]}>
+              {line}
+            </Text>
+          ))}
         </View>
 
         <View style={{ marginBottom: spacing.md }}>
@@ -486,7 +546,15 @@ export function MissionFormScreen() {
             <Picker selectedValue={leadId ?? NONE} onValueChange={(v) => setLeadId(v === NONE ? undefined : v)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               <Picker.Item label="Aucun pour cette mission" value={NONE} />
               {teamLeads.map((t) => (
-                <Picker.Item key={t.id} label={`${t.firstName} ${t.lastName}`} value={t.id} />
+                <Picker.Item
+                  key={t.id}
+                  label={
+                    availability[t.id]?.blocking
+                      ? `${t.firstName} ${t.lastName} — ${availability[t.id]!.label}`
+                      : `${t.firstName} ${t.lastName}`
+                  }
+                  value={t.id}
+                />
               ))}
             </Picker>
           </Card>
@@ -514,6 +582,7 @@ export function MissionFormScreen() {
         visible={pickerOpen}
         employees={employees}
         selectedIds={employeeIds}
+        availability={availability}
         onToggle={toggleAssignee}
         onClose={() => setPickerOpen(false)}
       />
