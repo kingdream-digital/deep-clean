@@ -87,11 +87,11 @@ function ProofSection({
           </Text>
         </View>
       )}
-      {siteAddress && (
+      {!!siteAddress && (
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>Chantier prévu : {siteAddress}</Text>
       )}
 
-      {hasPosition && (
+      {!!hasPosition && (
         <PressableScale
           onPress={() => Linking.openURL(`https://www.google.com/maps?q=${latitude},${longitude}`)}
           style={{ flexDirection: "row", alignItems: "flex-start", marginTop: spacing.xs }}
@@ -169,7 +169,7 @@ export function TimeEntryDetailScreen() {
               entry.clockOut ? timeFmt.format(new Date(entry.clockOut)) : "en cours"
             } (${formatDuration(entry.clockIn, entry.clockOut)})`}
           />
-          {entry.matchedMission && (
+          {!!entry.matchedMission && (
             <>
               <InfoRow icon="business-outline" label="Chantier" value={entry.matchedMission.site.name} />
               <InfoRow
@@ -181,10 +181,10 @@ export function TimeEntryDetailScreen() {
               />
             </>
           )}
-          {entry.isRetroactive && (
+          {!!entry.isRetroactive && (
             <InfoRow icon="alert-circle-outline" label="Type" value="Pointage différé (saisi après coup)" />
           )}
-          {entry.validatedBy && (
+          {!!entry.validatedBy && (
             <InfoRow
               icon={entry.status === "REJECTED" ? "close-circle-outline" : "checkmark-circle-outline"}
               label={entry.status === "REJECTED" ? "Refusé par" : "Validé par"}
@@ -193,7 +193,7 @@ export function TimeEntryDetailScreen() {
               }`}
             />
           )}
-          {entry.comment && <InfoRow icon="chatbubble-outline" label="Commentaire" value={entry.comment} />}
+          {!!entry.comment && <InfoRow icon="chatbubble-outline" label="Commentaire" value={entry.comment} />}
           {entry.overtimeMinutes != null && (
             <InfoRow
               icon="trending-up-outline"
@@ -209,7 +209,7 @@ export function TimeEntryDetailScreen() {
         {(entry.hasClockInPhoto || entry.hasClockOutPhoto) && (
           <Card style={{ marginTop: spacing.md }}>
             <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>Justificatif de pointage</Text>
-            {entry.hasClockInPhoto && (
+            {!!entry.hasClockInPhoto && (
               <ProofSection
                 title="Prise à l'arrivée"
                 photoUrl={clockInPhotoUrl(entry.id)}
@@ -221,7 +221,7 @@ export function TimeEntryDetailScreen() {
                 onOpenPhoto={setViewerUri}
               />
             )}
-            {entry.hasClockOutPhoto && (
+            {!!entry.hasClockOutPhoto && (
               <ProofSection
                 title="Prise au départ"
                 photoUrl={clockOutPhotoUrl(entry.id)}

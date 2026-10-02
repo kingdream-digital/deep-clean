@@ -86,7 +86,7 @@ export function SwipeableRow({ onDelete, children }: SwipeableRowProps) {
         {children}
         {/* Capture le tap quand la ligne est ouverte pour la refermer, sans
             déclencher l'action normale de la ligne (marquer lu, naviguer...). */}
-        {open && <Pressable style={StyleSheet.absoluteFill} onPress={close} />}
+        {!!open && <Pressable style={StyleSheet.absoluteFill} onPress={close} />}
       </Animated.View>
     </View>
   );

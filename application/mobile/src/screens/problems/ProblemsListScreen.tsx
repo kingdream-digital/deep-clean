@@ -66,7 +66,7 @@ export function ProblemsListScreen() {
       {/* Même grand titre que les autres listes sur ordinateur (Chantiers,
           Missions, Comptes) — seule cette liste n'avait que le petit titre
           de la barre du haut. */}
-      {isDesktopWeb && (
+      {!!isDesktopWeb && (
         <View style={{ marginBottom: spacing.lg }}>
           <Text style={[typeScale.title1, { color: colors.ink }]}>
             {user?.role === "EMPLOYEE" ? "Mes signalements" : "Problèmes"}

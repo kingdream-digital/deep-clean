@@ -373,7 +373,7 @@ export function InvoiceFormScreen() {
 
         <View style={{ marginBottom: spacing.md }}>
           <Checkbox label="Date d'échéance" checked={hasDueDate} onChange={setHasDueDate} />
-          {hasDueDate && (
+          {!!hasDueDate && (
             <View style={{ marginTop: spacing.sm }}>
               <DateTimeField label="Échéance" mode="date" value={dueDate} onChange={setDueDate} minimumDate={new Date()} formatValue={(d) => dateFmt.format(d)} />
             </View>
@@ -398,7 +398,7 @@ export function InvoiceFormScreen() {
           </View>
         </Card>
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer la facture"} onPress={handleSave} loading={saving} />
       </ScrollView>

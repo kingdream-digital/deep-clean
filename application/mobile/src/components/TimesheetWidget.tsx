@@ -126,7 +126,7 @@ export function TimesheetWidget({
         </View>
       </View>
 
-      {error && (
+      {!!error && (
         <Text style={[type.footnote, { color: colors.danger, marginTop: spacing.sm }]}>{error}</Text>
       )}
 

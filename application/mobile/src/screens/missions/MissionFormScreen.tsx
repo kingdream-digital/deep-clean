@@ -397,7 +397,7 @@ export function MissionFormScreen() {
                 }
               }}
             />
-            {repeatEnabled && (
+            {!!repeatEnabled && (
               <View style={{ marginTop: spacing.sm }}>
                 <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.xxs }]}>
                   Jours de la semaine à répéter
@@ -480,7 +480,7 @@ export function MissionFormScreen() {
           style={{ minHeight: Platform.OS === "ios" ? 90 : undefined, textAlignVertical: "top" }}
         />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer la mission"} onPress={handleSave} loading={saving} />
       </ScrollView>

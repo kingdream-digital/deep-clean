@@ -110,7 +110,7 @@ export function AnnouncementDetailScreen() {
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxl }}>
         <Card glow padded={false}>
-          {announcement.hasCoverPhoto && (
+          {!!announcement.hasCoverPhoto && (
             <PressableScale onPress={() => setViewerOpen(true)}>
               <AuthenticatedImage
                 uri={announcementCoverPhotoUrl(announcement.id)}
@@ -141,7 +141,7 @@ export function AnnouncementDetailScreen() {
           </View>
         </Card>
       </ScrollView>
-      {announcement.hasCoverPhoto && (
+      {!!announcement.hasCoverPhoto && (
         <PhotoViewerModal
           visible={viewerOpen}
           uri={announcementCoverPhotoUrl(announcement.id)}

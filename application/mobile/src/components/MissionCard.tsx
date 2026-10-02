@@ -128,7 +128,7 @@ export function MissionCard({ mission, onPress }: MissionCardProps) {
               marginRight: spacing.md,
             }}
           >
-            {isLive && (
+            {!!isLive && (
               <PulsingDot
                 color={tint.fg}
                 size={44}

@@ -230,6 +230,31 @@ commentaires, client, facture, standards, mode sombre) :
 Captures : `captures-revue-ecrans/passe1-*.jpg` et `passe2-*.jpg`.
 Pas de changement de schéma Prisma : un redéploiement API + web suffit.
 
+**2 octobre 2026 — démo en ligne et chasse aux bugs en conditions réelles**
+(fusionné sur `master`) :
+
+- *Démo complète* chargeable sur le serveur en une commande (docs/DEPLOYMENT.md
+  §3 bis). Garde-fous : `DEMO_MODE=1` obligatoire, refus si un vrai compte
+  existe, aucun e-mail envoyé. **À vider avant la vraie mise en service.**
+- *Heure* : le serveur interprétait « 08:00 » dans son propre fuseau (bug
+  réel en production sur un serveur UTC : +2 h). Tout passe par
+  `backend/src/utils/companyTime.ts` (heure de Paris) ; jours sans heure à
+  minuit UTC. Suite verte en UTC et à Paris. Ne JAMAIS forcer `TZ` sur le
+  serveur : la colonne `missions.date` (jour seul) glisserait d'un jour.
+- *Messagerie sur téléphone (web)* : le clavier cachait la saisie →
+  `hooks/useWebKeyboardInset.ts` + `ScreenContainer`.
+- *Comptes* : identifiants provisoires en haut de la fiche + « Transmettre ».
+- *Congés* : date d'entrée saisissable, carte « Congés payés » et correction
+  du solde sur la fiche (l'API existait sans écran).
+- *Affichage conditionnel* : `{!!x && …}` partout (un texte vide hors
+  `<Text>` fait planter l'app native).
+- Notifications de mission détaillées ; liste d'affectation triée avec photos.
+
+Parcours réellement exécutés (scripts Playwright) : mission, pointage photo +
+GPS, signalement photo + suivi, validation/refus de pointages, congés, compte
+(création → 1re connexion → désactivation), groupe de messagerie, prospect →
+client → devis accepté.
+
 ### Mise en ligne
 
 Le client a donné son accord le 1er octobre 2026 (« Pousse sur master pour

@@ -26,7 +26,7 @@ export function ListGroup({ title, count, style, children }: ListGroupProps) {
 
   return (
     <View style={[{ marginBottom: spacing.xl }, style]}>
-      {title && (
+      {!!title && (
         <View style={{ flexDirection: "row", alignItems: "baseline", marginBottom: spacing.xs, paddingHorizontal: spacing.xxs }}>
           <Text style={[type.overline, { color: colors.inkTertiary, flex: 1 }]}>{title.toUpperCase()}</Text>
           {count !== undefined && <Text style={[type.caption, { color: colors.inkTertiary }]}>{count}</Text>}
@@ -84,7 +84,7 @@ export function ListRow({ title, subtitle, leading, trailing, dimmed = false, on
       style={({ pressed }) => ({ backgroundColor: pressed ? colors.surfaceAlt : "transparent" })}
     >
       <View style={styles.row}>
-        {leading && <View style={{ width: LEADING_SIZE, marginRight: LEADING_GAP, opacity: dimmed ? 0.45 : 1 }}>{leading}</View>}
+        {!!leading && <View style={{ width: LEADING_SIZE, marginRight: LEADING_GAP, opacity: dimmed ? 0.45 : 1 }}>{leading}</View>}
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[type.headline, { color: dimmed ? colors.inkSecondary : colors.ink }]} numberOfLines={1}>
             {title}
@@ -95,8 +95,8 @@ export function ListRow({ title, subtitle, leading, trailing, dimmed = false, on
             </Text>
           ) : null}
         </View>
-        {trailing && <View style={{ marginLeft: spacing.xs }}>{trailing}</View>}
-        {onPress && <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />}
+        {!!trailing && <View style={{ marginLeft: spacing.xs }}>{trailing}</View>}
+        {!!onPress && <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />}
       </View>
     </Pressable>
   );

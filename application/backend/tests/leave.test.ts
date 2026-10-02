@@ -147,3 +147,34 @@ describe("Moteur de congés — correction manuelle RH", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("Date d'entrée dans l'entreprise (base des congés acquis)", () => {
+  it("la RH la renseigne à la création et peut la corriger ensuite", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-hire@deepclean.test" });
+    const token = await loginAs(hr);
+
+    const created = await request(app)
+      .post("/api/v1/users")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ firstName: "Paul", lastName: "Ancien", role: Role.EMPLOYEE, hireDate: "2020-01-15" });
+    expect(created.status).toBe(201);
+    expect(created.body.user.hireDate).toBe("2020-01-15T00:00:00.000Z");
+
+    const updated = await request(app)
+      .patch(`/api/v1/users/${created.body.user.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ hireDate: "2019-06-03" });
+    expect(updated.status).toBe(200);
+    expect(updated.body.user.hireDate).toBe("2019-06-03T00:00:00.000Z");
+  });
+
+  it("refuse une date mal formée", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-hire2@deepclean.test" });
+    const token = await loginAs(hr);
+    const res = await request(app)
+      .post("/api/v1/users")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ firstName: "Paul", lastName: "Mauvais", role: Role.EMPLOYEE, hireDate: "15/01/2020" });
+    expect(res.status).toBe(400);
+  });
+});

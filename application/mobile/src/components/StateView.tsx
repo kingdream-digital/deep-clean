@@ -108,7 +108,7 @@ export function StateView({ kind, title, message, icon, retryLabel = "Réessayer
           {body}
         </Text>
       ) : null}
-      {onRetry && (
+      {!!onRetry && (
         <View style={{ marginTop: spacing.lg, width: 160 }}>
           <Button label={retryLabel} variant="secondary" onPress={onRetry} size="md" />
         </View>

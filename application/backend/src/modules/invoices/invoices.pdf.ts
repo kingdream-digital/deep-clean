@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { companyDateLabel } from "../../utils/companyTime";
 import { env } from "../../config/env";
 import { BRAND, CONTENT_WIDTH, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination } from "../../utils/pdfBrand";
 import type { QuoteItemUnit } from "@prisma/client";
@@ -34,7 +35,10 @@ interface InvoicePdfData {
 }
 
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
-const dateFmt = (d: Date) => d.toLocaleDateString("fr-FR");
+// Date d'émission : instant, lu en heure de Paris.
+const dateFmt = (d: Date) => companyDateLabel(d);
+// Échéance / validité : le moment choisi dans l'app, lu en heure de Paris.
+const calendarDateFmt = (d: Date) => companyDateLabel(d);
 
 const UNIT_LABELS: Record<QuoteItemUnit, string> = {
   HOUR: "heure",
@@ -76,7 +80,7 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
   const metaY = doc.y;
   doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
   doc.text(`Date d'émission : ${dateFmt(invoice.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
-  if (invoice.dueDate) doc.text(`Échéance : ${dateFmt(invoice.dueDate)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
+  if (invoice.dueDate) doc.text(`Échéance : ${calendarDateFmt(invoice.dueDate)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
   if (invoice.quote) doc.text(`Devis associé : ${invoice.quote.quoteNumber}`, PAGE_LEFT, doc.y + 2, { width: 250 });
   if (invoice.site) doc.text(`Chantier : ${invoice.site.name}`, PAGE_LEFT, doc.y + 2, { width: 250 });
 

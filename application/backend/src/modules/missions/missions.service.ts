@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { calendarDay, calendarDayEnd, calendarDayKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
 import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
@@ -187,11 +188,11 @@ async function findSiteOrThrow(siteId: string) {
   return site;
 }
 
-// Combine une date calendaire et une heure "HH:mm" en un instant précis.
-// Hypothèse documentée : le serveur et les appareils mobiles partagent le même
-// fuseau horaire (déploiement France) — à revoir si l'entreprise opère multi-fuseaux.
+// Combine une date calendaire et une heure "HH:mm" en un instant précis, en
+// heure de Paris quel que soit le fuseau du serveur (voir utils/companyTime.ts :
+// sur un serveur en heure universelle, une mission de 8 h s'affichait à 10 h).
 function combineDateTime(date: string, time: string): Date {
-  return new Date(`${date}T${time}:00`);
+  return companyDateTime(date, time);
 }
 
 // Extraction inverse (Date -> "AAAA-MM-JJ" / "HH:mm") à partir des composants
@@ -199,15 +200,14 @@ function combineDateTime(date: string, time: string): Date {
 // affichés de la valeur de l'offset du fuseau horaire local (bug constaté lors
 // de la relecture : une modification ne touchant pas la date/l'heure recalculait
 // par erreur ces champs via toISOString, corrompant silencieusement la mission).
+// `Mission.date` est un jour calendaire stocké à minuit UTC ; les heures sont
+// relues en heure de Paris.
 function toLocalDateString(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return calendarDayKey(d);
 }
 
 function toLocalTimeString(d: Date): string {
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return companyTimeKey(d);
 }
 
 // Nombre maximum d'occurrences (mission "source" incluse) pour une mission
@@ -225,14 +225,14 @@ export const MAX_RECURRING_OCCURRENCES = 60;
 function generateRecurringDates(startDateStr: string, daysOfWeek: number[], untilStr: string): string[] {
   const daysSet = new Set(daysOfWeek);
   const dates: string[] = [];
-  const cursor = new Date(`${startDateStr}T00:00:00`);
-  const until = new Date(`${untilStr}T00:00:00`);
-  cursor.setDate(cursor.getDate() + 1);
+  const cursor = calendarDay(startDateStr);
+  const until = calendarDay(untilStr);
+  cursor.setUTCDate(cursor.getUTCDate() + 1);
   while (cursor <= until) {
-    if (daysSet.has(cursor.getDay())) {
-      dates.push(toLocalDateString(cursor));
+    if (daysSet.has(cursor.getUTCDay())) {
+      dates.push(calendarDayKey(cursor));
     }
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dates;
 }
@@ -246,6 +246,14 @@ async function assertAssigneesValid(assigneeIds: string[]): Promise<void> {
   if (inactive) {
     throw ApiError.badRequest("Impossible d'affecter un employé dont le compte est désactivé.");
   }
+}
+
+// « « Remise en état salle de réunion », mercredi 7 octobre de 08:00 à 10:30 » :
+// une notification doit dire DE QUELLE mission il s'agit et quand, sans avoir
+// à l'ouvrir (retour terrain : « Une nouvelle mission vous a été attribuée »
+// seul ne permettait pas de savoir laquelle, ni pour quand).
+function describeMission(m: { title: string; startTime: Date; endTime: Date }): string {
+  return `« ${m.title} », ${companyLongDayLabel(m.startTime)} de ${companyTimeKey(m.startTime)} à ${companyTimeKey(m.endTime)}`;
 }
 
 async function notifyAssignees(
@@ -282,7 +290,7 @@ export async function getAssignmentConflicts(actor: Actor, input: ConflictCheckI
 
   const startTime = combineDateTime(input.date, input.startTime);
   const endTime = combineDateTime(input.date, input.endTime);
-  const dayStart = new Date(`${input.date}T00:00:00`);
+  const dayStart = calendarDay(input.date);
 
   const overlapping = await prisma.missionAssignment.findMany({
     where: {
@@ -317,7 +325,7 @@ export async function getAssignmentConflicts(actor: Actor, input: ConflictCheckI
     where: { id: { in: input.assigneeIds } },
     select: { id: true, firstName: true, lastName: true },
   });
-  const absences = await findApprovedAbsencesInRange(input.assigneeIds, dayStart, new Date(`${input.date}T23:59:59.999`));
+  const absences = await findApprovedAbsencesInRange(input.assigneeIds, dayStart, calendarDayEnd(input.date));
   const absenceConflicts = absences.map((a) => {
     const user = assignees.find((u) => u.id === a.userId)!;
     return { kind: "ABSENCE" as const, user, absence: { type: a.type, startDate: a.startDate, endDate: a.endDate } };
@@ -389,7 +397,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     data: {
       siteId: input.siteId,
       title: input.title,
-      date: new Date(`${input.date}T00:00:00`),
+      date: calendarDay(input.date),
       startTime,
       endTime,
       instructions: input.instructions,
@@ -428,7 +436,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
       data: recurringDates.map((d) => ({
         siteId: input.siteId,
         title: input.title,
-        date: new Date(`${d}T00:00:00`),
+        date: calendarDay(d),
         startTime: combineDateTime(d, input.startTime),
         endTime: combineDateTime(d, input.endTime),
         instructions: input.instructions,
@@ -478,7 +486,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     "Nouvelle mission",
     recurrenceGroupId
       ? `Une mission récurrente vous a été attribuée (${recurrenceCount} occurrences jusqu'au ${input.recurrence!.until}).`
-      : "Une nouvelle mission vous a été attribuée.",
+      : `Une nouvelle mission vous a été attribuée : ${describeMission(mission)}.`,
     mission.id
   );
 
@@ -528,8 +536,8 @@ export async function listMissions(actor: Actor, filters: ListMissionsFilters) {
   // exposer des données hors de la période filtrée. Un seul objet `date`
   // fusionnant les deux bornes, jamais deux spreads sur la même clé.
   const dateFilter: { gte?: Date; lte?: Date } = {};
-  if (filters.from) dateFilter.gte = new Date(`${filters.from}T00:00:00`);
-  if (filters.to) dateFilter.lte = new Date(`${filters.to}T23:59:59`);
+  if (filters.from) dateFilter.gte = calendarDay(filters.from);
+  if (filters.to) dateFilter.lte = calendarDayEnd(filters.to);
 
   const where = {
     ...scope,
@@ -621,7 +629,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
     data: {
       ...(input.title ? { title: input.title } : {}),
       ...(input.siteId ? { siteId: input.siteId } : {}),
-      ...(timeChanged ? { date: new Date(`${date}T00:00:00`), startTime, endTime } : {}),
+      ...(timeChanged ? { date: calendarDay(date), startTime, endTime } : {}),
       ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
     },
     select: missionSelect,
@@ -641,7 +649,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_SITE_CHANGED,
       "Chantier modifié",
-      "Le lieu de votre mission a été modifié.",
+      `Le lieu de votre mission a été modifié : ${describeMission(updated)}, ${updated.site.name}.`,
       id
     );
   }
@@ -650,7 +658,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_TIME_CHANGED,
       "Horaire modifié",
-      "L'horaire de votre mission a été modifié.",
+      `L'horaire de votre mission a été modifié : ${describeMission(updated)}.`,
       id
     );
   }
@@ -664,7 +672,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_INSTRUCTION_ADDED,
       "Nouvelle consigne",
-      `Une nouvelle consigne a été ajoutée à votre mission par ${authorName}.`,
+      `Une nouvelle consigne a été ajoutée à votre mission « ${updated.title} » par ${authorName}.`,
       id
     );
   }
@@ -698,7 +706,7 @@ export async function cancelMission(actor: Actor, id: string, scope: "one" | "se
     mission.assignments.map((a) => a.userId),
     NotificationType.MISSION_CANCELLED,
     "Mission annulée",
-    "Votre mission a été annulée.",
+    `Votre mission a été annulée : ${describeMission(mission)}.`,
     id
   );
 
@@ -853,7 +861,7 @@ export async function updateAssignments(actor: Actor, id: string, input: UpdateA
       newlyAdded,
       NotificationType.MISSION_ASSIGNED,
       "Nouvelle mission",
-      "Une nouvelle mission vous a été attribuée.",
+      `Une nouvelle mission vous a été attribuée : ${describeMission(mission)}.`,
       id
     );
   }

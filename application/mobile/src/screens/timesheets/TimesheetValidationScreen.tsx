@@ -107,7 +107,7 @@ export function TimesheetValidationScreen() {
           <Text style={[type.footnote, { color: colors.inkSecondary }]}>
             {timeFmt.format(new Date(item.clockIn))} – {item.clockOut ? timeFmt.format(new Date(item.clockOut)) : "en cours"}
           </Text>
-          {item.matchedMission && (
+          {!!item.matchedMission && (
             <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]}>
               Prévu {timeFmt.format(new Date(item.matchedMission.startTime))}–
               {timeFmt.format(new Date(item.matchedMission.endTime))} · {item.matchedMission.site.name}
@@ -227,7 +227,7 @@ export function TimesheetValidationScreen() {
                         {formatDuration(item.clockIn, item.clockOut)})
                       </Text>
                     </View>
-                    {item.matchedMission && (
+                    {!!item.matchedMission && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="business-outline" size={12} color={colors.inkTertiary} />
                         <Text style={[type.caption, { color: colors.inkTertiary, marginLeft: 3 }]}>
@@ -249,7 +249,7 @@ export function TimesheetValidationScreen() {
                         </View>
                       ) : null;
                     })()}
-                    {item.isRetroactive && (
+                    {!!item.isRetroactive && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="time-outline" size={12} color={colors.purple} />
                         <Text style={[type.caption, { color: colors.purple, marginLeft: 3 }]}>Pointage différé</Text>
@@ -263,7 +263,7 @@ export function TimesheetValidationScreen() {
                         </Text>
                       </View>
                     )}
-                    {item.comment && (
+                    {!!item.comment && (
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]} numberOfLines={2}>
                         {item.comment}
                       </Text>

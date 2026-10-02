@@ -94,7 +94,7 @@ export function InvoicesListScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm }}>
                     <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalTtc)}</Text>
-                    {item.dueDate && (
+                    {!!item.dueDate && (
                       <View style={{ flexDirection: "row", alignItems: "center" }}>
                         <Ionicons name="calendar-outline" size={13} color={colors.inkTertiary} />
                         <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: 4 }]}>

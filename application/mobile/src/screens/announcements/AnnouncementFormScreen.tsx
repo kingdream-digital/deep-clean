@@ -129,7 +129,7 @@ export function AnnouncementFormScreen() {
           style={{ minHeight: 140, textAlignVertical: "top" }}
         />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label="Publier" onPress={handleSubmit} loading={saving} />
       </ScrollView>

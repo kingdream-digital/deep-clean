@@ -136,7 +136,7 @@ export function MissionsListScreen() {
 
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
-      {isDesktopWeb && (
+      {!!isDesktopWeb && (
         <View style={[styles.desktopHeader, { marginBottom: spacing.md }]}>
           <View>
             <Text style={{ fontSize: 28, fontWeight: "700", color: colors.ink }}>Missions</Text>
@@ -144,7 +144,7 @@ export function MissionsListScreen() {
               {items.length} {items.length > 1 ? "missions" : "mission"}
             </Text>
           </View>
-          {canManage && (
+          {!!canManage && (
             <View style={{ width: 200 }}>
               <PressableScale onPress={() => navigation.navigate("MissionForm", undefined)}>
                 <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: 12 }]}>
@@ -185,7 +185,7 @@ export function MissionsListScreen() {
 
       {state === "ready" && items.length > 0 && (
         <>
-          {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
 
           {isDesktopWeb ? (
             <DataTable

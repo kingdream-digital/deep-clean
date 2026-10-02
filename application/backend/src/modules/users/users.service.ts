@@ -1,4 +1,5 @@
 import { Prisma, Role } from "@prisma/client";
+import { calendarDay } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { generateTemporaryPassword, hashPassword } from "../../utils/password";
@@ -28,6 +29,7 @@ const publicSelect = {
   phone: true,
   role: true,
   isActive: true,
+  hireDate: true,
   mustChangePassword: true,
   lastLoginAt: true,
   avatarKey: true,
@@ -67,6 +69,7 @@ interface CreateUserInput {
   lastName: string;
   phone?: string;
   role: Role;
+  hireDate?: string;
 }
 
 // Rôles qu'un compte RH ne peut PAS attribuer, ni à la création ni à la
@@ -140,6 +143,7 @@ export async function createUser(actorId: string, actorRole: Role, input: Create
       lastName: input.lastName,
       phone: input.phone,
       role: input.role,
+      ...(input.hireDate ? { hireDate: calendarDay(input.hireDate) } : {}),
       passwordHash,
       mustChangePassword: true,
       createdById: actorId,
@@ -231,6 +235,7 @@ interface UpdateUserInput {
   // défaut de l'entreprise (voir leave.service.ts::computeAccrual).
   leaveAccrualRate?: number | null;
   leaveAccrualCap?: number | null;
+  hireDate?: string;
 }
 
 // Détache un utilisateur de tous les chantiers dont il est responsable —
@@ -262,7 +267,12 @@ export async function updateUser(actorId: string, actorRole: Role, targetId: str
   const losesManagerRole = input.role !== undefined && input.role !== Role.SITE_MANAGER && target.role === Role.SITE_MANAGER;
 
   const user = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({ where: { id: targetId }, data: input, select: publicSelect });
+    const { hireDate, ...rest } = input;
+    const updated = await tx.user.update({
+      where: { id: targetId },
+      data: { ...rest, ...(hireDate ? { hireDate: calendarDay(hireDate) } : {}) },
+      select: publicSelect,
+    });
     if (losesManagerRole) {
       await detachAsSiteManager(tx, targetId);
     }

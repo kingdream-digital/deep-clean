@@ -115,7 +115,7 @@ export function ReconciliationScreen() {
                         {formatHoursMinutes(item.workedMinutes)} pointées · {formatHoursMinutes(item.scheduledMinutes)} prévues
                         {item.missionsCount > 0 ? ` · ${item.missionsCount} mission${item.missionsCount > 1 ? "s" : ""}` : ""}
                       </Text>
-                      {isAnomaly && (
+                      {!!isAnomaly && (
                         <Text style={[type.caption, { color: colors.danger, marginTop: 3 }]}>
                           {item.rejectedCount > 0
                             ? "Pointage refusé à examiner"

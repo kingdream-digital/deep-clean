@@ -122,7 +122,7 @@ export function TimesheetScreen() {
         </View>
       )}
 
-      {clock.error && (
+      {!!clock.error && (
         <Text style={[type.footnote, { color: colors.danger, marginTop: spacing.sm, textAlign: "center" }]}>{clock.error}</Text>
       )}
 
@@ -271,7 +271,7 @@ export function TimesheetScreen() {
                         {formatDuration(item.clockIn, item.clockOut)}
                       </Text>
                     </View>
-                    {item.isRetroactive && (
+                    {!!item.isRetroactive && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="time-outline" size={12} color={colors.purple} />
                         <Text style={[type.caption, { color: colors.purple, marginLeft: 3 }]}>Pointage différé</Text>
@@ -285,7 +285,7 @@ export function TimesheetScreen() {
                         </Text>
                       </View>
                     )}
-                    {item.comment && (
+                    {!!item.comment && (
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]} numberOfLines={2}>
                         {item.comment}
                       </Text>

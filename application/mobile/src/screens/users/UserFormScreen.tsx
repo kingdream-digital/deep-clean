@@ -9,6 +9,9 @@ import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { DateTimeField } from "../../components/DateTimeField";
+import { calendarDay, frenchDateFormat } from "../../utils/frenchDate";
+import { toLocalDateKey } from "../../utils/missionFormat";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -38,6 +41,8 @@ function assignableRoleOptionsFor(actorRole: Role | undefined): { value: Role; l
   return ROLE_OPTIONS.filter((opt) => !restricted.includes(opt.value));
 }
 
+const hireDateFormat = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
+
 export function UserFormScreen() {
   const { colors, spacing, type } = useTheme();
   const { user: actor } = useAuth();
@@ -56,6 +61,9 @@ export function UserFormScreen() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>("EMPLOYEE");
+  // Date d'entrée : base du calcul des congés acquis (aujourd'hui par défaut,
+  // à corriger pour un salarié déjà présent avant l'application).
+  const [hireDate, setHireDate] = useState<Date>(new Date());
 
   const load = useCallback(async () => {
     if (!isEdit || !userId) return;
@@ -67,6 +75,7 @@ export function UserFormScreen() {
       setLastName(account.lastName);
       setPhone(account.phone ?? "");
       setRole(account.role);
+      if (account.hireDate) setHireDate(calendarDay(account.hireDate));
       setLoadState("ready");
     } catch {
       setLoadState("error");
@@ -93,6 +102,7 @@ export function UserFormScreen() {
           lastName: lastName.trim(),
           phone: phone.trim() || null,
           role,
+          hireDate: toLocalDateKey(hireDate),
         });
         navigation.goBack();
       } else {
@@ -102,6 +112,7 @@ export function UserFormScreen() {
           lastName: lastName.trim(),
           phone: phone.trim() || undefined,
           role,
+          hireDate: toLocalDateKey(hireDate),
         });
         navigation.replace("UserDetail", { userId: user.id, temporaryPassword });
       }
@@ -162,6 +173,18 @@ export function UserFormScreen() {
           </Card>
         </View>
 
+        <DateTimeField
+          label="Date d'entrée dans l'entreprise"
+          mode="date"
+          value={hireDate}
+          onChange={setHireDate}
+          maximumDate={new Date()}
+          formatValue={(d) => hireDateFormat.format(d)}
+        />
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          Sert au calcul des congés acquis. Pour un salarié déjà présent, indiquez sa vraie date d'arrivée.
+        </Text>
+
         {!isEdit && (
           <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.md }]}>
             Un identifiant de connexion et un mot de passe temporaire seront générés à la création — ils vous seront
@@ -169,7 +192,7 @@ export function UserFormScreen() {
           </Text>
         )}
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le compte"} onPress={handleSave} loading={saving} />
       </ScrollView>

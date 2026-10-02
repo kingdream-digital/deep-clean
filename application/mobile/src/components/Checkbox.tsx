@@ -33,7 +33,7 @@ export function Checkbox({ label, checked, onChange }: CheckboxProps) {
           },
         ]}
       >
-        {checked && <Ionicons name="checkmark" size={14} color={colors.onAccent} />}
+        {!!checked && <Ionicons name="checkmark" size={14} color={colors.onAccent} />}
       </View>
       <Text style={[type.callout, { color: colors.ink, marginLeft: spacing.sm }]}>{label}</Text>
     </Pressable>

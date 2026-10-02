@@ -232,7 +232,7 @@ export function AbsencesManagementScreen() {
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>
                     {formatRange(item.startDate, item.endDate)}
                   </Text>
-                  {item.reason && (
+                  {!!item.reason && (
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]}>{item.reason}</Text>
                   )}
                   {filter !== "PENDING" && (

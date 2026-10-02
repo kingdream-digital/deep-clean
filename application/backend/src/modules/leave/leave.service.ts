@@ -1,4 +1,5 @@
 import { AbsenceStatus, AbsenceType, LeaveTransactionType, NotificationType, Role } from "@prisma/client";
+import { companyDayEnd, companyDayStart } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -46,14 +47,16 @@ async function assertCanViewBalance(actor: Actor, targetUserId: string): Promise
 // la validation : jamais deux calculs différents qui pourraient diverger.
 export function countBusinessDays(startDate: Date, endDate: Date): number {
   let count = 0;
+  // Jours calendaires stockés à minuit UTC : on avance en UTC, pour un
+  // résultat identique quel que soit le fuseau du serveur.
   const cursor = new Date(startDate);
-  cursor.setHours(0, 0, 0, 0);
+  cursor.setUTCHours(0, 0, 0, 0);
   const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
+  end.setUTCHours(0, 0, 0, 0);
   while (cursor <= end) {
-    const day = cursor.getDay();
+    const day = cursor.getUTCDay();
     if (day !== 0 && day !== 6) count++;
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return count;
 }
@@ -96,8 +99,8 @@ export function computeAccrual(
   const monthlyRate = user.leaveAccrualRate ?? env.DEFAULT_LEAVE_ACCRUAL_RATE_PER_MONTH;
   const cap = user.leaveAccrualCap ?? null;
 
-  const yearStart = new Date(`${year}-01-01T00:00:00`);
-  const yearEnd = new Date(`${year}-12-31T23:59:59.999`);
+  const yearStart = companyDayStart(`${year}-01-01`);
+  const yearEnd = companyDayEnd(`${year}-12-31`);
   const periodStart = user.hireDate > yearStart ? user.hireDate : yearStart;
   const periodEnd = asOf < yearEnd ? asOf : yearEnd;
 
@@ -137,8 +140,8 @@ export async function getLeaveBalance(actor: Actor, targetUserId: string, year: 
   });
   if (!user) throw ApiError.notFound("Compte introuvable.");
 
-  const yearStart = new Date(`${year}-01-01T00:00:00`);
-  const yearEnd = new Date(`${year}-12-31T23:59:59.999`);
+  const yearStart = companyDayStart(`${year}-01-01`);
+  const yearEnd = companyDayEnd(`${year}-12-31`);
   const now = new Date();
   const asOf = now < yearEnd ? now : yearEnd;
 
@@ -279,8 +282,8 @@ export async function listLeaveTransactions(actor: Actor, targetUserId: string, 
   const where: Record<string, unknown> = { userId: targetUserId };
   if (filters.year) {
     where.occurredAt = {
-      gte: new Date(`${filters.year}-01-01T00:00:00`),
-      lte: new Date(`${filters.year}-12-31T23:59:59.999`),
+      gte: companyDayStart(`${filters.year}-01-01`),
+      lte: companyDayEnd(`${filters.year}-12-31`),
     };
   }
 

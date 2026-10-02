@@ -82,31 +82,31 @@ export function ClientDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
           <Text style={[type.title2, { color: colors.ink }]}>{client.companyName}</Text>
-          {contactName && (
+          {!!contactName && (
             <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
               {contactName}
               {client.jobTitle ? ` · ${client.jobTitle}` : ""}
             </Text>
           )}
 
-          {client.phone && (
+          {!!client.phone && (
             <PressableScale onPress={() => Linking.openURL(`tel:${client.phone}`)}>
               <InfoRow icon="call-outline" label="Téléphone" value={client.phone} />
             </PressableScale>
           )}
-          {client.email && (
+          {!!client.email && (
             <PressableScale onPress={() => Linking.openURL(`mailto:${client.email}`)}>
               <InfoRow icon="mail-outline" label="Email" value={client.email} />
             </PressableScale>
           )}
-          {fullAddress && <InfoRow icon="location-outline" label="Adresse de facturation" value={fullAddress} />}
-          {client.siret && <InfoRow icon="business-outline" label="SIRET" value={client.siret} />}
-          {client.notes && <InfoRow icon="document-text-outline" label="Notes" value={client.notes} />}
+          {!!fullAddress && <InfoRow icon="location-outline" label="Adresse de facturation" value={fullAddress} />}
+          {!!client.siret && <InfoRow icon="business-outline" label="SIRET" value={client.siret} />}
+          {!!client.notes && <InfoRow icon="document-text-outline" label="Notes" value={client.notes} />}
         </Card>
 
         <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
           <Button label="Nouveau devis" onPress={() => navigation.navigate("QuoteForm", { clientId })} />
-          {canManage && <Button label="Modifier la fiche" variant="secondary" onPress={() => navigation.navigate("ClientForm", { clientId })} />}
+          {!!canManage && <Button label="Modifier la fiche" variant="secondary" onPress={() => navigation.navigate("ClientForm", { clientId })} />}
         </View>
       </ScrollView>
     </ScreenContainer>

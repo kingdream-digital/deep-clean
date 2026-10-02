@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, TextInput, TextInputProps, View, Pressable } from "react-native";
+import { Platform, StyleSheet, Text, TextInput, TextInputProps, View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme/ThemeProvider";
 
@@ -51,9 +51,9 @@ export function TextField({ label, error, isPassword, style, ...rest }: TextFiel
             rest.onBlur?.(e);
           }}
           placeholderTextColor={colors.inkTertiary}
-          style={[type.body, styles.input, { color: colors.ink }, multilineStyle, style]}
+          style={[type.body, styles.input, { color: colors.ink }, webNoOutline, multilineStyle, style]}
         />
-        {isPassword && (
+        {!!isPassword && (
           <Pressable hitSlop={10} onPress={() => setSecure((s) => !s)} style={styles.icon}>
             <Ionicons name={secure ? "eye-outline" : "eye-off-outline"} size={20} color={colors.inkTertiary} />
           </Pressable>
@@ -65,6 +65,10 @@ export function TextField({ label, error, isPassword, style, ...rest }: TextFiel
     </View>
   );
 }
+
+// Sur le web, le navigateur dessinait son propre contour noir autour du champ
+// actif, par-dessus le liseré coloré déjà prévu pour l'état « en saisie ».
+const webNoOutline = Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null;
 
 const styles = StyleSheet.create({
   row: {

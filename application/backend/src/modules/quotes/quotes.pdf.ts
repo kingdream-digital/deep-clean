@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { companyDateLabel } from "../../utils/companyTime";
 import { env } from "../../config/env";
 import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination } from "../../utils/pdfBrand";
 import type { QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit } from "@prisma/client";
@@ -42,7 +43,10 @@ interface QuotePdfData {
 }
 
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
-const dateFmt = (d: Date) => d.toLocaleDateString("fr-FR");
+// Date d'émission : instant, lu en heure de Paris.
+const dateFmt = (d: Date) => companyDateLabel(d);
+// Échéance / validité : le moment choisi dans l'app, lu en heure de Paris.
+const calendarDateFmt = (d: Date) => companyDateLabel(d);
 
 const UNIT_LABELS: Record<QuoteItemUnit, string> = {
   HOUR: "heure",
@@ -102,7 +106,7 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
   doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
   doc.text(`Date d'émission : ${dateFmt(quote.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
   if (quote.validUntil) {
-    doc.text(`Valable jusqu'au : ${dateFmt(quote.validUntil)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
+    doc.text(`Valable jusqu'au : ${calendarDateFmt(quote.validUntil)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
   }
   if (quote.siteAddress) {
     doc.text(`Chantier : ${quote.siteAddress}`, PAGE_LEFT, doc.y + 2, { width: 250 });

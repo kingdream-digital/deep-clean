@@ -181,7 +181,7 @@ export function NewGroupScreen() {
                       justifyContent: "center",
                     }}
                   >
-                    {isSelected && <Ionicons name="checkmark" size={15} color={colors.onAccent} />}
+                    {!!isSelected && <Ionicons name="checkmark" size={15} color={colors.onAccent} />}
                   </View>
                 </View>
               </PressableScale>

@@ -1,4 +1,5 @@
 import { InvoiceStatus, Prisma, QuoteItemUnit, QuoteStatus, Role } from "@prisma/client";
+import { companyDateLabel } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -299,7 +300,7 @@ export async function sendInvoice(actor: Actor, id: string, message?: string) {
     greeting,
     "",
     message?.trim() || `Veuillez trouver ci-joint notre facture ${invoice.invoiceNumber}.`,
-    invoice.dueDate ? `Échéance de paiement : ${invoice.dueDate.toLocaleDateString("fr-FR")}.` : "",
+    invoice.dueDate ? `Échéance de paiement : ${companyDateLabel(invoice.dueDate)}.` : "",
     "",
     "Cordialement,",
   ]

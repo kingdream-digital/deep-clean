@@ -50,7 +50,7 @@ export function ClientsListScreen() {
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <View style={{ marginBottom: spacing.md }}>
-        {isDesktopWeb && <Text style={[type.title1, { color: colors.ink, marginBottom: spacing.md }]}>Clients</Text>}
+        {!!isDesktopWeb && <Text style={[type.title1, { color: colors.ink, marginBottom: spacing.md }]}>Clients</Text>}
         <TextField
           label="Recherche"
           placeholder="Entreprise, contact, email"
@@ -84,7 +84,7 @@ export function ClientsListScreen() {
                       {contactName(item)}
                     </Text>
                   )}
-                  {item.city && (
+                  {!!item.city && (
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.xs }}>
                       <Ionicons name="location-outline" size={13} color={colors.inkTertiary} />
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: 4 }]}>{item.city}</Text>

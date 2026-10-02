@@ -132,7 +132,7 @@ export function ClientFormScreen() {
         <TextField label="SIRET" placeholder="123 456 789 00012" value={siret} onChangeText={setSiret} keyboardType="number-pad" />
         <TextField label="Notes" placeholder="Informations internes" value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le client"} onPress={handleSave} loading={saving} />
       </ScrollView>

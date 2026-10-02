@@ -107,7 +107,7 @@ export function ConversationsList() {
                   </View>
 
                   <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
-                    {item.isGroup && (
+                    {!!item.isGroup && (
                       <Ionicons
                         name="people"
                         size={13}
@@ -129,7 +129,7 @@ export function ConversationsList() {
                         une messagerie d'équipe, toutes les lignes étant
                         souvent non lues, le fond teinté noyait la liste
                         entière dans une seule masse de couleur. */}
-                    {unread && (
+                    {!!unread && (
                       <View
                         style={{
                           marginLeft: spacing.xs,

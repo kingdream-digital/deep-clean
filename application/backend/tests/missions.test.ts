@@ -1,4 +1,5 @@
 import request from "supertest";
+import { addDaysToKey, companyDateKey } from "../src/utils/companyTime";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
@@ -19,16 +20,14 @@ async function loginAs(user: { username: string }) {
   return login.body.accessToken as string;
 }
 
+// Dates calculées sans dépendre du fuseau de la machine qui lance les tests :
+// « demain » au sens de Paris, jours ajoutés en UTC.
 function tomorrowDateString(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return addDaysToKey(companyDateKey(new Date()), 1);
 }
 
 function addDays(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addDaysToKey(dateStr, days);
 }
 
 const basePayload = () => ({
@@ -57,7 +56,7 @@ describe("Création de mission — réservée aux rôles de gestion du planning"
     const notifications = await prisma.notification.findMany({ where: { userId: employee.id } });
     expect(notifications).toHaveLength(1);
     expect(notifications[0]!.type).toBe("MISSION_ASSIGNED");
-    expect(notifications[0]!.body).toBe("Une nouvelle mission vous a été attribuée.");
+    expect(notifications[0]!.body).toMatch(/^Une nouvelle mission vous a été attribuée : « .+ », .+ de \d{2}:\d{2} à \d{2}:\d{2}\.$/);
   });
 
   it("refuse au chef d'équipe de créer une mission, même sur son propre chantier (retour explicite du client)", async () => {
@@ -235,7 +234,7 @@ describe("Modification et annulation d'une mission — notifications", () => {
       where: { userId: employee.id, type: "MISSION_TIME_CHANGED" },
     });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.body).toBe("L'horaire de votre mission a été modifié.");
+    expect(notifications[0]!.body).toMatch(/^L'horaire de votre mission a été modifié : « .+ », .+ de \d{2}:\d{2} à \d{2}:\d{2}\.$/);
   });
 
   it("modifier uniquement le titre ne doit ni changer la date/l'heure ni déclencher de notification d'horaire", async () => {
@@ -326,7 +325,7 @@ describe("Chef d'équipe — droits limités à la consigne et au suivi terrain"
       where: { userId: employee.id, type: "MISSION_INSTRUCTION_ADDED" },
     });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.body).toBe(`Une nouvelle consigne a été ajoutée à votre mission par ${manager.firstName} ${manager.lastName}.`);
+    expect(notifications[0]!.body).toMatch(new RegExp(`^Une nouvelle consigne a été ajoutée à votre mission « .+ » par ${manager.firstName} ${manager.lastName}\\.$`));
   });
 
   it("refuse au chef d'équipe de modifier autre chose que la consigne (titre, horaire, chantier)", async () => {
@@ -792,7 +791,7 @@ describe("Missions récurrentes — retour explicite du client, pas besoin de re
     const site = await createTestSite();
     const token = await loginAs(supervisor);
     const date = tomorrowDateString();
-    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const until = addDays(date, 21); // date, +7, +14, +21 -> 4 occurrences
 
     const res = await request(app)
@@ -848,7 +847,7 @@ describe("Missions récurrentes — retour explicite du client, pas besoin de re
     const site = await createTestSite();
     const token = await loginAs(supervisor);
     const date = tomorrowDateString();
-    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const until = addDays(date, 14); // date, +7, +14 -> 3 occurrences
 
     const created = await request(app)

@@ -12,6 +12,10 @@ export const createUserSchema = {
     lastName: z.string().trim().min(1).max(100),
     phone: z.string().trim().max(30).optional(),
     role: roleEnum,
+    // Date d'entrée dans l'entreprise (AAAA-MM-JJ) : base du calcul des
+    // congés acquis. Sans elle, un salarié présent depuis des années
+    // démarrait à 0 jour le jour de la mise en service de l'application.
+    hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).").optional(),
   }),
 };
 
@@ -27,6 +31,7 @@ export const updateUserSchema = {
       // salarié sur le taux/plafond par défaut de l'entreprise.
       leaveAccrualRate: z.coerce.number().positive().nullable().optional(),
       leaveAccrualCap: z.coerce.number().positive().nullable().optional(),
+      hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).").optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),
 };

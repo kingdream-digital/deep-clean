@@ -155,7 +155,7 @@ export function ConversationInfoScreen() {
           )}
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.md }}>
             <Text style={[type.title2, { color: colors.ink, textAlign: "center" }]}>{conversation.title}</Text>
-            {canAdminister && (
+            {!!canAdminister && (
               <PressableScale onPress={handleRename} hitSlop={10} style={{ marginLeft: 6 }}>
                 <Ionicons name="pencil" size={16} color={colors.accent} />
               </PressableScale>
@@ -175,7 +175,7 @@ export function ConversationInfoScreen() {
           )}
           {/* Un groupe n'a pas de numéro : on propose de choisir qui appeler
               parmi les participants qui en ont un. */}
-          {conversation.isGroup && (
+          {!!conversation.isGroup && (
             <QuickAction
               icon="call"
               label="Appeler"
@@ -197,7 +197,7 @@ export function ConversationInfoScreen() {
             label="Message"
             onPress={() => navigation.navigate("ConversationThread", { conversationId })}
           />
-          {canAdminister && (
+          {!!canAdminister && (
             <QuickAction
               icon="person-add"
               label="Ajouter"
@@ -224,7 +224,7 @@ export function ConversationInfoScreen() {
           </Card>
         )}
 
-        {conversation.isGroup && (
+        {!!conversation.isGroup && (
           <View style={{ marginTop: spacing.xl }}>
             <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.xs }]}>
               PARTICIPANTS

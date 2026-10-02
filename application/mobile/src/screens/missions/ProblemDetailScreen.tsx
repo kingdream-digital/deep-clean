@@ -255,7 +255,7 @@ export function ProblemDetailScreen() {
           </Text>
         )}
 
-        {error && <Text style={[typeScale.footnote, { color: colors.danger, marginTop: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[typeScale.footnote, { color: colors.danger, marginTop: spacing.md }]}>{error}</Text>}
 
         <Text style={[typeScale.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
           SUIVI ({problem.comments.length})
