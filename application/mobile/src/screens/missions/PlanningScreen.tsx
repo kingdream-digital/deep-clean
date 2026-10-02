@@ -141,7 +141,8 @@ export function PlanningScreen() {
   // et lui ajouter une mission — retour explicite du client. Les absences
   // approuvées de la semaine sont affichées dans les cases concernées.
   const [staff, setStaff] = useState<MissionAssignee["user"][]>([]);
-  const [absentKeys, setAbsentKeys] = useState<Set<string>>(new Set());
+  // Clé « userId|AAAA-MM-JJ » → motif affiché (« En congé », « Arrêt maladie »…).
+  const [absentKeys, setAbsentKeys] = useState<Map<string, string>>(new Map());
   const loadTeam = useCallback(async () => {
     if (!managesTeam) return;
     const from = toLocalDateKey(weekStart);
@@ -162,13 +163,19 @@ export function PlanningScreen() {
         isActive: u.isActive,
       }))
     );
-    const keys = new Set<string>();
+    const keys = new Map<string, string>();
+    const ABSENCE_LABELS: Record<string, string> = {
+      PAID_LEAVE: "En congé",
+      SICK_LEAVE: "Arrêt maladie",
+      UNPAID_LEAVE: "Congé sans solde",
+      OTHER: "Absent",
+    };
     for (const absence of absences?.items ?? []) {
       // Jours calendaires stockés à minuit UTC : lus en UTC, comme partout.
       const cursor = new Date(absence.startDate);
       const end = new Date(absence.endDate);
       while (cursor.getTime() <= end.getTime()) {
-        keys.add(`${absence.userId}|${cursor.toISOString().slice(0, 10)}`);
+        keys.set(`${absence.userId}|${cursor.toISOString().slice(0, 10)}`, ABSENCE_LABELS[absence.type] ?? "Absent");
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
@@ -686,7 +693,7 @@ function TeamWeekGrid({
   days: Date[];
   teamMembers: MissionAssignee["user"][];
   missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
-  absentKeys: Set<string>;
+  absentKeys: Map<string, string>;
   today: Date;
   onPressMission: (mission: Mission) => void;
   // Clic sur une case : nouvelle mission ce jour-là, pour cette personne.
@@ -793,7 +800,8 @@ function TeamWeekGrid({
                 const key = toLocalDateKey(day);
                 const dayMissions = userMissions?.get(key) ?? [];
                 const isToday = isSameLocalDay(day, today);
-                const isAbsent = absentKeys.has(`${member.id}|${key}`);
+                const absenceLabel = absentKeys.get(`${member.id}|${key}`);
+                const isAbsent = !!absenceLabel;
                 const isPast = key < toLocalDateKey(today);
                 const canAdd = !!onAddMission && isActive && !isAbsent && !isPast;
                 return (
@@ -849,7 +857,7 @@ function TeamWeekGrid({
                     {!!isAbsent && (
                       <View style={{ backgroundColor: colors.neutralSoft, borderRadius: radius.sm, paddingVertical: 5, paddingHorizontal: 7 }}>
                         <Text style={[type.caption, { color: colors.neutral, fontWeight: "700" }]} numberOfLines={1}>
-                          Absent
+                          {absenceLabel}
                         </Text>
                       </View>
                     )}
@@ -901,7 +909,7 @@ function TeamDayList({
   today: Date;
   teamMembers: MissionAssignee["user"][];
   missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
-  absentKeys: Set<string>;
+  absentKeys: Map<string, string>;
   onPressMission: (mission: Mission) => void;
   onAddMission?: (member: MissionAssignee["user"]) => void;
 }) {
@@ -917,7 +925,8 @@ function TeamDayList({
     <View style={{ gap: spacing.sm }}>
       {teamMembers.map((member) => {
         const dayMissions = missionsByUserAndDay.get(member.id)?.get(key) ?? [];
-        const isAbsent = absentKeys.has(`${member.id}|${key}`);
+        const absenceLabel = absentKeys.get(`${member.id}|${key}`);
+        const isAbsent = !!absenceLabel;
         const isActive = member.isActive !== false;
         const canAdd = !!onAddMission && isActive && !isAbsent && !isPast;
         return (
@@ -942,7 +951,7 @@ function TeamDayList({
                 </Text>
                 <Text style={[type.caption, { color: isAbsent ? colors.neutral : colors.inkTertiary, marginTop: 1 }]}>
                   {isAbsent
-                    ? "Absent ce jour-là"
+                    ? `${absenceLabel} ce jour-là`
                     : dayMissions.length === 0
                       ? "Disponible"
                       : `${dayMissions.length} mission${dayMissions.length > 1 ? "s" : ""}`}
