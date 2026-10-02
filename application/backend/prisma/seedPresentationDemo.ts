@@ -576,9 +576,9 @@ async function main() {
     await prisma.mission.create({
       data: {
         siteId: sitePhare.id, title: "Entretien quotidien espace coworking",
-        date: dayOnly(isoDate(today)), startTime: combineDateTime(isoDate(today), todaySlot("07:00", 1)), endTime: combineDateTime(isoDate(today), todaySlot("09:00", 3)),
+        date: dayOnly(isoDate(today)), startTime: combineDateTime(isoDate(today), todaySlot("09:30", 1)), endTime: combineDateTime(isoDate(today), todaySlot("11:30", 3)),
         instructions: "Accueil, open space, sanitaires, salles de réunion.", status: MissionStatus.SCHEDULED, createdById: rh.id,
-        assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: ines.id }] },
+        assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: thomas.id }] },
       },
     });
 
