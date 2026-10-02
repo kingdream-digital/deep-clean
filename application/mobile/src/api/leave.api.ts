@@ -17,6 +17,12 @@ export interface LeaveBalance {
   period: { start: string; end: string; acquired: number; cap: number };
   // Mois en cours, estimation jusqu'à aujourd'hui.
   currentMonth: { month: string; estimatedDays: number };
+  // Congés de l'an dernier, à prendre avant le 31 mai (`deadline`).
+  previousYear: { periodYear: number; acquired: number; used: number; remaining: number; deadline: string };
+  // Congés de l'année en cours d'acquisition.
+  currentYear: { periodYear: number; acquired: number; used: number; remaining: number; usableFrom: string };
+  // Reliquat non pris au 31 mai (`on`) : perdu, sauf report accordé par la RH.
+  expired: { days: number; on: string };
   monthlyRate: number;
 }
 

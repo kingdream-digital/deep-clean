@@ -6,6 +6,8 @@ import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
 import { env } from "../../config/env";
+import { referencePeriodOf, splitLeaveByPeriod } from "./leavePeriods";
+import type { LeaveCredit, LeaveDebit } from "./leavePeriods";
 
 interface Actor {
   userId: string;
@@ -252,6 +254,7 @@ const accrualSelect = {
  */
 export async function runMonthlyAccrualJob(now: Date = new Date()): Promise<void> {
   const written = await generateAccruals({ now });
+  await remindPreviousYearLeave(now);
   if (written === 0) return;
   const month = addMonth(companyDateKey(now).slice(0, 7), -1);
   const recipients = await prisma.user.findMany({
@@ -268,6 +271,44 @@ export async function runMonthlyAccrualJob(now: Date = new Date()): Promise<void
   }
 }
 const VALIDATE_ACCRUAL_ROLES_FOR_NOTICE: Role[] = [Role.HR, Role.DIRECTOR];
+
+const REMINDER_TITLE = "Congés de l'an dernier à prendre";
+
+/**
+ * Le 1er mars, avril et mai : rappelle à chaque salarié qui a encore des
+ * congés de l'an dernier qu'ils sont à prendre avant le 31 mai. Une seule
+ * fois par mois (la tâche tourne aussi à chaque démarrage du serveur).
+ */
+export async function remindPreviousYearLeave(now: Date = new Date()): Promise<number> {
+  const todayKey = companyDateKey(now);
+  const month = Number(todayKey.slice(5, 7));
+  if (month < 3 || month > 5) return 0;
+  const monthKey = todayKey.slice(0, 7);
+  const users = await prisma.user.findMany({
+    where: { isActive: true, role: { notIn: ACCRUAL_EXCLUDED_ROLES } },
+    select: { id: true, role: true },
+  });
+  let sent = 0;
+  for (const u of users) {
+    const already = await prisma.notification.findFirst({
+      where: { userId: u.id, relatedEntityType: "LeaveBalance", relatedEntityId: monthKey },
+      select: { id: true },
+    });
+    if (already) continue;
+    const balance = await getLeaveBalance({ userId: u.id, role: u.role }, u.id, Number(todayKey.slice(0, 4)));
+    if (balance.previousYear.remaining <= 0) continue;
+    await createNotification({
+      userId: u.id,
+      type: NotificationType.GENERAL,
+      title: REMINDER_TITLE,
+      body: `Il vous reste ${formatDays(balance.previousYear.remaining)} de l'an dernier, à prendre avant le 31 mai. Passé cette date, ils sont perdus sauf accord de la RH.`,
+      relatedEntityType: "LeaveBalance",
+      relatedEntityId: monthKey,
+    });
+    sent++;
+  }
+  return sent;
+}
 
 /** Relevés d'un mois (RH, direction, admin, superviseur en lecture). */
 export async function listAccruals(actor: Actor, filters: { month?: string; status?: LeaveAccrualStatus }) {
@@ -351,6 +392,12 @@ export interface LeaveBalanceResult {
   period: { start: string; end: string; acquired: number; cap: number };
   // Mois en cours, estimation jusqu'à aujourd'hui (validée le mois suivant).
   currentMonth: { month: string; estimatedDays: number };
+  // Congés de l'an dernier (période précédente), à prendre avant `deadline`.
+  previousYear: { periodYear: number; acquired: number; used: number; remaining: number; deadline: string };
+  // Congés de l'année en cours d'acquisition (pris par anticipation déduits).
+  currentYear: { periodYear: number; acquired: number; used: number; remaining: number; usableFrom: string };
+  // Reliquat des années antérieures non pris au 31 mai : perdu (sauf report RH).
+  expired: { days: number; on: string };
   monthlyRate: number;
 }
 
@@ -370,17 +417,11 @@ export async function getLeaveBalance(actor: Actor, targetUserId: string, year: 
   const thisMonth = todayKey.slice(0, 7);
   const periodYear = referencePeriodStartYear(thisMonth);
 
-  const [accruals, takenAndCancelledAgg, adjustmentAgg, pendingRequests, monthAbsences] = await Promise.all([
+  const [accruals, transactions, pendingRequests, monthAbsences] = await Promise.all([
     prisma.leaveAccrual.findMany({ where: { userId: targetUserId }, select: { month: true, days: true, status: true } }),
-    // LEAVE_TAKEN (négatif) + LEAVE_CANCELLED (positif) se neutralisent
-    // exactement pour un congé annulé — "pris" reflète donc le net réel.
-    prisma.leaveTransaction.aggregate({
-      where: { userId: targetUserId, type: { in: [LeaveTransactionType.LEAVE_TAKEN, LeaveTransactionType.LEAVE_CANCELLED] } },
-      _sum: { days: true },
-    }),
-    prisma.leaveTransaction.aggregate({
-      where: { userId: targetUserId, type: LeaveTransactionType.ADJUSTMENT },
-      _sum: { days: true },
+    prisma.leaveTransaction.findMany({
+      where: { userId: targetUserId },
+      select: { type: true, days: true, occurredAt: true, absenceId: true, absence: { select: { startDate: true } } },
     }),
     prisma.absence.findMany({
       where: { userId: targetUserId, type: AbsenceType.PAID_LEAVE, status: AbsenceStatus.PENDING },
@@ -392,14 +433,42 @@ export async function getLeaveBalance(actor: Actor, targetUserId: string, year: 
     }),
   ]);
 
-  const validated = accruals.filter((a) => a.status === LeaveAccrualStatus.VALIDATED).reduce((s, a) => s + a.days, 0);
+  const validatedAccruals = accruals.filter((a) => a.status === LeaveAccrualStatus.VALIDATED);
+  const validated = validatedAccruals.reduce((s, a) => s + a.days, 0);
   const toValidate = accruals.filter((a) => a.status === LeaveAccrualStatus.PROPOSED).reduce((s, a) => s + a.days, 0);
   const periodAcquired = accruals.filter((a) => referencePeriodStartYear(a.month) === periodYear).reduce((s, a) => s + a.days, 0);
-  const taken = Math.max(0, -(takenAndCancelledAgg._sum.days ?? 0));
-  const adjustments = adjustmentAgg._sum.days ?? 0;
-  const pending = pendingRequests.reduce((sum, r) => sum + countBusinessDays(r.startDate, r.endDate), 0);
+
+  // Congés pris : LEAVE_TAKEN (négatif) + LEAVE_CANCELLED (positif) d'une
+  // même absence se neutralisent exactement — on garde le net par absence,
+  // daté du premier jour du congé (pour le décompte N-1 / N).
+  const takenByAbsence = new Map<string, LeaveDebit>();
+  const credits: LeaveCredit[] = validatedAccruals.map((a) => ({ periodYear: referencePeriodOf(a.month), days: a.days }));
+  const debits: LeaveDebit[] = [];
+  let adjustments = 0;
+  for (const [i, t] of transactions.entries()) {
+    if (t.type === LeaveTransactionType.ADJUSTMENT) {
+      adjustments += t.days;
+      const dateKey = companyDateKey(t.occurredAt);
+      // Correction RH positive (reprise de solde, report accordé) : utilisable
+      // tout de suite, donc rangée avec les congés de l'an dernier.
+      if (t.days > 0) credits.push({ periodYear: referencePeriodOf(dateKey) - 1, days: t.days });
+      else debits.push({ dateKey, days: -t.days });
+      continue;
+    }
+    const key = t.absenceId ?? `tx-${i}`;
+    const dateKey = t.absence ? t.absence.startDate.toISOString().slice(0, 10) : companyDateKey(t.occurredAt);
+    const entry = takenByAbsence.get(key) ?? { dateKey, days: 0 };
+    entry.days -= t.days;
+    takenByAbsence.set(key, entry);
+  }
+  const takenDebits = [...takenByAbsence.values()].filter((d) => d.days > 0);
+  const taken = takenDebits.reduce((s, d) => s + d.days, 0);
+  const pendingDebits = pendingRequests.map((r) => ({ dateKey: r.startDate.toISOString().slice(0, 10), days: countBusinessDays(r.startDate, r.endDate) }));
+  const pending = pendingDebits.reduce((s, d) => s + d.days, 0);
+  const split = splitLeaveByPeriod(credits, [...debits, ...takenDebits, ...pendingDebits], todayKey);
+
   const acquired = round2(validated + adjustments);
-  const remaining = round2(acquired - taken - pending);
+  const remaining = round2(split.previous.remaining + split.current.remaining);
   const estimate = computeMonthAccrual(user, thisMonth, monthAbsences, todayKey);
 
   return {
@@ -412,6 +481,9 @@ export async function getLeaveBalance(actor: Actor, targetUserId: string, year: 
     toValidate: round2(toValidate),
     period: { start: `${periodYear}-06-01`, end: `${periodYear + 1}-05-31`, acquired: round2(periodAcquired), cap: user.leaveAccrualCap ?? DEFAULT_PERIOD_CAP },
     currentMonth: { month: thisMonth, estimatedDays: estimate?.rawDays ?? 0 },
+    previousYear: { ...split.previous, deadline: `${periodYear + 1}-05-31` },
+    currentYear: { ...split.current, usableFrom: `${periodYear + 1}-06-01` },
+    expired: { days: split.expired, on: `${periodYear}-05-31` },
     monthlyRate: user.leaveAccrualRate ?? env.DEFAULT_LEAVE_ACCRUAL_RATE_PER_MONTH,
   };
 }
