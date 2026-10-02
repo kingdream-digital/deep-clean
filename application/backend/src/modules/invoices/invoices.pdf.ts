@@ -22,6 +22,8 @@ interface InvoicePdfData {
   contactPhone: string | null;
   billingAddress: string | null;
   siret: string | null;
+  // Mois facturé (« AAAA-MM ») — facture mensuelle.
+  period: string | null;
   subtotalHt: number;
   vatRate: number;
   vatAmount: number;
@@ -63,6 +65,11 @@ function drawItemsHeaderRow(doc: PDFKit.PDFDocument, y: number): void {
 }
 
 /** PDF de la facture envoyée au client final (même identité visuelle que le devis). */
+function periodLabel(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y!, m! - 1, 1)));
+}
+
 export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> {
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const chunks: Buffer[] = [];
@@ -79,6 +86,7 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
   const metaY = doc.y;
   doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
   doc.text(`Date d'émission : ${dateFmt(invoice.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
+  if (invoice.period) doc.text(`Mois facturé : ${periodLabel(invoice.period)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
   if (invoice.dueDate) doc.text(`Échéance : ${calendarDateFmt(invoice.dueDate)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
   if (invoice.quote) doc.text(`Devis associé : ${invoice.quote.quoteNumber}`, PAGE_LEFT, doc.y + 2, { width: 250 });
   if (invoice.site) doc.text(`Chantier : ${invoice.site.name}`, PAGE_LEFT, doc.y + 2, { width: 250 });

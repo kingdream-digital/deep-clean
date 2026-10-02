@@ -25,6 +25,7 @@ import {
 import type { Invoice } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { billingPeriodLabel } from "../../utils/invoiceFromQuote";
 
 type Route = RouteProp<MenuStackParamList, "InvoiceDetail">;
 const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
@@ -145,6 +146,13 @@ export function InvoiceDetailScreen() {
 
           <InfoRow icon="calendar-outline" label="Émise le" value={dateFmt.format(new Date(invoice.issueDate))} />
           {!!invoice.dueDate && <InfoRow icon="hourglass-outline" label="Échéance" value={dateFmt.format(new Date(invoice.dueDate))} />}
+          {!!invoice.period && (
+            <InfoRow
+              icon="calendar-number-outline"
+              label={invoice.billingMode === "FLAT_RATE" ? "Mois facturé (forfait mensuel)" : "Mois facturé (à la prestation)"}
+              value={billingPeriodLabel(invoice.period)}
+            />
+          )}
           {!!invoice.quote && <InfoRow icon="document-text-outline" label="Devis associé" value={invoice.quote.quoteNumber} />}
           {!!invoice.site && <InfoRow icon="business-outline" label="Chantier" value={invoice.site.name} />}
           {!!invoice.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={invoice.contactEmail} />}
