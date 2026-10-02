@@ -11,6 +11,7 @@ import { StateView } from "../../components/StateView";
 import { MissionCard } from "../../components/MissionCard";
 import { OfflineBanner } from "../../components/OfflineBanner";
 import { PressableScale } from "../../components/PressableScale";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { AssigneeAvatar } from "../../components/AssigneeAvatar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { fontFamily } from "../../theme/typography";
@@ -63,7 +64,12 @@ export function PlanningScreen() {
   // par chantier — demande explicite du client (voir TeamWeekGrid ci-dessous).
   // Le chef d'équipe garde la grille par jour : il ne suit que ses propres
   // chantiers, l'organisation par personnel n'y ajoute rien.
-  const showTeamGrid = isDesktopWeb && !!user && ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"].includes(user.role);
+  const managesTeam = !!user && ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"].includes(user.role);
+  const showTeamGrid = isDesktopWeb && managesTeam;
+  // Sur téléphone, même logique « par personne » que la grille ordinateur,
+  // pour le jour sélectionné (retour explicite du client : ajouter une
+  // mission à quelqu'un d'un geste, aussi depuis le téléphone).
+  const [phoneView, setPhoneView] = useState<"missions" | "team">("missions");
   const canManagePlanning = !!user && CAN_MANAGE_ROLES.includes(user.role);
 
   const today = useMemo(() => new Date(), []);
@@ -137,7 +143,7 @@ export function PlanningScreen() {
   const [staff, setStaff] = useState<MissionAssignee["user"][]>([]);
   const [absentKeys, setAbsentKeys] = useState<Set<string>>(new Set());
   const loadTeam = useCallback(async () => {
-    if (!showTeamGrid) return;
+    if (!managesTeam) return;
     const from = toLocalDateKey(weekStart);
     const to = toLocalDateKey(weekEnd);
     const [employees, leads, absences] = await Promise.all([
@@ -167,7 +173,7 @@ export function PlanningScreen() {
       }
     }
     setAbsentKeys(keys);
-  }, [showTeamGrid, weekStart, weekEnd]);
+  }, [managesTeam, weekStart, weekEnd]);
 
   const load = useCallback(async () => {
     try {
@@ -476,6 +482,19 @@ export function PlanningScreen() {
         >
           {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
 
+          {managesTeam && (
+            <View style={{ marginBottom: spacing.md }}>
+              <SegmentedControl
+                value={phoneView}
+                onChange={setPhoneView}
+                options={[
+                  { label: "Missions du jour", value: "missions" },
+                  { label: "Par personne", value: "team" },
+                ]}
+              />
+            </View>
+          )}
+
           <Text
             style={[
               type.subhead,
@@ -485,7 +504,22 @@ export function PlanningScreen() {
             {formatMissionDay(selectedDay.toISOString())}
           </Text>
 
-          {selectedDayMissions.length === 0 ? (
+          {managesTeam && phoneView === "team" ? (
+            <TeamDayList
+              day={selectedDay}
+              today={today}
+              teamMembers={teamMembers}
+              missionsByUserAndDay={missionsByUserAndDay}
+              absentKeys={absentKeys}
+              onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
+              onAddMission={
+                canManagePlanning
+                  ? (member) =>
+                      navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay), initialAssigneeId: member.id })
+                  : undefined
+              }
+            />
+          ) : selectedDayMissions.length === 0 ? (
             <StateView kind="empty" icon="calendar-outline" message="Aucune mission ce jour-là." />
           ) : (
             <View style={{ gap: spacing.sm }}>
@@ -847,6 +881,126 @@ function TeamWeekGrid({
           );
         })}
       </View>
+    </View>
+  );
+}
+
+// Version téléphone de la grille par personne : l'équipe pour le jour
+// sélectionné, les missions de chacun, son absence éventuelle, et un « + »
+// qui ouvre une nouvelle mission avec la personne et le jour déjà remplis.
+function TeamDayList({
+  day,
+  today,
+  teamMembers,
+  missionsByUserAndDay,
+  absentKeys,
+  onPressMission,
+  onAddMission,
+}: {
+  day: Date;
+  today: Date;
+  teamMembers: MissionAssignee["user"][];
+  missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
+  absentKeys: Set<string>;
+  onPressMission: (mission: Mission) => void;
+  onAddMission?: (member: MissionAssignee["user"]) => void;
+}) {
+  const { colors, spacing, radius, type } = useTheme();
+  const key = toLocalDateKey(day);
+  const isPast = key < toLocalDateKey(today);
+
+  if (teamMembers.length === 0) {
+    return <StateView kind="empty" icon="people-outline" message="Aucun membre de l'équipe à afficher." />;
+  }
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {teamMembers.map((member) => {
+        const dayMissions = missionsByUserAndDay.get(member.id)?.get(key) ?? [];
+        const isAbsent = absentKeys.has(`${member.id}|${key}`);
+        const isActive = member.isActive !== false;
+        const canAdd = !!onAddMission && isActive && !isAbsent && !isPast;
+        return (
+          <View
+            key={member.id}
+            style={{
+              backgroundColor: colors.backgroundElevated,
+              borderRadius: radius.lg,
+              padding: spacing.md,
+              shadowColor: colors.shadow,
+              shadowOpacity: 0.5,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 1,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <AssigneeAvatar assignee={{ userId: member.id, isLead: false, user: member }} size={36} />
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                  {member.firstName} {member.lastName}
+                </Text>
+                <Text style={[type.caption, { color: isAbsent ? colors.neutral : colors.inkTertiary, marginTop: 1 }]}>
+                  {isAbsent
+                    ? "Absent ce jour-là"
+                    : dayMissions.length === 0
+                      ? "Disponible"
+                      : `${dayMissions.length} mission${dayMissions.length > 1 ? "s" : ""}`}
+                </Text>
+              </View>
+              {!!canAdd && (
+                <PressableScale
+                  onPress={() => onAddMission!(member)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ajouter une mission à ${member.firstName} ${member.lastName}`}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.accentSoft,
+                    }}
+                  >
+                    <Ionicons name="add" size={20} color={colors.accent} />
+                  </View>
+                </PressableScale>
+              )}
+            </View>
+            {dayMissions.length > 0 && (
+              <View style={{ marginTop: spacing.sm, gap: spacing.xxs }}>
+                {dayMissions.map((mission) => {
+                  const overdue = isMissionOverdue(mission);
+                  const fg = overdue ? colors.warning : MISSION_SOFT_TEXT[mission.status](colors);
+                  return (
+                    <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: overdue ? colors.warningSoft : MISSION_SOFT_BG[mission.status](colors),
+                          borderRadius: radius.sm,
+                          paddingVertical: 6,
+                          paddingHorizontal: 8,
+                        }}
+                      >
+                        <Text style={[type.caption, { color: fg, fontWeight: "700" }]}>
+                          {formatMissionTimeRange(mission.startTime, mission.endTime)}
+                        </Text>
+                        <Text style={[type.caption, { color: fg, marginLeft: 6, flex: 1 }]} numberOfLines={1}>
+                          {mission.site.name}
+                        </Text>
+                      </View>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 }
