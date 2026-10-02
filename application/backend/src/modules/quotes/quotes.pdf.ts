@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import { companyDateLabel } from "../../utils/companyTime";
 import { env } from "../../config/env";
-import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination } from "../../utils/pdfBrand";
+import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination, formatEuroPdf } from "../../utils/pdfBrand";
 import type { QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit } from "@prisma/client";
 
 interface QuotePdfItem {
@@ -42,7 +42,6 @@ interface QuotePdfData {
   // JAMAIS apparaître dans le PDF client").
 }
 
-const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 // Date d'émission : instant, lu en heure de Paris.
 const dateFmt = (d: Date) => companyDateLabel(d);
 // Échéance / validité : le moment choisi dans l'app, lu en heure de Paris.
@@ -150,9 +149,9 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
     doc.fillColor(BRAND.inkSecondary);
     doc.text(UNIT_LABELS[item.unit], COL.unit, y + 5, { width: COL_W.unit, align: "right" });
     doc.text(String(item.quantity), COL.qty, y + 5, { width: COL_W.qty, align: "right" });
-    doc.text(currencyFmt.format(item.unitPriceHt), COL.price, y + 5, { width: COL_W.price, align: "right" });
+    doc.text(formatEuroPdf(item.unitPriceHt), COL.price, y + 5, { width: COL_W.price, align: "right" });
     doc.text(item.discount > 0 ? `-${item.discount}%` : "—", COL.discount, y + 5, { width: COL_W.discount, align: "right" });
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(currencyFmt.format(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
+    doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(formatEuroPdf(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
 
     if (item.frequency !== "ONE_TIME") {
       doc
@@ -160,7 +159,7 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
         .font("Helvetica")
         .fontSize(8)
         .text(
-          `${FREQUENCY_LABELS[item.frequency]}${item.occurrencesPerMonth ? ` · ${item.occurrencesPerMonth} / mois` : ""} — soit ${currencyFmt.format(item.monthlyAmountHt)} HT / mois`,
+          `${FREQUENCY_LABELS[item.frequency]}${item.occurrencesPerMonth ? ` · ${item.occurrencesPerMonth} / mois` : ""} — soit ${formatEuroPdf(item.monthlyAmountHt)} HT / mois`,
           COL.desc + 8,
           y + 18,
           { width: CONTENT_WIDTH - 16 }
@@ -188,12 +187,12 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
     totalsY += bold ? 18 : 14;
   }
 
-  totalLine("Sous-total HT", currencyFmt.format(quote.subtotalHt));
-  if (quote.discount > 0) totalLine("Remise", `- ${currencyFmt.format(quote.discount)}`);
-  totalLine(`TVA (${quote.vatRate}%)`, currencyFmt.format(quote.vatAmount));
-  totalLine("Total TTC", currencyFmt.format(quote.totalTtc), true);
+  totalLine("Sous-total HT", formatEuroPdf(quote.subtotalHt));
+  if (quote.discount > 0) totalLine("Remise", `- ${formatEuroPdf(quote.discount)}`);
+  totalLine(`TVA (${quote.vatRate}%)`, formatEuroPdf(quote.vatAmount));
+  totalLine("Total TTC", formatEuroPdf(quote.totalTtc), true);
   if (quote.monthlyAmountHt > 0) {
-    totalLine("Prévisionnel mensuel HT", currencyFmt.format(quote.monthlyAmountHt));
+    totalLine("Prévisionnel mensuel HT", formatEuroPdf(quote.monthlyAmountHt));
   }
   doc.y = totalsY + 10;
 
