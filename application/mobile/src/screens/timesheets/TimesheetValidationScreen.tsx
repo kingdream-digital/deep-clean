@@ -33,6 +33,69 @@ const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-d
 // Vue de validation pour l'encadrement (chef d'équipe : son équipe ; RH/
 // direction/admin : tout le monde) — la portée exacte est appliquée côté
 // serveur, jamais dupliquée ici.
+// Écart entre l'heure pointée et la mission prévue, au-delà duquel on alerte
+// (même tolérance que l'écran « Pointage vs mission »).
+const GAP_ALERT_MINUTES = 15;
+
+type HoursGap = { kind: "more" | "less"; minutes: number } | { kind: "noMission" } | null;
+
+function hoursGap(entry: TimeEntry): HoursGap {
+  if (!entry.clockOut) return null;
+  const worked = Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+  if (!entry.matchedMission) return { kind: "noMission" };
+  const planned = Math.round(
+    (new Date(entry.matchedMission.endTime).getTime() - new Date(entry.matchedMission.startTime).getTime()) / 60000
+  );
+  const diff = worked - planned;
+  if (diff > GAP_ALERT_MINUTES) return { kind: "more", minutes: diff };
+  if (diff < -GAP_ALERT_MINUTES) return { kind: "less", minutes: -diff };
+  return null;
+}
+
+// Bandeau d'alerte bien visible (retour explicite du client : un pointage
+// trop long ou trop court doit sauter aux yeux), cliquable vers le détail du
+// pointage, qui met côte à côte heure prévue et heure pointée.
+function HoursGapAlert({ entry, onPress, compact = false }: { entry: TimeEntry; onPress: () => void; compact?: boolean }) {
+  const { colors, spacing, radius, type } = useTheme();
+  const gap = hoursGap(entry);
+  if (!gap) return null;
+  const tone = gap.kind === "more" ? colors.warning : colors.danger;
+  const bg = gap.kind === "more" ? colors.warningSoft : colors.dangerSoft;
+  const label =
+    gap.kind === "more"
+      ? `${formatHoursMinutes(gap.minutes)} de plus que prévu`
+      : gap.kind === "less"
+        ? `${formatHoursMinutes(gap.minutes)} de moins que prévu`
+        : "Aucune mission prévue sur ce créneau";
+  return (
+    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, voir le détail`}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: bg,
+          borderRadius: radius.md,
+          paddingVertical: compact ? 4 : spacing.sm,
+          paddingHorizontal: compact ? spacing.sm : spacing.md,
+          marginBottom: compact ? 0 : spacing.md,
+          alignSelf: compact ? "flex-start" : "stretch",
+        }}
+      >
+        <Ionicons name="alert-circle" size={compact ? 14 : 18} color={tone} />
+        <Text style={[compact ? type.caption : type.callout, { color: tone, fontWeight: "700", marginLeft: 6, flexShrink: 1 }]}>
+          {label}
+        </Text>
+        {!compact && (
+          <>
+            <Text style={[type.footnote, { color: tone, marginLeft: "auto", paddingLeft: spacing.sm }]}>Voir le détail</Text>
+            <Ionicons name="chevron-forward" size={14} color={tone} />
+          </>
+        )}
+      </View>
+    </PressableScale>
+  );
+}
+
 export function TimesheetValidationScreen() {
   const { colors, spacing, type } = useTheme();
   const { isDesktopWeb } = useResponsive();
@@ -119,8 +182,12 @@ export function TimesheetValidationScreen() {
     {
       key: "duration",
       label: "Durée",
+      flex: 1.6,
       render: (item) => (
-        <Text style={[type.footnote, { color: colors.inkSecondary }]}>{formatDuration(item.clockIn, item.clockOut)}</Text>
+        <View style={{ gap: 4 }}>
+          <Text style={[type.footnote, { color: colors.inkSecondary }]}>{formatDuration(item.clockIn, item.clockOut)}</Text>
+          <HoursGapAlert entry={item} compact onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} />
+        </View>
       ),
     },
     {
@@ -211,6 +278,7 @@ export function TimesheetValidationScreen() {
                   « Traités » — dans « En attente », il répétait le nom de
                   l'onglet et coupait chaque ligne en deux (« (4 / h 15) »). */}
               <Card>
+                <HoursGapAlert entry={item} onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} />
                 <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
                   <View style={{ marginRight: spacing.sm }}>
                     <Avatar user={item.user} size={40} />

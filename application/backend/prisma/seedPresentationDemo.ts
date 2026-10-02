@@ -47,7 +47,55 @@ const DEMO_EMAILS = [
   "chloe.employe@deepclean.fr", "ines.employe@deepclean.fr", "thomas.employe@deepclean.fr",
 ];
 
+// DEMO_RESET=1 : repart d'une base vide avant de charger la démo, en ne
+// gardant QUE les comptes administrateur technique (retour explicite du
+// client : supprimer ses essais, garder son accès admin). Toutes les autres
+// données (comptes, chantiers, missions, pointages, devis, messages...) sont
+// effacées. Réservé au serveur de démonstration, comme le reste du script.
+async function wipeExceptAdmins(): Promise<void> {
+  const admins = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
+  const adminIds = admins.map((a) => a.id);
+  await prisma.activityLog.deleteMany();
+  await prisma.leaveTransaction.deleteMany();
+  await prisma.absence.deleteMany();
+  await prisma.timeEntry.deleteMany();
+  await prisma.validation.deleteMany();
+  await prisma.photo.deleteMany();
+  await prisma.problemComment.deleteMany();
+  await prisma.problem.deleteMany();
+  await prisma.missionAssignment.deleteMany();
+  await prisma.jobSheet.deleteMany();
+  await prisma.mission.deleteMany();
+  await prisma.cleaningStandard.deleteMany();
+  await prisma.siteTarget.deleteMany();
+  await prisma.siteMember.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.site.deleteMany();
+  await prisma.quote.deleteMany();
+  await prisma.client.deleteMany();
+  await prisma.prospect.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversationParticipant.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.announcement.deleteMany();
+  await prisma.employeeDocument.deleteMany();
+  await prisma.pushToken.deleteMany({ where: { userId: { notIn: adminIds } } });
+  await prisma.session.deleteMany({ where: { userId: { notIn: adminIds } } });
+  const removed = await prisma.user.deleteMany({ where: { role: { not: Role.ADMIN } } });
+  console.log(`Remise à zéro : ${removed.count} compte(s) supprimé(s), ${adminIds.length} compte(s) admin conservé(s).`);
+}
+
 async function assertSafeTarget(): Promise<void> {
+  if (env.isProduction && process.env.DEMO_MODE !== "1") {
+    throw new Error(
+      "Serveur en production : ce script crée des comptes au mot de passe public. Il ne se lance que sur un serveur de démonstration, avec DEMO_MODE=1 devant la commande."
+    );
+  }
+  if (process.env.DEMO_RESET === "1") {
+    await wipeExceptAdmins();
+    return;
+  }
   if (!env.isProduction) return;
   if (process.env.DEMO_MODE !== "1") {
     throw new Error(
@@ -190,16 +238,63 @@ async function main() {
     console.log(`  - ${u.username} (${u.role})`);
   }
 
-  // ---------------------------------------------------------------- Chantiers existants
-  async function upsertSite(name: string, address: string, description: string, managerId: string) {
-    const existing = await prisma.site.findFirst({ where: { name } });
+  // ---------------------------------------------------------------- Chantiers, tous issus d'un devis accepté
+  // Retour explicite du client : en démo, chaque chantier vient d'un devis
+  // (client → devis → validation → envoi → accepté → chantier), pour montrer
+  // le suivi complet. Tout passe par les vrais services métier.
+  const hrActor = { userId: rh.id, role: Role.HR };
+  const supActor = { userId: superviseur.id, role: Role.SUPERVISOR };
+
+  async function siteFromAcceptedQuote(spec: {
+    client: { companyName: string; contactFirstName: string; contactLastName: string; jobTitle: string; phone: string; email: string; postalCode: string; city: string };
+    site: { name: string; address: string; description: string; managerId: string };
+    subject: string;
+    items: Array<{ description: string; quantity: number; unit: QuoteItemUnit; unitPriceHt: number; frequency: QuoteItemFrequency; occurrencesPerMonth?: number }>;
+    acceptedNote: string;
+  }) {
+    const existing = await prisma.site.findFirst({ where: { name: spec.site.name } });
     if (existing) return existing;
-    return prisma.site.create({ data: { name, address, description, managerId } });
+    const client =
+      (await prisma.client.findFirst({ where: { companyName: spec.client.companyName } })) ??
+      (await clientsService.createClient(hrActor, { ...spec.client, billingAddress: spec.site.address }));
+    const contactName = `${spec.client.contactFirstName} ${spec.client.contactLastName}`;
+    const quote = await quotesService.createQuote(hrActor, {
+      clientId: client.id, subject: spec.subject, contactName, contactEmail: spec.client.email, billingAddress: spec.site.address, items: spec.items,
+    });
+    await quotesService.submitQuoteForValidation(hrActor, quote.id);
+    await quotesService.validateQuote(hrActor, quote.id);
+    await quotesService.sendQuote(hrActor, quote.id);
+    await quotesService.markQuoteAccepted(hrActor, quote.id, { method: QuoteFollowUpMethod.EMAIL, comment: spec.acceptedNote });
+    return sitesService.createSite(rh.id, {
+      name: spec.site.name, address: spec.site.address, description: spec.site.description,
+      managerId: spec.site.managerId, supervisorId: superviseur.id, clientId: client.id, quoteId: quote.id,
+    });
   }
 
-  const siteTilleuls = await upsertSite("Résidence Les Tilleuls", "12 Rue des Tilleuls, 75015 Paris", "Copropriété résidentielle, 6 étages, parties communes et halls d'entrée.", karim.id);
-  const siteTechcorp = await upsertSite("Bureaux TechCorp", "45 Avenue de la République, 75011 Paris", "Open space et bureaux fermés sur 3 étages, entretien quotidien.", sophie.id);
-  const siteClinique = await upsertSite("Clinique Saint-Michel", "8 Boulevard Saint-Michel, 75005 Paris", "Nettoyage sanitaire renforcé, protocoles spécifiques.", karim.id);
+  const siteTilleuls = await siteFromAcceptedQuote({
+    client: { companyName: "Syndic Résidence Les Tilleuls", contactFirstName: "Patrick", contactLastName: "Morel", jobTitle: "Syndic", phone: "0612345610", email: "p.morel@syndic-tilleuls.fr", postalCode: "75015", city: "Paris" },
+    site: { name: "Résidence Les Tilleuls", address: "12 Rue des Tilleuls, 75015 Paris", description: "Copropriété résidentielle, 6 étages, parties communes et halls d'entrée.", managerId: karim.id },
+    subject: "Entretien des parties communes",
+    items: [{ description: "Nettoyage parties communes (halls, escaliers, vitres RDC)", quantity: 3, unit: QuoteItemUnit.HOUR, unitPriceHt: 28, frequency: QuoteItemFrequency.MULTIPLE_PER_WEEK, occurrencesPerMonth: 12 }],
+    acceptedNote: "Accepté en assemblée générale de copropriété.",
+  });
+  const siteTechcorp = await siteFromAcceptedQuote({
+    client: { companyName: "TechCorp SAS", contactFirstName: "Julie", contactLastName: "Armand", jobTitle: "Office Manager", phone: "0612345611", email: "j.armand@techcorp.fr", postalCode: "75011", city: "Paris" },
+    site: { name: "Bureaux TechCorp", address: "45 Avenue de la République, 75011 Paris", description: "Open space et bureaux fermés sur 3 étages, entretien en soirée.", managerId: sophie.id },
+    subject: "Entretien des bureaux en soirée",
+    items: [
+      { description: "Entretien bureaux et sanitaires", quantity: 2.5, unit: QuoteItemUnit.HOUR, unitPriceHt: 27, frequency: QuoteItemFrequency.MULTIPLE_PER_WEEK, occurrencesPerMonth: 8 },
+      { description: "Shampoing moquette open space (remise en état à la prise du chantier)", quantity: 1, unit: QuoteItemUnit.FLAT_RATE, unitPriceHt: 380, frequency: QuoteItemFrequency.ONE_TIME },
+    ],
+    acceptedNote: "Bon pour accord signé par l'office manager.",
+  });
+  const siteClinique = await siteFromAcceptedQuote({
+    client: { companyName: "Clinique Saint-Michel", contactFirstName: "Hélène", contactLastName: "Garnier", jobTitle: "Cadre de santé", phone: "0612345612", email: "h.garnier@clinique-saint-michel.fr", postalCode: "75005", city: "Paris" },
+    site: { name: "Clinique Saint-Michel", address: "8 Boulevard Saint-Michel, 75005 Paris", description: "Nettoyage sanitaire renforcé, protocoles spécifiques.", managerId: karim.id },
+    subject: "Désinfection hebdomadaire des salles de consultation",
+    items: [{ description: "Désinfection salles de consultation (protocole virucide)", quantity: 2, unit: QuoteItemUnit.HOUR, unitPriceHt: 35, frequency: QuoteItemFrequency.WEEKLY, occurrencesPerMonth: 4 }],
+    acceptedNote: "Accepté après visite du site avec la cadre de santé.",
+  });
 
   const teamMembers: Array<{ siteId: string; userId: string }> = [
     { siteId: siteTilleuls.id, userId: karim.id }, { siteId: siteTilleuls.id, userId: lucas.id }, { siteId: siteTilleuls.id, userId: emma.id }, { siteId: siteTilleuls.id, userId: ines.id },
@@ -338,9 +433,16 @@ async function main() {
     }
   }
 
+  // Objectifs du mois sur chaque chantier (anneau d'avancement de la fiche).
+  {
+    const targetPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    const targets: Array<[{ id: string }, number, number]> = [[siteTilleuls, 12, 36], [siteTechcorp, 8, 20], [siteClinique, 4, 8]];
+    for (const [site, plannedVisits, plannedHours] of targets) {
+      await sitesService.upsertSiteTarget(hrActor, site.id, { period: targetPeriod, plannedVisits, plannedHours, billingMode: "FLAT_RATE" });
+    }
+  }
+
   // ================================================================ MODULE COMMERCIAL
-  const hrActor = { userId: rh.id, role: Role.HR };
-  const supActor = { userId: superviseur.id, role: Role.SUPERVISOR };
 
   if ((await prisma.prospect.count()) === 0) {
     console.log("Module commercial : prospects, clients, devis, facturation...");
@@ -374,14 +476,8 @@ async function main() {
     // Prospect converti → client (workflow officiel §5-8), plus deux clients
     // créés directement pour que la liste Clients ne soit jamais vide.
     const clientPhare = await prospectsService.convertProspectToClient(hrActor, wonProspect.id);
-    const clientTilleuls = await clientsService.createClient(hrActor, {
-      companyName: "Syndic Résidence Les Tilleuls", contactFirstName: "Patrick", contactLastName: "Morel", jobTitle: "Syndic",
-      phone: "0612345610", email: "p.morel@syndic-tilleuls.fr", billingAddress: "12 Rue des Tilleuls, 75015 Paris", postalCode: "75015", city: "Paris",
-    });
-    await clientsService.createClient(hrActor, {
-      companyName: "TechCorp SAS", contactFirstName: "Julie", contactLastName: "Armand", jobTitle: "Office Manager",
-      phone: "0612345611", email: "j.armand@techcorp.fr", billingAddress: "45 Avenue de la République, 75011 Paris", postalCode: "75011", city: "Paris",
-    });
+    // Clients déjà créés avec leur chantier (devis acceptés, plus haut).
+    const clientTilleuls = await prisma.client.findFirstOrThrow({ where: { companyName: "Syndic Résidence Les Tilleuls" } });
 
     // Devis n°1 — brouillon (jamais envoyé), pour montrer un devis en cours de rédaction.
     await quotesService.createQuote(hrActor, {
@@ -493,7 +589,7 @@ async function main() {
     await invoicesService.sendInvoice(hrActor, invoicePaid.id);
     await invoicesService.markInvoicePaid(hrActor, invoicePaid.id);
 
-    console.log("Module commercial démo prêt : 5 prospects, 3 clients, 4 devis, 3 factures, 1 chantier créé depuis un devis accepté.");
+    console.log("Module commercial démo prêt : 5 prospects, 4 clients, 7 devis, 3 factures, 4 chantiers créés depuis un devis accepté.");
   } else {
     console.log("Des prospects existent déjà, création des données commerciales démo ignorée.");
   }
@@ -547,10 +643,12 @@ async function main() {
     const entries: Array<[{ id: string; role: Role }, number, string, string, string | undefined]> = [
       // Jamais plus de 7 jours en arrière (règle des pointages différés), et
       // toujours dans le passé même si la démo est préparée la veille.
-      [lucas, 2, "07:02", "09:05", "Badgeuse en panne à l'arrivée"],
+      // Deux écarts volontaires avec la mission prévue, pour montrer l'alerte
+      // « de moins / de plus que prévu » de la validation des heures.
+      [lucas, 2, "07:02", "08:05", "Badgeuse en panne à l'arrivée"],
       [lucas, 3, "08:00", "11:10", undefined],
       [emma, 3, "07:55", "11:00", "Oubli de pointer"],
-      [nathan, 3, "18:00", "20:30", undefined],
+      [nathan, 3, "18:00", "21:45", "Réunion du client prolongée, ménage commencé plus tard"],
       [chloe, 3, "18:05", "20:40", "Téléphone déchargé"],
     ];
     for (const [u, daysAgo, start, end, comment] of entries) {
@@ -567,6 +665,11 @@ async function main() {
     await absencesService.createAbsence(actor(nathan), {
       type: "SICK_LEAVE", startDate: isoDate(addDays(today, 4)), endDate: isoDate(addDays(today, 5)),
     });
+    // Une demande déjà acceptée par la superviseure (statut « Approuvée »).
+    const approved = await absencesService.createAbsence(actor(thomas), {
+      type: "PAID_LEAVE", startDate: isoDate(addDays(today, 30)), endDate: isoDate(addDays(today, 34)), reason: "Mariage d'un proche",
+    });
+    await absencesService.decideAbsence(actor(superviseur), approved.id, { status: "APPROVED", decisionNote: "Bon congé !" });
     console.log("Demandes de congé démo prêtes.");
   }
 
@@ -623,6 +726,102 @@ async function main() {
       await missionsService.validateMission(actor(superviseur), mission.id);
     }
     console.log(`${Math.max(0, completed.length - 2)} missions terminées validées.`);
+  }
+
+  // Signalements dans chaque étape du suivi (Nouveau → En cours → Traité →
+  // Validé), des deux types, avec photo et échanges : aucun écran vide.
+  if ((await prisma.problem.count()) <= 2) {
+    const lastMission = (siteId: string) =>
+      prisma.mission.findFirstOrThrow({ where: { siteId, status: MissionStatus.COMPLETED }, orderBy: { endTime: "desc" } });
+    const sitePhare = await prisma.site.findFirst({ where: { name: "Coworking Le Phare" } });
+    const addPhoto = async (problemId: string, by: { id: string; role: Role }, seed: string) => {
+      const photo = await fetchBuffer(`https://picsum.photos/seed/${seed}/900/1200`);
+      if (photo) await problemsService.addPhoto(actor(by), problemId, photo);
+    };
+
+    const vacuum = await problemsService.createProblem(actor(nathan), {
+      missionId: (await lastMission(siteTechcorp.id)).id, type: ProblemType.MISSING_MATERIAL,
+      description: "L'aspirateur dorsal ne démarre plus, batterie à remplacer.",
+    });
+    await addPhoto(vacuum.id, nathan, "deepclean-aspirateur");
+    await problemsService.setProblemStatus(actor(superviseur), vacuum.id, "IN_PROGRESS");
+    await problemsService.addComment(actor(sophie), vacuum.id, "Batterie commandée, livraison prévue jeudi. On prend l'aspirateur de secours en attendant.");
+
+    const door = await problemsService.createProblem(actor(lucas), {
+      missionId: (await lastMission(siteClinique.id)).id, type: ProblemType.ISSUE,
+      description: "La porte du local DASRI ne ferme plus à clé.",
+    });
+    await addPhoto(door.id, lucas, "deepclean-porte");
+    await problemsService.setProblemStatus(actor(superviseur), door.id, "IN_PROGRESS");
+    await problemsService.addComment(actor(karim), door.id, "Serrurier passé ce matin, la porte ferme de nouveau.");
+    await problemsService.setProblemStatus(actor(superviseur), door.id, "RESOLVED");
+
+    if (sitePhare) {
+      const stain = await problemsService.createProblem(actor(thomas), {
+        missionId: (await lastMission(sitePhare.id)).id, type: ProblemType.ISSUE,
+        description: "Grosse tache de café sur la moquette de la salle de réunion « Océan ».",
+      });
+      await addPhoto(stain.id, thomas, "deepclean-moquette");
+      await problemsService.setProblemStatus(actor(superviseur), stain.id, "IN_PROGRESS");
+      await problemsService.addComment(actor(sophie), stain.id, "Détachage fait avec l'injecteur-extracteur, plus aucune trace.");
+      await problemsService.setProblemStatus(actor(superviseur), stain.id, "RESOLVED");
+      await problemsService.addComment(actor(directeur), stain.id, "Vérifié sur place avec la cliente, parfait.");
+      await problemsService.setProblemStatus(actor(directeur), stain.id, "VALIDATED");
+    }
+    console.log("Signalements démo prêts (nouveau, en cours, traité, validé).");
+  }
+
+  // Quatre mois d'historique (retour explicite du client : chacun revoit ses
+  // heures des mois passés). Missions récurrentes terminées et validées, avec
+  // des pointages validés proches des horaires prévus. Créé directement en
+  // base, sans notifications : ce passé ne doit pas inonder les écrans.
+  const historyStart = dayOnly(isoDate(addDays(today, -10)));
+  if ((await prisma.mission.count({ where: { date: { lt: historyStart } } })) === 0) {
+    const patterns = [
+      { site: siteTilleuls, title: "Nettoyage parties communes", weekdays: [1, 3, 5], start: "08:00", end: "11:00", team: [lucas, emma, ines], lead: karim },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", weekdays: [2, 4], start: "18:00", end: "20:30", team: [nathan, chloe, thomas], lead: sophie },
+      { site: siteClinique, title: "Désinfection salles de consultation", weekdays: [6], start: "09:00", end: "11:00", team: [lucas, nathan], lead: karim },
+    ];
+    let state = 7;
+    const rand = (max: number) => {
+      state = (state * 9301 + 49297) % 233280;
+      return Math.floor((state / 233280) * max);
+    };
+    const entries: Array<{ userId: string; clockIn: Date; clockOut: Date; status: "VALIDATED"; validatedById: string; validatedAt: Date }> = [];
+    let created = 0;
+    for (let offset = -122; offset <= -11; offset++) {
+      const day = addDays(today, offset);
+      const dateStr = isoDate(day);
+      for (const pattern of patterns) {
+        if (!pattern.weekdays.includes(day.getDay())) continue;
+        const people = [...pattern.team, pattern.lead];
+        const start = combineDateTime(dateStr, pattern.start);
+        const end = combineDateTime(dateStr, pattern.end);
+        const mission = await prisma.mission.create({
+          data: {
+            siteId: pattern.site.id, title: pattern.title, date: dayOnly(dateStr), startTime: start, endTime: end,
+            status: MissionStatus.COMPLETED, createdById: superviseur.id,
+            assignments: { create: people.map((u) => ({ userId: u.id, isLead: u.id === pattern.lead.id })) },
+          },
+        });
+        await prisma.validation.create({
+          data: { type: "MISSION_COMPLETION", missionId: mission.id, validatedById: superviseur.id, createdAt: new Date(end.getTime() + 2 * 3600_000) },
+        });
+        for (const person of people) {
+          entries.push({
+            userId: person.id,
+            clockIn: new Date(start.getTime() + (rand(11) - 8) * 60_000),
+            clockOut: new Date(end.getTime() + (rand(13) - 3) * 60_000),
+            status: "VALIDATED",
+            validatedById: superviseur.id,
+            validatedAt: new Date(end.getTime() + 20 * 3600_000),
+          });
+        }
+        created += 1;
+      }
+    }
+    await prisma.timeEntry.createMany({ data: entries });
+    console.log(`Historique démo prêt : ${created} missions et ${entries.length} pointages validés sur 4 mois.`);
   }
 
   console.log("\nTerminé. Comptes de démo (mot de passe commun : " + DEMO_PASSWORD + ") :");
