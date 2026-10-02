@@ -249,6 +249,11 @@ export function SiteDetailScreen() {
             period={period}
             progress={progress}
             canManage={canManage}
+            onSchedule={
+              !!user && PLANNING_ROLES.includes(user.role) && site.isActive
+                ? () => navigation.navigate("MissionForm", { initialSiteId: site.id })
+                : undefined
+            }
             editing={editingTarget}
             onStartEdit={() => setEditingTarget(true)}
             onCancelEdit={() => setEditingTarget(false)}
@@ -374,18 +379,25 @@ export function SiteDetailScreen() {
   );
 }
 
+// « 9 h », « 7,5 h » : virgule décimale française.
+function formatHours(hours: number): string {
+  return `${String(hours).replace(".", ",")} h`;
+}
+
 interface SiteTargetSectionProps {
   siteId: string;
   period: string;
   progress: SiteProgress;
   canManage: boolean;
+  // Raccourci « Programmer » depuis l'alerte (rôles qui gèrent le planning).
+  onSchedule?: () => void;
   editing: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaved: () => void;
 }
 
-function SiteTargetSection({ siteId, period, progress, canManage, editing, onStartEdit, onCancelEdit, onSaved }: SiteTargetSectionProps) {
+function SiteTargetSection({ siteId, period, progress, canManage, onSchedule, editing, onStartEdit, onCancelEdit, onSaved }: SiteTargetSectionProps) {
   const { colors, spacing, radius, type } = useTheme();
   const [plannedVisits, setPlannedVisits] = useState(String(progress.target?.plannedVisits ?? ""));
   const [plannedHours, setPlannedHours] = useState(progress.target?.plannedHours != null ? String(progress.target.plannedHours) : "");
@@ -458,7 +470,32 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
   }
 
   const targetPlannedVisits = progress.target.plannedVisits;
-  const completionRatio = targetPlannedVisits > 0 ? progress.completedVisits / targetPlannedVisits : 0;
+  const completionRatio = targetPlannedVisits > 0 ? Math.min(1, progress.completedVisits / targetPlannedVisits) : 0;
+  const toSchedule = progress.toScheduleVisits ?? 0;
+  const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
+  const targetHours = progress.target.plannedHours;
+
+  // Alerte du mois : ce qui reste à PROGRAMMER (une mission programmée est
+  // déduite tout de suite), ou confirmation que tout est programmé.
+  const alert =
+    toSchedule > 0
+      ? {
+          tone: colors.warning,
+          bg: colors.warningSoft,
+          icon: "alert-circle" as const,
+          text: `${plural(toSchedule, "prestation")} à programmer ce mois-ci.`,
+        }
+      : targetPlannedVisits > 0
+        ? {
+            tone: colors.success,
+            bg: colors.successSoft,
+            icon: "checkmark-circle" as const,
+            text:
+              progress.extraVisits > 0
+                ? `Objectif programmé, avec ${plural(progress.extraVisits, "mission")} en plus.`
+                : "Toutes les prestations du mois sont programmées.",
+          }
+        : null;
 
   return (
     <Card>
@@ -467,30 +504,30 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
           <Text style={[type.title3, { color: colors.ink, fontWeight: "800" }]}>{Math.round(completionRatio * 100)}%</Text>
         </ProgressRing>
         <View style={{ flex: 1, marginLeft: spacing.lg }}>
-          <SiteStat icon="calendar-outline" tint={colors.neutral} label="Prévues" value={String(targetPlannedVisits)} />
+          <SiteStat icon="flag-outline" tint={colors.neutral} label="Objectif du mois" value={String(targetPlannedVisits)} />
+          <SiteStat icon="calendar-outline" tint={colors.info} label="Programmées" value={String(progress.scheduledVisits)} />
           <SiteStat icon="checkmark-circle-outline" tint={colors.success} label="Réalisées" value={String(progress.completedVisits)} />
-          <SiteStat
-            icon="time-outline"
-            tint={colors.warning}
-            label="Restantes"
-            value={progress.remainingVisits != null ? String(progress.remainingVisits) : "—"}
-            last
-          />
+          <SiteStat icon="time-outline" tint={colors.warning} label="À programmer" value={String(toSchedule)} last />
         </View>
       </View>
-      {(progress.target.plannedHours != null || progress.plannedHours > 0) && (
+      <Text style={[type.caption, { color: colors.inkTertiary, marginTop: spacing.xs }]}>Le cercle indique les prestations réalisées sur l'objectif.</Text>
+      {(targetHours != null || progress.plannedHours > 0) && (
         <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.sm }]}>
-          Heures : {progress.plannedHours} h planifiées
-          {progress.actualHours > 0 ? ` · ${progress.actualHours} h pointées (indicatif)` : ""}
+          Heures : {formatHours(progress.plannedHours)} programmées
+          {targetHours != null ? ` sur ${formatHours(targetHours)} prévues` : ""}
+          {progress.actualHours > 0 ? ` · ${formatHours(progress.actualHours)} pointées (indicatif)` : ""}
         </Text>
       )}
-      {progress.remainingVisits !== null && progress.remainingVisits > 0 && (
-        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.warningSoft, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm }}>
-          <Ionicons name="alert-circle" size={16} color={colors.warning} />
-          <Text style={[type.footnote, { color: colors.warning, marginLeft: 6, fontWeight: "600", flex: 1 }]}>
-            {progress.remainingVisits} prestation{progress.remainingVisits > 1 ? "s" : ""} restante{progress.remainingVisits > 1 ? "s" : ""} à programmer ce mois-ci.
-          </Text>
-        </View>
+      {!!alert && (
+        <PressableScale disabled={!onSchedule || toSchedule === 0} onPress={onSchedule}>
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: alert.bg, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm }}>
+            <Ionicons name={alert.icon} size={16} color={alert.tone} />
+            <Text style={[type.footnote, { color: alert.tone, marginLeft: 6, fontWeight: "600", flex: 1 }]}>{alert.text}</Text>
+            {!!onSchedule && toSchedule > 0 && (
+              <Text style={[type.footnote, { color: alert.tone, fontWeight: "700", marginLeft: spacing.xs }]}>Programmer ›</Text>
+            )}
+          </View>
+        </PressableScale>
       )}
       {!!canManage && (
         <View style={{ marginTop: spacing.sm }}>

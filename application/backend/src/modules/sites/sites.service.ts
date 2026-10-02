@@ -414,7 +414,13 @@ export interface SiteProgress {
   scheduledVisits: number;
   completedVisits: number;
   cancelledVisits: number;
+  // Objectif − réalisées : prestations encore à RÉALISER ce mois-ci.
   remainingVisits: number | null;
+  // Objectif − programmées (non annulées) : prestations encore à PROGRAMMER.
+  // Une mission programmée sur le chantier est déduite immédiatement.
+  toScheduleVisits: number | null;
+  // Programmées au-delà de l'objectif (information, jamais bloquant).
+  extraVisits: number;
   plannedHours: number;
   actualHours: number;
 }
@@ -469,6 +475,8 @@ export async function getSiteProgress(actor: Actor, siteId: string, period: stri
     completedVisits,
     cancelledVisits,
     remainingVisits: target ? Math.max(0, target.plannedVisits - completedVisits) : null,
+    toScheduleVisits: target ? Math.max(0, target.plannedVisits - active.length) : null,
+    extraVisits: target ? Math.max(0, active.length - target.plannedVisits) : 0,
     plannedHours: round1(plannedHours),
     actualHours: round1(actualHours),
   };

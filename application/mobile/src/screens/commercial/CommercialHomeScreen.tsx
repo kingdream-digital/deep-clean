@@ -160,9 +160,10 @@ export function CommercialHomeScreen() {
           tone: "neutral",
           icon: "business-outline",
         },
-        { key: "planned", label: "Prestations prévues", value: String(dashboard.sites.plannedVisits), tone: "neutral", icon: "calendar-outline" },
+        { key: "planned", label: "Objectif du mois", value: String(dashboard.sites.plannedVisits), tone: "neutral", icon: "flag-outline" },
+        { key: "scheduled", label: "Programmées", value: String(dashboard.sites.scheduledVisits), tone: "info", icon: "calendar-outline" },
         { key: "completed", label: "Réalisées", value: String(dashboard.sites.completedVisits), tone: "success", icon: "checkmark-circle-outline" },
-        { key: "remaining", label: "Restantes", value: String(dashboard.sites.remainingVisits), tone: "warning", icon: "time-outline" },
+        { key: "toSchedule", label: "À programmer", value: String(dashboard.sites.toScheduleVisits), tone: "warning", icon: "time-outline" },
       ]
     : null;
 
@@ -245,7 +246,7 @@ export function CommercialHomeScreen() {
                       <Text style={[type.footnote, { color: colors.ink, flex: 1, fontWeight: "600" }]} numberOfLines={1}>
                         {site.siteName}
                       </Text>
-                      <Text style={[type.footnote, { color: colors.warning, fontWeight: "700" }]}>{site.remainingVisits} restantes</Text>
+                      <Text style={[type.footnote, { color: colors.warning, fontWeight: "700" }]}>{site.toScheduleVisits} à programmer</Text>
                       <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: 6 }} />
                     </View>
                   </PressableScale>

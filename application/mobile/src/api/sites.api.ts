@@ -139,7 +139,12 @@ export interface SiteProgress {
   scheduledVisits: number;
   completedVisits: number;
   cancelledVisits: number;
+  // Objectif − réalisées.
   remainingVisits: number | null;
+  // Objectif − programmées (une mission programmée est déduite tout de suite).
+  toScheduleVisits: number | null;
+  // Programmées au-delà de l'objectif.
+  extraVisits: number;
   plannedHours: number;
   actualHours: number;
 }

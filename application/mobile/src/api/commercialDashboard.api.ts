@@ -7,7 +7,8 @@ import { apiClient } from "./client";
 export interface SiteAttention {
   siteId: string;
   siteName: string;
-  remainingVisits: number;
+  // Prestations de l'objectif du mois pas encore programmées.
+  toScheduleVisits: number;
 }
 
 export interface CommercialDashboard {
@@ -22,8 +23,10 @@ export interface CommercialDashboard {
     activeSites: number;
     period: string;
     plannedVisits: number;
+    scheduledVisits: number;
     completedVisits: number;
     remainingVisits: number;
+    toScheduleVisits: number;
     sitesNeedingAttention: SiteAttention[];
   };
   // Absent (jamais un objet vide) pour un Superviseur — la facturation ne
