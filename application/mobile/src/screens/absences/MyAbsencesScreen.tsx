@@ -101,7 +101,7 @@ export function MyAbsencesScreen() {
 
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
-      {balance && (
+      {!!balance && (
         <Card style={{ marginBottom: spacing.lg }}>
           <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
             CONGÉS {balance.year}
@@ -139,7 +139,7 @@ export function MyAbsencesScreen() {
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
                     {formatRange(item.startDate, item.endDate)} · {formatDaysWithUnit(item.daysCount)}
                   </Text>
-                  {item.reason && (
+                  {!!item.reason && (
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]}>{item.reason}</Text>
                   )}
                   {item.status === "REJECTED" && item.decisionNote && (

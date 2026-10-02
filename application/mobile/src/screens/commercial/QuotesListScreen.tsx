@@ -90,7 +90,7 @@ export function QuotesListScreen() {
                   <Text style={[type.headline, { color: colors.ink, marginTop: spacing.xxs }]} numberOfLines={2}>
                     {item.client.companyName}
                   </Text>
-                  {item.subject && (
+                  {!!item.subject && (
                     <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
                       {item.subject}
                     </Text>

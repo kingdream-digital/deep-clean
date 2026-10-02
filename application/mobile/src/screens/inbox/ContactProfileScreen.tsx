@@ -114,7 +114,7 @@ export function ContactProfileScreen() {
             navigation.navigate("Messagerie", { screen: "ConversationThread", params: { userId } })
           }
         />
-        {contact.phone && (
+        {!!contact.phone && (
           <View style={{ marginTop: spacing.sm }}>
             <Button label="Appeler" icon="call-outline" variant="secondary" onPress={handleCall} />
           </View>

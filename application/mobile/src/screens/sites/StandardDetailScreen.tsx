@@ -176,13 +176,13 @@ export function StandardDetailScreen() {
               <Text style={[type.callout, { color: colors.ink }]}>{standard.equipment.join(" · ")}</Text>
             </View>
           )}
-          {standard.safetyInstructions && (
+          {!!standard.safetyInstructions && (
             <View style={{ marginBottom: standard.notes ? spacing.md : 0 }}>
               <Text style={[type.footnote, { color: colors.warning, marginBottom: spacing.xxs }]}>Sécurité</Text>
               <Text style={[type.callout, { color: colors.ink }]}>{standard.safetyInstructions}</Text>
             </View>
           )}
-          {standard.notes && (
+          {!!standard.notes && (
             <View>
               <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.xxs }]}>Notes</Text>
               <Text style={[type.callout, { color: colors.ink }]}>{standard.notes}</Text>
@@ -204,7 +204,7 @@ export function StandardDetailScreen() {
               }}
             >
               <Text style={[type.overline, { color: colors.inkTertiary }]}>DOCUMENT PDF</Text>
-              {canManage && (
+              {!!canManage && (
                 <PressableScale onPress={handleAttachDocument}>
                   <Text style={[type.footnote, { color: colors.accent, fontWeight: "600" }]}>
                     {standard.documentFileName ? "Remplacer" : "Importer un PDF"}
@@ -243,7 +243,7 @@ export function StandardDetailScreen() {
                 >
                   <Ionicons name="download-outline" size={20} color={colors.accent} />
                 </PressableScale>
-                {canManage && (
+                {!!canManage && (
                   <PressableScale
                     onPress={handleRemoveDocument}
                     accessibilityRole="button"

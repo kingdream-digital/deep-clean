@@ -131,7 +131,7 @@ export function AbsenceFormScreen() {
           multiline
         />
 
-        {error && <Text style={[typeScale.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[typeScale.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label="Envoyer la demande" onPress={handleSubmit} loading={saving} />
       </ScrollView>

@@ -59,7 +59,7 @@ export function TimesheetRejectScreen() {
           multiline
           numberOfLines={4}
         />
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
         <Button label="Refuser ce pointage" variant="destructive" loading={saving} onPress={handleSubmit} />
       </ScrollView>
     </ScreenContainer>

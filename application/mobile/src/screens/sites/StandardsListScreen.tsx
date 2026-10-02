@@ -101,7 +101,7 @@ export function StandardsListScreen() {
         />
       )}
 
-      {canManage && (
+      {!!canManage && (
         <Animated.View entering={FadeInUp.duration(280)} style={styles.fab}>
           <PressableScale
             pressedScale={0.9}

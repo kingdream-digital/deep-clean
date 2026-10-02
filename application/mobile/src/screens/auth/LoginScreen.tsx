@@ -41,7 +41,7 @@ export function LoginScreen() {
 
   const form = (
     <>
-      {sessionExpired && (
+      {!!sessionExpired && (
         <View
           style={{
             backgroundColor: colors.warningSoft,
@@ -78,7 +78,7 @@ export function LoginScreen() {
         <Checkbox label="Rester connecté" checked={rememberMe} onChange={setRememberMe} />
       </View>
 
-      {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+      {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
       <Button label="Se connecter" onPress={handleSubmit} loading={loading} />
     </>

@@ -51,7 +51,7 @@ export function KpiGrid({ tiles }: { tiles: KpiTile[] }) {
                 borderLeftColor: colors.border,
               }}
             >
-              {tile.icon && (
+              {!!tile.icon && (
                 <View
                   style={{
                     width: 26,

@@ -76,7 +76,7 @@ export function ChangePasswordForm({ onSuccess, submitLabel = "Enregistrer" }: C
         {POLICY_HINT}
       </Text>
 
-      {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+      {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
       <Button label={submitLabel} onPress={handleSubmit} loading={loading} />
     </View>

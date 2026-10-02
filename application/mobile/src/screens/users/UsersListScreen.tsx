@@ -84,7 +84,7 @@ export function UsersListScreen() {
               {items.length} {items.length > 1 ? "comptes" : "compte"}
             </Text>
           </View>
-          {canCreate && (
+          {!!canCreate && (
             <View style={{ width: 200 }}>
               <PressableScale onPress={() => navigation.navigate("UserForm", undefined)}>
                 <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: 12 }]}>

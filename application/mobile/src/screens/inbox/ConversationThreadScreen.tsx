@@ -442,7 +442,7 @@ export function ConversationThreadScreen() {
             if (message.systemEvent) {
               return (
                 <View>
-                  {daySeparator && <DaySeparator label={daySeparator} />}
+                  {!!daySeparator && <DaySeparator label={daySeparator} />}
                   <Text
                     style={[
                       type.caption,
@@ -464,7 +464,7 @@ export function ConversationThreadScreen() {
 
             return (
               <View>
-                {daySeparator && <DaySeparator label={daySeparator} />}
+                {!!daySeparator && <DaySeparator label={daySeparator} />}
                 <View
                   style={{
                     flexDirection: "row",
@@ -491,7 +491,7 @@ export function ConversationThreadScreen() {
                           bloc, qui restent ainsi alignées entre elles. */}
                       {!isMine && conversation.isGroup && (
                         <View style={{ width: 28, marginRight: 6 }}>
-                          {endsBlock && <Avatar user={message.sender} size={28} />}
+                          {!!endsBlock && <Avatar user={message.sender} size={28} />}
                         </View>
                       )}
 
@@ -517,7 +517,7 @@ export function ConversationThreadScreen() {
                         borderColor: colors.border,
                       }}
                     >
-                      {message.hasPhoto && (
+                      {!!message.hasPhoto && (
                         <PressableScale onPress={() => setViewerUri(messagePhotoUrl(message.id))}>
                           <AuthenticatedImage
                             uri={messagePhotoUrl(message.id)}
@@ -531,7 +531,7 @@ export function ConversationThreadScreen() {
                         </PressableScale>
                       )}
 
-                      {message.document && (
+                      {!!message.document && (
                         <PressableScale onPress={() => handleOpenDocument(message)} pressedScale={0.97}>
                           <View
                             style={{
@@ -580,7 +580,7 @@ export function ConversationThreadScreen() {
                         </PressableScale>
                       )}
 
-                      {message.body && (
+                      {!!message.body && (
                         <Text
                           style={[
                             type.callout,
@@ -596,7 +596,7 @@ export function ConversationThreadScreen() {
                         répétée à chaque ligne, elle double le bruit visuel. */}
                     </View>
 
-                    {endsBlock && (
+                    {!!endsBlock && (
                       <Text
                         style={[
                           type.caption,
@@ -621,7 +621,7 @@ export function ConversationThreadScreen() {
         />
       )}
 
-      {attachment && (
+      {!!attachment && (
         <View
           style={{
             flexDirection: "row",

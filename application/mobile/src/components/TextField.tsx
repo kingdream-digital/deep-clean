@@ -53,7 +53,7 @@ export function TextField({ label, error, isPassword, style, ...rest }: TextFiel
           placeholderTextColor={colors.inkTertiary}
           style={[type.body, styles.input, { color: colors.ink }, webNoOutline, multilineStyle, style]}
         />
-        {isPassword && (
+        {!!isPassword && (
           <Pressable hitSlop={10} onPress={() => setSecure((s) => !s)} style={styles.icon}>
             <Ionicons name={secure ? "eye-outline" : "eye-off-outline"} size={20} color={colors.inkTertiary} />
           </Pressable>

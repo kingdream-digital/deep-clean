@@ -380,7 +380,7 @@ export function QuoteFormScreen() {
 
         <View style={{ marginBottom: spacing.md }}>
           <Checkbox label="Date de validité" checked={hasValidUntil} onChange={setHasValidUntil} />
-          {hasValidUntil && (
+          {!!hasValidUntil && (
             <View style={{ marginTop: spacing.sm }}>
               <DateTimeField label="Valable jusqu'au" mode="date" value={validUntil} onChange={setValidUntil} minimumDate={new Date()} formatValue={(d) => dateFmt.format(d)} />
             </View>
@@ -391,7 +391,7 @@ export function QuoteFormScreen() {
         <TextField label="Conditions de paiement" placeholder="Paiement à 30 jours" value={paymentTerms} onChangeText={setPaymentTerms} multiline numberOfLines={2} />
         <TextField label="Notes internes (jamais visibles par le client)" placeholder="Notes pour l'équipe" value={internalNotes} onChangeText={setInternalNotes} multiline numberOfLines={3} />
 
-        {canReassign && (
+        {!!canReassign && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Commercial responsable</Text>
             <Card padded={false}>
@@ -425,7 +425,7 @@ export function QuoteFormScreen() {
           )}
         </Card>
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le devis"} onPress={handleSave} loading={saving} />
       </ScrollView>

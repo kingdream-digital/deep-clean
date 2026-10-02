@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Share, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -8,6 +8,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
+import { LeaveBalanceCard } from "../../components/LeaveBalanceCard";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
@@ -114,6 +115,30 @@ function InfoRow({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label:
       <Text style={[type.callout, { color: colors.inkSecondary, marginLeft: spacing.xs, flex: 1 }]}>{label}</Text>
     </View>
   );
+}
+
+// Envoie les identifiants par le moyen choisi (SMS, WhatsApp, e-mail…) sur
+// téléphone ; sur ordinateur, les copie pour les coller où l'on veut.
+async function shareCredentials(firstName: string, username: string, password: string) {
+  const message =
+    `Bonjour ${firstName}, voici vos accès à l'application Deep Clean.\n` +
+    `Identifiant : ${username}\nMot de passe provisoire : ${password}\n` +
+    `Vous choisirez votre propre mot de passe à la première connexion.`;
+  if (Platform.OS === "web") {
+    const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { share?: (d: { text: string }) => Promise<void> }) : null;
+    try {
+      if (nav?.share) {
+        await nav.share({ text: message });
+        return;
+      }
+      await nav?.clipboard?.writeText(message);
+      Alert.alert("Identifiants copiés", "Collez-les dans le message de votre choix.");
+    } catch {
+      /* partage annulé par l'utilisateur */
+    }
+    return;
+  }
+  await Share.share({ message }).catch(() => undefined);
 }
 
 export function UserDetailScreen() {
@@ -294,6 +319,45 @@ export function UserDetailScreen() {
           </View>
         </View>
 
+        {/* Juste après la création ou une réinitialisation : les identifiants
+            en premier, impossibles à manquer. Ils ne s'affichent qu'une fois ;
+            placés en bas de la fiche, sous le dossier, ils passaient inaperçus. */}
+        {!!temporaryPassword && (
+          <Card style={{ marginTop: spacing.lg, borderWidth: 1.5, borderColor: colors.accentDeep }}>
+            <Text style={[type.headline, { color: colors.ink }]}>Identifiants de connexion</Text>
+            <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
+              À transmettre à {account.firstName} : ce mot de passe devra être changé à la prochaine connexion. Il
+              ne sera plus jamais affiché.
+            </Text>
+            <View
+              style={{
+                marginTop: spacing.sm,
+                padding: spacing.sm,
+                borderRadius: 10,
+                backgroundColor: colors.surface,
+              }}
+            >
+              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Identifiant</Text>
+              <Text style={[type.title3, { color: colors.ink, textAlign: "center" }]} selectable>
+                {account.username}
+              </Text>
+              <View style={{ height: spacing.sm }} />
+              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Mot de passe</Text>
+              <Text style={[type.title3, { color: colors.accentText, textAlign: "center" }]} selectable>
+                {temporaryPassword}
+              </Text>
+            </View>
+            <View style={{ marginTop: spacing.sm }}>
+              <Button
+                label="Transmettre les identifiants"
+                icon="share-outline"
+                variant="secondary"
+                size="md"
+                onPress={() => void shareCredentials(account.firstName, account.username, temporaryPassword)}
+              />
+            </View>
+          </Card>
+        )}
         <Card style={{ marginTop: spacing.lg }}>
           <InfoRow icon="person-outline" label={`Identifiant : ${account.username}`} />
           <InfoRow icon="briefcase-outline" label={ROLE_LABELS[account.role]} />
@@ -301,7 +365,7 @@ export function UserDetailScreen() {
           {account.phone ? <InfoRow icon="call-outline" label={account.phone} /> : null}
         </Card>
 
-        {canManage && (
+        {!!canManage && (
           <View style={{ marginTop: spacing.lg }}>
             <Button
               label="Documents (contrat, attestations...)"
@@ -312,7 +376,7 @@ export function UserDetailScreen() {
           </View>
         )}
 
-        {dossier && (
+        {!!dossier && (
           <View style={{ marginTop: spacing.xl }}>
             <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
               DOSSIER EMPLOYÉ
@@ -384,6 +448,12 @@ export function UserDetailScreen() {
                 </View>
               )}
             </Card>
+
+            {/* Congés payés : solde et correction manuelle */}
+            <LeaveBalanceCard
+              userId={account.id}
+              canAdjust={!!me && ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"].includes(me.role)}
+            />
 
             {/* Absences */}
             <Card style={{ marginTop: spacing.sm }}>
@@ -504,33 +574,6 @@ export function UserDetailScreen() {
           </View>
         )}
 
-        {temporaryPassword && (
-          <Card style={{ marginTop: spacing.lg, borderColor: colors.accentDeep }}>
-            <Text style={[type.headline, { color: colors.ink }]}>Identifiants de connexion</Text>
-            <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
-              À transmettre à {account.firstName} : ce mot de passe devra être changé à la prochaine connexion. Il
-              ne sera plus jamais affiché.
-            </Text>
-            <View
-              style={{
-                marginTop: spacing.sm,
-                padding: spacing.sm,
-                borderRadius: 10,
-                backgroundColor: colors.surface,
-              }}
-            >
-              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Identifiant</Text>
-              <Text style={[type.title3, { color: colors.ink, textAlign: "center" }]} selectable>
-                {account.username}
-              </Text>
-              <View style={{ height: spacing.sm }} />
-              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Mot de passe</Text>
-              <Text style={[type.title3, { color: colors.accentText, textAlign: "center" }]} selectable>
-                {temporaryPassword}
-              </Text>
-            </View>
-          </Card>
-        )}
 
         {canManage && !isSelf && (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>

@@ -56,7 +56,7 @@ describe("Création de mission — réservée aux rôles de gestion du planning"
     const notifications = await prisma.notification.findMany({ where: { userId: employee.id } });
     expect(notifications).toHaveLength(1);
     expect(notifications[0]!.type).toBe("MISSION_ASSIGNED");
-    expect(notifications[0]!.body).toBe("Une nouvelle mission vous a été attribuée.");
+    expect(notifications[0]!.body).toMatch(/^Une nouvelle mission vous a été attribuée : « .+ », .+ de \d{2}:\d{2} à \d{2}:\d{2}\.$/);
   });
 
   it("refuse au chef d'équipe de créer une mission, même sur son propre chantier (retour explicite du client)", async () => {
@@ -234,7 +234,7 @@ describe("Modification et annulation d'une mission — notifications", () => {
       where: { userId: employee.id, type: "MISSION_TIME_CHANGED" },
     });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.body).toBe("L'horaire de votre mission a été modifié.");
+    expect(notifications[0]!.body).toMatch(/^L'horaire de votre mission a été modifié : « .+ », .+ de \d{2}:\d{2} à \d{2}:\d{2}\.$/);
   });
 
   it("modifier uniquement le titre ne doit ni changer la date/l'heure ni déclencher de notification d'horaire", async () => {
@@ -325,7 +325,7 @@ describe("Chef d'équipe — droits limités à la consigne et au suivi terrain"
       where: { userId: employee.id, type: "MISSION_INSTRUCTION_ADDED" },
     });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.body).toBe(`Une nouvelle consigne a été ajoutée à votre mission par ${manager.firstName} ${manager.lastName}.`);
+    expect(notifications[0]!.body).toMatch(new RegExp(`^Une nouvelle consigne a été ajoutée à votre mission « .+ » par ${manager.firstName} ${manager.lastName}\\.$`));
   });
 
   it("refuse au chef d'équipe de modifier autre chose que la consigne (titre, horaire, chantier)", async () => {

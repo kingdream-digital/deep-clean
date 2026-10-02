@@ -37,7 +37,7 @@ export function AlertHost() {
         <View style={[styles.card, { backgroundColor: colors.backgroundElevated, borderRadius: radius.lg }]}>
           <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md }}>
             <Text style={[type.headline, { color: colors.ink, textAlign: "center" }]}>{request.title}</Text>
-            {request.message && (
+            {!!request.message && (
               <Text style={[type.subhead, { color: colors.inkSecondary, textAlign: "center", marginTop: spacing.xs }]}>
                 {request.message}
               </Text>

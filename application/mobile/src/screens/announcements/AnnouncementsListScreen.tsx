@@ -87,7 +87,7 @@ export function AnnouncementsListScreen() {
               <PressableScale onPress={() => navigation.navigate("AnnouncementDetail", { announcementId: item.id })}>
                 {/* Seule la plus récente porte le glow — carte prioritaire de l'écran. */}
                 <Card glow={index === 0} padded={false}>
-                  {item.hasCoverPhoto && (
+                  {!!item.hasCoverPhoto && (
                     <AuthenticatedImage
                       uri={announcementCoverPhotoUrl(item.id)}
                       style={{ width: "100%", height: 160, backgroundColor: colors.surfaceAlt }}
@@ -117,7 +117,7 @@ export function AnnouncementsListScreen() {
         />
       )}
 
-      {canPost && (
+      {!!canPost && (
         <PressableScale
           onPress={() => navigation.navigate("AnnouncementForm")}
           style={{

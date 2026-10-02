@@ -170,7 +170,7 @@ export function ProfileScreen() {
           <Pressable onPress={handleChangePhoto} disabled={avatarBusy}>
             <Text style={[type.footnote, { color: colors.accent, fontWeight: "600" }]}>Changer la photo</Text>
           </Pressable>
-          {user.hasAvatar && (
+          {!!user.hasAvatar && (
             <Pressable onPress={handleRemovePhoto} disabled={avatarBusy} style={{ marginLeft: spacing.md }}>
               <Text style={[type.footnote, { color: colors.inkTertiary, fontWeight: "600" }]}>Retirer la photo</Text>
             </Pressable>

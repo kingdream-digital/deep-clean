@@ -47,7 +47,7 @@ function EntryRow({ entry }: { entry: ReconciliationMissionEntry["matchedEntries
         <Text style={[type.footnote, { color: colors.ink }]}>
           {timeFmt.format(new Date(entry.clockIn))} – {entry.clockOut ? timeFmt.format(new Date(entry.clockOut)) : "en cours"}
         </Text>
-        {entry.validatedBy && (
+        {!!entry.validatedBy && (
           <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 1 }]}>
             {entry.status === "REJECTED" ? "Refusé" : "Validé"} par {entry.validatedBy.firstName} {entry.validatedBy.lastName}
           </Text>

@@ -161,6 +161,15 @@ async function main() {
   const ines = await upsertUser({ email: "ines.employe@deepclean.fr", firstName: "Inès", lastName: "Fontaine", role: Role.EMPLOYEE, createdById: rh.id });
   const thomas = await upsertUser({ email: "thomas.employe@deepclean.fr", firstName: "Thomas", lastName: "Roy", role: Role.EMPLOYEE, createdById: rh.id });
 
+  // Dates d'entrée réalistes : les soldes de congés de la démo ressemblent à
+  // ceux d'une vraie équipe (sinon tout le monde démarre à 0 jour acquis).
+  const hireDates: Array<[{ id: string }, string]> = [
+    [rh, "2019-03-01"], [directeur, "2015-09-01"], [superviseur, "2021-01-04"], [karim, "2020-06-15"],
+    [sophie, "2022-02-01"], [lucas, "2023-09-04"], [emma, "2024-01-08"], [nathan, "2022-11-14"],
+    [chloe, "2025-03-03"], [ines, "2024-06-03"], [thomas, "2023-04-17"],
+  ];
+  for (const [u, date] of hireDates) await prisma.user.update({ where: { id: u.id }, data: { hireDate: dayOnly(date) } });
+
   console.log("Photos de profil...");
   await Promise.all([
     setAvatar(rh.id, 47),

@@ -1,4 +1,5 @@
 import { Prisma, QuoteEventAction, QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit, QuoteStatus, Role } from "@prisma/client";
+import { companyDateLabel } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -414,7 +415,7 @@ export async function sendQuote(actor: Actor, id: string, message?: string) {
     greeting,
     "",
     message?.trim() || `Veuillez trouver ci-joint notre devis ${quote.quoteNumber}${quote.subject ? ` concernant "${quote.subject}"` : ""}.`,
-    quote.validUntil ? `Ce devis est valable jusqu'au ${quote.validUntil.toLocaleDateString("fr-FR", { timeZone: "UTC" })}.` : "",
+    quote.validUntil ? `Ce devis est valable jusqu'au ${companyDateLabel(quote.validUntil)}.` : "",
     "",
     "Cordialement,",
   ]

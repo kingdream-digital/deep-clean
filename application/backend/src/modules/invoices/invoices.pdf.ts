@@ -37,8 +37,8 @@ interface InvoicePdfData {
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 // Date d'émission : instant, lu en heure de Paris.
 const dateFmt = (d: Date) => companyDateLabel(d);
-// Échéance / validité : jour calendaire saisi (minuit UTC), lu tel quel.
-const calendarDateFmt = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "UTC" });
+// Échéance / validité : le moment choisi dans l'app, lu en heure de Paris.
+const calendarDateFmt = (d: Date) => companyDateLabel(d);
 
 const UNIT_LABELS: Record<QuoteItemUnit, string> = {
   HOUR: "heure",

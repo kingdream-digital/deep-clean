@@ -85,7 +85,7 @@ export function SitesListScreen() {
               {items.length} {items.length > 1 ? "chantiers" : "chantier"}
             </Text>
           </View>
-          {canCreate && (
+          {!!canCreate && (
             <View style={{ width: 200 }}>
               <PressableScale onPress={() => navigation.navigate("SiteForm", undefined)}>
                 <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: 12 }]}>
@@ -134,7 +134,7 @@ export function SitesListScreen() {
                     {/* La photo du chantier quand il en a une. Sans photo, plus
                         de grand bandeau teinté vide (un tiers de la carte pour
                         une simple icône) : l'icône passe à gauche du nom. */}
-                    {item.hasPhoto && (
+                    {!!item.hasPhoto && (
                       <AuthenticatedImage
                         uri={sitePhotoUrl(item.id)}
                         style={{ width: "100%", height: 90, backgroundColor: colors.surfaceAlt }}

@@ -169,15 +169,15 @@ export function QuoteDetailScreen() {
             <QuoteStatusBadge status={quote.status} />
           </View>
           <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{quote.client.companyName}</Text>
-          {quote.subject && <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{quote.subject}</Text>}
+          {!!quote.subject && <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{quote.subject}</Text>}
 
           <InfoRow icon="calendar-outline" label="Émis le" value={dateFmt.format(new Date(quote.issueDate))} />
-          {quote.validUntil && <InfoRow icon="hourglass-outline" label="Valable jusqu'au" value={dateFmt.format(new Date(quote.validUntil))} />}
-          {quote.siteAddress && <InfoRow icon="location-outline" label="Chantier" value={quote.siteAddress} />}
-          {quote.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={quote.contactEmail} />}
-          {quote.assignedUser && <InfoRow icon="person-outline" label="Commercial" value={`${quote.assignedUser.firstName} ${quote.assignedUser.lastName}`} />}
-          {quote.nextVersion && <InfoRow icon="git-branch-outline" label="Nouvelle version" value={quote.nextVersion.quoteNumber} />}
-          {quote.previousVersionId && <InfoRow icon="git-commit-outline" label="Version précédente" value="Voir l'historique" />}
+          {!!quote.validUntil && <InfoRow icon="hourglass-outline" label="Valable jusqu'au" value={dateFmt.format(new Date(quote.validUntil))} />}
+          {!!quote.siteAddress && <InfoRow icon="location-outline" label="Chantier" value={quote.siteAddress} />}
+          {!!quote.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={quote.contactEmail} />}
+          {!!quote.assignedUser && <InfoRow icon="person-outline" label="Commercial" value={`${quote.assignedUser.firstName} ${quote.assignedUser.lastName}`} />}
+          {!!quote.nextVersion && <InfoRow icon="git-branch-outline" label="Nouvelle version" value={quote.nextVersion.quoteNumber} />}
+          {!!quote.previousVersionId && <InfoRow icon="git-commit-outline" label="Version précédente" value="Voir l'historique" />}
         </Card>
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>PRESTATIONS</Text>
@@ -297,7 +297,7 @@ export function QuoteDetailScreen() {
               )}
               {/* Facturation réservée à RH/Direction/Admin (§1-3) — le
                   Superviseur ne voit pas ce bouton. */}
-              {canValidate && (
+              {!!canValidate && (
                 <Button
                   label="Créer une facture"
                   variant="secondary"
@@ -325,7 +325,7 @@ export function QuoteDetailScreen() {
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>
                     {event.user.firstName} {event.user.lastName}
                   </Text>
-                  {event.comment && <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>{event.comment}</Text>}
+                  {!!event.comment && <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>{event.comment}</Text>}
                 </View>
               ))}
             </Card>

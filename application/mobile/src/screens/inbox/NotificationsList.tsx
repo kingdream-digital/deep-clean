@@ -196,8 +196,8 @@ export function NotificationsList() {
       SectionSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
       ListHeaderComponent={
         <>
-          {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
-          {hasUnread && (
+          {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {!!hasUnread && (
             <Pressable onPress={handleMarkAllAsRead} style={{ alignSelf: "flex-end", marginBottom: spacing.xs }}>
               <Text style={[type.subhead, { color: colors.accent }]}>Tout marquer comme lu</Text>
             </Pressable>
@@ -251,7 +251,7 @@ export function NotificationsList() {
                       </Text>
                     </View>
 
-                    {hasRelatedEntity && (
+                    {!!hasRelatedEntity && (
                       <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />
                     )}
                   </View>

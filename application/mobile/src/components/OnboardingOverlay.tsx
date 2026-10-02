@@ -209,15 +209,15 @@ export function OnboardingOverlay() {
         <Svg width={winW} height={winH} style={{ position: "absolute", top: 0, left: 0 }}>
           <Mask id="onboarding-spotlight">
             <Rect x={0} y={0} width={winW} height={winH} fill="white" />
-            {rect && <AnimatedRect animatedProps={holeProps} rx={HOLE_RADIUS} fill="black" />}
+            {!!rect && <AnimatedRect animatedProps={holeProps} rx={HOLE_RADIUS} fill="black" />}
           </Mask>
           <Rect x={0} y={0} width={winW} height={winH} fill="rgba(10,14,26,0.78)" mask="url(#onboarding-spotlight)" />
-          {rect && (
+          {!!rect && (
             <AnimatedRect animatedProps={holeProps} rx={HOLE_RADIUS} fill="none" stroke={colors.accent} strokeWidth={2.5} />
           )}
         </Svg>
 
-        {settled && (
+        {!!settled && (
           <Animated.View
             style={[
               rect

@@ -395,7 +395,7 @@ export function PlanningScreen() {
               gain de largeur (fullBleed sur ScreenContainer ci-dessus) sans
               s'étirer jusqu'à devenir illisible sur un très grand écran. */}
           <View style={{ maxWidth: 1680, width: "100%", alignSelf: "center" }}>
-            {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+            {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
             {showTeamGrid ? (
               <TeamWeekGrid
                 days={days}
@@ -422,7 +422,7 @@ export function PlanningScreen() {
           contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: spacing.xxxl }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
         >
-          {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
 
           <Text
             style={[
@@ -738,7 +738,7 @@ function TeamWeekGrid({
                             }}
                           >
                             <View style={{ flexDirection: "row", alignItems: "center" }}>
-                              {overdue && <Ionicons name="alert-circle" size={12} color={fg} style={{ marginRight: 3 }} />}
+                              {!!overdue && <Ionicons name="alert-circle" size={12} color={fg} style={{ marginRight: 3 }} />}
                               <Text style={[type.caption, { color: fg, fontWeight: "700", flex: 1 }]} numberOfLines={1}>
                                 {mission.site.name}
                               </Text>

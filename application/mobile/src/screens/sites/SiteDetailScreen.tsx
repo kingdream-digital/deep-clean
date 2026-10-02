@@ -110,7 +110,7 @@ export function SiteDetailScreen() {
       {/* La photo du chantier quand il en a une. Sans photo, plus de bandeau
           dégradé de 140 px autour d'une simple icône : la fiche commence
           directement par le nom, comme la liste des chantiers. */}
-      {site.hasPhoto && (
+      {!!site.hasPhoto && (
         <PressableScale onPress={() => setViewerOpen(true)}>
           <AuthenticatedImage uri={sitePhotoUrl(site.id)} style={{ width: "100%", height: 140, backgroundColor: colors.surfaceAlt }} />
         </PressableScale>
@@ -241,7 +241,7 @@ export function SiteDetailScreen() {
             OBJECTIFS & SUIVI · {periodFmt.format(new Date(`${period}-01`))}
           </Text>
         </View>
-        {progress && (
+        {!!progress && (
           <SiteTargetSection
             siteId={site.id}
             period={period}
@@ -342,20 +342,20 @@ export function SiteDetailScreen() {
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
             {/* Client → Chantier → Facturation (cahier des charges §32) —
                 réservé RH/Direction/Admin, comme le reste de la facturation. */}
-            {canInvoice && (
+            {!!canInvoice && (
               <Button
                 label="Créer une facture"
                 onPress={() => navigation.navigate("InvoiceForm", { clientId: site.clientId ?? undefined, quoteId: site.quoteId ?? undefined, siteId: site.id })}
               />
             )}
-            {canManage && (
+            {!!canManage && (
               <Button label="Modifier le chantier" variant="secondary" onPress={() => navigation.navigate("SiteForm", { siteId: site.id })} />
             )}
           </View>
         )}
       </ScrollView>
 
-      {site.hasPhoto && (
+      {!!site.hasPhoto && (
         <PhotoViewerModal visible={viewerOpen} uri={sitePhotoUrl(site.id)} onClose={() => setViewerOpen(false)} />
       )}
     </ScreenContainer>
@@ -436,7 +436,7 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
     return (
       <Card>
         <Text style={[type.callout, { color: colors.inkSecondary }]}>Aucun objectif défini pour ce mois.</Text>
-        {canManage && (
+        {!!canManage && (
           <View style={{ marginTop: spacing.sm }}>
             <Button label="Définir l'objectif" variant="secondary" onPress={onStartEdit} />
           </View>
@@ -480,7 +480,7 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
           </Text>
         </View>
       )}
-      {canManage && (
+      {!!canManage && (
         <View style={{ marginTop: spacing.sm }}>
           <Button label="Modifier l'objectif" variant="secondary" onPress={onStartEdit} />
         </View>

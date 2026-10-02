@@ -85,7 +85,7 @@ export function ScreenContainer({
       style={[styles.flex, { backgroundColor: colors.background }]}
       edges={noHeader ? ["top", "bottom"] : ["bottom"]}
     >
-      {gradient && (
+      {!!gradient && (
         <LinearGradient
           colors={isDark ? [colors.background, colors.surfaceAlt] : [colors.background, colors.surface]}
           start={{ x: 0, y: 0 }}

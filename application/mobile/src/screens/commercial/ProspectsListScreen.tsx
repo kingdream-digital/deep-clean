@@ -54,7 +54,7 @@ export function ProspectsListScreen() {
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <View style={[isDesktopWeb && styles.desktopHeader, { marginBottom: spacing.md }]}>
-        {isDesktopWeb && (
+        {!!isDesktopWeb && (
           <Text style={[type.title1, { color: colors.ink, marginBottom: spacing.md }]}>Prospects</Text>
         )}
         <TextField
@@ -96,7 +96,7 @@ export function ProspectsListScreen() {
                     </Text>
                   )}
 
-                  {item.nextFollowUpAt && (
+                  {!!item.nextFollowUpAt && (
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}>
                       <Ionicons name="alarm-outline" size={13} color={colors.inkTertiary} />
                       <Text style={[type.footnote, { color: colors.inkSecondary, marginLeft: 4 }]}>
@@ -104,7 +104,7 @@ export function ProspectsListScreen() {
                       </Text>
                     </View>
                   )}
-                  {item.assignedUser && (
+                  {!!item.assignedUser && (
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.xxs }}>
                       <Ionicons name="person-outline" size={13} color={colors.inkTertiary} />
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: 4 }]} numberOfLines={1}>

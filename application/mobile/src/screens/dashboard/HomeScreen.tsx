@@ -91,7 +91,7 @@ function HeroKpiRow({ tiles, tones }: { tiles: KpiTile[]; tones: Record<Dashboar
                   alignItems: wide ? "center" : "stretch",
                 }}
               >
-                {tile.icon && (
+                {!!tile.icon && (
                   <View
                     style={{
                       width: 30,
@@ -260,7 +260,7 @@ export function HomeScreen() {
         </ImageBackground>
 
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
-        {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+        {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
         {state === "error" && (
           <View style={{ marginTop: spacing.lg }}>
             <StateView kind="error" onRetry={reload} />
@@ -310,7 +310,7 @@ export function HomeScreen() {
                       })
                     }
                   />
-                  {isOverdue && (
+                  {!!isOverdue && (
                     <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xs }]}>
                       L'horaire est passé et la mission n'a pas été démarrée. Prévenez votre chef d'équipe si
                       elle n'a pas eu lieu.
@@ -339,7 +339,7 @@ export function HomeScreen() {
                 l'accueil comme la mission en cours ci-dessus, en plus de son
                 écran dédié "Actualités" (cahier des charges §13 : "informations
                 importantes" visibles sans avoir à cliquer). */}
-            {data.latestAnnouncement && (
+            {!!data.latestAnnouncement && (
               <>
                 <SectionTitle
                   action={
@@ -356,7 +356,7 @@ export function HomeScreen() {
                   }
                 >
                   <Card padded={false}>
-                    {data.latestAnnouncement.hasCoverPhoto && (
+                    {!!data.latestAnnouncement.hasCoverPhoto && (
                       <AuthenticatedImage
                         uri={announcementCoverPhotoUrl(data.latestAnnouncement.id)}
                         style={{ width: "100%", height: 140, backgroundColor: colors.surfaceAlt }}

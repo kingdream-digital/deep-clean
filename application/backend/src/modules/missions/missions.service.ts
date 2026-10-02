@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { calendarDay, calendarDayEnd, calendarDayKey, companyDateTime, companyTimeKey } from "../../utils/companyTime";
+import { calendarDay, calendarDayEnd, calendarDayKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
 import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
@@ -248,6 +248,14 @@ async function assertAssigneesValid(assigneeIds: string[]): Promise<void> {
   }
 }
 
+// « « Remise en état salle de réunion », mercredi 7 octobre de 08:00 à 10:30 » :
+// une notification doit dire DE QUELLE mission il s'agit et quand, sans avoir
+// à l'ouvrir (retour terrain : « Une nouvelle mission vous a été attribuée »
+// seul ne permettait pas de savoir laquelle, ni pour quand).
+function describeMission(m: { title: string; startTime: Date; endTime: Date }): string {
+  return `« ${m.title} », ${companyLongDayLabel(m.startTime)} de ${companyTimeKey(m.startTime)} à ${companyTimeKey(m.endTime)}`;
+}
+
 async function notifyAssignees(
   userIds: string[],
   type: NotificationType,
@@ -478,7 +486,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     "Nouvelle mission",
     recurrenceGroupId
       ? `Une mission récurrente vous a été attribuée (${recurrenceCount} occurrences jusqu'au ${input.recurrence!.until}).`
-      : "Une nouvelle mission vous a été attribuée.",
+      : `Une nouvelle mission vous a été attribuée : ${describeMission(mission)}.`,
     mission.id
   );
 
@@ -641,7 +649,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_SITE_CHANGED,
       "Chantier modifié",
-      "Le lieu de votre mission a été modifié.",
+      `Le lieu de votre mission a été modifié : ${describeMission(updated)}, ${updated.site.name}.`,
       id
     );
   }
@@ -650,7 +658,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_TIME_CHANGED,
       "Horaire modifié",
-      "L'horaire de votre mission a été modifié.",
+      `L'horaire de votre mission a été modifié : ${describeMission(updated)}.`,
       id
     );
   }
@@ -664,7 +672,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_INSTRUCTION_ADDED,
       "Nouvelle consigne",
-      `Une nouvelle consigne a été ajoutée à votre mission par ${authorName}.`,
+      `Une nouvelle consigne a été ajoutée à votre mission « ${updated.title} » par ${authorName}.`,
       id
     );
   }
@@ -698,7 +706,7 @@ export async function cancelMission(actor: Actor, id: string, scope: "one" | "se
     mission.assignments.map((a) => a.userId),
     NotificationType.MISSION_CANCELLED,
     "Mission annulée",
-    "Votre mission a été annulée.",
+    `Votre mission a été annulée : ${describeMission(mission)}.`,
     id
   );
 
@@ -853,7 +861,7 @@ export async function updateAssignments(actor: Actor, id: string, input: UpdateA
       newlyAdded,
       NotificationType.MISSION_ASSIGNED,
       "Nouvelle mission",
-      "Une nouvelle mission vous a été attribuée.",
+      `Une nouvelle mission vous a été attribuée : ${describeMission(mission)}.`,
       id
     );
   }

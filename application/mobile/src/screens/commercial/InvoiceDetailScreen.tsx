@@ -144,12 +144,12 @@ export function InvoiceDetailScreen() {
           <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{invoice.client.companyName}</Text>
 
           <InfoRow icon="calendar-outline" label="Émise le" value={dateFmt.format(new Date(invoice.issueDate))} />
-          {invoice.dueDate && <InfoRow icon="hourglass-outline" label="Échéance" value={dateFmt.format(new Date(invoice.dueDate))} />}
-          {invoice.quote && <InfoRow icon="document-text-outline" label="Devis associé" value={invoice.quote.quoteNumber} />}
-          {invoice.site && <InfoRow icon="business-outline" label="Chantier" value={invoice.site.name} />}
-          {invoice.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={invoice.contactEmail} />}
-          {invoice.paidAt && <InfoRow icon="checkmark-circle-outline" label="Payée le" value={dateFmt.format(new Date(invoice.paidAt))} />}
-          {invoice.cancelledComment && <InfoRow icon="close-circle-outline" label="Motif d'annulation" value={invoice.cancelledComment} />}
+          {!!invoice.dueDate && <InfoRow icon="hourglass-outline" label="Échéance" value={dateFmt.format(new Date(invoice.dueDate))} />}
+          {!!invoice.quote && <InfoRow icon="document-text-outline" label="Devis associé" value={invoice.quote.quoteNumber} />}
+          {!!invoice.site && <InfoRow icon="business-outline" label="Chantier" value={invoice.site.name} />}
+          {!!invoice.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={invoice.contactEmail} />}
+          {!!invoice.paidAt && <InfoRow icon="checkmark-circle-outline" label="Payée le" value={dateFmt.format(new Date(invoice.paidAt))} />}
+          {!!invoice.cancelledComment && <InfoRow icon="close-circle-outline" label="Motif d'annulation" value={invoice.cancelledComment} />}
         </Card>
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>LIGNES</Text>

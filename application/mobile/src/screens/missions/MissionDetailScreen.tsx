@@ -351,7 +351,7 @@ export function MissionDetailScreen() {
               }}
             >
               <Text style={[type.overline, { color: colors.inkTertiary }]}>STANDARD DE NETTOYAGE (PDF)</Text>
-              {canManagePlanning && (
+              {!!canManagePlanning && (
                 <PressableScale onPress={handleAttachDocument}>
                   <Text style={[type.footnote, { color: colors.accent, fontWeight: "600" }]}>
                     {mission.standardDocumentFileName ? "Remplacer" : "Déposer un PDF"}
@@ -390,7 +390,7 @@ export function MissionDetailScreen() {
                 >
                   <Ionicons name="download-outline" size={20} color={colors.accent} />
                 </PressableScale>
-                {canManagePlanning && (
+                {!!canManagePlanning && (
                   <PressableScale
                     onPress={handleRemoveDocument}
                     accessibilityRole="button"
@@ -407,7 +407,7 @@ export function MissionDetailScreen() {
           </View>
         )}
 
-        {mission.standard && (
+        {!!mission.standard && (
           <PressableScale onPress={() => navigation.navigate("StandardDetail", { standardId: mission.standard!.id })}>
             <View
               style={{
@@ -431,7 +431,7 @@ export function MissionDetailScreen() {
         <View style={{ marginTop: spacing.xl }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm }}>
             <Text style={[type.overline, { color: colors.inkTertiary }]}>FICHE DE POSTE</Text>
-            {canManagePlanning && (
+            {!!canManagePlanning && (
               <PressableScale onPress={() => navigation.navigate("JobSheetForm", { missionId })}>
                 <Text style={[type.footnote, { color: colors.accent, fontWeight: "600" }]}>
                   {mission.jobSheet ? "Modifier" : "Créer"}
@@ -459,13 +459,13 @@ export function MissionDetailScreen() {
                   <Text style={[type.callout, { color: colors.ink }]}>{mission.jobSheet.equipment.join(" · ")}</Text>
                 </View>
               )}
-              {mission.jobSheet.safetyInstructions && (
+              {!!mission.jobSheet.safetyInstructions && (
                 <View style={{ marginBottom: mission.jobSheet.notes ? spacing.md : 0 }}>
                   <Text style={[type.footnote, { color: colors.warning, marginBottom: spacing.xxs }]}>Sécurité</Text>
                   <Text style={[type.callout, { color: colors.ink }]}>{mission.jobSheet.safetyInstructions}</Text>
                 </View>
               )}
-              {mission.jobSheet.notes && (
+              {!!mission.jobSheet.notes && (
                 <View>
                   <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.xxs }]}>Notes</Text>
                   <Text style={[type.callout, { color: colors.ink }]}>{mission.jobSheet.notes}</Text>
@@ -531,7 +531,7 @@ export function MissionDetailScreen() {
 
             {(mission.site.manager || mission.site.supervisor) && (
               <Card padded={false} style={{ marginBottom: spacing.sm }}>
-                {mission.site.manager && (
+                {!!mission.site.manager && (
                   <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: mission.site.manager!.id })}>
                     <View
                       style={{
@@ -552,7 +552,7 @@ export function MissionDetailScreen() {
                     </View>
                   </PressableScale>
                 )}
-                {mission.site.supervisor && (
+                {!!mission.site.supervisor && (
                   <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: mission.site.supervisor!.id })}>
                     <View
                       style={{
@@ -716,7 +716,7 @@ export function MissionDetailScreen() {
 
         {mission.status !== "CANCELLED" && mission.status !== "COMPLETED" && (canManagePlanning || canOperateMission) && (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
-            {canManagePlanning && (
+            {!!canManagePlanning && (
               <Button
                 label="Modifier la mission"
                 variant="secondary"
@@ -737,7 +737,7 @@ export function MissionDetailScreen() {
                 onPress={() => runAction("complete", () => setMissionStatus(missionId, "COMPLETED"))}
               />
             )}
-            {canManagePlanning && (
+            {!!canManagePlanning && (
               <Button
                 label="Annuler la mission"
                 variant="destructive"

@@ -144,3 +144,10 @@ export function addDaysToKey(date: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return calendarDayKey(d);
 }
+
+const longDayFormatter = new Intl.DateTimeFormat("fr-FR", { timeZone: COMPANY_TIME_ZONE, weekday: "long", day: "numeric", month: "long" });
+
+/** « mercredi 7 octobre » (« 1er » pour le premier du mois), à Paris. */
+export function companyLongDayLabel(instant: Date): string {
+  return longDayFormatter.format(instant).replace(/(^|\s)1(?=\s)/, "$11er");
+}

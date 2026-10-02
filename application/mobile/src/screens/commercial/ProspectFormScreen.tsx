@@ -217,7 +217,7 @@ export function ProspectFormScreen() {
           </Card>
         </View>
 
-        {canReassign && (
+        {!!canReassign && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Commercial responsable</Text>
             <Card padded={false}>
@@ -233,7 +233,7 @@ export function ProspectFormScreen() {
 
         <View style={{ marginBottom: spacing.md }}>
           <Checkbox label="Programmer une relance" checked={followUpEnabled} onChange={setFollowUpEnabled} />
-          {followUpEnabled && (
+          {!!followUpEnabled && (
             <View style={{ marginTop: spacing.sm }}>
               <DateTimeField
                 label="Date de la relance"
@@ -247,7 +247,7 @@ export function ProspectFormScreen() {
           )}
         </View>
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le prospect"} onPress={handleSave} loading={saving} />
       </ScrollView>

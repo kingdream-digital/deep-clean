@@ -179,11 +179,11 @@ export function StandardFormScreen() {
         />
         <TextField label="Notes (optionnel)" placeholder="Toute information utile." value={notes} onChangeText={setNotes} multiline />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le standard"} onPress={handleSave} loading={saving} />
 
-        {isEdit && (
+        {!!isEdit && (
           <Button
             label="Supprimer ce standard"
             variant="destructive"

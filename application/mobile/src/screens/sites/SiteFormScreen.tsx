@@ -384,7 +384,7 @@ export function SiteFormScreen() {
           numberOfLines={3}
         />
 
-        {isEdit && (
+        {!!isEdit && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Chef d'équipe</Text>
             <Card padded={false}>
@@ -401,7 +401,7 @@ export function SiteFormScreen() {
           </View>
         )}
 
-        {isEdit && (
+        {!!isEdit && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>
               Superviseur du chantier
@@ -462,13 +462,13 @@ export function SiteFormScreen() {
           </View>
         )}
 
-        {isEdit && (
+        {!!isEdit && (
           <View style={{ marginBottom: spacing.lg }}>
             <Checkbox label="Chantier actif" checked={isActive} onChange={setIsActive} />
           </View>
         )}
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le chantier"} onPress={handleSave} loading={saving} />
       </ScrollView>

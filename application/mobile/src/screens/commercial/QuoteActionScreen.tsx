@@ -74,7 +74,7 @@ export function QuoteActionScreen() {
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
-        {config.needsMethod && (
+        {!!config.needsMethod && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Moyen de contact</Text>
             <Card padded={false}>
@@ -92,7 +92,7 @@ export function QuoteActionScreen() {
         {action === "followUp" && (
           <View style={{ marginBottom: spacing.md }}>
             <Checkbox label="Programmer la prochaine relance" checked={hasNextFollowUp} onChange={setHasNextFollowUp} />
-            {hasNextFollowUp && (
+            {!!hasNextFollowUp && (
               <View style={{ marginTop: spacing.sm }}>
                 <DateTimeField label="Prochaine relance" mode="date" value={nextFollowUpAt} onChange={setNextFollowUpAt} minimumDate={new Date()} formatValue={(d) => dateFmt.format(d)} />
               </View>
@@ -100,7 +100,7 @@ export function QuoteActionScreen() {
           </View>
         )}
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={config.cta} onPress={handleSubmit} loading={saving} />
       </ScrollView>
