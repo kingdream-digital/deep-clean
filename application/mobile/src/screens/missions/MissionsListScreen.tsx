@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useEffect, useCallback, useMemo, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import NetInfo from "@react-native-community/netinfo";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -26,11 +27,16 @@ import {
   groupMissionsByDate,
   isMissionOverdue,
   relativeDayLabel,
+  isMissionValidated,
 } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
 
-type Tab = "upcoming" | "completed" | "cancelled";
+// « Terminées » est scindé en deux (retour explicite du client : terminée et
+// validée prêtaient à confusion) : « À valider » = travail fini en attente du
+// contrôle d'un responsable, « Validées » = contrôlées.
+export type MissionsTab = "upcoming" | "toValidate" | "validated" | "cancelled";
+type Tab = MissionsTab;
 
 // Créer une mission est réservé aux rôles qui gèrent le planning — le chef
 // d'équipe n'en fait plus partie (retour explicite du client).
@@ -61,7 +67,7 @@ const TABLE_COLUMNS: DataTableColumn<Mission>[] = [
   {
     key: "status",
     label: "Statut",
-    render: (item) => <StatusBadge status={item.status} overdue={isMissionOverdue(item)} />,
+    render: (item) => <StatusBadge status={item.status} overdue={isMissionOverdue(item)} validated={isMissionValidated(item)} />,
   },
 ];
 
@@ -71,7 +77,17 @@ export function MissionsListScreen() {
   const { isDesktopWeb } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<MissionsStackParamList>>();
 
-  const [tab, setTab] = useState<Tab>("upcoming");
+  const route = useRoute<RouteProp<MissionsStackParamList, "MissionsList">>();
+  const requestedTab = route.params?.initialTab;
+  const [tab, setTab] = useState<Tab>(requestedTab ?? "upcoming");
+  // Raccourci reçu alors que l'écran était déjà monté (onglet Missions déjà
+  // ouvert) : on bascule, puis on efface le paramètre pour ne pas y revenir
+  // de force à chaque retour sur l'écran.
+  useEffect(() => {
+    if (!requestedTab) return;
+    setTab(requestedTab);
+    navigation.setParams({ initialTab: undefined });
+  }, [requestedTab, navigation]);
   const [items, setItems] = useState<Mission[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [refreshing, setRefreshing] = useState(false);
@@ -98,12 +114,15 @@ export function MissionsListScreen() {
       if (activeTab === "upcoming") {
         const res = await listMissions({ from: todayKey() });
         fetched = res.items.filter((m) => m.status === "SCHEDULED" || m.status === "IN_PROGRESS");
-      } else if (activeTab === "completed") {
-        const res = await listMissions({ status: "COMPLETED" });
-        fetched = res.items.slice().reverse();
+      } else if (activeTab === "toValidate" || activeTab === "validated") {
+        // Plus récentes d'abord, côté serveur : avec un tri croissant puis
+        // `reverse()`, au-delà d'une page les missions les plus récentes
+        // n'apparaissaient jamais.
+        const res = await listMissions({ status: "COMPLETED", validated: activeTab === "validated", sort: "desc", pageSize: 100 });
+        fetched = res.items;
       } else {
-        const res = await listMissions({ status: "CANCELLED" });
-        fetched = res.items.slice().reverse();
+        const res = await listMissions({ status: "CANCELLED", sort: "desc", pageSize: 100 });
+        fetched = res.items;
       }
       setItems(fetched);
       setOfflineCachedAt(null);
@@ -165,7 +184,8 @@ export function MissionsListScreen() {
           onChange={setTab}
           options={[
             { label: "À venir", value: "upcoming" },
-            { label: "Terminées", value: "completed" },
+            { label: "À valider", value: "toValidate" },
+            { label: "Validées", value: "validated" },
             { label: "Annulées", value: "cancelled" },
           ]}
         />
@@ -179,7 +199,13 @@ export function MissionsListScreen() {
         <StateView
           kind="empty"
           icon="briefcase-outline"
-          message={tab === "upcoming" ? "Aucune mission à venir." : "Aucune mission ici pour le moment."}
+          message={
+            tab === "upcoming"
+              ? "Aucune mission à venir."
+              : tab === "toValidate"
+                ? "Aucune mission en attente de validation."
+                : "Aucune mission ici pour le moment."
+          }
         />
       )}
 

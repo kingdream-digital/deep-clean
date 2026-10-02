@@ -243,9 +243,20 @@ export function MissionFormScreen() {
             : `${c.user.firstName} : en absence approuvée sur cette période`
         )
         .join("\n");
+      // Chevauchement avec une autre mission : bloquant (retour explicite du
+      // client, aussi refusé par le serveur). Une absence approuvée reste un
+      // avertissement que le responsable peut passer.
+      if (conflicts.some((c) => c.kind === "MISSION_OVERLAP")) {
+        Alert.alert(
+          "Déjà sur une autre mission",
+          `Une personne ne peut pas être sur deux missions en même temps. Changez l'horaire ou retirez-la :\n\n${details}`,
+          [{ text: "Corriger", style: "cancel" }]
+        );
+        return;
+      }
       Alert.alert(
-        "Conflit de planning",
-        `${names} : un point à vérifier avant de confirmer :\n\n${details}`,
+        "Absence prévue",
+        `${names} : absence approuvée sur cette période.\n\n${details}`,
         [
           { text: "Corriger", style: "cancel" },
           { text: "Continuer quand même", style: "destructive", onPress: () => void proceedSave() },

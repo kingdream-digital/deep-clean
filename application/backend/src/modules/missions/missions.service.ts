@@ -270,6 +270,38 @@ async function notifyAssignees(
   );
 }
 
+// Une même personne ne peut jamais être sur deux missions (non annulées) qui
+// se recouvrent : retour explicite du client, le chevauchement n'est plus un
+// simple avertissement. Vérifié à la création (série récurrente comprise), au
+// changement d'horaire et à l'ajout de personnes sur une mission.
+async function assertNoScheduleOverlap(
+  userIds: string[],
+  slots: Array<{ start: Date; end: Date }>,
+  excludeMissionId?: string
+): Promise<void> {
+  if (userIds.length === 0 || slots.length === 0) return;
+  const conflict = await prisma.missionAssignment.findFirst({
+    where: {
+      userId: { in: userIds },
+      mission: {
+        status: { not: MissionStatus.CANCELLED },
+        ...(excludeMissionId ? { id: { not: excludeMissionId } } : {}),
+        OR: slots.map((slot) => ({ startTime: { lt: slot.end }, endTime: { gt: slot.start } })),
+      },
+    },
+    orderBy: { mission: { startTime: "asc" } },
+    select: {
+      user: { select: { firstName: true, lastName: true } },
+      mission: { select: { title: true, startTime: true, endTime: true, site: { select: { name: true } } } },
+    },
+  });
+  if (!conflict) return;
+  const { user, mission } = conflict;
+  throw ApiError.conflict(
+    `${user.firstName} ${user.lastName} est déjà sur la mission « ${mission.title} » (${mission.site.name}) le ${companyLongDayLabel(mission.startTime)}, de ${companyTimeKey(mission.startTime)} à ${companyTimeKey(mission.endTime)}. Une personne ne peut pas être sur deux missions en même temps.`
+  );
+}
+
 interface ConflictCheckInput {
   assigneeIds: string[];
   date: string;
@@ -393,6 +425,11 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     if (recurringDates.length > 0) recurrenceGroupId = crypto.randomUUID();
   }
 
+  await assertNoScheduleOverlap(input.assigneeIds, [
+    { start: startTime, end: endTime },
+    ...recurringDates.map((d) => ({ start: combineDateTime(d, input.startTime), end: combineDateTime(d, input.endTime) })),
+  ]);
+
   const mission = await prisma.mission.create({
     data: {
       siteId: input.siteId,
@@ -497,6 +534,8 @@ interface ListMissionsFilters {
   siteId?: string;
   mine?: boolean;
   status?: MissionStatus;
+  validated?: boolean;
+  sort?: "asc" | "desc";
   from?: string;
   to?: string;
   page: number;
@@ -544,13 +583,16 @@ export async function listMissions(actor: Actor, filters: ListMissionsFilters) {
     ...siteFilter,
     ...(filters.status ? { status: filters.status } : {}),
     ...(Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {}),
+    ...(filters.validated === true ? { validations: { some: { type: ValidationType.MISSION_COMPLETION } } } : {}),
+    ...(filters.validated === false ? { validations: { none: { type: ValidationType.MISSION_COMPLETION } } } : {}),
   };
+  const direction = filters.sort === "desc" ? "desc" : "asc";
 
   const [items, total] = await Promise.all([
     prisma.mission.findMany({
       where,
       select: missionSelect,
-      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      orderBy: [{ date: direction }, { startTime: direction }],
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
@@ -620,6 +662,13 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
   }
 
   const timeChanged = Boolean(input.date || input.startTime || input.endTime);
+  if (timeChanged) {
+    await assertNoScheduleOverlap(
+      mission.assignments.map((a) => a.userId),
+      [{ start: startTime, end: endTime }],
+      id
+    );
+  }
   const siteChanged = Boolean(input.siteId && input.siteId !== mission.site.id);
   const instructionsChanged =
     input.instructions !== undefined && input.instructions !== mission.instructions && !!input.instructions;
@@ -838,6 +887,7 @@ export async function updateAssignments(actor: Actor, id: string, input: UpdateA
   const currentIds = mission.assignments.map((a) => a.userId);
   const newlyAdded = input.assigneeIds.filter((uid) => !currentIds.includes(uid));
   const removed = currentIds.filter((uid) => !input.assigneeIds.includes(uid));
+  await assertNoScheduleOverlap(newlyAdded, [{ start: mission.startTime, end: mission.endTime }], id);
 
   await prisma.$transaction([
     prisma.missionAssignment.deleteMany({ where: { missionId: id } }),

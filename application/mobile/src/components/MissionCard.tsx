@@ -8,7 +8,7 @@ import { StatusBadge } from "./StatusBadge";
 import { AssigneeAvatar } from "./AssigneeAvatar";
 import { PulsingDot } from "./PulsingDot";
 import type { Mission, MissionAssignee } from "../api/missions.api";
-import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, relativeDayLabel } from "../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, relativeDayLabel, isMissionValidated } from "../utils/missionFormat";
 
 interface MissionCardProps {
   mission: Mission;
@@ -217,7 +217,7 @@ export function MissionCard({ mission, onPress }: MissionCardProps) {
             >
               <AssigneesRow assignments={mission.assignments} />
               <View style={{ marginLeft: "auto" }}>
-                <StatusBadge status={mission.status} overdue={overdue} />
+                <StatusBadge status={mission.status} overdue={overdue} validated={isMissionValidated(mission)} />
               </View>
             </View>
           </View>

@@ -57,6 +57,11 @@ export function groupMissionsByDate(missions: Mission[]): MissionGroup[] {
  * comme « planifiée », donc à venir, elle laissait croire qu'il fallait encore
  * s'y rendre alors que son créneau était passé depuis des heures.
  */
+/** Mission terminée ET validée par un responsable (validation de fin de mission). */
+export function isMissionValidated(mission: { validations?: Array<{ type: string }> | null }): boolean {
+  return !!mission.validations?.some((v) => v.type === "MISSION_COMPLETION");
+}
+
 export function isMissionOverdue(mission: Pick<Mission, "status" | "endTime">, now: number = Date.now()): boolean {
   return mission.status === "SCHEDULED" && new Date(mission.endTime).getTime() <= now;
 }

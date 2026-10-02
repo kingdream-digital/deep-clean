@@ -26,7 +26,7 @@ import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { listProblems } from "../../api/problems.api";
 import type { Problem } from "../../api/problems.api";
-import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, todayKey } from "../../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, todayKey, isMissionValidated } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
 const periodFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
@@ -291,7 +291,7 @@ export function SiteDetailScreen() {
                   {/* Même badge que partout ailleurs (couleurs et « non démarrée »
                       comprises) : cette fiche avait sa propre pastille, aux
                       couleurs différentes du reste de l'application. */}
-                  <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} />
+                  <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} validated={isMissionValidated(mission)} />
                 </View>
               </PressableScale>
             ))}

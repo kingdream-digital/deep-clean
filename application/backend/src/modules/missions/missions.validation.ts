@@ -80,6 +80,12 @@ export const listMissionsQuerySchema = {
       .optional()
       .transform((v) => (v === undefined ? undefined : v === "true")),
     status: z.nativeEnum(MissionStatus).optional(),
+    // Missions terminées : « true » = déjà validées, « false » = encore à valider.
+    validated: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : v === "true")),
+    sort: z.enum(["asc", "desc"]).optional().default("asc"),
     from: dateString.optional(),
     to: dateString.optional(),
     page: z.coerce.number().int().positive().optional().default(1),

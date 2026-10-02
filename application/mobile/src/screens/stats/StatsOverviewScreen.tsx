@@ -1,6 +1,9 @@
 import React, { useCallback, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NavigationProp, ParamListBase } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { PressableScale } from "../../components/PressableScale";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { KpiGrid } from "../../components/KpiGrid";
@@ -52,12 +55,6 @@ function WeeklyTrendChart({ weeks }: { weeks: StatsTrends["weeklyMissionTrends"]
   );
 }
 
-function validationLabel(validated: number, completed: number): string {
-  const pending = Math.max(0, completed - validated);
-  const base = `${validated} validée${validated > 1 ? "s" : ""} sur ${completed} terminée${completed > 1 ? "s" : ""}`;
-  return pending > 0 ? `${base} · ${pending} à valider` : base;
-}
-
 // Taux sur l'ensemble des 8 semaines (validées / terminées). L'ancienne
 // moyenne des taux hebdomadaires comptait les semaines sans aucune mission
 // comme 0 % : une seule semaine à 33 % affichait « 4 % ».
@@ -106,6 +103,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export function StatsOverviewScreen() {
   const { spacing, colors, type } = useTheme();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const [overview, setOverview] = useState<StatsOverview | null>(null);
   const [trends, setTrends] = useState<StatsTrends | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -176,15 +174,7 @@ export function StatsOverviewScreen() {
     { key: "resolved", label: "Traités", value: String(overview.problems.resolved), tone: "accent", icon: "build-outline" },
     { key: "validated", label: "Validés", value: String(overview.problems.validated), tone: "success", icon: "checkmark-done-outline" },
   ];
-  const validations: KpiTile[] = [
-    {
-      key: "rate",
-      label: validationLabel(overview.validations.validatedMissions, overview.validations.completedMissions),
-      value: `${overview.validations.validationRatePercent}%`,
-      tone: "success",
-      icon: "shield-checkmark-outline",
-    },
-  ];
+  const toValidate = Math.max(0, overview.validations.completedMissions - overview.validations.validatedMissions);
 
   return (
     <ScreenContainer>
@@ -203,7 +193,43 @@ export function StatsOverviewScreen() {
         <KpiGrid tiles={problems} />
 
         <SectionTitle>VALIDATIONS</SectionTitle>
-        <KpiGrid tiles={validations} />
+        {/* Raccourci direct vers les missions à valider (retour explicite du
+            client) : le chiffre seul ne disait pas quoi faire ensuite. */}
+        <PressableScale
+          onPress={() =>
+            navigation.navigate("Missions", { screen: "MissionsList", params: { initialTab: toValidate > 0 ? "toValidate" : "validated" } })
+          }
+          accessibilityRole="button"
+          accessibilityLabel={toValidate > 0 ? `${toValidate} missions à valider` : "Voir les missions validées"}
+        >
+          <Card style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: toValidate > 0 ? colors.warningSoft : colors.successSoft,
+              }}
+            >
+              <Ionicons
+                name={toValidate > 0 ? "hourglass-outline" : "shield-checkmark-outline"}
+                size={22}
+                color={toValidate > 0 ? colors.warning : colors.success}
+              />
+            </View>
+            <View style={{ flex: 1, marginLeft: spacing.md }}>
+              <Text style={[type.title2, { color: toValidate > 0 ? colors.warning : colors.success }]}>
+                {toValidate > 0 ? `${toValidate} à valider` : "Tout est validé"}
+              </Text>
+              <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
+                {`Sur ${overview.validations.completedMissions} mission${overview.validations.completedMissions > 1 ? "s" : ""} terminée${overview.validations.completedMissions > 1 ? "s" : ""}, ${overview.validations.validatedMissions} déjà validée${overview.validations.validatedMissions > 1 ? "s" : ""} par un responsable`}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
+          </Card>
+        </PressableScale>
 
         {trends && trends.weeklyMissionTrends.length > 0 && (
           <>

@@ -79,6 +79,9 @@ export interface ListMissionsParams {
   siteId?: string;
   mine?: boolean;
   status?: MissionStatus;
+  // Missions terminées : true = validées, false = encore à valider.
+  validated?: boolean;
+  sort?: "asc" | "desc";
   from?: string;
   to?: string;
   page?: number;

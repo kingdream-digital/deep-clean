@@ -145,6 +145,7 @@ export interface DossierMission {
   endTime: string;
   status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   site: { id: string; name: string };
+  validations?: Array<{ type: string }>;
 }
 
 export interface DossierActivity {

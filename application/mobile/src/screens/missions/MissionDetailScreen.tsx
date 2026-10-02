@@ -33,7 +33,7 @@ import type { Problem } from "../../api/problems.api";
 import { ProblemStatusBadge } from "../../components/ProblemStatusBadge";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { extractErrorMessage } from "../../api/client";
-import { formatMissionDay, formatMissionTimeRange, isMissionOverdue } from "../../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, isMissionValidated } from "../../utils/missionFormat";
 import { formatDuration } from "../../utils/duration";
 import { formatFileSize } from "../../utils/fileSize";
 import { openDirectionsTo } from "../../utils/openMaps";
@@ -294,7 +294,7 @@ export function MissionDetailScreen() {
       >
         {/* Statut au-dessus du titre : placé à côté, il réduisait le titre à
             une colonne étroite (« Entretien / quotidien / espace / coworking »). */}
-        <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} />
+        <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} validated={isMissionValidated(mission)} />
         <Text style={[type.title1, { color: colors.ink, marginTop: spacing.sm }]}>{mission.title}</Text>
 
         <Card style={{ marginTop: spacing.lg }}>
