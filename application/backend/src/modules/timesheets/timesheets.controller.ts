@@ -62,6 +62,11 @@ export const retroactiveTimeEntryHandler = asyncHandler(async (req: Request, res
   res.status(201).json({ entry });
 });
 
+export const managerTimeEntryHandler = asyncHandler(async (req: Request, res: Response) => {
+  const entry = await timesheetsService.createTimeEntryForUser(actorOf(req), req.params.userId as string, req.body);
+  res.status(201).json({ entry });
+});
+
 export const myStatusHandler = asyncHandler(async (req: Request, res: Response) => {
   const result = await timesheetsService.getMyStatus(actorOf(req));
   res.status(200).json(result);

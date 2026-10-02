@@ -12,6 +12,7 @@ import {
   retroactiveTimeEntrySchema,
   timeEntryIdParamSchema,
   validateTimeEntrySchema,
+  managerTimeEntrySchema,
 } from "./timesheets.validation";
 import * as timesheetsController from "./timesheets.controller";
 
@@ -43,6 +44,11 @@ timesheetsRouter.post(
   "/retroactive",
   validate(retroactiveTimeEntrySchema),
   timesheetsController.retroactiveTimeEntryHandler
+);
+timesheetsRouter.post(
+  "/for-user/:userId",
+  validate(managerTimeEntrySchema),
+  timesheetsController.managerTimeEntryHandler
 );
 timesheetsRouter.get("/me/status", timesheetsController.myStatusHandler);
 timesheetsRouter.get("/", validate(listTimeEntriesQuerySchema), timesheetsController.listTimeEntriesHandler);

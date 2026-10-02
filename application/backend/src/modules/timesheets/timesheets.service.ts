@@ -266,6 +266,92 @@ export async function createRetroactiveTimeEntry(
   return presentEntry(entry);
 }
 
+// Saisie par un responsable (superviseur, RH, direction, admin, ou chef
+// d'équipe pour son équipe) d'un pointage oublié, rattaché à une mission du
+// collaborateur, après l'avoir contacté. Mêmes droits que la validation : on ne
+// saisit jamais ses propres heures par ce biais. Le pointage est enregistré
+// comme différé et directement validé par son auteur (c'est lui qui a vérifié),
+// avec le motif obligatoire, et le collaborateur est prévenu.
+const MAX_MANAGER_ENTRY_DAYS = 62;
+
+export async function createTimeEntryForUser(
+  actor: Actor,
+  targetUserId: string,
+  input: { missionId: string; clockIn: string; clockOut: string; comment: string }
+) {
+  if (actor.userId === targetUserId) {
+    throw ApiError.forbidden("Pour vos propres heures, utilisez le pointage différé.");
+  }
+  if (!(await canValidate(actor, targetUserId))) throw ApiError.notFound("Utilisateur introuvable.");
+
+  const clockInDate = new Date(input.clockIn);
+  const clockOutDate = new Date(input.clockOut);
+  const now = new Date();
+  if (clockOutDate <= clockInDate) {
+    throw ApiError.badRequest("L'heure de fin doit être postérieure à l'heure de début.");
+  }
+  if (clockOutDate > now) {
+    throw ApiError.badRequest("On ne peut pas saisir un pointage pour une période qui n'est pas encore terminée.");
+  }
+  if (clockOutDate.getTime() - clockInDate.getTime() > 16 * 60 * 60 * 1000) {
+    throw ApiError.badRequest("Un pointage ne peut pas dépasser 16 heures.");
+  }
+  if (clockInDate.getTime() < now.getTime() - MAX_MANAGER_ENTRY_DAYS * 24 * 60 * 60 * 1000) {
+    throw ApiError.badRequest(`La saisie ne peut pas remonter à plus de ${MAX_MANAGER_ENTRY_DAYS} jours.`);
+  }
+
+  const assignment = await prisma.missionAssignment.findFirst({
+    where: { userId: targetUserId, missionId: input.missionId, mission: { status: { not: MissionStatus.CANCELLED } } },
+    select: { mission: { select: { title: true } } },
+  });
+  if (!assignment) throw ApiError.badRequest("Cette personne n'est pas affectée à cette mission.");
+
+  const entry = await prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, targetUserId);
+    const overlapping = await tx.timeEntry.findFirst({
+      where: {
+        userId: targetUserId,
+        OR: [{ clockOut: null }, { clockOut: { gt: clockInDate } }],
+        clockIn: { lt: clockOutDate },
+      },
+    });
+    if (overlapping) throw ApiError.conflict("Cette période chevauche un pointage déjà enregistré pour cette personne.");
+
+    return tx.timeEntry.create({
+      data: {
+        userId: targetUserId,
+        clockIn: clockInDate,
+        clockOut: clockOutDate,
+        isRetroactive: true,
+        comment: input.comment,
+        status: TimeEntryStatus.VALIDATED,
+        validatedById: actor.userId,
+        validatedAt: now,
+      },
+      select: timeEntrySelect,
+    });
+  });
+
+  await logActivity({
+    userId: actor.userId,
+    action: "TIME_ENTRY_CREATED_FOR_USER",
+    entityType: "TimeEntry",
+    entityId: entry.id,
+    metadata: { targetUserId, missionId: input.missionId },
+  });
+  const author = await prisma.user.findUnique({ where: { id: actor.userId }, select: { firstName: true, lastName: true } });
+  const authorName = author ? `${author.firstName} ${author.lastName}` : "votre responsable";
+  await createNotification({
+    userId: targetUserId,
+    type: "TIMESHEET_VALIDATED",
+    title: "Pointage ajouté",
+    body: `${authorName} a enregistré vos heures du ${formatEntryWindow(clockInDate, clockOutDate)} pour la mission « ${assignment.mission.title} ».`,
+    relatedEntityType: "TimeEntry",
+    relatedEntityId: entry.id,
+  });
+  return presentEntry(entry);
+}
+
 export async function getMyStatus(actor: Actor) {
   const open = await prisma.timeEntry.findFirst({
     where: { userId: actor.userId, clockOut: null },
@@ -893,7 +979,7 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
     (actor.role === Role.SITE_MANAGER && (await isTeamMemberOf(actor.userId, targetUserId)));
   if (!allowed) throw ApiError.notFound("Utilisateur introuvable.");
 
-  const user = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, firstName: true, lastName: true } });
+  const user = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, firstName: true, lastName: true, phone: true } });
   if (!user) throw ApiError.notFound("Utilisateur introuvable.");
 
   // Missions : jours calendaires (minuit UTC). Pointages : instants, bornés
