@@ -247,3 +247,13 @@ compte Apple Developer à 99$/an), voir `application/README.md` section
 - Le compteur d'un nouveau salarié part de 0 à la création de son compte.
   Pour un salarié déjà présent, reporter son solde actuel depuis sa fiche
   (« Ajuster le solde »).
+- Deux compteurs, comme sur une fiche de paie :
+  **« Reste de l'an dernier »** (congés N-1, acquis pendant la période
+  précédente, à prendre avant le 31 mai) et **« Cette année »** (congés N,
+  en cours d'acquisition). Un congé pris est décompté d'abord sur l'an
+  dernier, puis sur l'année en cours (anticipation). Une reprise de solde ou
+  un report accordé par la RH (« Ajuster le solde », montant positif) est
+  rangé avec l'an dernier. Ce qui reste de l'an dernier au 31 mai est perdu
+  et affiché comme tel ; la RH peut accorder un report par un ajustement.
+- Le 1er mars, avril et mai, chaque salarié à qui il reste des congés de
+  l'an dernier reçoit un rappel (une seule fois par mois).

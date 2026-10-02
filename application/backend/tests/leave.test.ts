@@ -243,3 +243,39 @@ describe("Moteur de congés — règles d'acquisition selon les absences", () =>
     expect(computeMonthAccrual({ hireDate: day("2026-10-05"), leaveAccrualRate: null }, "2026-09", [])).toBeNull();
   });
 });
+
+describe("Moteur de congés — congés de l'an dernier (N-1) et de l'année en cours (N)", () => {
+  it("une reprise de solde RH compte en N-1, à prendre avant le 31 mai ; un congé pris s'y décompte d'abord", async () => {
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "leave-n1-emp@deepclean.test" });
+    const hr = await createTestUser({ role: Role.HR, email: "leave-n1-hr@deepclean.test" });
+    const hrToken = await loginAs(hr);
+    await request(app).post(`/api/v1/leave/${employee.id}/adjustments`).set("Authorization", `Bearer ${hrToken}`).send({ days: 3, note: "Reprise" });
+
+    const balance = (await request(app).get(`/api/v1/leave/${employee.id}/balance`).set("Authorization", `Bearer ${hrToken}`)).body.balance;
+    expect(balance.previousYear.remaining).toBe(3);
+    expect(balance.currentYear.remaining).toBe(0);
+    expect(balance.remaining).toBe(3);
+    expect(balance.previousYear.deadline).toBe(`${balance.period.start.slice(0, 4) * 1 + 1}-05-31`);
+    expect(balance.expired.days).toBe(0);
+  });
+
+  it("rappelle au printemps les congés de l'an dernier non pris, une seule fois par mois", async () => {
+    const { remindPreviousYearLeave } = await import("../src/modules/leave/leave.service");
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "leave-n1-rem@deepclean.test" });
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "leave-n1-none@deepclean.test" });
+    const hr = await createTestUser({ role: Role.HR, email: "leave-n1-hr2@deepclean.test" });
+    const hrToken = await loginAs(hr);
+    await request(app).post(`/api/v1/leave/${employee.id}/adjustments`).set("Authorization", `Bearer ${hrToken}`).send({ days: 4, note: "Reprise" });
+
+    // Hors mars → mai : aucun rappel.
+    const year = new Date().getUTCFullYear();
+    expect(await remindPreviousYearLeave(new Date(`${year}-10-01T10:00:00Z`))).toBe(0);
+    const april = new Date(`${year}-04-01T10:00:00Z`);
+    expect(await remindPreviousYearLeave(april)).toBe(1);
+    expect(await remindPreviousYearLeave(april)).toBe(0);
+    const reminders = await prisma.notification.findMany({ where: { relatedEntityType: "LeaveBalance" } });
+    expect(reminders.map((n) => n.userId)).toEqual([employee.id]);
+    expect(reminders[0]!.body).toContain("à prendre avant le 31 mai");
+    expect(other.id).not.toBe(employee.id);
+  });
+});
