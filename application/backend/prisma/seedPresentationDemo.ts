@@ -19,6 +19,8 @@
  */
 import { PrismaClient, Role, MissionStatus, ProblemType, QuoteItemUnit, QuoteItemFrequency, QuoteFollowUpMethod } from "@prisma/client";
 import PDFDocument from "pdfkit";
+import fs from "node:fs";
+import path from "node:path";
 import { hashPassword } from "../src/utils/password";
 import { generateUsername } from "../src/utils/username";
 import { env } from "../src/config/env";
@@ -296,7 +298,26 @@ async function main() {
     acceptedNote: "Accepté après visite du site avec la cadre de santé.",
   });
 
+  const siteBoutique = await siteFromAcceptedQuote({
+    client: { companyName: "Atelier Rivoli", contactFirstName: "Sarah", contactLastName: "Lenoir", jobTitle: "Gérante", phone: "0612345613", email: "s.lenoir@atelier-rivoli.fr", postalCode: "75001", city: "Paris" },
+    site: { name: "Boutique Atelier Rivoli", address: "112 Rue de Rivoli, 75001 Paris", description: "Boutique de prêt-à-porter, entretien chaque matin avant l'ouverture : vitrine, sol, cabines, caisse.", managerId: sophie.id },
+    subject: "Entretien quotidien avant ouverture",
+    items: [{ description: "Entretien boutique avant ouverture (vitrine, sol, cabines)", quantity: 1, unit: QuoteItemUnit.HOUR, unitPriceHt: 29, frequency: QuoteItemFrequency.DAILY, occurrencesPerMonth: 24 }],
+    acceptedNote: "Devis signé en boutique.",
+  });
+
+  // Position GPS fixe de chaque chantier (adresses de démonstration) : c'est
+  // elle qui sert à calculer la distance du pointage au chantier.
+  const SITE_POSITIONS: Array<[{ id: string }, number, number]> = [
+    [siteTilleuls, 48.84121, 2.29372], [siteTechcorp, 48.86492, 2.37998],
+    [siteClinique, 48.85301, 2.34392], [siteBoutique, 48.86013, 2.34461],
+  ];
+  for (const [site, latitude, longitude] of SITE_POSITIONS) {
+    await prisma.site.update({ where: { id: site.id }, data: { latitude, longitude } });
+  }
+
   const teamMembers: Array<{ siteId: string; userId: string }> = [
+    { siteId: siteBoutique.id, userId: sophie.id }, { siteId: siteBoutique.id, userId: thomas.id }, { siteId: siteBoutique.id, userId: chloe.id },
     { siteId: siteTilleuls.id, userId: karim.id }, { siteId: siteTilleuls.id, userId: lucas.id }, { siteId: siteTilleuls.id, userId: emma.id }, { siteId: siteTilleuls.id, userId: ines.id },
     { siteId: siteTechcorp.id, userId: sophie.id }, { siteId: siteTechcorp.id, userId: nathan.id }, { siteId: siteTechcorp.id, userId: chloe.id }, { siteId: siteTechcorp.id, userId: thomas.id },
     { siteId: siteClinique.id, userId: karim.id }, { siteId: siteClinique.id, userId: lucas.id }, { siteId: siteClinique.id, userId: nathan.id },
@@ -529,6 +550,7 @@ async function main() {
       description: "Espace de coworking, 400 m², entretien quotidien.",
       managerId: sophie.id, supervisorId: superviseur.id, clientId: clientPhare.id, quoteId: quoteAccepted.id,
     });
+    await prisma.site.update({ where: { id: sitePhare.id }, data: { latitude: 48.88652, longitude: 2.37271 } });
     await prisma.siteMember.createMany({ data: [{ siteId: sitePhare.id, userId: sophie.id }, { siteId: sitePhare.id, userId: thomas.id }, { siteId: sitePhare.id, userId: ines.id }] });
 
     const period = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
@@ -589,7 +611,7 @@ async function main() {
     await invoicesService.sendInvoice(hrActor, invoicePaid.id);
     await invoicesService.markInvoicePaid(hrActor, invoicePaid.id);
 
-    console.log("Module commercial démo prêt : 5 prospects, 4 clients, 7 devis, 3 factures, 4 chantiers créés depuis un devis accepté.");
+    console.log("Module commercial démo prêt : 5 prospects, 4 clients, 7 devis, 3 factures, 5 chantiers créés depuis un devis accepté.");
   } else {
     console.log("Des prospects existent déjà, création des données commerciales démo ignorée.");
   }
@@ -655,6 +677,93 @@ async function main() {
       await timesheetsService.createRetroactiveTimeEntry(actor(u), { clockIn: at(daysAgo, start), clockOut: at(daysAgo, end), comment });
     }
     console.log("Pointages démo prêts (5 en attente de validation).");
+  }
+
+  // Pointages « terrain » complets, comme en vrai (retour explicite du
+  // client, c'est le but premier du pointage photo) : photo de la devanture
+  // ou de l'entrée du chantier prise par l'employé à son arrivée ET à son
+  // départ, position GPS capturée aux deux moments. Un pointage dont la
+  // sortie est faite loin du chantier montre l'alerte de distance.
+  if ((await prisma.timeEntry.count({ where: { clockInPhotoKey: { not: null } } })) === 0) {
+    const photoDir = path.join(__dirname, "demo-photos");
+    const storePhoto = async (file: string) => {
+      try {
+        return (await storeImage(fs.readFileSync(path.join(photoDir, file)))).storageKey;
+      } catch {
+        return null;
+      }
+    };
+    // Décale une position de quelques mètres (nord / est) : un téléphone ne
+    // donne jamais exactement le point du chantier.
+    const near = (lat: number, lng: number, northM: number, eastM: number) => ({
+      latitude: lat + northM / 111_320,
+      longitude: lng + eastM / (111_320 * Math.cos((lat * Math.PI) / 180)),
+    });
+    const boutique = { lat: 48.86013, lng: 2.34461 };
+    const tilleuls = { lat: 48.84121, lng: 2.29372 };
+
+    // Missions de la boutique (ce matin et hier matin), avant ouverture.
+    const boutiqueMission = async (dayOffset: number, userId: string, status: MissionStatus) => {
+      const dateStr = isoDate(addDays(today, dayOffset));
+      return prisma.mission.create({
+        data: {
+          siteId: siteBoutique.id, title: "Entretien avant ouverture", date: dayOnly(dateStr),
+          startTime: combineDateTime(dateStr, "07:30"), endTime: combineDateTime(dateStr, "08:30"),
+          instructions: "Vitrine intérieure, sol de la boutique, cabines d'essayage, comptoir de caisse.",
+          status, createdById: superviseur.id, assignments: { create: [{ userId, isLead: false }] },
+        },
+      });
+    };
+    await boutiqueMission(0, thomas.id, MissionStatus.COMPLETED);
+    await boutiqueMission(-1, chloe.id, MissionStatus.COMPLETED);
+
+    const todayStr = isoDate(today);
+    const yesterdayStr = isoDate(addDays(today, -1));
+    const devanture = await storePhoto("boutique-devanture.jpg");
+    const devantureSortie = await storePhoto("boutique-devanture-depart.jpg");
+    const devantureHier = await storePhoto("boutique-devanture.jpg");
+    const devantureHierSortie = await storePhoto("boutique-devanture-depart.jpg");
+    const entreeResidence = await storePhoto("residence-entree.jpg");
+
+    // Thomas, ce matin : arrivée et départ devant la boutique (quelques mètres).
+    const thomasIn = near(boutique.lat, boutique.lng, 6, -4);
+    const thomasOut = near(boutique.lat, boutique.lng, -3, 5);
+    await prisma.timeEntry.create({
+      data: {
+        userId: thomas.id, clockIn: combineDateTime(todayStr, "07:27"), clockOut: combineDateTime(todayStr, "08:34"),
+        clockInLatitude: thomasIn.latitude, clockInLongitude: thomasIn.longitude, clockInAccuracy: 8, clockInPhotoKey: devanture,
+        clockOutLatitude: thomasOut.latitude, clockOutLongitude: thomasOut.longitude, clockOutAccuracy: 11, clockOutPhotoKey: devantureSortie,
+      },
+    });
+
+    // Chloé, hier : arrivée devant la boutique, mais sortie pointée à 1,3 km
+    // (dans le métro) — l'alerte de distance s'affiche à la validation.
+    const chloeIn = near(boutique.lat, boutique.lng, 4, 7);
+    const chloeOut = near(boutique.lat, boutique.lng, 1150, 620);
+    await prisma.timeEntry.create({
+      data: {
+        userId: chloe.id, clockIn: combineDateTime(yesterdayStr, "07:31"), clockOut: combineDateTime(yesterdayStr, "08:29"),
+        clockInLatitude: chloeIn.latitude, clockInLongitude: chloeIn.longitude, clockInAccuracy: 9, clockInPhotoKey: devantureHier,
+        clockOutLatitude: chloeOut.latitude, clockOutLongitude: chloeOut.longitude, clockOutAccuracy: 24, clockOutPhotoKey: devantureHierSortie,
+      },
+    });
+
+    // Lucas, en poste en ce moment sur la mission en cours de la résidence :
+    // arrivée pointée avec la photo de l'entrée de l'immeuble.
+    const inProgress = missionIds.todayInProgress
+      ? await prisma.mission.findUnique({ where: { id: missionIds.todayInProgress } })
+      : null;
+    if (inProgress) {
+      const arrival = new Date(inProgress.startTime.getTime() - 3 * 60_000);
+      const lucasIn = near(tilleuls.lat, tilleuls.lng, -5, 3);
+      await prisma.timeEntry.create({
+        data: {
+          userId: lucas.id, clockIn: arrival,
+          clockInLatitude: lucasIn.latitude, clockInLongitude: lucasIn.longitude, clockInAccuracy: 7, clockInPhotoKey: entreeResidence,
+        },
+      });
+    }
+    console.log("Pointages terrain démo prêts (photos d'arrivée et de départ, positions GPS).");
   }
 
   // Deux demandes de congé à approuver.
