@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -14,6 +14,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { listQuotes } from "../../api/quotes.api";
 import type { Quote, QuoteStatus } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Tab = "current" | "accepted" | "closed";
 
@@ -34,17 +35,18 @@ export function QuotesListScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async (activeTab: Tab) => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listQuotes({ status: TAB_STATUSES[activeTab] });
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load(tab);
     }, [tab, load])

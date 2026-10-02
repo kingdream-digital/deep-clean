@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -13,6 +13,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { getClient } from "../../api/clients.api";
 import type { Client } from "../../api/clients.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<MenuStackParamList, "ClientDetail">;
 const FULL_ACCESS_ROLES = ["HR", "DIRECTOR", "ADMIN"];
@@ -41,16 +42,17 @@ export function ClientDetailScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setClient(await getClient(clientId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [clientId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

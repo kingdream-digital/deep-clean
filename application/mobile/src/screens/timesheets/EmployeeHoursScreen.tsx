@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -22,6 +22,7 @@ import { shareCsv } from "../../utils/exportCsv";
 import { shareFile } from "../../utils/shareFile";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const dayFmt = frenchDateFormat({ day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -65,8 +66,9 @@ export function EmployeeHoursScreen() {
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listTimeEntries({
         userId: params.userId,
         from: toLocalDateKey(startOfMonth(month)),
@@ -79,11 +81,11 @@ export function EmployeeHoursScreen() {
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [params.userId, month]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

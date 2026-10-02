@@ -10,6 +10,7 @@ import { AppTabs } from "./AppTabs";
 import { SplashGate } from "../components/SplashGate";
 import { navigationRef } from "./navigationRef";
 import { listenToPushTaps } from "../notifications/push";
+import { startLiveSync } from "../sync/liveSync";
 
 export type RootStackParamList = {
   AppTabs: undefined;
@@ -37,6 +38,8 @@ export function RootNavigator() {
   // Appui sur une notification push : ouvre l'écran concerné, une fois connecté.
   const signedIn = status !== "booting" && status !== "unauthenticated" && !!user && !user.mustChangePassword;
   useEffect(() => (signedIn ? listenToPushTaps() : undefined), [signedIn]);
+  // Synchronisation entre appareils : écrans rechargés dès qu'une donnée change.
+  useEffect(() => (signedIn ? startLiveSync() : undefined), [signedIn]);
 
   if (status === "booting") {
     return <SplashGate />;

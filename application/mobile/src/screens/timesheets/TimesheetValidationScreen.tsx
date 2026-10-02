@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -24,6 +24,7 @@ import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { DISTANCE_ALERT_METERS, formatDistance } from "../../utils/distance";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Tab = "pending" | "done";
 
@@ -108,17 +109,18 @@ export function TimesheetValidationScreen() {
   const [actingId, setActingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listTimeEntries({ pageSize: 100 });
       setItems(res.items.filter((e) => e.clockOut !== null));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

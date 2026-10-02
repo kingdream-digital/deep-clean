@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
 import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
 import { useSharedValue, withSpring } from "react-native-reanimated";
@@ -9,6 +8,7 @@ import type { ClockPhotoAsset, TimeEntry } from "../api/timesheets.api";
 import { extractErrorMessage } from "../api/client";
 import { pickWebImages } from "../utils/webImagePicker";
 import { capturePosition } from "../utils/geolocation";
+import { useLiveFocusEffect } from "../sync/liveSync";
 
 // Le pointage exige toujours une position GPS + une photo prise sur l'instant
 // (justificatif anti-fraude, retour explicite du client — voir
@@ -82,7 +82,7 @@ export function useClockStatus() {
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

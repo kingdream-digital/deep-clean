@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -15,6 +15,7 @@ import { listInvoices } from "../../api/invoices.api";
 import type { Invoice, InvoiceStatus } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Tab = "toPrepare" | "sent" | "paid";
 
@@ -36,17 +37,18 @@ export function InvoicesListScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async (activeTab: Tab) => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listInvoices({ status: TAB_STATUSES[activeTab] });
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load(tab);
     }, [tab, load])

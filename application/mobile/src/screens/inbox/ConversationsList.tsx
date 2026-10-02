@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { StateView } from "../../components/StateView";
@@ -14,6 +14,7 @@ import { listConversations } from "../../api/messages.api";
 import type { ConversationSummary } from "../../api/messages.api";
 import { timeAgo } from "../../utils/timeAgo";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
+import { useLiveFocusEffect } from "../../sync/liveSync";
 
 /**
  * Aperçu d'un fil : ce qu'on lit sous le nom dans la liste. Dans un groupe,
@@ -49,7 +50,7 @@ export function ConversationsList() {
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

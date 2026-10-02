@@ -16,6 +16,7 @@ import { formatDuration } from "../../utils/duration";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { DISTANCE_ALERT_METERS, formatDistance } from "../../utils/distance";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { isBackgroundRefresh, useReloadOnDataChange } from "../../sync/liveSync";
 
 type Route = RouteProp<{ TimeEntryDetail: { entryId: string } }, "TimeEntryDetail">;
 
@@ -119,18 +120,20 @@ export function TimeEntryDetailScreen() {
   const [viewerUri, setViewerUri] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setEntry(await getTimeEntry(entryId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [entryId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+  useReloadOnDataChange(load);
 
   if (state === "loading") {
     return (

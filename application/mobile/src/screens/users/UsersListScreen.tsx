@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -18,6 +18,7 @@ import type { DirectoryUser } from "../../api/users.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { usersListTitle } from "../../navigation/screenTitles";
 import { ROLE_LABELS_SHORT, groupByRole } from "../../utils/roleLabels";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const CREATE_ROLES = ["HR", "ADMIN"];
 
@@ -58,17 +59,18 @@ export function UsersListScreen() {
   const canCreate = user ? CREATE_ROLES.includes(user.role) : false;
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listUsers();
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

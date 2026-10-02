@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -13,6 +13,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listStandards } from "../../api/standards.api";
 import type { CleaningStandard } from "../../api/standards.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ StandardsList: { siteId: string; siteName?: string } }, "StandardsList">;
 
@@ -34,16 +35,17 @@ export function StandardsListScreen() {
   const canManage = user ? MANAGE_ROLES.includes(user.role) : false;
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setItems(await listStandards(siteId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [siteId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

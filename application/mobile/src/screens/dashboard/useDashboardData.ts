@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import NetInfo from "@react-native-community/netinfo";
 import type { Ionicons } from "@expo/vector-icons";
 import { listMissions } from "../../api/missions.api";
@@ -17,6 +16,7 @@ import type { Announcement } from "../../api/announcements.api";
 import type { AuthUser } from "../../api/auth.api";
 import { addDays, isMissionOverdue, mondayOf, toLocalDateKey } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 export interface KpiTile {
   key: string;
@@ -273,12 +273,13 @@ export function useDashboardData(user: AuthUser | null) {
   const [offlineCachedAt, setOfflineCachedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     if (!user) return;
     // Clé propre à la personne : le cache est vidé à chaque fin de session
     // (voir offline/cache.ts), mais on ne mélange jamais deux comptes.
     const cacheKey = `dashboard.${user.id}`;
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const result = await loadForRole(user);
       setData(result);
       setOfflineCachedAt(null);
@@ -295,12 +296,12 @@ export function useDashboardData(user: AuthUser | null) {
         setOfflineCachedAt(cached.cachedAt);
         setState("ready");
       } else {
-        setState("error");
+        if (!silent) setState("error");
       }
     }
   }, [user]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

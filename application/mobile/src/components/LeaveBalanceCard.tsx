@@ -9,6 +9,7 @@ import { extractErrorMessage } from "../api/client";
 import { createLeaveAdjustment, getLeaveBalance } from "../api/leave.api";
 import type { LeaveBalance } from "../api/leave.api";
 import { formatDays, formatDaysWithUnit } from "../utils/leaveDays";
+import { useReloadOnDataChange } from "../sync/liveSync";
 
 // Solde de congés d'un salarié, vu depuis sa fiche par la RH/direction/
 // superviseur, avec la correction manuelle. L'API existait déjà
@@ -37,6 +38,7 @@ export function LeaveBalanceCard({ userId, canAdjust }: { userId: string; canAdj
   useEffect(() => {
     void load();
   }, [load]);
+  useReloadOnDataChange(load);
 
   async function handleSave() {
     setError(null);

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -18,6 +18,7 @@ import type { Role } from "../../api/auth.api";
 import { Alert } from "../../utils/alert";
 import { extractErrorMessage } from "../../api/client";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ AnnouncementDetail: { announcementId: string } }, "AnnouncementDetail">;
 type Nav = NativeStackNavigationProp<Record<string, object | undefined>>;
@@ -51,17 +52,18 @@ export function AnnouncementDetailScreen() {
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const data = await getAnnouncement(announcementId);
       setAnnouncement(data);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [announcementId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

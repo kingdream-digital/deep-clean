@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { useRoute } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -15,6 +15,7 @@ import { listLeaveAccruals, validateLeaveAccrual, validateLeaveMonth } from "../
 import type { LeaveAccrual } from "../../api/leave.api";
 import { formatDays } from "../../utils/leaveDays";
 import { Alert } from "../../utils/alert";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" });
 const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
@@ -70,16 +71,17 @@ export function LeaveAccrualsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setItems(await listLeaveAccruals({ month }));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [month]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

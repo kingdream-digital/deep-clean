@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -22,6 +22,7 @@ import { extractErrorMessage } from "../../api/client";
 import { Alert } from "../../utils/alert";
 import { ROLE_LABELS_SHORT } from "../../utils/roleLabels";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
+import { useLiveFocusEffect } from "../../sync/liveSync";
 
 type Route = RouteProp<{ ConversationInfo: { conversationId: string } }, "ConversationInfo">;
 
@@ -51,7 +52,7 @@ export function ConversationInfoScreen() {
     }
   }, [conversationId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

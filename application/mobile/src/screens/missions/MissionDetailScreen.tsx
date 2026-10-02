@@ -3,7 +3,7 @@ import { Platform, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -41,6 +41,7 @@ import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ MissionDetail: { missionId: string } }, "MissionDetail">;
 
@@ -80,8 +81,9 @@ export function MissionDetailScreen() {
   const [savingInstructions, setSavingInstructions] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [missionData, problemsData] = await Promise.all([getMission(missionId), listProblems({ missionId })]);
       setMission(missionData);
       setProblems(problemsData.items);
@@ -98,11 +100,11 @@ export function MissionDetailScreen() {
       }
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [missionId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
