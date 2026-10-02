@@ -122,6 +122,10 @@ DEMO_MODE=1 DEMO_DATE=2026-10-02 npx tsx prisma/seedPresentationDemo.ts
 
 - `DEMO_DATE` = le jour où la démo sera montrée (format AAAA-MM-JJ). Sans
   lui, le jour de lancement est pris.
+- `DEMO_RESET=1` = efface TOUT avant de charger la démo (comptes, chantiers,
+  missions, pointages, devis, messages...), sauf les comptes administrateur
+  technique. À utiliser pour repartir d'une démo propre. Commande complète :
+  `DEMO_MODE=1 DEMO_RESET=1 DEMO_HEURE=18:00 npx tsx prisma/seedPresentationDemo.ts`
 - `DEMO_HEURE` = l'heure de la présentation (format HH:mm, ex. `18:00`).
   Les missions du jour sont placées autour : une terminée avant, une en
   cours, les suivantes après. Sans lui, horaires du matin.
