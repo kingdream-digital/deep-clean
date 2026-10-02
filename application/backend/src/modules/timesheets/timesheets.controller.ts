@@ -67,6 +67,11 @@ export const managerTimeEntryHandler = asyncHandler(async (req: Request, res: Re
   res.status(201).json({ entry });
 });
 
+export const myMonthlySummaryHandler = asyncHandler(async (req: Request, res: Response) => {
+  const months = await timesheetsService.getMyMonthlySummary(actorOf(req));
+  res.status(200).json({ months });
+});
+
 export const myStatusHandler = asyncHandler(async (req: Request, res: Response) => {
   const result = await timesheetsService.getMyStatus(actorOf(req));
   res.status(200).json(result);

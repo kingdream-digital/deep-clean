@@ -1,5 +1,5 @@
 import { MissionStatus, Prisma, Role, TimeEntryStatus } from "@prisma/client";
-import { calendarDay, calendarDayEnd, companyDateLabel, companyDayEnd, companyDayMonthLabel, companyDayStart, companyTimeKey } from "../../utils/companyTime";
+import { addDaysToKey, calendarDay, calendarDayEnd, companyDateKey, companyDateLabel, companyDayEnd, companyDayMonthLabel, companyDayStart, companyTimeKey } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -350,6 +350,41 @@ export async function createTimeEntryForUser(
     relatedEntityId: entry.id,
   });
   return presentEntry(entry);
+}
+
+// Mes heures, mois par mois (heure de Paris) : un « dossier » par mois, du
+// mois en cours aux `months - 1` précédents. Le compteur du mois repart donc
+// de zéro le 1er à minuit. Seules les sessions clôturées et non refusées
+// comptent, comme le compteur de la semaine.
+export async function getMyMonthlySummary(actor: Actor, months = 12) {
+  const currentMonth = companyDateKey(new Date()).slice(0, 7);
+  const keys: string[] = [];
+  let cursor = `${currentMonth}-01`;
+  for (let i = 0; i < months; i++) {
+    keys.push(cursor.slice(0, 7));
+    cursor = addDaysToKey(cursor, -1).slice(0, 7) + "-01";
+  }
+  const oldest = keys[keys.length - 1]!;
+  const entries = await prisma.timeEntry.findMany({
+    where: {
+      userId: actor.userId,
+      clockOut: { not: null },
+      status: { not: TimeEntryStatus.REJECTED },
+      clockIn: { gte: companyDayStart(`${oldest}-01`) },
+    },
+    select: { clockIn: true, clockOut: true, status: true },
+  });
+  const byMonth = new Map(keys.map((k) => [k, { month: k, totalMinutes: 0, validatedMinutes: 0, pendingMinutes: 0, entryCount: 0 }]));
+  for (const entry of entries) {
+    const bucket = byMonth.get(companyDateKey(entry.clockIn).slice(0, 7));
+    if (!bucket || !entry.clockOut) continue;
+    const minutes = Math.max(0, Math.round((entry.clockOut.getTime() - entry.clockIn.getTime()) / 60000));
+    bucket.totalMinutes += minutes;
+    if (entry.status === TimeEntryStatus.VALIDATED) bucket.validatedMinutes += minutes;
+    else bucket.pendingMinutes += minutes;
+    bucket.entryCount += 1;
+  }
+  return keys.map((k) => byMonth.get(k)!);
 }
 
 export async function getMyStatus(actor: Actor) {

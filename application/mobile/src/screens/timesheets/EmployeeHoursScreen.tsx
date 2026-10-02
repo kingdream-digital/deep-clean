@@ -42,6 +42,9 @@ function capitalize(s: string): string {
 
 type Route = RouteProp<MenuStackParamList, "EmployeeHours">;
 
+// Aussi ouvert par chacun sur ses propres heures (Mes heures → dossier d'un
+// mois) : le serveur limite alors la liste et l'export à ses pointages.
+//
 // Dossier d'heures d'une personne, mois par mois — pour que la RH puisse
 // retrouver rapidement les heures d'un employé et exporter le mois en CSV
 // pour préparer la fiche de paye (voir timesheets.service.ts côté serveur
@@ -50,7 +53,13 @@ export function EmployeeHoursScreen() {
   const { colors, spacing, type } = useTheme();
   const { params } = useRoute<Route>();
 
-  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [month, setMonth] = useState(() => {
+    if (params.initialMonth) {
+      const [y, m] = params.initialMonth.split("-").map(Number);
+      if (y && m) return new Date(y, m - 1, 1);
+    }
+    return startOfMonth(new Date());
+  });
   const [items, setItems] = useState<TimeEntry[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [exporting, setExporting] = useState(false);
@@ -106,7 +115,7 @@ export function EmployeeHoursScreen() {
   }
 
   function handleExport() {
-    Alert.alert("Exporter le mois", "Choisissez un format", [
+    Alert.alert("Télécharger le mois", "Choisissez un format", [
       { text: "Excel (.xlsx)", onPress: () => runExport("xlsx") },
       { text: "PDF (récapitulatif)", onPress: () => runExport("pdf") },
       { text: "CSV", onPress: () => runExport("csv") },
@@ -147,7 +156,7 @@ export function EmployeeHoursScreen() {
 
       <View style={{ marginTop: spacing.md, marginBottom: spacing.lg }}>
         <Button
-          label="Exporter"
+          label="Télécharger le fichier du mois"
           variant="secondary"
           icon="download-outline"
           loading={exporting}
