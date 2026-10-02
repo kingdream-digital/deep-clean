@@ -38,6 +38,7 @@ import * as absencesService from "../src/modules/absences/absences.service";
 import * as standardsService from "../src/modules/standards/standards.service";
 import * as missionsService from "../src/modules/missions/missions.service";
 import * as leaveService from "../src/modules/leave/leave.service";
+import * as announcementsService from "../src/modules/announcements/announcements.service";
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = "DemoClean2026!";
@@ -997,7 +998,200 @@ async function main() {
     for (const accrual of toValidate) {
       await leaveService.validateAccrual(actor(accrual.userId === rh.id ? directeur : rh), accrual.id, {});
     }
+    // Notifications datées comme en vrai : reprise du solde au 1er juin,
+    // « Congés acquis » au début du mois suivant chaque relevé validé.
+    await prisma.notification.updateMany({ where: { title: "Correction de votre solde de congés" }, data: { createdAt: goLive } });
+    for (const accrual of await prisma.leaveAccrual.findMany({ where: { status: "VALIDATED" }, select: { id: true, month: true } })) {
+      const [y, m] = accrual.month.split("-").map(Number);
+      await prisma.notification.updateMany({
+        where: { relatedEntityType: "LeaveBalance", relatedEntityId: accrual.id },
+        data: { createdAt: new Date(Date.UTC(y!, m!, 2, 8, 0)), isRead: true },
+      });
+    }
     console.log(`Congés acquis démo prêts : ${toValidate.length} relevés validés, ceux de ${lastMonth} à valider.`);
+  }
+
+  // Plus de vie dans la démo (retour explicite du client) : discussions
+  // privées et de groupe étalées sur plusieurs jours, et des notifications de
+  // toutes sortes (planning modifié, consigne, annulation, heures validées ou
+  // à corriger, absence refusée, congé annulé, actualité, congés à valider).
+  // Toutes créées par les vrais services de l'application : chacune mène à
+  // l'écran concerné quand on appuie dessus.
+  if (!(await prisma.conversation.findFirst({ where: { title: "Direction & RH" } }))) {
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
+    // Envoie les messages d'un fil puis les date dans le passé (le plus
+    // ancien d'abord), notifications comprises ; `readBy` : participants qui
+    // ont déjà tout lu (les autres voient le fil en non lu).
+    const chat = async (conversationId: string, lines: Array<[{ id: string; role: Role }, string, number]>, readBy: Array<{ id: string }> = []) => {
+      // Création du fil (et « a créé le groupe ») juste avant le premier message.
+      const opened = minutesAgo(Math.max(...lines.map((l) => l[2])) + 5);
+      await prisma.message.updateMany({ where: { conversationId, systemEvent: { not: null } }, data: { createdAt: opened } });
+      await prisma.conversation.update({ where: { id: conversationId }, data: { createdAt: opened } });
+      await prisma.conversationParticipant.updateMany({ where: { conversationId }, data: { joinedAt: opened } });
+      await prisma.notification.updateMany({ where: { relatedEntityType: "Conversation", relatedEntityId: conversationId }, data: { createdAt: opened } });
+      for (const [author, body, ago] of lines) {
+        const before = new Date();
+        const message = await messagesService.sendMessage(actor(author), { conversationId, body });
+        const at = minutesAgo(ago);
+        await prisma.message.update({ where: { id: message.id }, data: { createdAt: at } });
+        await prisma.notification.updateMany({
+          where: { relatedEntityType: "Conversation", relatedEntityId: conversationId, createdAt: { gte: before } },
+          data: { createdAt: at },
+        });
+        await prisma.conversationParticipant.update({
+          where: { conversationId_userId: { conversationId, userId: author.id } },
+          data: { lastReadAt: at },
+        });
+      }
+      const last = minutesAgo(Math.min(...lines.map((l) => l[2])));
+      await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: last } });
+      for (const reader of readBy) {
+        await prisma.conversationParticipant.updateMany({ where: { conversationId, userId: reader.id }, data: { lastReadAt: last } });
+        await prisma.notification.updateMany({
+          where: { userId: reader.id, relatedEntityType: "Conversation", relatedEntityId: conversationId },
+          data: { isRead: true, readAt: last },
+        });
+      }
+    };
+    const direct = async (a: { id: string; role: Role }, b: { id: string }) => (await messagesService.getOrCreateDirectConversation(actor(a), b.id)).id;
+    const group = async (owner: { id: string; role: Role }, title: string, members: Array<{ id: string }>) =>
+      (await messagesService.createGroupConversation(actor(owner), { title, participantIds: members.map((m) => m.id) })).id;
+    const H = 60;
+    const D = 24 * H;
+
+    // Discussions privées.
+    await chat(await direct(emma, karim), [
+      [emma, "Bonjour Karim, je n'ai pas le badge du parking de la Clinique, je fais comment demain ?", 2 * D + 5 * H],
+      [karim, "Je te le laisse à l'accueil, demande Mme Garnier 👍", 2 * D + 4 * H],
+      [emma, "Super, merci !", 2 * D + 4 * H - 10],
+    ], [emma, karim]);
+    await chat(await direct(nathan, superviseur), [
+      [nathan, "Bonjour Yasmine, je suis malade, le médecin m'arrête jeudi et vendredi. J'envoie l'arrêt à la RH.", 26 * H],
+      [superviseur, "Merci de prévenir Nathan, repose-toi. Je confie ta mission TechCorp à quelqu'un d'autre.", 25 * H],
+      [nathan, "Merci beaucoup, désolé pour le dérangement.", 25 * H - 20],
+    ], [superviseur]);
+    await chat(await direct(ines, superviseur), [
+      [ines, "Bonjour, est-ce que je peux finir à 12 h le mercredi ? C'est le jour où je récupère ma fille.", 5 * H],
+      [superviseur, "Oui pas de souci, je décale ta mission des Tilleuls à 8 h – 12 h.", 4 * H],
+      [ines, "Merci beaucoup 🙏", 3 * H],
+    ]);
+    await chat(await direct(chloe, rh), [
+      [chloe, "Bonjour Marie, je n'ai pas reçu mon attestation employeur pour la CAF.", 3 * D],
+      [rh, "Bonjour Chloé, je vous l'envoie aujourd'hui par email.", 3 * D - 2 * H],
+      [rh, "C'est envoyé, dites-moi si vous l'avez bien reçue.", 2 * D + 6 * H],
+      [chloe, "Bien reçue, merci !", 2 * D + 3 * H],
+    ], [chloe, rh]);
+    await chat(await direct(directeur, rh), [
+      [directeur, "Marie, il nous faut deux agents de plus pour la Clinique à partir de novembre.", 30 * H],
+      [rh, "J'ai trois candidatures, entretiens jeudi matin. Je vous mets en copie.", 28 * H],
+      [directeur, "Parfait. Pensez à leur créer un compte dès la signature.", 27 * H],
+    ], [directeur]);
+    await chat(await direct(thomas, sophie), [
+      [thomas, "Sophie, il manque du produit vitres au local des Tilleuls.", 50],
+      [sophie, "Je passe en déposer ce soir, merci de m'avoir prévenue.", 35],
+    ]);
+    await chat(await direct(lucas, karim), [
+      [karim, "Lucas, super boulot hier au Phare, le client a appelé pour féliciter l'équipe 👏", 20 * H],
+      [lucas, "Merci chef, ça fait plaisir !", 19 * H],
+    ], [lucas, karim]);
+
+    // Discussions de groupe.
+    await chat(await group(rh, "Direction & RH", [directeur, superviseur]), [
+      [rh, "Rappel : les relevés de congés de septembre sont à valider avant vendredi.", 2 * D],
+      [directeur, "Je m'en occupe demain matin.", 2 * D - 3 * H],
+      [superviseur, "Pour info, Nathan est en arrêt jeudi et vendredi, ses missions sont réaffectées.", 24 * H],
+      [directeur, "Merci Yasmine. On fait un point planning lundi 9 h ?", 6 * H],
+      [rh, "Ça marche pour moi 👍", 5 * H],
+    ], [directeur]);
+    await chat(await group(superviseur, "Équipe Résidence Les Tilleuls", [sophie, thomas, ines, chloe]), [
+      [superviseur, "Bonjour l'équipe ! Nouveau standard de nettoyage des parties communes disponible dans l'app (fiche chantier).", 3 * D],
+      [sophie, "Merci, je le présente à tout le monde mardi.", 3 * D - H],
+      [thomas, "L'ascenseur B est en panne, on passe par l'escalier pour le 4e.", 9 * H],
+      [ines, "Bien noté !", 8 * H],
+      [chloe, "J'ai signalé la fuite du local poubelles avec une photo dans l'app.", 2 * H],
+    ], [superviseur, sophie]);
+    await chat(await group(superviseur, "Équipe du soir · TechCorp", [karim, nathan, chloe, emma]), [
+      [superviseur, "Ce soir 18 h : grand ménage de l'open space avant l'audit du client.", 7 * H],
+      [karim, "On sera trois, j'emmène l'autolaveuse.", 6 * H],
+      [emma, "J'arrive à 18 h 15, je sors de la Clinique.", 4 * H],
+      [karim, "Pas de souci Emma, on commence par les salles de réunion.", 3 * H + 40],
+    ], [superviseur]);
+    await chat(await group(rh, "Infos Deep Clean · tout le monde", [directeur, superviseur, karim, sophie, lucas, emma, nathan, chloe, ines, thomas]), [
+      [rh, "Bonjour à tous ! Les fiches de paie de septembre sont disponibles dans vos documents.", 4 * D],
+      [directeur, "Merci à toutes et à tous pour ce mois record : 120 prestations réalisées 👏", 3 * D + 2 * H],
+      [rh, "Rappel : la tenue Deep Clean et le badge sont obligatoires sur chaque chantier.", 90],
+    ], [directeur]);
+    console.log("Messagerie démo enrichie (7 discussions privées, 4 groupes).");
+
+    // Actualité publiée par la direction (notifie tout le monde).
+    await announcementsService.createAnnouncement(actor(directeur), {
+      title: "Formation sécurité incendie",
+      body: "Une formation sécurité incendie aura lieu le mois prochain pour toutes les équipes. Les dates par groupe seront communiquées par votre superviseur. Merci de vous rendre disponibles.",
+    });
+
+    // Planning modifié : horaire, consigne et annulation sur des missions à venir.
+    const upcoming = await prisma.mission.findMany({
+      where: { status: MissionStatus.SCHEDULED, date: { gt: calendarDay(isoDate(addDays(today, 1))) }, assignments: { some: {} } },
+      orderBy: { date: "asc" },
+      select: { id: true, startTime: true, endTime: true, assignments: { select: { userId: true } } },
+      take: 8,
+    });
+    const tryStep = async (label: string, step: () => Promise<unknown>) => {
+      try {
+        await step();
+      } catch (err) {
+        console.warn(`Démo : ${label} ignoré (${err instanceof Error ? err.message : String(err)})`);
+      }
+    };
+    if (upcoming[0]) {
+      const m = upcoming[0];
+      // Fin avancée de 30 min : jamais de chevauchement avec une autre mission.
+      const end = new Date(m.endTime.getTime() - 30 * 60_000);
+      if (end > m.startTime) {
+        await tryStep("changement d'horaire", () =>
+          missionsService.updateMission(actor(superviseur), m.id, { endTime: new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(end) })
+        );
+      }
+    }
+    if (upcoming[1]) {
+      await tryStep("nouvelle consigne", () =>
+        missionsService.updateMission(actor(superviseur), upcoming[1]!.id, {
+          instructions: "Le client sera présent : commencer par son bureau, puis les sanitaires. Badge à récupérer à l'accueil.",
+        })
+      );
+    }
+    // Annulation : jamais la mission de Nathan, gardée pour « Missions à réaffecter ».
+    const toCancel = upcoming.slice(2).reverse().find((m) => !m.assignments.some((a) => a.userId === nathan.id));
+    if (toCancel) await tryStep("annulation", () => missionsService.cancelMission(actor(superviseur), toCancel.id));
+
+    // Pointages : un validé, un à corriger.
+    const at = (daysAgo: number, time: string) => combineDateTime(isoDate(addDays(today, -daysAgo)), time).toISOString();
+    await tryStep("pointage validé", async () => {
+      const entry = await timesheetsService.createRetroactiveTimeEntry(actor(thomas), { clockIn: at(1, "06:00"), clockOut: at(1, "06:55"), comment: "Oubli de pointer en arrivant" });
+      await timesheetsService.validateTimeEntry(actor(superviseur), entry.id, "Vu avec Sophie, c'est bon.");
+    });
+    await tryStep("pointage à corriger", async () => {
+      const entry = await timesheetsService.createRetroactiveTimeEntry(actor(ines), { clockIn: at(1, "05:00"), clockOut: at(1, "05:50"), comment: "Pointage oublié" });
+      await timesheetsService.rejectTimeEntry(actor(superviseur), entry.id, "Aucune mission prévue à cette heure-là : merci de vérifier l'horaire.");
+    });
+
+    // Absences : une demande refusée, un congé annulé.
+    await tryStep("absence refusée", async () => {
+      const req = await absencesService.createAbsence(actor(chloe), {
+        type: "PAID_LEAVE", startDate: isoDate(addDays(today, 40)), endDate: isoDate(addDays(today, 41)), reason: "Week-end prolongé",
+      });
+      await absencesService.decideAbsence(actor(rh), req.id, { status: "REJECTED", decisionNote: "Inventaire de la Clinique ces jours-là, merci de proposer d'autres dates." });
+    });
+    await tryStep("congé annulé", async () => {
+      const leave = await absencesService.createAbsence(actor(rh), {
+        userId: ines.id, type: "PAID_LEAVE", startDate: isoDate(addDays(today, 45)), endDate: isoDate(addDays(today, 46)), reason: "Pont",
+      });
+      await absencesService.cancelAbsence(actor(rh), leave.id);
+    });
+
+    // Congés acquis du mois dernier à valider (RH, direction).
+    await leaveService.notifyAccrualsToValidate(isoDate(new Date(today.getFullYear(), today.getMonth() - 1, 1)).slice(0, 7));
+    console.log("Notifications démo variées prêtes.");
   }
 
   console.log("\nTerminé. Comptes de démo (mot de passe commun : " + DEMO_PASSWORD + ") :");

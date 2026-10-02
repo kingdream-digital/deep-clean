@@ -1,7 +1,10 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
-import { registerPushToken, unregisterPushToken } from "../api/notifications.api";
+import { markNotificationAsRead, registerPushToken, unregisterPushToken } from "../api/notifications.api";
+import type { AppNotification } from "../api/notifications.api";
+import { navigationRef } from "../navigation/navigationRef";
+import { resolveNotificationTarget } from "../utils/notificationTarget";
 
 // Retenu en mémoire pour pouvoir désenregistrer le bon token à la déconnexion
 // (évite qu'un appareil partagé continue de recevoir les push d'un compte
@@ -78,4 +81,37 @@ export async function unregisterCurrentPushToken(): Promise<void> {
   } finally {
     lastRegisteredToken = null;
   }
+}
+
+// Appui sur une notification push (app ouverte, en arrière-plan ou fermée) :
+// même écran que depuis le centre de notifications.
+async function openPushTarget(response: Notifications.NotificationResponse): Promise<void> {
+  const content = response.notification.request.content;
+  const data = (content.data ?? {}) as Partial<Pick<AppNotification, "type" | "relatedEntityType" | "relatedEntityId">> & { notificationId?: string };
+  try {
+    if (data.notificationId) void markNotificationAsRead(data.notificationId).catch(() => undefined);
+    const target = await resolveNotificationTarget({
+      type: data.type,
+      relatedEntityType: data.relatedEntityType ?? null,
+      relatedEntityId: data.relatedEntityId ?? null,
+      title: content.title ?? "",
+    } as AppNotification);
+    // App lancée par l'appui : attendre que la navigation soit prête.
+    for (let i = 0; i < 50 && !navigationRef.isReady(); i++) await new Promise((r) => setTimeout(r, 100));
+    if (!navigationRef.isReady()) return;
+    const navigate = navigationRef.navigate as (name: string, params?: object) => void;
+    navigate("Messagerie", target ? { screen: target.screen, params: target.params } : undefined);
+  } catch {
+    // Élément supprimé entre-temps : l'app reste simplement ouverte.
+  }
+}
+
+/** Écoute les appuis sur les notifications push ; renvoie la fonction d'arrêt. */
+export function listenToPushTaps(): () => void {
+  if (Platform.OS === "web") return () => undefined;
+  void Notifications.getLastNotificationResponseAsync().then((last) => {
+    if (last) void openPushTarget(last);
+  });
+  const sub = Notifications.addNotificationResponseReceivedListener((response) => void openPushTarget(response));
+  return () => sub.remove();
 }

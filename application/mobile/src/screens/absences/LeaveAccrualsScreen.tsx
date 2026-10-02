@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRoute } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -57,7 +57,10 @@ export function LeaveAccrualsScreen() {
     const now = new Date();
     return new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1)).toISOString().slice(0, 7);
   }, []);
-  const [month, setMonth] = useState(lastMonth);
+  // Ouvert depuis une notification « Congés acquis à valider » : le mois concerné.
+  const route = useRoute();
+  const initialMonth = (route.params as { month?: string } | undefined)?.month;
+  const [month, setMonth] = useState(initialMonth ?? lastMonth);
   const [items, setItems] = useState<LeaveAccrual[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [editingId, setEditingId] = useState<string | null>(null);

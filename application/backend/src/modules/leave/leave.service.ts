@@ -256,7 +256,11 @@ export async function runMonthlyAccrualJob(now: Date = new Date()): Promise<void
   const written = await generateAccruals({ now });
   await remindPreviousYearLeave(now);
   if (written === 0) return;
-  const month = addMonth(companyDateKey(now).slice(0, 7), -1);
+  await notifyAccrualsToValidate(addMonth(companyDateKey(now).slice(0, 7), -1));
+}
+
+/** Prévient la RH et la direction que les relevés d'un mois sont à valider. */
+export async function notifyAccrualsToValidate(month: string): Promise<void> {
   const recipients = await prisma.user.findMany({
     where: { role: { in: VALIDATE_ACCRUAL_ROLES_FOR_NOTICE }, isActive: true },
     select: { id: true },
@@ -267,6 +271,8 @@ export async function runMonthlyAccrualJob(now: Date = new Date()): Promise<void
       type: NotificationType.GENERAL,
       title: "Congés acquis à valider",
       body: `Les congés acquis en ${monthLabel(month)} ont été calculés. Vérifiez-les et validez-les dans Menu → Compteurs de congés.`,
+      relatedEntityType: "LeaveAccruals",
+      relatedEntityId: month,
     });
   }
 }
@@ -291,7 +297,7 @@ export async function remindPreviousYearLeave(now: Date = new Date()): Promise<n
   let sent = 0;
   for (const u of users) {
     const already = await prisma.notification.findFirst({
-      where: { userId: u.id, relatedEntityType: "LeaveBalance", relatedEntityId: monthKey },
+      where: { userId: u.id, relatedEntityType: "LeaveBalance", relatedEntityId: `rappel-${monthKey}` },
       select: { id: true },
     });
     if (already) continue;
@@ -303,7 +309,7 @@ export async function remindPreviousYearLeave(now: Date = new Date()): Promise<n
       title: REMINDER_TITLE,
       body: `Il vous reste ${formatDays(balance.previousYear.remaining)} de l'an dernier, à prendre avant le 31 mai. Passé cette date, ils sont perdus sauf accord de la RH.`,
       relatedEntityType: "LeaveBalance",
-      relatedEntityId: monthKey,
+      relatedEntityId: `rappel-${monthKey}`,
     });
     sent++;
   }
@@ -353,6 +359,8 @@ export async function validateAccrual(actor: Actor, id: string, input: { days?: 
     type: NotificationType.GENERAL,
     title: "Congés acquis",
     body: `${formatDays(round2(days))} acquis pour ${monthLabel(accrual.month)}${corrected && input.note ? ` (${input.note.trim()})` : ""}.`,
+    relatedEntityType: "LeaveBalance",
+    relatedEntityId: accrual.id,
   });
   return updated;
 }
@@ -568,6 +576,8 @@ export async function createLeaveAdjustment(
     body: `${input.days > 0 ? "+" : ""}${input.days} jour${Math.abs(input.days) > 1 ? "s" : ""}${
       input.note ? " : " + input.note : " (correction RH)."
     }`,
+    relatedEntityType: "LeaveBalance",
+    relatedEntityId: transaction.id,
   });
 
   return transaction;

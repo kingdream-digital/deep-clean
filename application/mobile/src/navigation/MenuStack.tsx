@@ -94,7 +94,7 @@ export type MenuStackParamList = {
   // `title` : titre de l'écran (« Octobre 2026 » quand on ouvre ses propres
   // heures) ; par défaut le nom de la personne.
   // Compteurs de congés : relevés mensuels à valider (RH, direction, admin).
-  LeaveAccruals: undefined;
+  LeaveAccruals: { month?: string } | undefined;
   EmployeeHours: { userId: string; fullName: string; initialMonth?: string; title?: string };
   Reconciliation: undefined;
   ReconciliationDetail: { userId: string; fullName: string; from: string; to: string };
