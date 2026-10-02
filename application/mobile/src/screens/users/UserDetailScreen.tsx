@@ -29,7 +29,7 @@ import type { DirectoryUser, EmployeeDossier } from "../../api/users.api";
 import { decideAbsence } from "../../api/absences.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { formatMinutes } from "../../utils/duration";
-import { isMissionOverdue, toLocalDateKey } from "../../utils/missionFormat";
+import { isMissionOverdue, toLocalDateKey, isMissionValidated } from "../../utils/missionFormat";
 import { formatAbsencePeriod, frenchDateFormat } from "../../utils/frenchDate";
 import { formatAction } from "../../utils/activityLogLabels";
 import { shareFile } from "../../utils/shareFile";
@@ -536,7 +536,7 @@ export function UserDetailScreen() {
                       <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1, marginRight: spacing.xs }]} numberOfLines={1}>
                         {mission.title} · {mission.site.name}
                       </Text>
-                      <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} />
+                      <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} validated={isMissionValidated(mission)} />
                     </View>
                   ))}
                 </View>

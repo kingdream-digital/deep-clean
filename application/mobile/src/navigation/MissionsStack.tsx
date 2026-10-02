@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useStackScreenOptions } from "./stackScreenOptions";
 import { useResponsive } from "../hooks/useResponsive";
 import { MissionsListScreen } from "../screens/missions/MissionsListScreen";
+import type { MissionsTab } from "../screens/missions/MissionsListScreen";
 import { MissionDetailScreen } from "../screens/missions/MissionDetailScreen";
 import { MissionFormScreen } from "../screens/missions/MissionFormScreen";
 import { JobSheetFormScreen } from "../screens/missions/JobSheetFormScreen";
@@ -14,7 +15,9 @@ import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 import { TimeEntryDetailScreen } from "../screens/timesheets/TimeEntryDetailScreen";
 
 export type MissionsStackParamList = {
-  MissionsList: undefined;
+  // `initialTab` : ouvrir directement un onglet (ex. « À valider » depuis
+  // les statistiques).
+  MissionsList: { initialTab?: MissionsTab } | undefined;
   MissionDetail: { missionId: string };
   MissionForm: { missionId?: string } | undefined;
   JobSheetForm: { missionId: string };

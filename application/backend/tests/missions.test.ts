@@ -902,3 +902,96 @@ describe("Mission — chef d'équipe et superviseur du chantier exposés (diagno
     });
   });
 });
+
+describe("Chevauchement interdit — une personne ne peut pas être sur deux missions en même temps", () => {
+  async function setup(n: string) {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: `sup-overlap${n}@deepclean.test` });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: `emp-overlap${n}@deepclean.test` });
+    const site = await createTestSite();
+    const token = await loginAs(supervisor);
+    const date = tomorrowDateString();
+    const post = (body: Record<string, unknown>) =>
+      request(app).post("/api/v1/missions").set("Authorization", `Bearer ${token}`).send({ siteId: site.id, date, ...body });
+    return { employee, token, date, post };
+  }
+
+  it("refuse de créer une mission qui chevauche une autre mission de la même personne, avec un message clair", async () => {
+    const { employee, post } = await setup("1");
+    expect((await post({ title: "Mission A", startTime: "08:00", endTime: "12:00", assigneeIds: [employee.id] })).status).toBe(201);
+
+    const res = await post({ title: "Mission B", startTime: "11:00", endTime: "14:00", assigneeIds: [employee.id] });
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toContain("Mission A");
+    expect(res.body.error.message).toContain("08:00");
+    expect(await prisma.mission.count()).toBe(1);
+  });
+
+  it("accepte deux missions qui se suivent sans se recouvrir, et ignore les missions annulées", async () => {
+    const { employee, token, post } = await setup("2");
+    const a = await post({ title: "Matin", startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] });
+    expect((await post({ title: "Suite", startTime: "10:00", endTime: "12:00", assigneeIds: [employee.id] })).status).toBe(201);
+
+    await request(app).post(`/api/v1/missions/${a.body.mission.id}/cancel`).set("Authorization", `Bearer ${token}`);
+    expect((await post({ title: "Remplace le matin", startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] })).status).toBe(201);
+  });
+
+  it("refuse d'ajouter la personne à une mission qui chevauche, et de décaler un horaire sur une autre mission", async () => {
+    const { employee, token, post } = await setup("3");
+    await post({ title: "Mission A", startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] });
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "other-overlap3@deepclean.test" });
+    const b = await post({ title: "Mission B", startTime: "09:00", endTime: "11:00", assigneeIds: [other.id] });
+    const c = await post({ title: "Mission C", startTime: "13:00", endTime: "15:00", assigneeIds: [employee.id] });
+
+    const add = await request(app)
+      .put(`/api/v1/missions/${b.body.mission.id}/assignments`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ assigneeIds: [other.id, employee.id] });
+    expect(add.status).toBe(409);
+
+    const move = await request(app)
+      .patch(`/api/v1/missions/${c.body.mission.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ startTime: "09:30", endTime: "11:00" });
+    expect(move.status).toBe(409);
+
+    const ok = await request(app)
+      .patch(`/api/v1/missions/${c.body.mission.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ startTime: "12:00", endTime: "14:00" });
+    expect(ok.status).toBe(200);
+  });
+
+  it("refuse une série récurrente dont une occurrence chevauche une mission existante", async () => {
+    const { employee, date, post } = await setup("4");
+    const later = addDays(date, 7);
+
+    await post({ title: "Existante", date: later, startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] });
+
+    const until = addDays(date, 14);
+    const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const res = await post({ title: "Série", startTime: "09:00", endTime: "11:00", assigneeIds: [employee.id], recurrence: { daysOfWeek: [dayOfWeek], until } });
+    expect(res.status).toBe(409);
+    expect(await prisma.mission.count()).toBe(1);
+  });
+});
+
+describe("Liste des missions — à valider / validées", () => {
+  it("filtre les missions terminées selon qu'elles sont validées ou non", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-tovalidate@deepclean.test" });
+    const site = await createTestSite();
+    const token = await loginAs(hr);
+    const day = new Date();
+    const make = (title: string) =>
+      prisma.mission.create({
+        data: { siteId: site.id, title, date: day, startTime: day, endTime: day, status: "COMPLETED", createdById: hr.id },
+      });
+    const done = await make("Validée");
+    await make("À valider");
+    await prisma.validation.create({ data: { type: "MISSION_COMPLETION", missionId: done.id, validatedById: hr.id } });
+
+    const toValidate = await request(app).get("/api/v1/missions").set("Authorization", `Bearer ${token}`).query({ status: "COMPLETED", validated: "false" });
+    expect(toValidate.body.items.map((m: { title: string }) => m.title)).toEqual(["À valider"]);
+    const validated = await request(app).get("/api/v1/missions").set("Authorization", `Bearer ${token}`).query({ status: "COMPLETED", validated: "true" });
+    expect(validated.body.items.map((m: { title: string }) => m.title)).toEqual(["Validée"]);
+  });
+});

@@ -55,7 +55,7 @@ const PLANNING: OnboardingStep = {
 const MISSIONS: OnboardingStep = {
   icon: "briefcase-outline",
   title: "Vos missions",
-  body: "À venir, terminées ou annulées : basculez entre les trois, puis touchez une mission pour son détail complet.",
+  body: "À venir, à valider, validées ou annulées : choisissez un onglet, puis touchez une mission pour son détail complet.",
   tab: "Missions",
   screen: "MissionsList",
   targetId: "missions.filters",
