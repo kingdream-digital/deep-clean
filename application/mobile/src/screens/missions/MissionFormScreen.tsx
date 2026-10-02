@@ -35,7 +35,7 @@ import type { MissionsStackParamList } from "../../navigation/MissionsStack";
 import { toLocalDateKey } from "../../utils/missionFormat";
 import { frenchDateFormat } from "../../utils/frenchDate";
 
-type Route = RouteProp<{ MissionForm: { missionId?: string; initialDate?: string } | undefined }, "MissionForm">;
+type Route = RouteProp<{ MissionForm: { missionId?: string; initialDate?: string; initialSiteId?: string } | undefined }, "MissionForm">;
 
 const NONE = "__none__";
 const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -77,6 +77,8 @@ export function MissionFormScreen() {
   const missionId = route.params?.missionId;
   const isEdit = !!missionId;
   const initialDateParam = route.params?.initialDate;
+  // Ouvert depuis une fiche chantier : ce chantier est présélectionné.
+  const initialSiteIdParam = route.params?.initialSiteId;
 
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
@@ -146,6 +148,8 @@ export function MissionFormScreen() {
         setLeadId(lead);
         setInitialAssigneeIds(ids);
         setInitialLeadId(lead);
+      } else if (initialSiteIdParam && sitesRes.items.some((site) => site.id === initialSiteIdParam)) {
+        setSiteId(initialSiteIdParam);
       } else if (sitesRes.items.length > 0) {
         setSiteId(sitesRes.items[0].id);
       }

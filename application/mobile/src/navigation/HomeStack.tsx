@@ -43,7 +43,7 @@ export type HomeStackParamList = {
   ProblemsList: undefined;
   ProblemDetail: { problemId: string };
   MissionDetail: { missionId: string };
-  MissionForm: { missionId?: string } | undefined;
+  MissionForm: { missionId?: string; initialSiteId?: string } | undefined;
   JobSheetForm: { missionId: string };
   ReportProblem: { missionId: string };
   ContactProfile: { userId: string };

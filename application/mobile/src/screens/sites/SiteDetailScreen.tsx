@@ -38,6 +38,8 @@ const MANAGE_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 // Facturation réservée à RH/Direction/Admin (cahier des charges §1-3) — le
 // Superviseur n'y figure pas, contrairement à la gestion du chantier lui-même.
 const INVOICE_ROLES = ["HR", "DIRECTOR", "ADMIN"];
+// Rôles qui gèrent le planning (mêmes que l'écran Planning, contrôlés côté serveur).
+const PLANNING_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 
 // Fiche chantier — reprend la structure de la maquette validée (bannière,
 // chef d'équipe, standards, consignes, prochaines missions, signalements) ;
@@ -294,6 +296,16 @@ export function SiteDetailScreen() {
               </PressableScale>
             ))}
           </Card>
+        )}
+
+        {!!user && PLANNING_ROLES.includes(user.role) && site.isActive && (
+          <View style={{ marginTop: spacing.sm }}>
+            <Button
+              label="Programmer une mission"
+              icon="add-circle-outline"
+              onPress={() => navigation.navigate("MissionForm", { initialSiteId: site.id })}
+            />
+          </View>
         )}
 
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg, marginBottom: spacing.sm }}>
