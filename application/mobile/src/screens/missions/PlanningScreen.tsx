@@ -282,6 +282,7 @@ export function PlanningScreen() {
               propre FAB flottant plus bas (cohérent avec MissionsListScreen). */}
           {isDesktopWeb && canManagePlanning && (
             <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: spacing.md }}>
+              <OnboardingTarget id="planning.create">
               <PressableScale onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}>
                 <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: radius.md }]}>
                   <Ionicons name="add" size={18} color={colors.onAccent} />
@@ -290,6 +291,7 @@ export function PlanningScreen() {
                   </Text>
                 </View>
               </PressableScale>
+              </OnboardingTarget>
             </View>
           )}
 
@@ -452,6 +454,7 @@ export function PlanningScreen() {
 
       {!isDesktopWeb && canManagePlanning && (
         <Animated.View entering={FadeInUp.duration(280)} style={styles.fab}>
+          <OnboardingTarget id="planning.create">
           <PressableScale
             pressedScale={0.9}
             onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}
@@ -461,6 +464,7 @@ export function PlanningScreen() {
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>
+          </OnboardingTarget>
         </Animated.View>
       )}
     </ScreenContainer>

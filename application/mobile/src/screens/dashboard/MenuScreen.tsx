@@ -193,7 +193,7 @@ export function MenuScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
             </View>
           </PressableScale>
-          <View style={{ borderTopWidth: 1, borderTopColor: colors.border }}>
+          <OnboardingTarget id="menu.MyAbsences" style={{ borderTopWidth: 1, borderTopColor: colors.border }}>
             <PressableScale onPress={() => navigation.navigate("MyAbsences")}>
               <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.lg }}>
                 <View style={{ width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" }}>
@@ -203,7 +203,7 @@ export function MenuScreen() {
                 <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
               </View>
             </PressableScale>
-          </View>
+          </OnboardingTarget>
         </Card>
 
         {tools.length > 0 && (
