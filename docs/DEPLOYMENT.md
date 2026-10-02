@@ -122,6 +122,9 @@ DEMO_MODE=1 DEMO_DATE=2026-10-02 npx tsx prisma/seedPresentationDemo.ts
 
 - `DEMO_DATE` = le jour où la démo sera montrée (format AAAA-MM-JJ). Sans
   lui, le jour de lancement est pris.
+- `DEMO_HEURE` = l'heure de la présentation (format HH:mm, ex. `18:00`).
+  Les missions du jour sont placées autour : une terminée avant, une en
+  cours, les suivantes après. Sans lui, horaires du matin.
 - Mot de passe de tous les comptes : `DemoClean2026!` (identifiants affichés
   à la fin du script : `lpetit` employé, `kbenali` chef d'équipe, `ytraore`
   superviseur, `mdupont` RH, `jlefevre` direction).
