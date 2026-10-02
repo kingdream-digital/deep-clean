@@ -35,7 +35,10 @@ import type { MissionsStackParamList } from "../../navigation/MissionsStack";
 import { toLocalDateKey } from "../../utils/missionFormat";
 import { frenchDateFormat } from "../../utils/frenchDate";
 
-type Route = RouteProp<{ MissionForm: { missionId?: string; initialDate?: string; initialSiteId?: string } | undefined }, "MissionForm">;
+type Route = RouteProp<
+  { MissionForm: { missionId?: string; initialDate?: string; initialSiteId?: string; initialAssigneeId?: string } | undefined },
+  "MissionForm"
+>;
 
 const NONE = "__none__";
 const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -79,6 +82,9 @@ export function MissionFormScreen() {
   const initialDateParam = route.params?.initialDate;
   // Ouvert depuis une fiche chantier : ce chantier est présélectionné.
   const initialSiteIdParam = route.params?.initialSiteId;
+  // Ouvert depuis une case du planning par personne : cette personne est
+  // déjà affectée (employé) ou désignée chef d'équipe (compte chef d'équipe).
+  const initialAssigneeIdParam = route.params?.initialAssigneeId;
 
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
@@ -152,6 +158,10 @@ export function MissionFormScreen() {
         setSiteId(initialSiteIdParam);
       } else if (sitesRes.items.length > 0) {
         setSiteId(sitesRes.items[0].id);
+      }
+      if (!missionId && initialAssigneeIdParam) {
+        if (employeesRes.items.some((u) => u.id === initialAssigneeIdParam)) setEmployeeIds([initialAssigneeIdParam]);
+        else if (teamLeadsRes.items.some((u) => u.id === initialAssigneeIdParam)) setLeadId(initialAssigneeIdParam);
       }
       setLoadState("ready");
     } catch {

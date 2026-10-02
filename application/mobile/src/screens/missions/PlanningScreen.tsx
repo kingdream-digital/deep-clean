@@ -18,6 +18,8 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { useAuth } from "../../auth/AuthContext";
 import { listMissions } from "../../api/missions.api";
 import type { Mission, MissionAssignee } from "../../api/missions.api";
+import { listUsers } from "../../api/users.api";
+import { listAbsences } from "../../api/absences.api";
 import type { PlanningStackParamList } from "../../navigation/PlanningStack";
 
 type Route = RouteProp<PlanningStackParamList, "PlanningHome">;
@@ -61,7 +63,7 @@ export function PlanningScreen() {
   // par chantier — demande explicite du client (voir TeamWeekGrid ci-dessous).
   // Le chef d'équipe garde la grille par jour : il ne suit que ses propres
   // chantiers, l'organisation par personnel n'y ajoute rien.
-  const showTeamGrid = isDesktopWeb && !!user && ["SUPERVISOR", "HR", "DIRECTOR"].includes(user.role);
+  const showTeamGrid = isDesktopWeb && !!user && ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"].includes(user.role);
   const canManagePlanning = !!user && CAN_MANAGE_ROLES.includes(user.role);
 
   const today = useMemo(() => new Date(), []);
@@ -128,6 +130,45 @@ export function PlanningScreen() {
 
   const cacheKey = `planning.week.${toLocalDateKey(weekStart)}`;
 
+  // Grille par personne : TOUTE l'équipe active (pas seulement ceux qui ont
+  // déjà une mission cette semaine), pour pouvoir cliquer sur une case vide
+  // et lui ajouter une mission — retour explicite du client. Les absences
+  // approuvées de la semaine sont affichées dans les cases concernées.
+  const [staff, setStaff] = useState<MissionAssignee["user"][]>([]);
+  const [absentKeys, setAbsentKeys] = useState<Set<string>>(new Set());
+  const loadTeam = useCallback(async () => {
+    if (!showTeamGrid) return;
+    const from = toLocalDateKey(weekStart);
+    const to = toLocalDateKey(weekEnd);
+    const [employees, leads, absences] = await Promise.all([
+      listUsers({ role: "EMPLOYEE", isActive: true }).catch(() => null),
+      listUsers({ role: "SITE_MANAGER", isActive: true }).catch(() => null),
+      listAbsences({ status: "APPROVED", from, to }).catch(() => null),
+    ]);
+    setStaff(
+      [...(employees?.items ?? []), ...(leads?.items ?? [])].map((u) => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        role: u.role,
+        hasAvatar: u.hasAvatar,
+        isActive: u.isActive,
+      }))
+    );
+    const keys = new Set<string>();
+    for (const absence of absences?.items ?? []) {
+      // Jours calendaires stockés à minuit UTC : lus en UTC, comme partout.
+      const cursor = new Date(absence.startDate);
+      const end = new Date(absence.endDate);
+      while (cursor.getTime() <= end.getTime()) {
+        keys.add(`${absence.userId}|${cursor.toISOString().slice(0, 10)}`);
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+    setAbsentKeys(keys);
+  }, [showTeamGrid, weekStart, weekEnd]);
+
   const load = useCallback(async () => {
     try {
       setState("loading");
@@ -153,7 +194,8 @@ export function PlanningScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load])
+      void loadTeam();
+    }, [load, loadTeam])
   );
 
   async function handleRefresh() {
@@ -178,6 +220,7 @@ export function PlanningScreen() {
   // Dérivé de `missions` déjà chargé : aucun appel réseau supplémentaire.
   const teamMembers = useMemo(() => {
     const map = new Map<string, MissionAssignee["user"]>();
+    for (const member of staff) map.set(member.id, member);
     for (const mission of missions) {
       for (const assignment of mission.assignments) {
         if (!map.has(assignment.userId)) map.set(assignment.userId, assignment.user);
@@ -186,7 +229,7 @@ export function PlanningScreen() {
     return Array.from(map.values()).sort((a, b) =>
       `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)
     );
-  }, [missions]);
+  }, [missions, staff]);
 
   const missionsByUserAndDay = useMemo(() => {
     const map = new Map<string, Map<string, Mission[]>>();
@@ -403,8 +446,15 @@ export function PlanningScreen() {
                 days={days}
                 teamMembers={teamMembers}
                 missionsByUserAndDay={missionsByUserAndDay}
+                absentKeys={absentKeys}
                 today={today}
                 onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
+                onAddMission={
+                  canManagePlanning
+                    ? (member, day) =>
+                        navigation.navigate("MissionForm", { initialDate: toLocalDateKey(day), initialAssigneeId: member.id })
+                    : undefined
+                }
               />
             ) : (
               <DesktopWeekGrid
@@ -594,20 +644,25 @@ function TeamWeekGrid({
   days,
   teamMembers,
   missionsByUserAndDay,
+  absentKeys,
   today,
   onPressMission,
+  onAddMission,
 }: {
   days: Date[];
   teamMembers: MissionAssignee["user"][];
   missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
+  absentKeys: Set<string>;
   today: Date;
   onPressMission: (mission: Mission) => void;
+  // Clic sur une case : nouvelle mission ce jour-là, pour cette personne.
+  onAddMission?: (member: MissionAssignee["user"], day: Date) => void;
 }) {
   const { colors, spacing, radius, type, isDark } = useTheme();
   const NAME_COL_WIDTH = 210;
 
   if (teamMembers.length === 0) {
-    return <StateView kind="empty" icon="people-outline" message="Aucune mission cette semaine." />;
+    return <StateView kind="empty" icon="people-outline" message="Aucun membre de l'équipe à afficher." />;
   }
 
   return (
@@ -704,6 +759,9 @@ function TeamWeekGrid({
                 const key = toLocalDateKey(day);
                 const dayMissions = userMissions?.get(key) ?? [];
                 const isToday = isSameLocalDay(day, today);
+                const isAbsent = absentKeys.has(`${member.id}|${key}`);
+                const isPast = key < toLocalDateKey(today);
+                const canAdd = !!onAddMission && isActive && !isAbsent && !isPast;
                 return (
                   <View
                     key={key}
@@ -754,6 +812,34 @@ function TeamWeekGrid({
                         </PressableScale>
                       );
                     })}
+                    {!!isAbsent && (
+                      <View style={{ backgroundColor: colors.neutralSoft, borderRadius: radius.sm, paddingVertical: 5, paddingHorizontal: 7 }}>
+                        <Text style={[type.caption, { color: colors.neutral, fontWeight: "700" }]} numberOfLines={1}>
+                          Absent
+                        </Text>
+                      </View>
+                    )}
+                    {!!canAdd && (
+                      <PressableScale
+                        onPress={() => onAddMission!(member, day)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ajouter une mission à ${member.firstName} ${member.lastName} le ${day.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`}
+                      >
+                        <View
+                          style={{
+                            alignItems: "center",
+                            justifyContent: "center",
+                            minHeight: dayMissions.length === 0 ? 40 : 24,
+                            borderRadius: radius.sm,
+                            borderWidth: 1,
+                            borderStyle: "dashed",
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Ionicons name="add" size={16} color={colors.inkTertiary} />
+                        </View>
+                      </PressableScale>
+                    )}
                   </View>
                 );
               })}
