@@ -64,6 +64,9 @@ export function UserFormScreen() {
   // Date d'entrée : base du calcul des congés acquis (aujourd'hui par défaut,
   // à corriger pour un salarié déjà présent avant l'application).
   const [hireDate, setHireDate] = useState<Date>(new Date());
+  // Heures par semaine au contrat : le planning en déduit ce qu'il reste à
+  // planifier pour la personne chaque semaine.
+  const [weeklyHoursText, setWeeklyHoursText] = useState("");
 
   const load = useCallback(async () => {
     if (!isEdit || !userId) return;
@@ -76,6 +79,7 @@ export function UserFormScreen() {
       setPhone(account.phone ?? "");
       setRole(account.role);
       if (account.hireDate) setHireDate(calendarDay(account.hireDate));
+      setWeeklyHoursText(account.weeklyHours != null ? String(account.weeklyHours).replace(".", ",") : "");
       setLoadState("ready");
     } catch {
       setLoadState("error");
@@ -94,6 +98,12 @@ export function UserFormScreen() {
       return;
     }
 
+    const weeklyHoursValue = weeklyHoursText.trim() ? Number(weeklyHoursText.replace(",", ".")) : null;
+    if (weeklyHoursValue != null && (Number.isNaN(weeklyHoursValue) || weeklyHoursValue <= 0 || weeklyHoursValue > 60)) {
+      setError("Heures par semaine : indiquez un nombre entre 1 et 60, par exemple 35.");
+      return;
+    }
+
     setSaving(true);
     try {
       if (isEdit && userId) {
@@ -103,6 +113,7 @@ export function UserFormScreen() {
           phone: phone.trim() || null,
           role,
           hireDate: toLocalDateKey(hireDate),
+          weeklyHours: weeklyHoursValue,
         });
         navigation.goBack();
       } else {
@@ -113,6 +124,7 @@ export function UserFormScreen() {
           phone: phone.trim() || undefined,
           role,
           hireDate: toLocalDateKey(hireDate),
+          ...(weeklyHoursValue != null ? { weeklyHours: weeklyHoursValue } : {}),
         });
         navigation.replace("UserDetail", { userId: user.id, temporaryPassword });
       }
@@ -183,6 +195,17 @@ export function UserFormScreen() {
         />
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
           Sert au calcul des congés acquis. Pour un salarié déjà présent, indiquez sa vraie date d'arrivée.
+        </Text>
+
+        <TextField
+          label="Heures par semaine (contrat)"
+          placeholder="Ex. 35"
+          keyboardType="decimal-pad"
+          value={weeklyHoursText}
+          onChangeText={setWeeklyHoursText}
+        />
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          Le planning affiche ensuite combien d'heures il reste à planifier pour la personne chaque semaine.
         </Text>
 
         {!isEdit && (

@@ -96,7 +96,10 @@ export type MenuStackParamList = {
   Reconciliation: undefined;
   ReconciliationDetail: { userId: string; fullName: string; from: string; to: string };
   MyAbsences: undefined;
-  AbsenceForm: undefined;
+  // Absence enregistrée par un responsable POUR quelqu'un (ex. arrêt maladie
+  // annoncé par téléphone, saisi depuis le planning) : `userId`/`fullName`
+  // de la personne, `initialDate` (AAAA-MM-JJ) pour démarrer sur le jour choisi.
+  AbsenceForm: { userId?: string; fullName?: string; initialDate?: string } | undefined;
   AbsencesManagement: undefined;
   ActivityLog: undefined;
   ProblemsList: undefined;
@@ -236,7 +239,7 @@ export function MenuStack() {
       <Stack.Screen
         name="AbsenceForm"
         component={AbsenceFormScreen}
-        options={{ title: "Demander une absence", presentation: "modal" }}
+        options={({ route }) => ({ title: route.params?.fullName ? "Enregistrer une absence" : "Demander une absence", presentation: "modal" })}
       />
       <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: ABSENCES_MANAGEMENT_TITLE }} />
       <Stack.Screen name="ActivityLog" component={ActivityLogScreen} options={{ title: "Journal d'activité" }} />

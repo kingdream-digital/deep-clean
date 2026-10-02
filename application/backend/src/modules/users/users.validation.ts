@@ -16,6 +16,8 @@ export const createUserSchema = {
     // congés acquis. Sans elle, un salarié présent depuis des années
     // démarrait à 0 jour le jour de la mise en service de l'application.
     hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).").optional(),
+    // Heures par semaine au contrat (ex. 35).
+    weeklyHours: z.coerce.number().positive("Indiquez un nombre d'heures positif.").max(60, "60 heures par semaine au maximum.").optional(),
   }),
 };
 
@@ -32,6 +34,7 @@ export const updateUserSchema = {
       leaveAccrualRate: z.coerce.number().positive().nullable().optional(),
       leaveAccrualCap: z.coerce.number().positive().nullable().optional(),
       hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).").optional(),
+      weeklyHours: z.coerce.number().positive("Indiquez un nombre d'heures positif.").max(60, "60 heures par semaine au maximum.").nullable().optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),
 };

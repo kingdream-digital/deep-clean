@@ -10,6 +10,7 @@ import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
 import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
 import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
+import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
 
 export type PlanningStackParamList = {
   // `day` (AAAA-MM-JJ) : permet d'ouvrir Planning directement sur un jour
@@ -27,6 +28,10 @@ export type PlanningStackParamList = {
   StandardDetail: { standardId: string };
   StandardForm: { siteId: string; standardId?: string };
   ContactProfile: { userId: string };
+  // Absence enregistrée par un responsable POUR quelqu'un (ex. arrêt maladie
+  // annoncé par téléphone, saisi depuis le planning) : `userId`/`fullName`
+  // de la personne, `initialDate` (AAAA-MM-JJ) pour démarrer sur le jour choisi.
+  AbsenceForm: { userId?: string; fullName?: string; initialDate?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<PlanningStackParamList>();
@@ -69,6 +74,11 @@ export function PlanningStack() {
         })}
       />
       <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ title: "Profil" }} />
+      <Stack.Screen
+        name="AbsenceForm"
+        component={AbsenceFormScreen}
+        options={({ route }) => ({ title: route.params?.fullName ? "Enregistrer une absence" : "Demander une absence", presentation: "modal" })}
+      />
     </Stack.Navigator>
   );
 }

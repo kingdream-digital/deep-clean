@@ -30,6 +30,7 @@ const publicSelect = {
   role: true,
   isActive: true,
   hireDate: true,
+  weeklyHours: true,
   mustChangePassword: true,
   lastLoginAt: true,
   avatarKey: true,
@@ -54,8 +55,13 @@ const contactSelect = {
 
 const ACCOUNT_MANAGEMENT_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN];
 
+// Le superviseur fait le planning : il voit en plus les heures par semaine
+// prévues au contrat (compteur « reste à planifier »), jamais le reste.
+const plannerSelect = { ...contactSelect, weeklyHours: true } as const;
+
 function selectForViewer(viewerRole: Role) {
-  return ACCOUNT_MANAGEMENT_ROLES.includes(viewerRole) ? publicSelect : contactSelect;
+  if (ACCOUNT_MANAGEMENT_ROLES.includes(viewerRole)) return publicSelect;
+  return viewerRole === Role.SUPERVISOR ? plannerSelect : contactSelect;
 }
 
 function presentUser<T extends { avatarKey?: string | null }>(user: T): Omit<T, "avatarKey"> & { hasAvatar: boolean } {
@@ -70,6 +76,7 @@ interface CreateUserInput {
   phone?: string;
   role: Role;
   hireDate?: string;
+  weeklyHours?: number;
 }
 
 // Rôles qu'un compte RH ne peut PAS attribuer, ni à la création ni à la
@@ -144,6 +151,7 @@ export async function createUser(actorId: string, actorRole: Role, input: Create
       phone: input.phone,
       role: input.role,
       ...(input.hireDate ? { hireDate: calendarDay(input.hireDate) } : {}),
+      ...(input.weeklyHours ? { weeklyHours: input.weeklyHours } : {}),
       passwordHash,
       mustChangePassword: true,
       createdById: actorId,
@@ -236,6 +244,7 @@ interface UpdateUserInput {
   leaveAccrualRate?: number | null;
   leaveAccrualCap?: number | null;
   hireDate?: string;
+  weeklyHours?: number | null;
 }
 
 // Détache un utilisateur de tous les chantiers dont il est responsable —

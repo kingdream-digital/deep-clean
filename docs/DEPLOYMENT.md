@@ -122,6 +122,9 @@ DEMO_MODE=1 DEMO_DATE=2026-10-02 npx tsx prisma/seedPresentationDemo.ts
 
 - `DEMO_DATE` = le jour où la démo sera montrée (format AAAA-MM-JJ). Sans
   lui, le jour de lancement est pris.
+- Si le schéma de la base a changé depuis le dernier déploiement (nouveau
+  champ, ex. heures par semaine), lancer d'abord `npx prisma db push` dans
+  le Terminal du backend, puis la commande de démo.
 - `DEMO_RESET=1` = efface TOUT avant de charger la démo (comptes, chantiers,
   missions, pointages, devis, messages...), sauf les comptes administrateur
   technique. À utiliser pour repartir d'une démo propre. Commande complète :

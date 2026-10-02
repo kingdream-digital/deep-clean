@@ -17,6 +17,8 @@ export interface DirectoryUser {
   // Date d'entrée dans l'entreprise (jour calendaire, minuit UTC) — vue
   // RH/direction/admin uniquement.
   hireDate?: string;
+  // Heures par semaine au contrat (ex. 35) — vue RH/direction/admin/superviseur.
+  weeklyHours?: number | null;
   // Absent (jamais `false`) pour un appelant qui n'a que la vue "annuaire"
   // (voir backend/src/modules/users/users.service.ts::contactSelect) —
   // l'état du compte n'est exposé qu'à la RH/direction/admin/superviseur.
@@ -84,6 +86,7 @@ export interface CreateUserInput {
   phone?: string;
   role: Role;
   hireDate?: string;
+  weeklyHours?: number;
 }
 
 // Réservé RH / Admin — seule façon de créer un compte (aucune inscription
@@ -96,7 +99,7 @@ export async function createUser(input: CreateUserInput): Promise<{ user: Direct
 
 export async function updateUser(
   id: string,
-  input: { firstName?: string; lastName?: string; phone?: string | null; role?: Role; hireDate?: string }
+  input: { firstName?: string; lastName?: string; phone?: string | null; role?: Role; hireDate?: string; weeklyHours?: number | null }
 ): Promise<DirectoryUser> {
   const { data } = await apiClient.patch<{ user: DirectoryUser }>(`/users/${id}`, input);
   return data.user;

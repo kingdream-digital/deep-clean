@@ -6,7 +6,17 @@ export type MissionStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELL
 export interface MissionAssignee {
   userId: string;
   isLead: boolean;
-  user: { id: string; firstName: string; lastName: string; email: string | null; role: string; hasAvatar: boolean; isActive?: boolean };
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+    role: string;
+    hasAvatar: boolean;
+    isActive?: boolean;
+    // Renseigné seulement pour la grille du planning (heures au contrat).
+    weeklyHours?: number | null;
+  };
 }
 
 export interface MissionValidation {

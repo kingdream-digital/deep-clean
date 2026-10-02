@@ -56,7 +56,10 @@ export type InboxStackParamList = {
   // (bouton "Demander une absence"), même convention que les autres écrans
   // dupliqués ci-dessus.
   MyAbsences: undefined;
-  AbsenceForm: undefined;
+  // Absence enregistrée par un responsable POUR quelqu'un (ex. arrêt maladie
+  // annoncé par téléphone, saisi depuis le planning) : `userId`/`fullName`
+  // de la personne, `initialDate` (AAAA-MM-JJ) pour démarrer sur le jour choisi.
+  AbsenceForm: { userId?: string; fullName?: string; initialDate?: string } | undefined;
   // ABSENCE_REQUESTED (RH/direction/admin, retour explicite du client) doit
   // amener sur la fiche de l'employé pour décider — jamais "Mes absences",
   // qui n'a de sens que pour l'intéressé lui-même. UserForm est dupliqué en
@@ -135,7 +138,7 @@ export function InboxStack() {
       <Stack.Screen
         name="AbsenceForm"
         component={AbsenceFormScreen}
-        options={{ title: "Demander une absence", presentation: "modal" }}
+        options={({ route }) => ({ title: route.params?.fullName ? "Enregistrer une absence" : "Demander une absence", presentation: "modal" })}
       />
       <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: "Compte" }} />
       <Stack.Screen

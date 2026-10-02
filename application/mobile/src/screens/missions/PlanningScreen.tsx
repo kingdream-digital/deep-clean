@@ -161,6 +161,7 @@ export function PlanningScreen() {
         role: u.role,
         hasAvatar: u.hasAvatar,
         isActive: u.isActive,
+        weeklyHours: u.weeklyHours ?? null,
       }))
     );
     const keys = new Map<string, string>();
@@ -243,6 +244,29 @@ export function PlanningScreen() {
       `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)
     );
   }, [missions, staff]);
+
+  // Heures planifiées sur la semaine affichée, par personne (missions non
+  // annulées) : comparées aux heures du contrat pour savoir ce qu'il reste.
+  const weeklyMinutesByUser = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const mission of missions) {
+      if (mission.status === "CANCELLED") continue;
+      const minutes = Math.max(0, (new Date(mission.endTime).getTime() - new Date(mission.startTime).getTime()) / 60000);
+      for (const assignment of mission.assignments) {
+        map.set(assignment.userId, (map.get(assignment.userId) ?? 0) + minutes);
+      }
+    }
+    return map;
+  }, [missions]);
+  // RH, direction, superviseur, admin : enregistrent une absence pour
+  // quelqu'un directement depuis le planning (ex. arrêt maladie par téléphone).
+  const canDeclareAbsence = managesTeam;
+  const declareAbsence = (member: MissionAssignee["user"], day: Date) =>
+    navigation.navigate("AbsenceForm", {
+      userId: member.id,
+      fullName: `${member.firstName} ${member.lastName}`,
+      initialDate: toLocalDateKey(day),
+    });
 
   const missionsByUserAndDay = useMemo(() => {
     const map = new Map<string, Map<string, Mission[]>>();
@@ -460,6 +484,8 @@ export function PlanningScreen() {
                 teamMembers={teamMembers}
                 missionsByUserAndDay={missionsByUserAndDay}
                 absentKeys={absentKeys}
+                weeklyMinutesByUser={weeklyMinutesByUser}
+                onDeclareAbsence={canDeclareAbsence ? (member) => declareAbsence(member, isCurrentWeek ? today : days[0]!) : undefined}
                 today={today}
                 onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
                 onAddMission={
@@ -518,6 +544,8 @@ export function PlanningScreen() {
               teamMembers={teamMembers}
               missionsByUserAndDay={missionsByUserAndDay}
               absentKeys={absentKeys}
+              weeklyMinutesByUser={weeklyMinutesByUser}
+              onDeclareAbsence={canDeclareAbsence ? (member) => declareAbsence(member, selectedDay) : undefined}
               onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
               onAddMission={
                 canManagePlanning
@@ -681,11 +709,39 @@ function DesktopWeekGrid({
 // de l'équipe (photo, nom, statut) avec ses missions de la semaine alignées
 // en face des jours correspondants — le chef d'équipe garde DesktopWeekGrid
 // ci-dessus, organisée par jour, puisqu'il ne suit que ses propres chantiers.
+// « 28 h / 35 h · reste 7 h » : heures planifiées cette semaine face aux
+// heures du contrat (si la RH les a renseignées).
+function WeekHoursLine({ member, plannedMinutes }: { member: MissionAssignee["user"]; plannedMinutes: number }) {
+  const { colors, type } = useTheme();
+  const planned = formatHoursShort(plannedMinutes);
+  if (member.weeklyHours == null) {
+    return <Text style={[type.caption, { color: colors.inkTertiary }]}>{planned} planifiées cette semaine</Text>;
+  }
+  const remaining = member.weeklyHours * 60 - plannedMinutes;
+  const tone = remaining < 0 ? colors.danger : remaining === 0 ? colors.success : colors.accentText;
+  return (
+    <Text style={[type.caption, { color: colors.inkTertiary }]}>
+      {planned} / {formatHoursShort(member.weeklyHours * 60)}
+      <Text style={{ color: tone, fontWeight: "700" }}>
+        {remaining > 0 ? ` · reste ${formatHoursShort(remaining)}` : remaining === 0 ? " · complet" : ` · +${formatHoursShort(-remaining)}`}
+      </Text>
+    </Text>
+  );
+}
+
+function formatHoursShort(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+}
+
 function TeamWeekGrid({
   days,
   teamMembers,
   missionsByUserAndDay,
   absentKeys,
+  weeklyMinutesByUser,
+  onDeclareAbsence,
   today,
   onPressMission,
   onAddMission,
@@ -694,6 +750,8 @@ function TeamWeekGrid({
   teamMembers: MissionAssignee["user"][];
   missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
   absentKeys: Map<string, string>;
+  weeklyMinutesByUser: Map<string, number>;
+  onDeclareAbsence?: (member: MissionAssignee["user"]) => void;
   today: Date;
   onPressMission: (mission: Mission) => void;
   // Clic sur une case : nouvelle mission ce jour-là, pour cette personne.
@@ -779,20 +837,23 @@ function TeamWeekGrid({
                   <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]} numberOfLines={1}>
                     {member.firstName} {member.lastName}
                   </Text>
-                  <View
-                    style={{
-                      alignSelf: "flex-start",
-                      marginTop: 3,
-                      paddingVertical: 2,
-                      paddingHorizontal: 6,
-                      borderRadius: 6,
-                      backgroundColor: isActive ? colors.successSoft : colors.neutralSoft,
-                    }}
-                  >
-                    <Text style={[type.caption, { color: isActive ? colors.success : colors.neutral }]}>
-                      {isActive ? "Actif" : "Désactivé"}
-                    </Text>
-                  </View>
+                  {isActive ? (
+                    <View style={{ marginTop: 2 }}>
+                      <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} />
+                    </View>
+                  ) : (
+                    <Text style={[type.caption, { color: colors.neutral, marginTop: 2 }]}>Compte désactivé</Text>
+                  )}
+                  {!!onDeclareAbsence && isActive && (
+                    <PressableScale
+                      onPress={() => onDeclareAbsence(member)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Enregistrer une absence pour ${member.firstName} ${member.lastName}`}
+                      style={{ marginTop: 3, alignSelf: "flex-start" }}
+                    >
+                      <Text style={[type.caption, { color: colors.accentText, fontWeight: "600" }]}>+ Absence</Text>
+                    </PressableScale>
+                  )}
                 </View>
               </View>
 
@@ -902,6 +963,8 @@ function TeamDayList({
   teamMembers,
   missionsByUserAndDay,
   absentKeys,
+  weeklyMinutesByUser,
+  onDeclareAbsence,
   onPressMission,
   onAddMission,
 }: {
@@ -910,6 +973,8 @@ function TeamDayList({
   teamMembers: MissionAssignee["user"][];
   missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
   absentKeys: Map<string, string>;
+  weeklyMinutesByUser: Map<string, number>;
+  onDeclareAbsence?: (member: MissionAssignee["user"]) => void;
   onPressMission: (mission: Mission) => void;
   onAddMission?: (member: MissionAssignee["user"]) => void;
 }) {
@@ -956,7 +1021,29 @@ function TeamDayList({
                       ? "Disponible"
                       : `${dayMissions.length} mission${dayMissions.length > 1 ? "s" : ""}`}
                 </Text>
+                {isActive && <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} />}
               </View>
+              {!!onDeclareAbsence && isActive && !isAbsent && (
+                <PressableScale
+                  onPress={() => onDeclareAbsence(member)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Enregistrer une absence pour ${member.firstName} ${member.lastName}`}
+                  style={{ marginRight: spacing.xs }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.neutralSoft,
+                    }}
+                  >
+                    <Ionicons name="medkit-outline" size={18} color={colors.neutral} />
+                  </View>
+                </PressableScale>
+              )}
               {!!canAdd && (
                 <PressableScale
                   onPress={() => onAddMission!(member)}
