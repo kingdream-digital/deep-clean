@@ -237,12 +237,16 @@ interface ListAbsencesFilters {
 
 export async function listAbsences(actor: Actor, filters: ListAbsencesFilters) {
   let allowedUserIds: string[] | null = null;
-  if (actor.role === Role.EMPLOYEE || actor.role === Role.SUPERVISOR) {
+  // Bug corrigé : le superviseur décide des congés (canManageAbsences) mais
+  // ne voyait ici que les siens — ni les demandes de l'équipe dans
+  // « Validation des congés », ni les absences dans le planning. Seul
+  // l'employé reste limité à ses propres absences.
+  if (actor.role === Role.EMPLOYEE) {
     allowedUserIds = [actor.userId];
   } else if (actor.role === Role.SITE_MANAGER) {
     allowedUserIds = await resolveManagedTeamIds(actor.userId);
   }
-  // HR / DIRECTOR / ADMIN : vue globale.
+  // HR / DIRECTOR / ADMIN / SUPERVISOR : vue globale.
 
   let userIdFilter: Record<string, unknown> = {};
   if (filters.userId) {

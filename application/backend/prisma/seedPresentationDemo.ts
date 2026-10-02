@@ -771,15 +771,35 @@ async function main() {
     await absencesService.createAbsence(actor(emma), {
       type: "PAID_LEAVE", startDate: isoDate(addDays(today, 18)), endDate: isoDate(addDays(today, 22)), reason: "Vacances en famille",
     });
-    await absencesService.createAbsence(actor(nathan), {
+    const sick = await absencesService.createAbsence(actor(nathan), {
       type: "SICK_LEAVE", startDate: isoDate(addDays(today, 4)), endDate: isoDate(addDays(today, 5)),
     });
+    await absencesService.decideAbsence(actor(superviseur), sick.id, { status: "APPROVED", decisionNote: "Prompt rétablissement." });
+    await absencesService.createAbsence(actor(karim), {
+      type: "OTHER", startDate: isoDate(addDays(today, 12)), endDate: isoDate(addDays(today, 13)), reason: "Formation sécurité incendie",
+    });
+
+    // Congés déjà acceptés, visibles dans le planning (« Absent ») : Inès en
+    // début de semaine, Emma la semaine prochaine, Lucas une semaine en été
+    // (retirée de son historique de missions et de pointages plus bas).
+    // Aucune ne tombe sur une mission de la personne concernée.
+    const approvedLeaves: Array<[{ id: string; role: Role }, number, number, string]> = [
+      [ines, -4, -3, "Congé payé"],
+      [emma, 5, 9, "Vacances d'automne"],
+      [lucas, -55, -51, "Vacances d'été"],
+    ];
+    for (const [person, from, to, reason] of approvedLeaves) {
+      const leave = await absencesService.createAbsence(actor(person), {
+        type: "PAID_LEAVE", startDate: isoDate(addDays(today, from)), endDate: isoDate(addDays(today, to)), reason,
+      });
+      await absencesService.decideAbsence(actor(superviseur), leave.id, { status: "APPROVED", decisionNote: "Bonnes vacances !" });
+    }
     // Une demande déjà acceptée par la superviseure (statut « Approuvée »).
     const approved = await absencesService.createAbsence(actor(thomas), {
       type: "PAID_LEAVE", startDate: isoDate(addDays(today, 30)), endDate: isoDate(addDays(today, 34)), reason: "Mariage d'un proche",
     });
     await absencesService.decideAbsence(actor(superviseur), approved.id, { status: "APPROVED", decisionNote: "Bon congé !" });
-    console.log("Demandes de congé démo prêtes.");
+    console.log("Congés démo prêts (en attente, approuvés, arrêt maladie).");
   }
 
   // Standards de nettoyage de la Résidence Les Tilleuls.
@@ -896,6 +916,10 @@ async function main() {
       state = (state * 9301 + 49297) % 233280;
       return Math.floor((state / 233280) * max);
     };
+    // Jamais de mission ni de pointage un jour de congé approuvé.
+    const approvedAbsences = await prisma.absence.findMany({ where: { status: "APPROVED" }, select: { userId: true, startDate: true, endDate: true } });
+    const isOnLeave = (userId: string, dateStr: string) =>
+      approvedAbsences.some((a) => a.userId === userId && dayOnly(dateStr) >= a.startDate && dayOnly(dateStr) <= a.endDate);
     const entries: Array<{ userId: string; clockIn: Date; clockOut: Date; status: "VALIDATED"; validatedById: string; validatedAt: Date }> = [];
     let created = 0;
     for (let offset = -122; offset <= -11; offset++) {
@@ -903,7 +927,7 @@ async function main() {
       const dateStr = isoDate(day);
       for (const pattern of patterns) {
         if (!pattern.weekdays.includes(day.getDay())) continue;
-        const people = [...pattern.team, pattern.lead];
+        const people = [...pattern.team, pattern.lead].filter((person) => !isOnLeave(person.id, dateStr));
         const start = combineDateTime(dateStr, pattern.start);
         const end = combineDateTime(dateStr, pattern.end);
         const mission = await prisma.mission.create({

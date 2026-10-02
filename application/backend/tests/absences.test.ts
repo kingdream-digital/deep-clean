@@ -242,3 +242,27 @@ describe("Congés — photo de la personne qui demande", () => {
     expect(JSON.stringify(list.body)).not.toContain("avatars/employe.webp");
   });
 });
+
+describe("Liste des absences — le superviseur voit celles de l'équipe", () => {
+  it("le superviseur voit les absences de tous (planning, validation des congés), l'employé seulement les siennes", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-abs-list@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-abs-list@deepclean.test" });
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "oth-abs-list@deepclean.test" });
+    const day = new Date("2030-03-04T00:00:00.000Z");
+    await prisma.absence.createMany({
+      data: [
+        { userId: employee.id, type: "PAID_LEAVE", startDate: day, endDate: day, status: "PENDING" },
+        { userId: other.id, type: "SICK_LEAVE", startDate: day, endDate: day, status: "APPROVED" },
+      ],
+    });
+    const login = async (u: { username: string }) =>
+      (await request(app).post("/api/v1/auth/login").send({ username: u.username, password: TEST_PASSWORD })).body.accessToken as string;
+
+    const sup = await request(app).get("/api/v1/absences").set("Authorization", `Bearer ${await login(supervisor)}`);
+    expect(sup.status).toBe(200);
+    expect(sup.body.items.map((a: { userId: string }) => a.userId).sort()).toEqual([employee.id, other.id].sort());
+
+    const emp = await request(app).get("/api/v1/absences").set("Authorization", `Bearer ${await login(employee)}`);
+    expect(emp.body.items.map((a: { userId: string }) => a.userId)).toEqual([employee.id]);
+  });
+});
