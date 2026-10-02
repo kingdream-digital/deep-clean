@@ -277,3 +277,25 @@ export async function downloadMissionStandardDocument(missionId: string): Promis
   });
   return new Uint8Array(data);
 }
+
+// Missions dont une personne affectée sera absente (absence approuvée) —
+// superviseur, RH, direction, admin.
+export interface MissionToReassign {
+  mission: Mission;
+  absentees: Array<{
+    user: { id: string; firstName: string; lastName: string };
+    isLead: boolean;
+    absence: { type: string; startDate: string; endDate: string };
+  }>;
+}
+
+export async function listMissionsToReassign(): Promise<MissionToReassign[]> {
+  const { data } = await apiClient.get<{ items: MissionToReassign[] }>("/missions/to-reassign");
+  return data.items;
+}
+
+// Remplace une personne par une autre sur une mission (les deux sont prévenues).
+export async function replaceMissionAssignee(missionId: string, fromUserId: string, toUserId: string): Promise<Mission> {
+  const { data } = await apiClient.post<{ mission: Mission }>(`/missions/${missionId}/replace`, { fromUserId, toUserId });
+  return data.mission;
+}

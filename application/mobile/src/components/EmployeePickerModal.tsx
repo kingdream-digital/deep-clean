@@ -22,6 +22,10 @@ interface EmployeePickerModalProps {
   employees: DirectoryUser[];
   selectedIds: string[];
   availability?: Record<string, Availability>;
+  title?: string;
+  confirmLabel?: string;
+  // Fermeture sans valider (croix, retour Android) ; par défaut = onClose.
+  onCancel?: () => void;
   onToggle: (userId: string) => void;
   onClose: () => void;
 }
@@ -29,7 +33,18 @@ interface EmployeePickerModalProps {
 // Sélection multiple d'employés (rôle EMPLOYEE) pour une mission — le chef
 // d'équipe se désigne séparément (retour explicite du client : un vrai
 // compte au rôle Chef d'équipe, jamais une étoile posée ici sur un employé).
-export function EmployeePickerModal({ visible, employees, selectedIds, availability = {}, onToggle, onClose }: EmployeePickerModalProps) {
+export function EmployeePickerModal({
+  visible,
+  employees,
+  selectedIds,
+  availability = {},
+  title = "Affecter des employés",
+  confirmLabel,
+  onToggle,
+  onClose,
+  onCancel,
+}: EmployeePickerModalProps) {
+  const dismiss = onCancel ?? onClose;
   const { colors, spacing, type } = useTheme();
   // Ordre alphabétique (prénom puis nom) : on retrouve quelqu'un d'un coup
   // d'œil, au lieu de l'ordre de création des comptes.
@@ -46,11 +61,11 @@ export function EmployeePickerModal({ visible, employees, selectedIds, availabil
   );
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={dismiss}>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomColor: colors.border }]}>
-          <Text style={[type.title3, { color: colors.ink }]}>Affecter des employés</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
+          <Text style={[type.title3, { color: colors.ink }]}>{title}</Text>
+          <Pressable onPress={dismiss} hitSlop={10}>
             <Ionicons name="close" size={24} color={colors.inkSecondary} />
           </Pressable>
         </View>
@@ -117,7 +132,7 @@ export function EmployeePickerModal({ visible, employees, selectedIds, availabil
         />
 
         <View style={{ padding: spacing.lg }}>
-          <Button label={`Valider (${selectedIds.length} sélectionné${selectedIds.length > 1 ? "s" : ""})`} onPress={onClose} />
+          <Button label={confirmLabel ?? `Valider (${selectedIds.length} sélectionné${selectedIds.length > 1 ? "s" : ""})`} onPress={onClose} />
         </View>
       </SafeAreaView>
     </Modal>
