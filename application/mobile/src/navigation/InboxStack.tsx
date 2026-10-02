@@ -21,6 +21,7 @@ import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { MyAbsencesScreen } from "../screens/absences/MyAbsencesScreen";
 import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
 import { ReassignMissionsScreen } from "../screens/missions/ReassignMissionsScreen";
+import { LeaveAccrualsScreen } from "../screens/absences/LeaveAccrualsScreen";
 import { UserDetailScreen } from "../screens/users/UserDetailScreen";
 import { UserFormScreen } from "../screens/users/UserFormScreen";
 import { AnnouncementDetailScreen } from "../screens/announcements/AnnouncementDetailScreen";
@@ -72,6 +73,8 @@ export type InboxStackParamList = {
   // ANNOUNCEMENT_POSTED (retour explicite du client) doit amener directement
   // sur l'actualité concernée.
   AnnouncementDetail: { announcementId: string };
+  // « Congés acquis à valider » (RH, direction) : relevés du mois concerné.
+  LeaveAccruals: { month?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<InboxStackParamList>();
@@ -153,6 +156,7 @@ export function InboxStack() {
         })}
       />
       <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} options={{ title: "Actualité" }} />
+      <Stack.Screen name="LeaveAccruals" component={LeaveAccrualsScreen} options={{ title: "Compteurs de congés" }} />
       <Stack.Screen name="ReassignMissions" component={ReassignMissionsScreen} options={{ title: "Missions à réaffecter" }} />
     </Stack.Navigator>
   );

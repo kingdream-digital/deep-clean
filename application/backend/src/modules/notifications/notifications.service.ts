@@ -9,9 +9,23 @@ interface CreateNotificationInput {
   type: NotificationType;
   title: string;
   body: string;
-  relatedEntityType?: string;
-  relatedEntityId?: string;
+  // Obligatoires : chaque notification mène quelque part dans l'application
+  // (retour explicite du client — aucune notification ne doit être inerte).
+  // Voir mobile/src/utils/notificationTarget.ts pour l'écran ouvert.
+  relatedEntityType: NotificationEntityType;
+  relatedEntityId: string;
 }
+
+export type NotificationEntityType =
+  | "Mission"
+  | "TimeEntry"
+  | "Problem"
+  | "Absence"
+  | "MissionsToReassign"
+  | "Announcement"
+  | "Conversation"
+  | "LeaveBalance"
+  | "LeaveAccruals";
 
 /**
  * Crée la notification interne (persistée, visible dans le centre de notifications)
@@ -39,7 +53,7 @@ export async function createNotification(input: CreateNotificationInput) {
         to: t.token,
         title: input.title,
         body: input.body,
-        data: { type: input.type, relatedEntityType: input.relatedEntityType, relatedEntityId: input.relatedEntityId },
+        data: { notificationId: notification.id, type: input.type, relatedEntityType: input.relatedEntityType, relatedEntityId: input.relatedEntityId },
       }))
     );
     if (invalidTokens.length > 0) {

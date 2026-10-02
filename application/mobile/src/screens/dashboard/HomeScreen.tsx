@@ -31,6 +31,9 @@ import { addDays, formatWeekRange, toLocalDateKey } from "../../utils/missionFor
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import type { AppTabsParamList } from "../../navigation/AppTabs";
+import { resolveNotificationTarget } from "../../utils/notificationTarget";
+import { Alert } from "../../utils/alert";
+import { extractErrorMessage } from "../../api/client";
 
 // Photo de remplissage (licence Unsplash, libre pour usage commercial) — voir
 // assets/photos/README.md : à remplacer par une vraie photo de l'entreprise
@@ -163,24 +166,21 @@ export function HomeScreen() {
     });
   }
 
-  function openRecentActivity(notif: (typeof data.recentActivity)[number]) {
-    if (notif.relatedEntityType === "Mission" && notif.relatedEntityId) {
-      tabNavigation?.navigate("Missions", { screen: "MissionDetail", params: { missionId: notif.relatedEntityId } });
-    } else if (notif.relatedEntityType === "TimeEntry" && notif.relatedEntityId) {
-      navigation.navigate("TimeEntryDetail", { entryId: notif.relatedEntityId });
-    } else if (notif.relatedEntityType === "Problem" && notif.relatedEntityId) {
-      navigation.navigate("ProblemDetail", { problemId: notif.relatedEntityId });
-    } else if (notif.relatedEntityType === "Absence") {
-      // Bug corrigé (audit notifications) : ABSENCE_DECIDED retombait dans le
-      // cas générique ci-dessous (juste l'onglet Messagerie, sans montrer
-      // l'absence) faute d'écran de détail par absence — "Mes absences" est
-      // la cible la plus proche, cohérente avec NotificationsList.
-      navigation.navigate("MyAbsences");
-    } else if (notif.relatedEntityType === "Conversation" && notif.relatedEntityId) {
-      // relatedEntityId porte l'identifiant de l'expéditeur (pas du message).
-      tabNavigation?.navigate("Messagerie", { screen: "ConversationThread", params: { conversationId: notif.relatedEntityId } });
-    } else {
-      tabNavigation?.navigate("Messagerie");
+  // Même cible que dans le centre de notifications : l'écran concerné, ouvert
+  // sur la pile Messagerie (une mission garde son onglet Missions).
+  async function openRecentActivity(notif: (typeof data.recentActivity)[number]) {
+    try {
+      const target = await resolveNotificationTarget(notif);
+      if (target?.screen === "MissionDetail") {
+        tabNavigation?.navigate("Missions", { screen: "MissionDetail", params: target.params });
+      } else if (target) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tabNavigation?.navigate("Messagerie", { screen: target.screen, params: target.params } as any);
+      } else {
+        tabNavigation?.navigate("Messagerie");
+      }
+    } catch (err) {
+      Alert.alert("Impossible d'ouvrir", extractErrorMessage(err));
     }
   }
 

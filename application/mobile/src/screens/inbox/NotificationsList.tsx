@@ -20,7 +20,7 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "../../api/notifications.api";
-import { getAbsence } from "../../api/absences.api";
+import { hasNotificationTarget, resolveNotificationTarget } from "../../utils/notificationTarget";
 import { readCache, writeCache } from "../../offline/cache";
 import { timeAgo } from "../../utils/timeAgo";
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
@@ -30,7 +30,6 @@ const CACHE_KEY = "notifications.list";
 
 type LoadState = "loading" | "ready" | "error";
 
-const RELATED_ENTITY_TYPES = new Set(["Mission", "TimeEntry", "Problem", "Absence", "Announcement", "Conversation", "MissionsToReassign", "LeaveBalance"]);
 
 // Regroupement par jour façon Centre de notifications iOS ("Aujourd'hui",
 // "Hier"...) — les éléments arrivent déjà triés du plus récent au plus ancien
@@ -134,47 +133,15 @@ export function NotificationsList() {
 
   async function handlePress(notification: AppNotification) {
     void handleMarkAsRead(notification);
-    if (!notification.relatedEntityId) return;
-
-    if (notification.relatedEntityType === "Mission") {
-      navigation.navigate("MissionDetail", { missionId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "TimeEntry") {
-      navigation.navigate("TimeEntryDetail", { entryId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "Problem") {
-      navigation.navigate("ProblemDetail", { problemId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "Absence") {
-      if (notification.type === "ABSENCE_REQUESTED") {
-        // Demande à valider (RH/direction/admin) : relatedEntityId est
-        // l'absence, pas l'employé — on la récupère pour connaître son
-        // auteur, puis on amène directement sur sa fiche pour décider (retour
-        // explicite du client : ça basculait à tort sur "Mes absences", les
-        // absences de la personne connectée, pas de l'employé concerné).
-        try {
-          const absence = await getAbsence(notification.relatedEntityId);
-          navigation.navigate("UserDetail", { userId: absence.userId });
-        } catch (err) {
-          Alert.alert("Impossible d'ouvrir la fiche", extractErrorMessage(err));
-        }
-      } else {
-        // ABSENCE_DECIDED : ne cible que l'intéressé, "Mes absences" suffit,
-        // l'absence décidée y est visible avec son statut.
-        navigation.navigate("MyAbsences");
-      }
-    } else if (notification.relatedEntityType === "MissionsToReassign") {
-      // Absence tombant sur des missions prévues : liste à réaffecter.
-      navigation.navigate("ReassignMissions");
-    } else if (notification.relatedEntityType === "LeaveBalance") {
-      // Rappel des congés de l'an dernier à prendre : compteur personnel.
-      navigation.navigate("MyAbsences");
-    } else if (notification.relatedEntityType === "Announcement") {
-      navigation.navigate("AnnouncementDetail", { announcementId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "Conversation") {
-      // relatedEntityId porte l'identifiant du FIL de discussion (et non plus
-      // de l'expéditeur, qui ne suffirait pas à désigner un groupe) — voir
-      // messages.service.ts::notifyUsers.
-      navigation.navigate("ConversationThread", { conversationId: notification.relatedEntityId });
+    try {
+      const target = await resolveNotificationTarget(notification);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (target) navigation.navigate(target.screen as any, target.params as any);
+    } catch (err) {
+      Alert.alert("Impossible d'ouvrir", extractErrorMessage(err));
     }
   }
+
 
   const hasUnread = items.some((n) => !n.isRead);
 
@@ -221,7 +188,7 @@ export function NotificationsList() {
         </Text>
       )}
       renderItem={({ item, index }) => {
-        const hasRelatedEntity = !!item.relatedEntityId && RELATED_ENTITY_TYPES.has(item.relatedEntityType ?? "");
+        const hasRelatedEntity = hasNotificationTarget(item);
 
         return (
           <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 30).duration(240)}>

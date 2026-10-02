@@ -273,7 +273,7 @@ describe("Moteur de congés — congés de l'an dernier (N-1) et de l'année en 
     const april = new Date(`${year}-04-01T10:00:00Z`);
     expect(await remindPreviousYearLeave(april)).toBe(1);
     expect(await remindPreviousYearLeave(april)).toBe(0);
-    const reminders = await prisma.notification.findMany({ where: { relatedEntityType: "LeaveBalance" } });
+    const reminders = await prisma.notification.findMany({ where: { relatedEntityType: "LeaveBalance", relatedEntityId: { startsWith: "rappel-" } } });
     expect(reminders.map((n) => n.userId)).toEqual([employee.id]);
     expect(reminders[0]!.body).toContain("à prendre avant le 31 mai");
     expect(other.id).not.toBe(employee.id);
