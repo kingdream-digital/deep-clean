@@ -255,3 +255,17 @@ export async function createTimeEntryForUser(
   const { data } = await apiClient.post<{ entry: TimeEntry }>(`/time-entries/for-user/${userId}`, input);
   return data.entry;
 }
+
+export interface MonthlyHours {
+  month: string; // "AAAA-MM"
+  totalMinutes: number;
+  validatedMinutes: number;
+  pendingMinutes: number;
+  entryCount: number;
+}
+
+// Mes heures mois par mois (12 derniers mois, mois en cours en premier).
+export async function getMyMonthlyHours(): Promise<MonthlyHours[]> {
+  const { data } = await apiClient.get<{ months: MonthlyHours[] }>("/time-entries/me/monthly");
+  return data.months;
+}

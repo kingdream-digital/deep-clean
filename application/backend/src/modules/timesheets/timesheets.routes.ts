@@ -51,6 +51,7 @@ timesheetsRouter.post(
   timesheetsController.managerTimeEntryHandler
 );
 timesheetsRouter.get("/me/status", timesheetsController.myStatusHandler);
+timesheetsRouter.get("/me/monthly", timesheetsController.myMonthlySummaryHandler);
 timesheetsRouter.get("/", validate(listTimeEntriesQuerySchema), timesheetsController.listTimeEntriesHandler);
 // AVANT "/:id" : sinon Express interpréterait "export"/"reconciliation" comme un id de pointage.
 timesheetsRouter.get("/export", validate(exportTimeEntriesQuerySchema), timesheetsController.exportTimeEntriesHandler);

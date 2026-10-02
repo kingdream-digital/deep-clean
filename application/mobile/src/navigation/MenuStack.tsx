@@ -89,7 +89,10 @@ export type MenuStackParamList = {
   TimesheetRetroactive: undefined;
   TimeEntryDetail: { entryId: string };
   StaffHoursList: undefined;
-  EmployeeHours: { userId: string; fullName: string };
+  // `initialMonth` : « AAAA-MM », mois ouvert à l'arrivée (dossier choisi).
+  // `title` : titre de l'écran (« Octobre 2026 » quand on ouvre ses propres
+  // heures) ; par défaut le nom de la personne.
+  EmployeeHours: { userId: string; fullName: string; initialMonth?: string; title?: string };
   Reconciliation: undefined;
   ReconciliationDetail: { userId: string; fullName: string; from: string; to: string };
   MyAbsences: undefined;
@@ -220,7 +223,7 @@ export function MenuStack() {
       <Stack.Screen
         name="EmployeeHours"
         component={EmployeeHoursScreen}
-        options={({ route }) => ({ title: route.params.fullName })}
+        options={({ route }) => ({ title: route.params.title ?? route.params.fullName })}
       />
       <Stack.Screen name="Reconciliation" component={ReconciliationScreen} options={{ title: "Pointage vs mission" }} />
       <Stack.Screen

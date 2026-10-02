@@ -838,3 +838,26 @@ describe("Saisie d'un pointage oublié par un responsable (POST /time-entries/fo
     expect(twice.status).toBe(409);
   });
 });
+
+describe("Mes heures par mois (GET /time-entries/me/monthly)", () => {
+  it("regroupe ses propres heures par mois (heure de Paris), sans les refusées ni celles des autres", async () => {
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-monthly@deepclean.test" });
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "oth-monthly@deepclean.test" });
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const day = `${thisMonth}-01`;
+    await prisma.timeEntry.createMany({
+      data: [
+        { userId: employee.id, clockIn: companyDateTime(day, "08:00"), clockOut: companyDateTime(day, "10:00"), status: "VALIDATED" },
+        { userId: employee.id, clockIn: companyDateTime(day, "14:00"), clockOut: companyDateTime(day, "15:30"), status: "PENDING" },
+        { userId: employee.id, clockIn: companyDateTime(day, "18:00"), clockOut: companyDateTime(day, "19:00"), status: "REJECTED" },
+        { userId: other.id, clockIn: companyDateTime(day, "08:00"), clockOut: companyDateTime(day, "12:00"), status: "VALIDATED" },
+      ],
+    });
+
+    const res = await request(app).get("/api/v1/time-entries/me/monthly").set("Authorization", `Bearer ${await loginAs(employee)}`);
+    expect(res.status).toBe(200);
+    expect(res.body.months).toHaveLength(12);
+    const current = res.body.months.find((m: { month: string }) => m.month === thisMonth);
+    expect(current).toMatchObject({ totalMinutes: 210, validatedMinutes: 120, pendingMinutes: 90, entryCount: 2 });
+  });
+});

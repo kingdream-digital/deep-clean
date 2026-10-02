@@ -37,6 +37,7 @@ import { AnnouncementFormScreen } from "../screens/announcements/AnnouncementFor
 import { InvoicesListScreen } from "../screens/commercial/InvoicesListScreen";
 import { InvoiceDetailScreen } from "../screens/commercial/InvoiceDetailScreen";
 import { InvoiceFormScreen } from "../screens/commercial/InvoiceFormScreen";
+import { EmployeeHoursScreen } from "../screens/timesheets/EmployeeHoursScreen";
 
 export type HomeStackParamList = {
   Home: undefined;
@@ -62,6 +63,9 @@ export type HomeStackParamList = {
   UserForm: { userId?: string } | undefined;
   UserDocuments: { userId: string; fullName: string };
   Timesheet: undefined;
+  // `title` : titre de l'écran (« Octobre 2026 » quand on ouvre ses propres
+  // heures) ; par défaut le nom de la personne.
+  EmployeeHours: { userId: string; fullName: string; initialMonth?: string; title?: string };
   TimesheetValidation: undefined;
   TimesheetReject: { entryId: string };
   TimesheetRetroactive: undefined;
@@ -167,6 +171,11 @@ export function HomeStack() {
       />
 
       <Stack.Screen name="Timesheet" component={TimesheetScreen} options={{ title: "Mes heures" }} />
+      <Stack.Screen
+        name="EmployeeHours"
+        component={EmployeeHoursScreen}
+        options={({ route }) => ({ title: route.params.title ?? route.params.fullName })}
+      />
       <Stack.Screen name="TimesheetValidation" component={TimesheetValidationScreen} options={{ title: "Validation des heures" }} />
       <Stack.Screen
         name="TimesheetReject"
