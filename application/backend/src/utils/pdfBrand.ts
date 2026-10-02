@@ -97,3 +97,13 @@ export function ensureSpace(doc: PDFKit.PDFDocument, neededHeight: number, redra
     redrawSectionHeader();
   }
 }
+
+// Montant en euros pour les PDF. Le format français sépare les milliers par
+// une espace fine insécable (U+202F) que les polices standard des PDF
+// (Helvetica) ne contiennent pas : elle sortait en « / » (« 1 /008,00 € »)
+// sur les devis et factures. Remplacée ici par une espace insécable
+// classique, présente dans la police.
+const euroFormatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+export function formatEuroPdf(amount: number): string {
+  return euroFormatter.format(amount).replace(/[  ]/g, " ");
+}

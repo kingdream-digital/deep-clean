@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import { companyDateLabel } from "../../utils/companyTime";
 import { env } from "../../config/env";
-import { BRAND, CONTENT_WIDTH, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination } from "../../utils/pdfBrand";
+import { BRAND, CONTENT_WIDTH, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination, formatEuroPdf } from "../../utils/pdfBrand";
 import type { QuoteItemUnit } from "@prisma/client";
 
 interface InvoicePdfItem {
@@ -34,7 +34,6 @@ interface InvoicePdfData {
   // ici, même règle que quotes.pdf.ts.
 }
 
-const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 // Date d'émission : instant, lu en heure de Paris.
 const dateFmt = (d: Date) => companyDateLabel(d);
 // Échéance / validité : le moment choisi dans l'app, lu en heure de Paris.
@@ -112,8 +111,8 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
     doc.fillColor(BRAND.inkSecondary);
     doc.text(UNIT_LABELS[item.unit], COL.unit, y + 5, { width: COL_W.unit, align: "right" });
     doc.text(String(item.quantity), COL.qty, y + 5, { width: COL_W.qty, align: "right" });
-    doc.text(currencyFmt.format(item.unitPriceHt), COL.price, y + 5, { width: COL_W.price, align: "right" });
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(currencyFmt.format(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
+    doc.text(formatEuroPdf(item.unitPriceHt), COL.price, y + 5, { width: COL_W.price, align: "right" });
+    doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(formatEuroPdf(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
     doc.y = y + 20;
   });
 
@@ -132,9 +131,9 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
     totalsY += bold ? 18 : 14;
   }
 
-  totalLine("Sous-total HT", currencyFmt.format(invoice.subtotalHt));
-  totalLine(`TVA (${invoice.vatRate}%)`, currencyFmt.format(invoice.vatAmount));
-  totalLine("Total TTC", currencyFmt.format(invoice.totalTtc), true);
+  totalLine("Sous-total HT", formatEuroPdf(invoice.subtotalHt));
+  totalLine(`TVA (${invoice.vatRate}%)`, formatEuroPdf(invoice.vatAmount));
+  totalLine("Total TTC", formatEuroPdf(invoice.totalTtc), true);
   doc.y = totalsY + 10;
 
   if (invoice.paymentTerms) {
