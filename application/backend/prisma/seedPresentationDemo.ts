@@ -376,6 +376,9 @@ async function main() {
       { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 2, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
       { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 2, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [emma.id, ines.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
       { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 3, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.CANCELLED },
+      // Mission de Nathan pendant son arrêt maladie (plus bas) : apparaît dans
+      // « Missions à réaffecter » pour la démonstration.
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 4, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, sophie.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
       { site: siteTilleuls, title: "Grand ménage mensuel", dayOffset: 4, start: "13:00", end: "17:00", instructions: "Ascenseurs, local poubelles, parking sous-sol.", assignees: [emma.id, ines.id, thomas.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
       { site: siteTechcorp, title: "Entretien week-end", dayOffset: 5, start: "09:00", end: "12:00", instructions: "Nettoyage léger, accueil dégagé pour le lundi.", assignees: [chloe.id], leadId: undefined, status: MissionStatus.SCHEDULED },
     ];

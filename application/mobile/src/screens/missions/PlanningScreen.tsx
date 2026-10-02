@@ -17,7 +17,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { fontFamily } from "../../theme/typography";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useAuth } from "../../auth/AuthContext";
-import { listMissions } from "../../api/missions.api";
+import { listMissions, listMissionsToReassign } from "../../api/missions.api";
 import type { Mission, MissionAssignee } from "../../api/missions.api";
 import { listUsers } from "../../api/users.api";
 import { listAbsences } from "../../api/absences.api";
@@ -207,11 +207,47 @@ export function PlanningScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey]);
 
+  // Missions prévues avec une personne qui sera absente : bandeau d'alerte
+  // vers l'écran de réaffectation (superviseur, RH, direction, admin).
+  const [toReassignCount, setToReassignCount] = useState(0);
+  const loadToReassign = useCallback(async () => {
+    if (!managesTeam) return;
+    try {
+      setToReassignCount((await listMissionsToReassign()).length);
+    } catch {
+      setToReassignCount(0);
+    }
+  }, [managesTeam]);
+
   useFocusEffect(
     useCallback(() => {
       void load();
       void loadTeam();
-    }, [load, loadTeam])
+      void loadToReassign();
+    }, [load, loadTeam, loadToReassign])
+  );
+
+  const reassignBanner = toReassignCount > 0 && (
+    <PressableScale onPress={() => navigation.navigate("ReassignMissions")} accessibilityRole="button">
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: colors.dangerSoft,
+          borderRadius: radius.md,
+          paddingVertical: spacing.sm,
+          paddingHorizontal: spacing.md,
+          marginBottom: spacing.md,
+        }}
+      >
+        <Ionicons name="medkit-outline" size={18} color={colors.danger} />
+        <Text style={[type.callout, { color: colors.danger, fontWeight: "700", marginLeft: 8, flex: 1 }]}>
+          {toReassignCount} mission{toReassignCount > 1 ? "s" : ""} à réaffecter (absences)
+        </Text>
+        <Text style={[type.footnote, { color: colors.danger }]}>Voir</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.danger} />
+      </View>
+    </PressableScale>
   );
 
   async function handleRefresh() {
@@ -480,6 +516,7 @@ export function PlanningScreen() {
               s'étirer jusqu'à devenir illisible sur un très grand écran. */}
           <View style={{ maxWidth: 1680, width: "100%", alignSelf: "center" }}>
             {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+            {reassignBanner}
             {showTeamGrid ? (
               <TeamWeekGrid
                 days={days}
@@ -516,6 +553,7 @@ export function PlanningScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
         >
           {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {reassignBanner}
 
           {managesTeam && (
             <View style={{ marginBottom: spacing.md }}>

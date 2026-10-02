@@ -1207,3 +1207,102 @@ export async function removeStandardDocument(actor: Actor, missionId: string) {
 
   return presentMission(updated);
 }
+
+
+// ---------------------------------------------------------------------------
+// Missions à réaffecter (absence approuvée d'une personne affectée)
+// ---------------------------------------------------------------------------
+//
+// Retour explicite du client : quand un arrêt maladie (ou toute absence
+// approuvée) tombe sur des missions déjà prévues, le superviseur, la RH et la
+// direction — pas seulement le créateur de la mission — doivent pouvoir
+// refaire le planning et confier ces missions à d'autres employés.
+
+export async function listMissionsToReassign(actor: Actor) {
+  if (!canManagePlanning(actor)) throw ApiError.forbidden();
+  const today = calendarDay(new Date().toISOString().slice(0, 10));
+  const absences = await prisma.absence.findMany({
+    where: { status: "APPROVED", endDate: { gte: today } },
+    select: { id: true, userId: true, type: true, startDate: true, endDate: true },
+  });
+  if (absences.length === 0) return [];
+
+  const missions = await prisma.mission.findMany({
+    where: {
+      status: { in: [MissionStatus.SCHEDULED, MissionStatus.IN_PROGRESS] },
+      date: { gte: today },
+      assignments: { some: { userId: { in: [...new Set(absences.map((a) => a.userId))] } } },
+    },
+    select: missionSelect,
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+  });
+
+  return missions
+    .map((mission) => {
+      const absentees = mission.assignments
+        .map((assignment) => {
+          const absence = absences.find(
+            (a) => a.userId === assignment.userId && mission.date >= a.startDate && mission.date <= a.endDate
+          );
+          return absence
+            ? { user: { id: assignment.user.id, firstName: assignment.user.firstName, lastName: assignment.user.lastName }, isLead: assignment.isLead, absence: { type: absence.type, startDate: absence.startDate, endDate: absence.endDate } }
+            : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      return { mission: presentMission(mission), absentees };
+    })
+    .filter((item) => item.absentees.length > 0);
+}
+
+/**
+ * Remplace une personne par une autre sur une mission (superviseur, RH,
+ * direction, admin). Mêmes garde-fous qu'à la création : le remplaçant ne
+ * doit être ni absent ce jour-là, ni déjà sur une mission qui se recouvre.
+ * Les deux personnes sont prévenues.
+ */
+export async function replaceAssignee(actor: Actor, missionId: string, input: { fromUserId: string; toUserId: string }) {
+  if (!canManagePlanning(actor)) throw ApiError.forbidden();
+  const mission = await findMissionOrThrow(missionId);
+  if (mission.status === MissionStatus.CANCELLED || mission.status === MissionStatus.COMPLETED) {
+    throw ApiError.conflict("Cette mission est annulée ou terminée : plus de remplacement possible.");
+  }
+  const current = mission.assignments.find((a) => a.userId === input.fromUserId);
+  if (!current) throw ApiError.badRequest("Cette personne n'est pas affectée à la mission.");
+  if (mission.assignments.some((a) => a.userId === input.toUserId)) {
+    throw ApiError.conflict("Le remplaçant est déjà affecté à cette mission.");
+  }
+  await assertAssigneesValid([input.toUserId]);
+
+  const absent = await findApprovedAbsencesInRange([input.toUserId], mission.date, calendarDayEnd(calendarDayKey(mission.date)));
+  if (absent.length > 0) throw ApiError.conflict("Le remplaçant est absent ce jour-là.");
+  await assertNoScheduleOverlap([input.toUserId], [{ start: mission.startTime, end: mission.endTime }], missionId);
+
+  await prisma.$transaction([
+    prisma.missionAssignment.deleteMany({ where: { missionId, userId: input.fromUserId } }),
+    prisma.missionAssignment.create({ data: { missionId, userId: input.toUserId, isLead: current.isLead } }),
+  ]);
+  const updated = await findMissionOrThrow(missionId);
+
+  await logActivity({
+    userId: actor.userId,
+    action: "MISSION_REASSIGNED",
+    entityType: "Mission",
+    entityId: missionId,
+    metadata: { fromUserId: input.fromUserId, toUserId: input.toUserId },
+  });
+  await notifyAssignees(
+    [input.toUserId],
+    NotificationType.MISSION_ASSIGNED,
+    "Nouvelle mission",
+    `Une nouvelle mission vous a été attribuée en remplacement : ${describeMission(mission)}.`,
+    missionId
+  );
+  await notifyAssignees(
+    [input.fromUserId],
+    NotificationType.MISSION_UNASSIGNED,
+    "Mission confiée à un collègue",
+    `Pendant votre absence, la mission ${describeMission(mission)} a été confiée à un collègue.`,
+    missionId
+  );
+  return presentMission(updated);
+}

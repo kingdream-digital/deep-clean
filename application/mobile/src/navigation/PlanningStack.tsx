@@ -11,6 +11,7 @@ import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
 import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
+import { ReassignMissionsScreen } from "../screens/missions/ReassignMissionsScreen";
 
 export type PlanningStackParamList = {
   // `day` (AAAA-MM-JJ) : permet d'ouvrir Planning directement sur un jour
@@ -32,6 +33,8 @@ export type PlanningStackParamList = {
   // annoncé par téléphone, saisi depuis le planning) : `userId`/`fullName`
   // de la personne, `initialDate` (AAAA-MM-JJ) pour démarrer sur le jour choisi.
   AbsenceForm: { userId?: string; fullName?: string; initialDate?: string } | undefined;
+  // Missions dont une personne affectée sera absente (superviseur, RH, direction).
+  ReassignMissions: undefined;
 };
 
 const Stack = createNativeStackNavigator<PlanningStackParamList>();
@@ -79,6 +82,7 @@ export function PlanningStack() {
         component={AbsenceFormScreen}
         options={({ route }) => ({ title: route.params?.fullName ? "Enregistrer une absence" : "Demander une absence", presentation: "modal" })}
       />
+      <Stack.Screen name="ReassignMissions" component={ReassignMissionsScreen} options={{ title: "Missions à réaffecter" }} />
     </Stack.Navigator>
   );
 }

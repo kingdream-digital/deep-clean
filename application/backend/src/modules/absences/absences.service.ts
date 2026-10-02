@@ -229,21 +229,34 @@ async function notifyMissionConflicts(absenceId: string, userId: string, startDa
   });
   if (conflictingMissions.length === 0) return;
 
-  for (const mission of conflictingMissions) {
-    const recipientIds = new Set<string>([mission.createdById, ...(mission.site.managerId ? [mission.site.managerId] : [])]);
-    await Promise.all(
-      [...recipientIds].map((recipientId) =>
-        createNotification({
-          userId: recipientId,
-          type: NotificationType.ABSENCE_CONFLICT,
-          title: "Conflit planning / absence",
-          body: `Une absence approuvée chevauche la mission « ${mission.title} » — un remplacement est à prévoir.`,
-          relatedEntityType: "Mission",
-          relatedEntityId: mission.id,
-        })
-      )
-    );
-  }
+  // Retour explicite du client : pas seulement le créateur de la mission et
+  // le chef d'équipe du chantier, mais aussi tous ceux qui refont le planning
+  // (superviseur, RH, direction) — une seule notification par personne, qui
+  // ouvre l'écran « Missions à réaffecter ».
+  const absent = await prisma.user.findUnique({ where: { id: userId }, select: { firstName: true, lastName: true } });
+  const planners = await prisma.user.findMany({
+    where: { role: { in: [Role.SUPERVISOR, Role.HR, Role.DIRECTOR] }, isActive: true },
+    select: { id: true },
+  });
+  const recipientIds = new Set<string>([
+    ...planners.map((p) => p.id),
+    ...conflictingMissions.flatMap((m) => [m.createdById, ...(m.site.managerId ? [m.site.managerId] : [])]),
+  ]);
+  recipientIds.delete(userId);
+  const count = conflictingMissions.length;
+  const name = absent ? `${absent.firstName} ${absent.lastName}` : "Une personne affectée";
+  await Promise.all(
+    [...recipientIds].map((recipientId) =>
+      createNotification({
+        userId: recipientId,
+        type: NotificationType.ABSENCE_CONFLICT,
+        title: count > 1 ? `${count} missions à réaffecter` : "Mission à réaffecter",
+        body: `${name} sera absent(e) : ${count > 1 ? `${count} missions prévues sont` : `la mission « ${conflictingMissions[0]!.title} » est`} à confier à un autre employé.`,
+        relatedEntityType: "MissionsToReassign",
+        relatedEntityId: absenceId,
+      })
+    )
+  );
 
   await logActivity({
     userId,

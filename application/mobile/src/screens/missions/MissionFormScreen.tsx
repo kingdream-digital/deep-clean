@@ -31,7 +31,7 @@ import {
 } from "../../api/missions.api";
 import type { AssignmentConflict, Mission } from "../../api/missions.api";
 import { listAbsences } from "../../api/absences.api";
-import type { Availability } from "../../components/EmployeePickerModal";
+import { computeAvailability, weekBoundsKeys } from "../../utils/availability";
 import { listStandards } from "../../api/standards.api";
 import type { CleaningStandard } from "../../api/standards.api";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
@@ -214,11 +214,7 @@ export function MissionFormScreen() {
   const dayKey = toLocalDateKey(date);
   // Semaine (lundi → dimanche) de la date choisie : sert au compteur
   // « heures restantes » face aux heures du contrat.
-  const [weekStartKey, weekEndKey] = useMemo(() => {
-    const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7));
-    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-    return [toLocalDateKey(monday), toLocalDateKey(sunday)];
-  }, [date]);
+  const [weekStartKey, weekEndKey] = useMemo(() => weekBoundsKeys(date, toLocalDateKey), [date]);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -239,52 +235,11 @@ export function MissionFormScreen() {
     [weekMissions, dayKey]
   );
 
-  const availability = useMemo(() => {
-    const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
-    const wantedStart = minutesOf(startTime);
-    const wantedEnd = minutesOf(endTime);
-    const result: Record<string, Availability> = {};
-    for (const id of absentIds) result[id] = { blocking: true, label: "Absent ce jour-là (congé ou absence approuvée)" };
-    for (const mission of dayMissions) {
-      const start = new Date(mission.startTime);
-      const end = new Date(mission.endTime);
-      const overlaps = minutesOf(start) < wantedEnd && minutesOf(end) > wantedStart;
-      const where = `${mission.site.name}, ${timeFmt.format(start)}–${timeFmt.format(end)}`;
-      for (const assignment of mission.assignments) {
-        const current = result[assignment.userId];
-        if (current?.blocking) continue;
-        result[assignment.userId] = overlaps
-          ? { blocking: true, label: `Déjà prise : ${where}` }
-          : { blocking: false, label: current ? `${current.label} · ${where}` : `Aussi ce jour-là : ${where}` };
-      }
-    }
-    // Compteur de la semaine (si la RH a renseigné les heures du contrat) :
-    // ce qui reste à planifier une fois cette mission ajoutée.
-    const missionMinutes = Math.max(0, wantedEnd - wantedStart);
-    const plannedByUser = new Map<string, number>();
-    for (const mission of weekMissions) {
-      const minutes = (new Date(mission.endTime).getTime() - new Date(mission.startTime).getTime()) / 60000;
-      for (const a of mission.assignments) plannedByUser.set(a.userId, (plannedByUser.get(a.userId) ?? 0) + minutes);
-    }
-    const fmt = (minutes: number) => {
-      const h = Math.floor(minutes / 60);
-      const m = Math.round(minutes % 60);
-      return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
-    };
-    for (const person of [...employees, ...teamLeads]) {
-      if (person.weeklyHours == null) continue;
-      const remaining = person.weeklyHours * 60 - (plannedByUser.get(person.id) ?? 0);
-      const after = remaining - missionMinutes;
-      const hours =
-        remaining <= 0
-          ? { text: `Semaine déjà complète (${fmt(person.weeklyHours * 60)})`, over: true }
-          : after < 0
-            ? { text: `Reste ${fmt(remaining)} cette semaine : cette mission dépasserait de ${fmt(-after)}`, over: true }
-            : { text: `Reste ${fmt(remaining)} cette semaine sur ${fmt(person.weeklyHours * 60)}`, over: false };
-      result[person.id] = { ...(result[person.id] ?? { blocking: false, label: "" }), hours };
-    }
-    return result;
-  }, [dayMissions, weekMissions, absentIds, startTime, endTime, employees, teamLeads]);
+  const availability = useMemo(
+    () =>
+      computeAvailability({ start: startTime, end: endTime, dayMissions, weekMissions, absentIds, people: [...employees, ...teamLeads] }),
+    [dayMissions, weekMissions, absentIds, startTime, endTime, employees, teamLeads]
+  );
 
   const unavailableSelected = useMemo(
     () =>

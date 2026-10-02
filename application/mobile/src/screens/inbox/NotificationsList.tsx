@@ -30,7 +30,7 @@ const CACHE_KEY = "notifications.list";
 
 type LoadState = "loading" | "ready" | "error";
 
-const RELATED_ENTITY_TYPES = new Set(["Mission", "TimeEntry", "Problem", "Absence", "Announcement", "Conversation"]);
+const RELATED_ENTITY_TYPES = new Set(["Mission", "TimeEntry", "Problem", "Absence", "Announcement", "Conversation", "MissionsToReassign"]);
 
 // Regroupement par jour façon Centre de notifications iOS ("Aujourd'hui",
 // "Hier"...) — les éléments arrivent déjà triés du plus récent au plus ancien
@@ -160,6 +160,9 @@ export function NotificationsList() {
         // l'absence décidée y est visible avec son statut.
         navigation.navigate("MyAbsences");
       }
+    } else if (notification.relatedEntityType === "MissionsToReassign") {
+      // Absence tombant sur des missions prévues : liste à réaffecter.
+      navigation.navigate("ReassignMissions");
     } else if (notification.relatedEntityType === "Announcement") {
       navigation.navigate("AnnouncementDetail", { announcementId: notification.relatedEntityId });
     } else if (notification.relatedEntityType === "Conversation") {

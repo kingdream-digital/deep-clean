@@ -5,6 +5,7 @@ import { uploadDocument } from "../../middleware/upload.middleware";
 import {
   cancelMissionSchema,
   conflictsQuerySchema,
+  replaceAssigneeSchema,
   createMissionSchema,
   listMissionsQuerySchema,
   missionIdParamSchema,
@@ -27,7 +28,9 @@ missionsRouter.post("/", validate(createMissionSchema), missionsController.creat
 missionsRouter.get("/", validate(listMissionsQuerySchema), missionsController.listMissionsHandler);
 // AVANT "/:id" : sinon Express interpréterait "conflicts" comme un id de mission.
 missionsRouter.get("/conflicts", validate(conflictsQuerySchema), missionsController.getAssignmentConflictsHandler);
+missionsRouter.get("/to-reassign", missionsController.listMissionsToReassignHandler);
 missionsRouter.get("/:id", validate(missionIdParamSchema), missionsController.getMissionHandler);
+missionsRouter.post("/:id/replace", validate(replaceAssigneeSchema), missionsController.replaceAssigneeHandler);
 missionsRouter.patch("/:id", validate(updateMissionSchema), missionsController.updateMissionHandler);
 missionsRouter.post("/:id/cancel", validate(cancelMissionSchema), missionsController.cancelMissionHandler);
 missionsRouter.post("/:id/status", validate(setStatusSchema), missionsController.setStatusHandler);

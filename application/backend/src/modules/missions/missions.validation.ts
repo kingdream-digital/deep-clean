@@ -129,3 +129,8 @@ export const upsertJobSheetSchema = {
     notes: z.string().trim().max(2000).nullable().optional(),
   }),
 };
+
+export const replaceAssigneeSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({ fromUserId: z.string().uuid(), toUserId: z.string().uuid() }),
+};

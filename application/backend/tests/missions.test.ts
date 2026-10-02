@@ -995,3 +995,69 @@ describe("Liste des missions — à valider / validées", () => {
     expect(validated.body.items.map((m: { title: string }) => m.title)).toEqual(["Validée"]);
   });
 });
+
+describe("Absence sur des missions prévues — réaffectation par le superviseur, la RH ou la direction", () => {
+  async function setup() {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-reassign@deepclean.test" });
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-reassign@deepclean.test" });
+    const director = await createTestUser({ role: Role.DIRECTOR, email: "dir-reassign@deepclean.test" });
+    const sick = await createTestUser({ role: Role.EMPLOYEE, email: "sick-reassign@deepclean.test" });
+    const spare = await createTestUser({ role: Role.EMPLOYEE, email: "spare-reassign@deepclean.test" });
+    const site = await createTestSite();
+    const date = tomorrowDateString();
+    const hrToken = await loginAs(hr);
+    const created = await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ siteId: site.id, title: "Mission du malade", date, startTime: "08:00", endTime: "10:00", assigneeIds: [sick.id] });
+    // La RH enregistre l'arrêt maladie (appel téléphonique).
+    await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ userId: sick.id, type: "SICK_LEAVE", startDate: date, endDate: date });
+    return { hr, supervisor, director, sick, spare, site, date, missionId: created.body.mission.id as string };
+  }
+
+  it("prévient le superviseur et la direction, qui voient la mission à réaffecter et la confient à un autre employé", async () => {
+    const { supervisor, director, sick, spare, missionId } = await setup();
+    expect(await prisma.notification.count({ where: { userId: supervisor.id, type: "ABSENCE_CONFLICT" } })).toBe(1);
+    expect(await prisma.notification.count({ where: { userId: director.id, type: "ABSENCE_CONFLICT" } })).toBe(1);
+
+    const supToken = await loginAs(supervisor);
+    const list = await request(app).get("/api/v1/missions/to-reassign").set("Authorization", `Bearer ${supToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body.items).toHaveLength(1);
+    expect(list.body.items[0].absentees[0].user.id).toBe(sick.id);
+
+    const replaced = await request(app)
+      .post(`/api/v1/missions/${missionId}/replace`)
+      .set("Authorization", `Bearer ${supToken}`)
+      .send({ fromUserId: sick.id, toUserId: spare.id });
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.mission.assignments.map((a: { userId: string }) => a.userId)).toEqual([spare.id]);
+    expect(await prisma.notification.count({ where: { userId: spare.id, type: "MISSION_ASSIGNED" } })).toBe(1);
+
+    const after = await request(app).get("/api/v1/missions/to-reassign").set("Authorization", `Bearer ${supToken}`);
+    expect(after.body.items).toHaveLength(0);
+  });
+
+  it("refuse un remplaçant absent ou déjà pris, et refuse à un employé", async () => {
+    const { hr, sick, spare, site, date, missionId } = await setup();
+    const hrToken = await loginAs(hr);
+    // Le remplaçant a déjà une mission qui se recouvre.
+    await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ siteId: site.id, title: "Autre", date, startTime: "09:00", endTime: "11:00", assigneeIds: [spare.id] });
+    const busy = await request(app).post(`/api/v1/missions/${missionId}/replace`).set("Authorization", `Bearer ${hrToken}`).send({ fromUserId: sick.id, toUserId: spare.id });
+    expect(busy.status).toBe(409);
+
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "other-reassign@deepclean.test" });
+    await request(app).post("/api/v1/absences").set("Authorization", `Bearer ${hrToken}`).send({ userId: other.id, type: "PAID_LEAVE", startDate: date, endDate: date });
+    const absent = await request(app).post(`/api/v1/missions/${missionId}/replace`).set("Authorization", `Bearer ${hrToken}`).send({ fromUserId: sick.id, toUserId: other.id });
+    expect(absent.status).toBe(409);
+
+    const empToken = await loginAs(spare);
+    expect((await request(app).get("/api/v1/missions/to-reassign").set("Authorization", `Bearer ${empToken}`)).status).toBe(403);
+  });
+});

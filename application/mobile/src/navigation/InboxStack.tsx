@@ -20,6 +20,7 @@ import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
 import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { MyAbsencesScreen } from "../screens/absences/MyAbsencesScreen";
 import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
+import { ReassignMissionsScreen } from "../screens/missions/ReassignMissionsScreen";
 import { UserDetailScreen } from "../screens/users/UserDetailScreen";
 import { UserFormScreen } from "../screens/users/UserFormScreen";
 import { AnnouncementDetailScreen } from "../screens/announcements/AnnouncementDetailScreen";
@@ -60,6 +61,8 @@ export type InboxStackParamList = {
   // annoncé par téléphone, saisi depuis le planning) : `userId`/`fullName`
   // de la personne, `initialDate` (AAAA-MM-JJ) pour démarrer sur le jour choisi.
   AbsenceForm: { userId?: string; fullName?: string; initialDate?: string } | undefined;
+  // Missions dont une personne affectée sera absente (superviseur, RH, direction).
+  ReassignMissions: undefined;
   // ABSENCE_REQUESTED (RH/direction/admin, retour explicite du client) doit
   // amener sur la fiche de l'employé pour décider — jamais "Mes absences",
   // qui n'a de sens que pour l'intéressé lui-même. UserForm est dupliqué en
@@ -150,6 +153,7 @@ export function InboxStack() {
         })}
       />
       <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} options={{ title: "Actualité" }} />
+      <Stack.Screen name="ReassignMissions" component={ReassignMissionsScreen} options={{ title: "Missions à réaffecter" }} />
     </Stack.Navigator>
   );
 }
