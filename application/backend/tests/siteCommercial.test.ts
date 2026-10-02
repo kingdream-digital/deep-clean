@@ -192,5 +192,9 @@ describe("Chantiers — objectifs et suivi mensuel (jamais d'automatisation vers
     expect(progress.body.progress.scheduledVisits).toBe(1);
     expect(progress.body.progress.cancelledVisits).toBe(1);
     expect(progress.body.progress.remainingVisits).toBe(3);
+    // Objectif 3, une mission programmée (l'annulée ne compte pas) : il en
+    // reste 2 à programmer, déduites dès la création de la mission.
+    expect(progress.body.progress.toScheduleVisits).toBe(2);
+    expect(progress.body.progress.extraVisits).toBe(0);
   });
 });
