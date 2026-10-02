@@ -45,11 +45,26 @@ function WeeklyTrendChart({ weeks }: { weeks: StatsTrends["weeklyMissionTrends"]
         </Text>
       </View>
       <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.sm }]}>
-        Missions terminées par semaine — taux de validation moyen :{" "}
-        {Math.round(weeks.reduce((sum, w) => sum + w.validationRatePercent, 0) / Math.max(1, weeks.length))}%
+        Missions terminées par semaine · taux de validation sur la période :{" "}
+        {periodValidationRate(weeks)}%
       </Text>
     </Card>
   );
+}
+
+function validationLabel(validated: number, completed: number): string {
+  const pending = Math.max(0, completed - validated);
+  const base = `${validated} validée${validated > 1 ? "s" : ""} sur ${completed} terminée${completed > 1 ? "s" : ""}`;
+  return pending > 0 ? `${base} · ${pending} à valider` : base;
+}
+
+// Taux sur l'ensemble des 8 semaines (validées / terminées). L'ancienne
+// moyenne des taux hebdomadaires comptait les semaines sans aucune mission
+// comme 0 % : une seule semaine à 33 % affichait « 4 % ».
+function periodValidationRate(weeks: Array<{ completed: number; validated: number }>): number {
+  const completed = weeks.reduce((sum, w) => sum + w.completed, 0);
+  const validated = weeks.reduce((sum, w) => sum + w.validated, 0);
+  return completed > 0 ? Math.round((validated / completed) * 100) : 0;
 }
 
 function formatShortDate(iso?: string): string {
@@ -164,7 +179,7 @@ export function StatsOverviewScreen() {
   const validations: KpiTile[] = [
     {
       key: "rate",
-      label: `${overview.validations.validatedMissions} / ${overview.validations.completedMissions} missions validées`,
+      label: validationLabel(overview.validations.validatedMissions, overview.validations.completedMissions),
       value: `${overview.validations.validationRatePercent}%`,
       tone: "success",
       icon: "shield-checkmark-outline",
