@@ -221,6 +221,20 @@ async function main() {
   const today = demoDate ? new Date(`${demoDate}T12:00:00`) : new Date();
   const missionIds: Record<string, string> = {};
 
+  // DEMO_HEURE=HH:mm : heure de la présentation. Les missions du jour sont
+  // alors placées autour de cette heure (une terminée avant, une en cours, les
+  // suivantes après) au lieu des horaires du matin : une démo à 18 h montrait
+  // sinon une mission « en cours » depuis 8 h et une autre de 14 h encore
+  // planifiée.
+  const demoHour = process.env.DEMO_HEURE;
+  if (demoHour && !/^([01]\d|2[0-3]):[0-5]\d$/.test(demoHour)) throw new Error("DEMO_HEURE doit être au format HH:mm, par exemple 18:00.");
+  const todaySlot = (defaultTime: string, hoursFromDemo: number): string => {
+    if (!demoHour) return defaultTime;
+    const [h = 0, m = 0] = demoHour.split(":").map(Number);
+    const minutes = Math.min(Math.max(h * 60 + m + Math.round(hoursFromDemo * 60), 0), 23 * 60 + 59);
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  };
+
   // Ne recrée jamais le planning de démo s'il existe déjà (aucune suppression,
   // uniquement une vérification avant ajout).
   if ((await prisma.mission.count()) === 0) {
@@ -237,9 +251,9 @@ async function main() {
       { site: siteTilleuls, title: "Vitrerie extérieure", dayOffset: -2, start: "14:00", end: "16:00", instructions: "Façade rue des Tilleuls, rez-de-chaussée et 1er étage.", assignees: [emma.id, ines.id], leadId: undefined, status: MissionStatus.COMPLETED },
       { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -1, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
       // Aujourd'hui : une terminée tôt, une en cours, une cet après-midi
-      { site: siteTechcorp, title: "Grand nettoyage open space", dayOffset: 0, start: "06:30", end: "08:30", instructions: "Vitres intérieures, moquette, cuisine partagée.", assignees: [nathan.id, chloe.id, sophie.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 0, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.IN_PROGRESS, key: "todayInProgress" },
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 0, start: "14:00", end: "16:00", instructions: "Protocole sanitaire renforcé, salles 7 à 12.", assignees: [lucas.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      { site: siteTechcorp, title: "Grand nettoyage open space", dayOffset: 0, start: todaySlot("06:30", -4), end: todaySlot("08:30", -2), instructions: "Vitres intérieures, moquette, cuisine partagée.", assignees: [nathan.id, chloe.id, sophie.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 0, start: todaySlot("08:00", -1), end: todaySlot("11:00", 2), instructions: "Hall d'entrée, cages d'escalier.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.IN_PROGRESS, key: "todayInProgress" },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 0, start: todaySlot("14:00", 2.5), end: todaySlot("16:00", 4.5), instructions: "Protocole sanitaire renforcé, salles 7 à 12.", assignees: [lucas.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
       // À venir
       { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 1, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
       { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 2, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
@@ -444,7 +458,7 @@ async function main() {
     await prisma.mission.create({
       data: {
         siteId: sitePhare.id, title: "Entretien quotidien espace coworking",
-        date: dayOnly(isoDate(today)), startTime: combineDateTime(isoDate(today), "07:00"), endTime: combineDateTime(isoDate(today), "09:00"),
+        date: dayOnly(isoDate(today)), startTime: combineDateTime(isoDate(today), todaySlot("07:00", 1)), endTime: combineDateTime(isoDate(today), todaySlot("09:00", 3)),
         instructions: "Accueil, open space, sanitaires, salles de réunion.", status: MissionStatus.SCHEDULED, createdById: rh.id,
         assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: ines.id }] },
       },
