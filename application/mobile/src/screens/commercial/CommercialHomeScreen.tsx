@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Card } from "../../components/Card";
@@ -15,6 +15,7 @@ import { getCommercialDashboard } from "../../api/commercialDashboard.api";
 import type { CommercialDashboard } from "../../api/commercialDashboard.api";
 import type { KpiTile } from "../dashboard/useDashboardData";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 interface CommercialEntry {
   icon: keyof typeof Ionicons.glyphMap;
@@ -120,16 +121,17 @@ export function CommercialHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setDashboard(await getCommercialDashboard());
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

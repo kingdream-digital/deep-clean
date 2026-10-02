@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -23,6 +23,7 @@ import { formatMissionDay, formatMissionTimeRange, toLocalDateKey } from "../../
 import { formatAbsencePeriod } from "../../utils/frenchDate";
 import { Alert } from "../../utils/alert";
 import type { PlanningStackParamList } from "../../navigation/PlanningStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Target = { item: MissionToReassign; fromUserId: string; fromName: string };
 
@@ -42,8 +43,9 @@ export function ReassignMissionsScreen() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [list, employees, leads] = await Promise.all([
         listMissionsToReassign(),
         listUsers({ role: "EMPLOYEE", isActive: true }),
@@ -53,11 +55,11 @@ export function ReassignMissionsScreen() {
       setStaff([...employees.items, ...leads.items]);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

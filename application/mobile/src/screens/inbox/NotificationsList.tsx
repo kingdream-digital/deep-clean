@@ -25,6 +25,7 @@ import { readCache, writeCache } from "../../offline/cache";
 import { timeAgo } from "../../utils/timeAgo";
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
+import { useReloadOnDataChange } from "../../sync/liveSync";
 
 const CACHE_KEY = "notifications.list";
 
@@ -94,6 +95,7 @@ export function NotificationsList() {
   useEffect(() => {
     void load();
   }, [load]);
+  useReloadOnDataChange(load);
 
   async function handleRefresh() {
     setRefreshing(true);

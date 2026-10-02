@@ -257,3 +257,15 @@ compte Apple Developer à 99$/an), voir `application/README.md` section
   et affiché comme tel ; la RH peut accorder un report par un ajustement.
 - Le 1er mars, avril et mai, chaque salarié à qui il reste des congés de
   l'an dernier reçoit un rappel (une seule fois par mois).
+
+## Synchronisation entre appareils
+
+Chaque modification réussie (mission, pointage, absence, devis…) fait avancer
+un numéro de version côté serveur (`GET /api/v1/sync/version`). Les
+applications ouvertes le consultent toutes les 8 secondes et rechargent
+discrètement l'écran affiché dès qu'il change ; les autres écrans se
+rechargent quand on y revient. Aucun réglage n'est nécessaire.
+
+Ces rechargements comptent dans la limite de requêtes par personne :
+prévoir `RATE_LIMIT_MAX_REQUESTS=1200` (par fenêtre de 15 minutes) dans les
+variables d'environnement du Backend.

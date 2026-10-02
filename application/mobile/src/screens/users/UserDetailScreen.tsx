@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { Platform, ScrollView, Share, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -33,6 +33,7 @@ import { isMissionOverdue, toLocalDateKey, isMissionValidated } from "../../util
 import { formatAbsencePeriod, frenchDateFormat } from "../../utils/frenchDate";
 import { formatAction } from "../../utils/activityLogLabels";
 import { shareFile } from "../../utils/shareFile";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ UserDetail: { userId: string; temporaryPassword?: string } }, "UserDetail">;
 
@@ -179,8 +180,9 @@ export function UserDetailScreen() {
   }
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [accountData, dossierData] = await Promise.all([
         getUser(userId),
         // Le dossier est une synthèse réservée à la gestion (RH/direction/
@@ -193,11 +195,11 @@ export function UserDetailScreen() {
       setDossier(dossierData);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [userId, canViewDossier]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

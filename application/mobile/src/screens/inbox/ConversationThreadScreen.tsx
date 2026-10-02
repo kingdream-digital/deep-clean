@@ -3,7 +3,7 @@ import { FlatList, Image, Linking, Platform, Pressable, StyleSheet, Text, TextIn
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -34,6 +34,7 @@ import { formatFileSize } from "../../utils/fileSize";
 import { ROLE_LABELS_SHORT } from "../../utils/roleLabels";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect } from "../../sync/liveSync";
 
 // L'écran s'ouvre soit sur un fil déjà connu (liste, notification), soit sur
 // une personne (fiche contact, équipe d'une mission) — dans ce second cas le
@@ -155,7 +156,7 @@ export function ConversationThreadScreen() {
     }
   }, [conversationId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
       // eslint-disable-next-line react-hooks/exhaustive-deps

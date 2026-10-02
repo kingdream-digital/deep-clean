@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -14,6 +14,7 @@ import type { ReconciliationRow } from "../../api/timesheets.api";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { addDays, mondayOf, toLocalDateKey, formatWeekRange } from "../../utils/missionFormat";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 // Menu "Pointage vs mission" pour l'encadrement : pour chaque personne de la
 // semaine, compare les heures pointées aux missions planifiées et signale
@@ -32,17 +33,18 @@ export function ReconciliationScreen() {
   const weekEnd = addDays(weekStart, 6);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await getReconciliation(toLocalDateKey(weekStart), toLocalDateKey(addDays(weekStart, 6)));
       setItems(res);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [weekStart]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

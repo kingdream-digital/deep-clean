@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
-import { useFocusEffect } from "@react-navigation/native";
+
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -17,6 +17,7 @@ import { cancelAbsence, listAbsences, decideAbsence } from "../../api/absences.a
 import type { Absence, AbsenceStatus } from "../../api/absences.api";
 import { formatAbsencePeriod } from "../../utils/frenchDate";
 import { formatDaysWithUnit } from "../../utils/leaveDays";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",
@@ -52,17 +53,18 @@ export function AbsencesManagementScreen() {
   const [decidingId, setDecidingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listAbsences(filter === "ALL" ? {} : { status: filter });
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [filter]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

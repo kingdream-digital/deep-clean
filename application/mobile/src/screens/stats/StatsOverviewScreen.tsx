@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp, ParamListBase } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { PressableScale } from "../../components/PressableScale";
@@ -13,6 +13,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { getStatsOverview, getStatsTrends } from "../../api/stats.api";
 import type { StatsOverview, StatsTrends } from "../../api/stats.api";
 import type { KpiTile } from "../dashboard/useDashboardData";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const CHART_HEIGHT = 64;
 
@@ -110,13 +111,14 @@ export function StatsOverviewScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const data = await getStatsOverview();
       setOverview(data);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
       return;
     }
     // Les tendances sont un complément au tableau de bord, jamais une
@@ -130,7 +132,7 @@ export function StatsOverviewScreen() {
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

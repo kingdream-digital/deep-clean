@@ -3,7 +3,7 @@ import { Platform, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -17,6 +17,7 @@ import type { CleaningStandard } from "../../api/standards.api";
 import { formatFileSize } from "../../utils/fileSize";
 import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
+import { useLiveFocusEffect } from "../../sync/liveSync";
 
 type Route = RouteProp<{ StandardDetail: { standardId: string } }, "StandardDetail">;
 type Navigation = NativeStackNavigationProp<{ StandardForm: { siteId: string; standardId?: string } }>;
@@ -56,7 +57,7 @@ export function StandardDetailScreen() {
 
   // Rechargé à chaque retour sur l'écran : la fiche reflète tout de suite
   // une modification faite dans le formulaire.
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

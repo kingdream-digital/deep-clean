@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
+import { useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -19,6 +19,7 @@ import { extractErrorMessage } from "../../api/client";
 import { addProblemComment, getProblem, problemPhotoUrl, setProblemStatus } from "../../api/problems.api";
 import type { Problem, ProblemStatus } from "../../api/problems.api";
 import { downloadAndSharePhoto } from "../../utils/downloadPhoto";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ ProblemDetail: { problemId: string } }, "ProblemDetail">;
 
@@ -57,17 +58,18 @@ export function ProblemDetailScreen() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const data = await getProblem(problemId);
       setProblem(data);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [problemId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

@@ -1,10 +1,10 @@
 import { useCallback, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../auth/AuthContext";
 import { listTimeEntries } from "../api/timesheets.api";
 import { addDays, mondayOf, toLocalDateKey } from "../utils/missionFormat";
 import { computeWeekSummary } from "../utils/timesheetSummary";
 import type { WeekSummary } from "../utils/timesheetSummary";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../sync/liveSync";
 
 const EMPTY: WeekSummary = { validatedMinutes: 0, pendingMinutes: 0, totalMinutes: 0 };
 
@@ -19,9 +19,10 @@ export function useWeeklyTimesheetSummary() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     if (!user) return;
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const weekStart = mondayOf(new Date());
       const weekEnd = addDays(weekStart, 6);
       const res = await listTimeEntries({
@@ -33,11 +34,11 @@ export function useWeeklyTimesheetSummary() {
       setSummary(computeWeekSummary(res.items));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [user]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

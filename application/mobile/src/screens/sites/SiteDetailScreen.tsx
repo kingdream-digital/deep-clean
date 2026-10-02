@@ -4,7 +4,7 @@ import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { pickerStyle } from "../../components/pickerStyle";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -28,6 +28,7 @@ import { listProblems } from "../../api/problems.api";
 import type { Problem } from "../../api/problems.api";
 import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, todayKey, isMissionValidated } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const periodFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = { FLAT_RATE: "Forfait (montant prévu au devis)", PER_SERVICE: "À la prestation" };
@@ -64,8 +65,9 @@ export function SiteDetailScreen() {
   const period = currentPeriod();
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [siteRes, missionsRes, problemsRes, progressRes] = await Promise.all([
         getSite(siteId),
         listMissions({ siteId, from: todayKey(), pageSize: 5 }),
@@ -78,12 +80,12 @@ export function SiteDetailScreen() {
       setProgress(progressRes);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId, period]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

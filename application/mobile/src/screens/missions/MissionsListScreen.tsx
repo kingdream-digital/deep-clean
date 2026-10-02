@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import NetInfo from "@react-native-community/netinfo";
@@ -31,6 +31,7 @@ import {
 } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 // « Terminées » est scindé en deux (retour explicite du client : terminée et
 // validée prêtaient à confusion) : « À valider » = travail fini en attente du
@@ -107,9 +108,10 @@ export function MissionsListScreen() {
   }, [items, tab]);
 
   const load = useCallback(async (activeTab: Tab) => {
+    const silent = isBackgroundRefresh();
     const cacheKey = `missions.${activeTab}`;
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       let fetched: Mission[];
       if (activeTab === "upcoming") {
         const res = await listMissions({ from: todayKey() });
@@ -136,12 +138,12 @@ export function MissionsListScreen() {
         setOfflineCachedAt(cached.cachedAt);
         setState("ready");
       } else {
-        setState("error");
+        if (!silent) setState("error");
       }
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load(tab);
     }, [tab, load])

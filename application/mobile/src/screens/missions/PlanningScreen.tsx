@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import NetInfo from "@react-native-community/netinfo";
 import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
@@ -38,6 +38,7 @@ import {
 } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 // Créer une mission est réservé aux rôles qui gèrent le planning — même
 // règle que dans MissionsListScreen (le chef d'équipe n'en fait plus partie,
@@ -186,8 +187,9 @@ export function PlanningScreen() {
   }, [managesTeam, weekStart, weekEnd]);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) });
       setMissions(res.items);
       setOfflineCachedAt(null);
@@ -201,7 +203,7 @@ export function PlanningScreen() {
         setOfflineCachedAt(cached.cachedAt);
         setState("ready");
       } else {
-        setState("error");
+        if (!silent) setState("error");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -219,7 +221,7 @@ export function PlanningScreen() {
     }
   }, [managesTeam]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
       void loadTeam();

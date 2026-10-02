@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -21,6 +21,7 @@ import { extractErrorMessage } from "../../api/client";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { formatDays, formatDaysWithUnit } from "../../utils/leaveDays";
 import { formatAbsencePeriod } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
@@ -49,8 +50,9 @@ export function MyAbsencesScreen() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [res, balanceRes] = await Promise.all([
         listAbsences({}),
         // Solde purement informatif ici — jamais bloquant si l'appel échoue
@@ -61,11 +63,11 @@ export function MyAbsencesScreen() {
       setBalance(balanceRes);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [user]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -14,6 +14,7 @@ import { listUsers } from "../../api/users.api";
 import type { DirectoryUser } from "../../api/users.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { ROLE_LABELS_SHORT, groupByRole } from "../../utils/roleLabels";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const TABLE_COLUMNS: DataTableColumn<DirectoryUser>[] = [
   {
@@ -41,17 +42,18 @@ export function StaffHoursListScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listUsers({ isActive: true });
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

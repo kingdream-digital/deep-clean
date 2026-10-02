@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -17,6 +17,7 @@ import type { Announcement } from "../../api/announcements.api";
 import { timeAgo } from "../../utils/timeAgo";
 import type { Role } from "../../api/auth.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const ROLE_LABELS: Record<Role, string> = {
   EMPLOYEE: "Employé",
@@ -43,17 +44,18 @@ export function AnnouncementsListScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listAnnouncements();
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

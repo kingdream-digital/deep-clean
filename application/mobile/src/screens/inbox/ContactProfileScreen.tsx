@@ -14,6 +14,7 @@ import type { Contact } from "../../api/messages.api";
 import { Alert } from "../../utils/alert";
 import { ROLE_LABELS_SHORT } from "../../utils/roleLabels";
 import type { AppTabsParamList } from "../../navigation/appTabsShared";
+import { isBackgroundRefresh, useReloadOnDataChange } from "../../sync/liveSync";
 
 type Route = RouteProp<{ ContactProfile: { userId: string } }, "ContactProfile">;
 
@@ -30,18 +31,20 @@ export function ContactProfileScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setContact(await getContact(userId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [userId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+  useReloadOnDataChange(load);
 
   async function handleCall() {
     if (!contact?.phone) return;
