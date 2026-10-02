@@ -20,7 +20,7 @@ export type PlanningStackParamList = {
   // `initialDate` (AAAA-MM-JJ) : pré-remplit la date du formulaire avec le
   // jour actuellement sélectionné dans le Planning, quand on crée une
   // mission depuis cet écran plutôt que depuis la liste des missions.
-  MissionForm: { missionId?: string; initialDate?: string } | undefined;
+  MissionForm: { missionId?: string; initialDate?: string; initialAssigneeId?: string } | undefined;
   JobSheetForm: { missionId: string };
   ReportProblem: { missionId: string };
   ProblemDetail: { problemId: string };
