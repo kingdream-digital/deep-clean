@@ -18,11 +18,13 @@ import { extractErrorMessage } from "../../api/client";
 import { listClients } from "../../api/clients.api";
 import type { Client } from "../../api/clients.api";
 import { getQuote } from "../../api/quotes.api";
+import type { Quote } from "../../api/quotes.api";
 import { QUOTE_ITEM_UNIT_LABELS } from "../../api/quotes.api";
 import type { QuoteItemUnit } from "../../api/quotes.api";
-import { getSite, currentPeriod } from "../../api/sites.api";
+import { getSite, getSiteProgress, currentPeriod } from "../../api/sites.api";
 import type { SiteBillingMode } from "../../api/sites.api";
-import { createInvoice, getInvoice, updateInvoice } from "../../api/invoices.api";
+import { createInvoice, getInvoice, listInvoices, updateInvoice } from "../../api/invoices.api";
+import { billingPeriodLabel, buildInvoiceLinesFromQuote } from "../../utils/invoiceFromQuote";
 import type { InvoiceItemInput } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
@@ -32,8 +34,8 @@ const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = {
-  FLAT_RATE: "Forfait (montant prévu au devis)",
-  PER_SERVICE: "À la prestation (nombre réel × tarif)",
+  FLAT_RATE: "Forfait mensuel (le mois entier, montant du devis)",
+  PER_SERVICE: "À la prestation (prestations réalisées × tarif)",
 };
 
 interface EditableItem extends InvoiceItemInput {
@@ -94,6 +96,11 @@ export function InvoiceFormScreen() {
   const [internalNotes, setInternalNotes] = useState("");
   const [vatRate, setVatRate] = useState("20");
   const [items, setItems] = useState<EditableItem[]>([blankItem()]);
+  // Devis accepté servant de base (création uniquement) : les lignes sont
+  // recalculées selon le mode de facturation et le mois choisis.
+  const [sourceQuote, setSourceQuote] = useState<Quote | null>(null);
+  const [firstInvoiceOfQuote, setFirstInvoiceOfQuote] = useState(true);
+  const [completedVisits, setCompletedVisits] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -128,8 +135,18 @@ export function InvoiceFormScreen() {
       } else {
         // Pré-remplissage depuis un devis accepté ou un chantier (§32) —
         // l'utilisateur vérifie et peut tout modifier avant d'enregistrer.
-        if (route.params?.quoteId) {
-          const quote = await getQuote(route.params.quoteId);
+        let site: Awaited<ReturnType<typeof getSite>> | null = null;
+        if (route.params?.siteId) {
+          site = await getSite(route.params.siteId);
+          setSiteLabel(site.name);
+          if (!route.params?.clientId && site.clientId) setClientId(site.clientId);
+        }
+        // Devis de référence : celui demandé, sinon celui dont est issu le chantier.
+        const baseQuoteId = route.params?.quoteId ?? site?.quoteId ?? undefined;
+        const [quote, previous] = baseQuoteId ? await Promise.all([getQuote(baseQuoteId), listInvoices({ quoteId: baseQuoteId })]) : [null, null];
+        // Seul un devis accepté peut servir de base à une facture.
+        if (quote && previous && quote.status === "ACCEPTED") {
+          setQuoteId(quote.id);
           setClientId(quote.clientId);
           setQuoteLabel(quote.quoteNumber);
           setContactName(quote.contactName ?? "");
@@ -138,25 +155,8 @@ export function InvoiceFormScreen() {
           setBillingAddress(quote.billingAddress ?? "");
           setSiret(quote.siret ?? "");
           setVatRate(String(quote.vatRate));
-          setItems(
-            quote.items.map((i) => ({
-              key: i.id,
-              description: i.description,
-              quantity: i.quantity,
-              unit: i.unit,
-              unitPriceHt: i.unitPriceHt,
-              sourceQuoteItemId: i.id,
-            }))
-          );
-        }
-        if (route.params?.siteId) {
-          const site = await getSite(route.params.siteId);
-          setSiteLabel(site.name);
-          if (!route.params?.clientId && site.clientId) setClientId(site.clientId);
-          if (!route.params?.quoteId && site.quoteId) {
-            setQuoteId(site.quoteId);
-            setQuoteLabel(site.quote?.quoteNumber ?? null);
-          }
+          setFirstInvoiceOfQuote(!previous.items.some((i) => i.status !== "CANCELLED"));
+          setSourceQuote(quote);
         }
       }
       setLoadState("ready");
@@ -170,6 +170,28 @@ export function InvoiceFormScreen() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
+
+  // Prestations réalisées sur le mois (mode « à la prestation », chantier connu).
+  useEffect(() => {
+    if (isEdit || billingMode !== "PER_SERVICE" || !siteId || !period) {
+      setCompletedVisits(null);
+      return;
+    }
+    let cancelled = false;
+    getSiteProgress(siteId, period)
+      .then((p) => !cancelled && setCompletedVisits(p.completedVisits))
+      .catch(() => !cancelled && setCompletedVisits(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, billingMode, siteId, period]);
+
+  // Lignes recalculées depuis le devis à chaque changement de mode ou de mois.
+  useEffect(() => {
+    if (isEdit || !sourceQuote) return;
+    const lines = buildInvoiceLinesFromQuote(sourceQuote.items, { mode: billingMode, period, includeOneTime: firstInvoiceOfQuote, completedVisits });
+    setItems(lines.length > 0 ? lines.map((l, i) => ({ ...l, key: `${l.sourceQuoteItemId ?? "l"}-${i}` })) : [blankItem()]);
+  }, [isEdit, sourceQuote, billingMode, period, firstInvoiceOfQuote, completedVisits]);
 
   function handlePickClient(id: string) {
     setClientId(id);
@@ -287,12 +309,15 @@ export function InvoiceFormScreen() {
                   ))}
                 </Picker>
               </Card>
-              {billingMode === "PER_SERVICE" && (
-                <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
-                  Consultez le suivi du chantier ("Objectifs & suivi") pour connaître le nombre de prestations réalisées sur la
-                  période, puis indiquez-le manuellement en quantité ci-dessous.
-                </Text>
-              )}
+              <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
+                {billingMode === "FLAT_RATE"
+                  ? sourceQuote
+                    ? "Le client paie le mois entier : chaque prestation régulière du devis est facturée « 1 mois » à son montant mensuel."
+                    : "Le client paie le mois entier : indiquez le montant du mois sur une ligne « 1 mois »."
+                  : completedVisits != null
+                    ? `${completedVisits} prestation${completedVisits > 1 ? "s" : ""} réalisée${completedVisits > 1 ? "s" : ""} sur ce chantier en ${billingPeriodLabel(period)} : quantité reprise ci-dessous, à vérifier.`
+                    : "Indiquez en quantité le nombre de prestations réalisées sur le mois (voir « Objectifs & suivi » du chantier)."}
+              </Text>
             </View>
             <View style={{ marginBottom: spacing.md }}>
               <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mois facturé</Text>
