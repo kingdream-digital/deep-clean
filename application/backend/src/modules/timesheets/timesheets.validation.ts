@@ -78,3 +78,15 @@ export const retroactiveTimeEntrySchema = {
     comment: z.string().trim().max(2000).optional(),
   }),
 };
+
+// Pointage saisi par un responsable pour un collaborateur, rattaché à une
+// mission (oubli de pointer, confirmé par téléphone).
+export const managerTimeEntrySchema = {
+  params: z.object({ userId: z.string().uuid() }),
+  body: z.object({
+    missionId: z.string().uuid(),
+    clockIn: z.string().datetime({ offset: true }),
+    clockOut: z.string().datetime({ offset: true }),
+    comment: z.string().trim().min(1, "Indiquez le motif, par exemple « Confirmé par téléphone, oubli de pointer ».").max(2000),
+  }),
+};

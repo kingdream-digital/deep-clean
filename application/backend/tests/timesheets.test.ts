@@ -749,3 +749,92 @@ describe("Pointages — photo de la personne", () => {
     expect(JSON.stringify(list.body)).not.toContain("avatars/pointage.webp");
   });
 });
+
+describe("Saisie d'un pointage oublié par un responsable (POST /time-entries/for-user/:userId)", () => {
+  // Mission d'hier, 08:00–10:00 (heure de Paris), créée directement en base :
+  // l'API refuse à raison de planifier dans le passé.
+  async function pastMission(createdById: string, assigneeId: string) {
+    const site = await createTestSite();
+    const day = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const mission = await prisma.mission.create({
+      data: {
+        siteId: site.id,
+        title: "Mission oubliée",
+        date: new Date(`${day}T00:00:00.000Z`),
+        startTime: companyDateTime(day, "08:00"),
+        endTime: companyDateTime(day, "10:00"),
+        status: "COMPLETED",
+        createdById,
+        assignments: { create: [{ userId: assigneeId }] },
+      },
+    });
+    return mission;
+  }
+
+  function body(mission: { id: string; startTime: Date; endTime: Date }, comment = "Confirmé par téléphone") {
+    return { missionId: mission.id, clockIn: mission.startTime.toISOString(), clockOut: mission.endTime.toISOString(), comment };
+  }
+
+  it("le superviseur saisit les heures : pointage validé à son nom, différé, et l'employé est notifié", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-forUser1@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-forUser1@deepclean.test" });
+    const mission = await pastMission(supervisor.id, employee.id);
+
+    const res = await request(app)
+      .post(`/api/v1/time-entries/for-user/${employee.id}`)
+      .set("Authorization", `Bearer ${await loginAs(supervisor)}`)
+      .send(body(mission));
+    expect(res.status).toBe(201);
+    expect(res.body.entry.status).toBe("VALIDATED");
+    expect(res.body.entry.isRetroactive).toBe(true);
+    expect(res.body.entry.validatedBy.id).toBe(supervisor.id);
+    expect(res.body.entry.userId).toBe(employee.id);
+
+    const notif = await prisma.notification.findFirst({ where: { userId: employee.id, title: "Pointage ajouté" } });
+    expect(notif?.body).toContain("Mission oubliée");
+  });
+
+  it("refuse à un employé de saisir les heures d'un collègue", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-forUser2@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-forUser2@deepclean.test" });
+    const colleague = await createTestUser({ role: Role.EMPLOYEE, email: "col-forUser2@deepclean.test" });
+    const mission = await pastMission(supervisor.id, employee.id);
+
+    const res = await request(app)
+      .post(`/api/v1/time-entries/for-user/${employee.id}`)
+      .set("Authorization", `Bearer ${await loginAs(colleague)}`)
+      .send(body(mission));
+    expect(res.status).toBe(404);
+    expect(await prisma.timeEntry.count()).toBe(0);
+  });
+
+  it("refuse de saisir ses propres heures par ce biais, même pour la RH", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-forUser3@deepclean.test" });
+    const mission = await pastMission(hr.id, hr.id);
+
+    const res = await request(app)
+      .post(`/api/v1/time-entries/for-user/${hr.id}`)
+      .set("Authorization", `Bearer ${await loginAs(hr)}`)
+      .send(body(mission));
+    expect(res.status).toBe(403);
+  });
+
+  it("refuse une mission à laquelle la personne n'est pas affectée, un motif vide et un chevauchement", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-forUser4@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-forUser4@deepclean.test" });
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "oth-forUser4@deepclean.test" });
+    const token = await loginAs(hr);
+    const mission = await pastMission(hr.id, other.id);
+
+    const notAssigned = await request(app).post(`/api/v1/time-entries/for-user/${employee.id}`).set("Authorization", `Bearer ${token}`).send(body(mission));
+    expect(notAssigned.status).toBe(400);
+
+    const noComment = await request(app).post(`/api/v1/time-entries/for-user/${other.id}`).set("Authorization", `Bearer ${token}`).send(body(mission, ""));
+    expect(noComment.status).toBe(400);
+
+    const first = await request(app).post(`/api/v1/time-entries/for-user/${other.id}`).set("Authorization", `Bearer ${token}`).send(body(mission));
+    expect(first.status).toBe(201);
+    const twice = await request(app).post(`/api/v1/time-entries/for-user/${other.id}`).set("Authorization", `Bearer ${token}`).send(body(mission));
+    expect(twice.status).toBe(409);
+  });
+});

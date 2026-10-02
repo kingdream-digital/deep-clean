@@ -226,7 +226,7 @@ export interface ReconciliationMissionEntry {
 }
 
 export interface ReconciliationDetail {
-  user: { id: string; firstName: string; lastName: string };
+  user: { id: string; firstName: string; lastName: string; phone?: string | null };
   missions: ReconciliationMissionEntry[];
   unmatchedEntries: Array<{
     id: string;
@@ -244,4 +244,14 @@ export async function getReconciliationDetail(userId: string, from: string, to: 
     params: { from, to },
   });
   return data;
+}
+
+// Pointage saisi par un responsable pour un collaborateur, sur une de ses
+// missions (oubli de pointer, vérifié par téléphone). Enregistré validé.
+export async function createTimeEntryForUser(
+  userId: string,
+  input: { missionId: string; clockIn: string; clockOut: string; comment: string }
+): Promise<TimeEntry> {
+  const { data } = await apiClient.post<{ entry: TimeEntry }>(`/time-entries/for-user/${userId}`, input);
+  return data.entry;
 }

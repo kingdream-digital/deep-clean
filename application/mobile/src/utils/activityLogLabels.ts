@@ -34,6 +34,7 @@ const ACTION_LABELS: Record<string, string> = {
   TIME_ENTRY_CLOCK_IN: "Pointage d'arrivée",
   TIME_ENTRY_CLOCK_OUT: "Pointage de sortie",
   TIME_ENTRY_RETROACTIVE_CREATED: "Pointage différé saisi",
+  TIME_ENTRY_CREATED_FOR_USER: "Pointage saisi pour un collaborateur",
   TIME_ENTRY_VALIDATED: "Pointage validé",
   TIME_ENTRY_REJECTED: "Pointage refusé",
   TIME_ENTRIES_EXPORTED: "Export des pointages",

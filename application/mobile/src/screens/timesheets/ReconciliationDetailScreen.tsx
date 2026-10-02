@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Alert, Linking, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -8,8 +8,13 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
+import { Button } from "../../components/Button";
+import { TextField } from "../../components/TextField";
+import { DateTimeField } from "../../components/DateTimeField";
+import { useAuth } from "../../auth/AuthContext";
+import { extractErrorMessage } from "../../api/client";
 import { useTheme } from "../../theme/ThemeProvider";
-import { getReconciliationDetail } from "../../api/timesheets.api";
+import { createTimeEntryForUser, getReconciliationDetail } from "../../api/timesheets.api";
 import type { ReconciliationDetail, ReconciliationMissionEntry } from "../../api/timesheets.api";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
@@ -18,6 +23,9 @@ import { frenchDateFormat } from "../../utils/frenchDate";
 const dayFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 const GAP_TOLERANCE_MINUTES = 15;
+// Rôles qui peuvent saisir le pointage d'un collaborateur (mêmes droits que la
+// validation des heures, revérifiés côté serveur).
+const ENTRY_FOR_USER_ROLES = ["SITE_MANAGER", "SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 
 type Route = RouteProp<MenuStackParamList, "ReconciliationDetail">;
 
@@ -58,6 +66,85 @@ function EntryRow({ entry }: { entry: ReconciliationMissionEntry["matchedEntries
   );
 }
 
+// Saisie, par le responsable, des heures d'une mission que la personne a
+// oublié de pointer, après l'avoir appelée. Horaires de la mission
+// pré-remplis, modifiables ; motif obligatoire.
+function MissingEntryForm({
+  userId,
+  mission,
+  onDone,
+  onCancel,
+}: {
+  userId: string;
+  mission: ReconciliationMissionEntry["mission"];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const { colors, spacing, type } = useTheme();
+  const [start, setStart] = useState(() => new Date(mission.startTime));
+  const [end, setEnd] = useState(() => new Date(mission.endTime));
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setError(null);
+    if (!comment.trim()) {
+      setError("Indiquez le motif, par exemple « Confirmé par téléphone, oubli de pointer ».");
+      return;
+    }
+    if (end <= start) {
+      setError("L'heure de fin doit être après l'heure de début.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await createTimeEntryForUser(userId, {
+        missionId: mission.id,
+        clockIn: start.toISOString(),
+        clockOut: end.toISOString(),
+        comment: comment.trim(),
+      });
+      onDone();
+    } catch (err) {
+      setError(extractErrorMessage(err, "Enregistrement impossible."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <View style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <View style={{ flex: 1 }}>
+          <DateTimeField label="Arrivée" mode="time" value={start} onChange={setStart} formatValue={(d) => timeFmt.format(d)} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <DateTimeField label="Départ" mode="time" value={end} onChange={setEnd} formatValue={(d) => timeFmt.format(d)} />
+        </View>
+      </View>
+      <TextField
+        label="Motif"
+        placeholder="Ex. Confirmé par téléphone, oubli de pointer"
+        value={comment}
+        onChangeText={setComment}
+      />
+      {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.sm }]}>{error}</Text>}
+      <Text style={[type.caption, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
+        Le pointage est enregistré validé à votre nom, et la personne est prévenue.
+      </Text>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <View style={{ flex: 1 }}>
+          <Button label="Annuler" variant="secondary" size="md" onPress={onCancel} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button label="Enregistrer" size="md" loading={saving} onPress={handleSave} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // Détail du rapprochement pointage <-> mission pour une personne : pour
 // chaque mission planifiée, les pointages rattachés (recoupement horaire),
 // l'écart calculé et qui a validé — pour que la RH comprenne d'où vient un
@@ -65,6 +152,9 @@ function EntryRow({ entry }: { entry: ReconciliationMissionEntry["matchedEntries
 export function ReconciliationDetailScreen() {
   const { colors, spacing, type } = useTheme();
   const { params } = useRoute<Route>();
+  const { user } = useAuth();
+  const canEnterForUser = !!user && user.id !== params.userId && ENTRY_FOR_USER_ROLES.includes(user.role);
+  const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
 
   const [detail, setDetail] = useState<ReconciliationDetail | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -85,7 +175,18 @@ export function ReconciliationDetailScreen() {
     }, [load])
   );
 
-  if (state === "loading") {
+  async function callUser(phone: string) {
+    const url = `tel:${phone.replace(/\s/g, "")}`;
+    const supported = await Linking.canOpenURL(url).catch(() => false);
+    if (!supported) {
+      // Navigateur d'ordinateur : pas d'application téléphone, on affiche le numéro.
+      Alert.alert(`${detail?.user.firstName ?? ""} ${detail?.user.lastName ?? ""}`.trim(), `Téléphone : ${phone}`);
+      return;
+    }
+    await Linking.openURL(url);
+  }
+
+  if (state === "loading" && !detail) {
     return (
       <ScreenContainer>
         <StateView kind="loading" />
@@ -103,6 +204,24 @@ export function ReconciliationDetailScreen() {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxl }} showsVerticalScrollIndicator={false}>
+        {canEnterForUser && (
+          <Card style={{ marginBottom: spacing.sm }}>
+            <Text style={[type.headline, { color: colors.ink }]}>
+              {detail.user.firstName} {detail.user.lastName}
+            </Text>
+            <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
+              {detail.user.phone
+                ? `${detail.user.phone} · appelez pour vérifier les heures avant de les saisir`
+                : "Aucun numéro enregistré. La RH peut l'ajouter sur sa fiche."}
+            </Text>
+            {!!detail.user.phone && (
+              <View style={{ marginTop: spacing.md }}>
+                <Button label="Appeler" icon="call-outline" size="md" onPress={() => void callUser(detail.user.phone!)} />
+              </View>
+            )}
+          </Card>
+        )}
+
         <Card style={{ marginBottom: spacing.lg }}>
           <View style={{ flexDirection: "row" }}>
             <View style={{ flex: 1 }}>
@@ -142,6 +261,31 @@ export function ReconciliationDetailScreen() {
               ) : (
                 m.matchedEntries.map((e) => <EntryRow key={e.id} entry={e} />)
               )}
+
+              {canEnterForUser &&
+                m.matchedEntries.length === 0 &&
+                new Date(m.mission.endTime).getTime() <= Date.now() &&
+                (editingMissionId === m.mission.id ? (
+                  <MissingEntryForm
+                    userId={params.userId}
+                    mission={m.mission}
+                    onCancel={() => setEditingMissionId(null)}
+                    onDone={() => {
+                      setEditingMissionId(null);
+                      void load();
+                    }}
+                  />
+                ) : (
+                  <View style={{ marginTop: spacing.md }}>
+                    <Button
+                      label="Saisir le pointage"
+                      icon="time-outline"
+                      variant="secondary"
+                      size="md"
+                      onPress={() => setEditingMissionId(m.mission.id)}
+                    />
+                  </View>
+                ))}
             </Card>
           </Animated.View>
         ))}
