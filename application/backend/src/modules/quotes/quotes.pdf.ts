@@ -132,8 +132,15 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
   doc.y = headerY + 22;
 
   quote.items.forEach((item, index) => {
-    // Hauteur variable selon la présence d'une ligne de fréquence en dessous.
-    const rowHeight = item.frequency === "ONE_TIME" ? 20 : 32;
+    // Hauteur mesurée : un libellé long passe sur plusieurs lignes, la ligne
+    // de fréquence se place alors juste en dessous (jamais par-dessus).
+    const frequencyText =
+      item.frequency === "ONE_TIME"
+        ? null
+        : `${FREQUENCY_LABELS[item.frequency]}${item.occurrencesPerMonth ? ` · ${item.occurrencesPerMonth} / mois` : ""} — soit ${formatEuroPdf(item.monthlyAmountHt)} HT / mois`;
+    const descHeight = doc.font("Helvetica").fontSize(9).heightOfString(item.description, { width: COL_W.desc - 8 });
+    const freqHeight = frequencyText ? doc.fontSize(8).heightOfString(frequencyText, { width: CONTENT_WIDTH - 16 }) : 0;
+    const rowHeight = Math.max(20, 5 + descHeight + (frequencyText ? 3 + freqHeight : 0) + 6);
     ensureSpace(doc, rowHeight, () => {
       headerY = doc.y;
       drawItemsHeaderRow(doc, headerY);
@@ -153,17 +160,12 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
     doc.text(item.discount > 0 ? `-${item.discount}%` : "—", COL.discount, y + 5, { width: COL_W.discount, align: "right" });
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(formatEuroPdf(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
 
-    if (item.frequency !== "ONE_TIME") {
+    if (frequencyText) {
       doc
         .fillColor(BRAND.accentDeep)
         .font("Helvetica")
         .fontSize(8)
-        .text(
-          `${FREQUENCY_LABELS[item.frequency]}${item.occurrencesPerMonth ? ` · ${item.occurrencesPerMonth} / mois` : ""} — soit ${formatEuroPdf(item.monthlyAmountHt)} HT / mois`,
-          COL.desc + 8,
-          y + 18,
-          { width: CONTENT_WIDTH - 16 }
-        );
+        .text(frequencyText, COL.desc + 8, y + 5 + descHeight + 3, { width: CONTENT_WIDTH - 16 });
     }
 
     doc.y = y + rowHeight;

@@ -98,14 +98,18 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
   doc.y = headerY + 22;
 
   invoice.items.forEach((item, index) => {
-    ensureSpace(doc, 20, () => {
+    // Hauteur mesurée : un libellé long passe sur plusieurs lignes sans
+    // chevaucher la ligne suivante.
+    const descHeight = doc.font("Helvetica").fontSize(9).heightOfString(item.description, { width: COL_W.desc - 8 });
+    const rowHeight = Math.max(20, 5 + descHeight + 6);
+    ensureSpace(doc, rowHeight, () => {
       headerY = doc.y;
       drawItemsHeaderRow(doc, headerY);
       doc.y = headerY + 22;
     });
 
     const y = doc.y;
-    if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 20).fill(BRAND.rowAlt);
+    if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, rowHeight).fill(BRAND.rowAlt);
     doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9);
     doc.text(item.description, COL.desc + 8, y + 5, { width: COL_W.desc - 8 });
     doc.fillColor(BRAND.inkSecondary);
@@ -113,7 +117,7 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
     doc.text(String(item.quantity), COL.qty, y + 5, { width: COL_W.qty, align: "right" });
     doc.text(formatEuroPdf(item.unitPriceHt), COL.price, y + 5, { width: COL_W.price, align: "right" });
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(formatEuroPdf(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
-    doc.y = y + 20;
+    doc.y = y + rowHeight;
   });
 
   ensureSpace(doc, 90, () => undefined);
