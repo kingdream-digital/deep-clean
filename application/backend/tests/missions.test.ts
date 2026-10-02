@@ -1,4 +1,5 @@
 import request from "supertest";
+import { addDaysToKey, companyDateKey } from "../src/utils/companyTime";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
@@ -19,16 +20,14 @@ async function loginAs(user: { username: string }) {
   return login.body.accessToken as string;
 }
 
+// Dates calculées sans dépendre du fuseau de la machine qui lance les tests :
+// « demain » au sens de Paris, jours ajoutés en UTC.
 function tomorrowDateString(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return addDaysToKey(companyDateKey(new Date()), 1);
 }
 
 function addDays(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addDaysToKey(dateStr, days);
 }
 
 const basePayload = () => ({
@@ -792,7 +791,7 @@ describe("Missions récurrentes — retour explicite du client, pas besoin de re
     const site = await createTestSite();
     const token = await loginAs(supervisor);
     const date = tomorrowDateString();
-    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const until = addDays(date, 21); // date, +7, +14, +21 -> 4 occurrences
 
     const res = await request(app)
@@ -848,7 +847,7 @@ describe("Missions récurrentes — retour explicite du client, pas besoin de re
     const site = await createTestSite();
     const token = await loginAs(supervisor);
     const date = tomorrowDateString();
-    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const until = addDays(date, 14); // date, +7, +14 -> 3 occurrences
 
     const created = await request(app)

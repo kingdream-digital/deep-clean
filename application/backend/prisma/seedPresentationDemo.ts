@@ -23,6 +23,7 @@ import { hashPassword } from "../src/utils/password";
 import { generateUsername } from "../src/utils/username";
 import { env } from "../src/config/env";
 import { storeImage } from "../src/utils/storage";
+import { calendarDay, companyDateTime } from "../src/utils/companyTime";
 import * as prospectsService from "../src/modules/prospects/prospects.service";
 import * as clientsService from "../src/modules/clients/clients.service";
 import * as quotesService from "../src/modules/quotes/quotes.service";
@@ -90,24 +91,10 @@ function addDays(base: Date, days: number): Date {
   d.setDate(d.getDate() + days);
   return d;
 }
-// Heure « murale » de Paris, quel que soit le fuseau du serveur : l'équipe et
-// le client regardent la démo en France, une mission de 8 h doit s'afficher
-// à 8 h même si le serveur tourne en heure universelle.
-function combineDateTime(date: string, time: string): Date {
-  const asUtc = new Date(`${date}T${time}:00Z`);
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-      .formatToParts(asUtc)
-      .map((p) => [p.type, p.value])
-  );
-  const parisWallAsUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute));
-  return new Date(asUtc.getTime() - (parisWallAsUtc - asUtc.getTime()));
-}
-// Jour calendaire d'une mission (colonne « date seule ») : minuit UTC, quel
-// que soit le fuseau du serveur.
-function dayOnly(date: string): Date {
-  return new Date(`${date}T00:00:00Z`);
-}
+// Heures en heure de Paris et jours calendaires à minuit UTC, quel que soit
+// le fuseau du serveur (mêmes règles que l'application, utils/companyTime.ts).
+const combineDateTime = companyDateTime;
+const dayOnly = calendarDay;
 
 // Photos de démo (jamais de vraies personnes) : pravatar.cc fournit des
 // portraits explicitement libres pour cet usage ("free to use in personal or

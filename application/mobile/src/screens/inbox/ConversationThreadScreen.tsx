@@ -734,6 +734,8 @@ export function ConversationThreadScreen() {
                 paddingBottom: 9,
                 marginRight: spacing.xs,
               },
+              // Pas de contour noir du navigateur autour du champ actif (web).
+              Platform.OS === "web" && ({ outlineStyle: "none" } as object),
             ]}
           />
           <PressableScale

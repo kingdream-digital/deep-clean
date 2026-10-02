@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { companyDateLabel, companyDayStart, companyTimeKey } from "../../utils/companyTime";
 import PDFDocument from "pdfkit";
 import { prisma } from "../../db/prisma";
 import { logActivity } from "../../utils/activityLog";
@@ -11,9 +12,9 @@ const STATUS_LABEL_FR: Record<string, string> = {
   REJECTED: "Refusé",
 };
 
-const dateFmt = (d: Date) =>
-  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-const timeFmt = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+// Heures de Paris, quel que soit le fuseau du serveur.
+const dateFmt = (d: Date) => companyDateLabel(d);
+const timeFmt = (d: Date) => companyTimeKey(d);
 
 function durationHours(clockIn: Date, clockOut: Date | null): number {
   if (!clockOut) return 0;
@@ -162,8 +163,8 @@ export async function exportTimeEntriesPdf(actor: Actor, filters: ListFilters): 
 
   const periodLabel =
     filters.from || filters.to
-      ? `Récapitulatif des heures · ${filters.from ? new Date(`${filters.from}T00:00:00`).toLocaleDateString("fr-FR") : "…"} au ${
-          filters.to ? new Date(`${filters.to}T00:00:00`).toLocaleDateString("fr-FR") : "…"
+      ? `Récapitulatif des heures · ${filters.from ? companyDateLabel(companyDayStart(filters.from)) : "…"} au ${
+          filters.to ? companyDateLabel(companyDayStart(filters.to)) : "…"
         }`
       : "Récapitulatif des heures · toutes dates confondues";
 

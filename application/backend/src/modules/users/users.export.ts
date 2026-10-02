@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { calendarDay, calendarDayEnd, companyDateLabel, companyDayEnd, companyDayStart, companyTimeKey } from "../../utils/companyTime";
 import { Role } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
@@ -45,8 +46,11 @@ const ABSENCE_TYPE_LABEL_FR: Record<string, string> = {
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const dateFmt = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-const timeFmt = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+// Instants (pointages) lus en heure de Paris ; jours calendaires (absences,
+// bornes de période) lus tels qu'enregistrés, à minuit UTC.
+const dateFmt = (d: Date) => companyDateLabel(d);
+const timeFmt = (d: Date) => companyTimeKey(d);
+const calendarDateFmt = (d: Date) => `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
 
 function formatMinutes(totalMinutes: number): string {
   const h = Math.floor(totalMinutes / 60);
@@ -94,8 +98,10 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
 
   const user = await getUserById(targetId);
 
-  const dayStart = new Date(`${filters.from}T00:00:00`);
-  const dayEnd = new Date(`${filters.to}T23:59:59`);
+  const dayStart = companyDayStart(filters.from);
+  const dayEnd = companyDayEnd(filters.to);
+  const periodStart = calendarDay(filters.from);
+  const periodEnd = calendarDayEnd(filters.to);
 
   const [entries, absences] = await Promise.all([
     prisma.timeEntry.findMany({
@@ -104,13 +110,13 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
       select: { id: true, clockIn: true, clockOut: true, status: true, isRetroactive: true },
     }),
     prisma.absence.findMany({
-      where: { userId: targetId, startDate: { lte: dayEnd }, endDate: { gte: dayStart } },
+      where: { userId: targetId, startDate: { lte: periodEnd }, endDate: { gte: periodStart } },
       orderBy: { startDate: "asc" },
       select: { id: true, type: true, startDate: true, endDate: true, status: true },
     }),
   ]);
 
-  const periodLabel = `Dossier employé · ${dateFmt(dayStart)} au ${dateFmt(dayEnd)}`;
+  const periodLabel = `Dossier employé · ${calendarDateFmt(periodStart)} au ${calendarDateFmt(periodEnd)}`;
 
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const chunks: Buffer[] = [];
@@ -225,7 +231,7 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
       if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 18).fill(BRAND.rowAlt);
       doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9);
       doc.text(ABSENCE_TYPE_LABEL_FR[absence.type] ?? absence.type, ABS_COL.type + 8, y + 4, { width: ABS_COL_WIDTHS.type });
-      doc.text(`${dateFmt(absence.startDate)} – ${dateFmt(absence.endDate)}`, ABS_COL.period, y + 4, { width: ABS_COL_WIDTHS.period });
+      doc.text(`${calendarDateFmt(absence.startDate)} – ${calendarDateFmt(absence.endDate)}`, ABS_COL.period, y + 4, { width: ABS_COL_WIDTHS.period });
       doc.text(String(days), ABS_COL.days, y + 4, { width: ABS_COL_WIDTHS.days, align: "right" });
       const statusColor =
         absence.status === "APPROVED" ? BRAND.accentDeep : absence.status === "REJECTED" ? BRAND.danger : BRAND.inkTertiary;

@@ -1,4 +1,5 @@
 import { MissionStatus, Prisma, Role, TimeEntryStatus } from "@prisma/client";
+import { calendarDay, calendarDayEnd, companyDateLabel, companyDayEnd, companyDayMonthLabel, companyDayStart, companyTimeKey } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -331,8 +332,9 @@ export async function buildTimeEntriesWhere(actor: Actor, filters: ListFilters) 
   // pour tous. On construit maintenant un seul objet `clockIn` combinant les
   // deux bornes quand les deux sont fournies.
   const clockInFilter: Record<string, Date> = {};
-  if (filters.from) clockInFilter.gte = new Date(`${filters.from}T00:00:00`);
-  if (filters.to) clockInFilter.lte = new Date(`${filters.to}T23:59:59`);
+  // Journées de Paris, quel que soit le fuseau du serveur.
+  if (filters.from) clockInFilter.gte = companyDayStart(filters.from);
+  if (filters.to) clockInFilter.lte = companyDayEnd(filters.to);
 
   return {
     ...userIdFilter,
@@ -556,9 +558,9 @@ function csvEscape(value: string): string {
   return neutralized;
 }
 
-const csvDateFmt = (d: Date) =>
-  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-const csvTimeFmt = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+// Dates et heures de Paris dans l'export, quel que soit le fuseau du serveur.
+const csvDateFmt = (d: Date) => companyDateLabel(d);
+const csvTimeFmt = (d: Date) => companyTimeKey(d);
 const STATUS_LABEL_FR: Record<TimeEntryStatus, string> = {
   PENDING: "En attente",
   VALIDATED: "Validé",
@@ -656,11 +658,7 @@ export async function getTimeEntryPhoto(actor: Actor, id: string, moment: "in" |
 // Fenêtre lisible "20/09 09:00–17:00" pour les messages de notification —
 // jamais toISOString() (voir la même remarque dans missions.service.ts).
 function formatEntryWindow(clockIn: Date, clockOut: Date): string {
-  const day = String(clockIn.getDate()).padStart(2, "0");
-  const month = String(clockIn.getMonth() + 1).padStart(2, "0");
-  const startTime = `${String(clockIn.getHours()).padStart(2, "0")}:${String(clockIn.getMinutes()).padStart(2, "0")}`;
-  const endTime = `${String(clockOut.getHours()).padStart(2, "0")}:${String(clockOut.getMinutes()).padStart(2, "0")}`;
-  return `${day}/${month} ${startTime}–${endTime}`;
+  return `${companyDayMonthLabel(clockIn)} ${companyTimeKey(clockIn)}–${companyTimeKey(clockOut)}`;
 }
 
 export async function validateTimeEntry(actor: Actor, id: string, comment?: string) {
@@ -803,8 +801,12 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
   const userIds = await resolveReconciliationUserIds(actor);
   if (userIds.length === 0) return [];
 
-  const dayStart = new Date(`${filters.from}T00:00:00`);
-  const dayEnd = new Date(`${filters.to}T23:59:59`);
+  // Missions : jours calendaires (minuit UTC). Pointages : instants, bornés
+  // aux journées de Paris.
+  const dayStart = calendarDay(filters.from);
+  const dayEnd = calendarDayEnd(filters.to);
+  const entryStart = companyDayStart(filters.from);
+  const entryEnd = companyDayEnd(filters.to);
 
   const [assignments, entries, users] = await Promise.all([
     prisma.missionAssignment.findMany({
@@ -815,7 +817,7 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
       select: { userId: true, mission: { select: { startTime: true, endTime: true } } },
     }),
     prisma.timeEntry.findMany({
-      where: { userId: { in: userIds }, clockIn: { gte: dayStart, lte: dayEnd } },
+      where: { userId: { in: userIds }, clockIn: { gte: entryStart, lte: entryEnd } },
       select: { userId: true, clockIn: true, clockOut: true, status: true },
     }),
     prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, firstName: true, lastName: true } }),
@@ -894,8 +896,12 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
   const user = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, firstName: true, lastName: true } });
   if (!user) throw ApiError.notFound("Utilisateur introuvable.");
 
-  const dayStart = new Date(`${filters.from}T00:00:00`);
-  const dayEnd = new Date(`${filters.to}T23:59:59`);
+  // Missions : jours calendaires (minuit UTC). Pointages : instants, bornés
+  // aux journées de Paris.
+  const dayStart = calendarDay(filters.from);
+  const dayEnd = calendarDayEnd(filters.to);
+  const entryStart = companyDayStart(filters.from);
+  const entryEnd = companyDayEnd(filters.to);
 
   const [assignments, entries] = await Promise.all([
     prisma.missionAssignment.findMany({
@@ -906,7 +912,7 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
       orderBy: { mission: { startTime: "asc" } },
     }),
     prisma.timeEntry.findMany({
-      where: { userId: targetUserId, clockIn: { gte: dayStart, lte: dayEnd } },
+      where: { userId: targetUserId, clockIn: { gte: entryStart, lte: entryEnd } },
       select: {
         id: true,
         clockIn: true,

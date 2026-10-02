@@ -5,6 +5,7 @@ import { logger } from "./config/logger";
 import { prisma } from "./db/prisma";
 import { runPhotoRetentionJob } from "./jobs/photoRetention";
 import { runMessagesMigration } from "./db/migrateMessagesToConversations";
+import { COMPANY_TIME_ZONE } from "./utils/companyTime";
 
 const app = createApp();
 
@@ -25,9 +26,14 @@ if (!env.isTest) {
   // disparaîtraient de l'écran de leurs utilisateurs.
   void runMessagesMigration(prisma);
   void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (démarrage)"));
-  cron.schedule("0 3 * * *", () => {
-    void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (planifiée)"));
-  });
+  // 3 h du matin, heure de Paris (pas celle du serveur).
+  cron.schedule(
+    "0 3 * * *",
+    () => {
+      void runPhotoRetentionJob().catch((err) => logger.error({ err }, "Échec de la tâche de rétention des photos (planifiée)"));
+    },
+    { timezone: COMPANY_TIME_ZONE }
+  );
 }
 
 async function shutdown(signal: string) {

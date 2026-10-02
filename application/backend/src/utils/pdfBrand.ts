@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { companyDateLabel, companyTimeKey } from "./companyTime";
 import path from "node:path";
 
 // Logo pré-redimensionné/recadré (voir src/assets/brand/README pour la
@@ -50,9 +51,8 @@ export function drawHeader(doc: PDFKit.PDFDocument, title: string, subtitle: str
   doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(17).text(title, textX, 36);
   doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(10).text(subtitle, textX, 57);
 
-  const generatedAt = `Généré le ${new Date().toLocaleDateString("fr-FR")} à ${new Date()
-    .toLocaleTimeString("fr-FR")
-    .slice(0, 5)}`;
+  const now = new Date();
+  const generatedAt = `Généré le ${companyDateLabel(now)} à ${companyTimeKey(now)}`;
   doc
     .fillColor(BRAND.inkTertiary)
     .font("Helvetica")

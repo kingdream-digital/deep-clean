@@ -1,4 +1,5 @@
 import request from "supertest";
+import { companyDateTime } from "../src/utils/companyTime";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
@@ -446,8 +447,9 @@ describe("Rapprochement pointage <-> mission (menu RH — qui a un écart à exa
     return d.toISOString().slice(0, 10);
   }
 
+  // Heure de Paris, comme celles que saisit l'app (voir utils/companyTime.ts).
   function dateAt(dateStr: string, hour: number, minute = 0): Date {
-    return new Date(`${dateStr}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`);
+    return companyDateTime(dateStr, `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
   }
 
   async function createMission(

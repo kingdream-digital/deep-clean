@@ -414,7 +414,7 @@ export async function sendQuote(actor: Actor, id: string, message?: string) {
     greeting,
     "",
     message?.trim() || `Veuillez trouver ci-joint notre devis ${quote.quoteNumber}${quote.subject ? ` concernant "${quote.subject}"` : ""}.`,
-    quote.validUntil ? `Ce devis est valable jusqu'au ${quote.validUntil.toLocaleDateString("fr-FR")}.` : "",
+    quote.validUntil ? `Ce devis est valable jusqu'au ${quote.validUntil.toLocaleDateString("fr-FR", { timeZone: "UTC" })}.` : "",
     "",
     "Cordialement,",
   ]

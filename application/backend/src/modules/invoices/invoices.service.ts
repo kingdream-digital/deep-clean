@@ -299,7 +299,7 @@ export async function sendInvoice(actor: Actor, id: string, message?: string) {
     greeting,
     "",
     message?.trim() || `Veuillez trouver ci-joint notre facture ${invoice.invoiceNumber}.`,
-    invoice.dueDate ? `Échéance de paiement : ${invoice.dueDate.toLocaleDateString("fr-FR")}.` : "",
+    invoice.dueDate ? `Échéance de paiement : ${invoice.dueDate.toLocaleDateString("fr-FR", { timeZone: "UTC" })}.` : "",
     "",
     "Cordialement,",
   ]

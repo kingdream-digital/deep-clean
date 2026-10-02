@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma";
+import { companyDayEnd, companyDayStart } from "../../utils/companyTime";
 
 interface ListActivityLogsFilters {
   userId?: string;
@@ -34,8 +35,8 @@ export async function listActivityLogs(filters: ListActivityLogsFilters) {
   // ailleurs cette session : deux spreads séparés sur la même clé `createdAt`
   // s'écraseraient silencieusement l'un l'autre).
   const createdAtFilter: { gte?: Date; lte?: Date } = {};
-  if (filters.from) createdAtFilter.gte = new Date(`${filters.from}T00:00:00`);
-  if (filters.to) createdAtFilter.lte = new Date(`${filters.to}T23:59:59`);
+  if (filters.from) createdAtFilter.gte = companyDayStart(filters.from);
+  if (filters.to) createdAtFilter.lte = companyDayEnd(filters.to);
 
   const where = {
     ...(filters.userId ? { userId: filters.userId } : {}),

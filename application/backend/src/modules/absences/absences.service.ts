@@ -1,4 +1,5 @@
 import { AbsenceStatus, AbsenceType, MissionStatus, NotificationType, Role } from "@prisma/client";
+import { calendarDay, calendarDayEnd } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -69,11 +70,14 @@ function presentAbsence<T extends { startDate: Date; endDate: Date; user: { avat
   };
 }
 
+// Jours calendaires stockés à minuit UTC (et 23:59:59.999 UTC pour la fin),
+// quel que soit le fuseau du serveur : l'app relit ces dates en composants UTC
+// (mobile/src/utils/frenchDate.ts::calendarDay).
 function toDayStart(dateStr: string): Date {
-  return new Date(`${dateStr}T00:00:00`);
+  return calendarDay(dateStr);
 }
 function toDayEnd(dateStr: string): Date {
-  return new Date(`${dateStr}T23:59:59.999`);
+  return calendarDayEnd(dateStr);
 }
 
 async function resolveManagedTeamIds(managerId: string): Promise<string[]> {
