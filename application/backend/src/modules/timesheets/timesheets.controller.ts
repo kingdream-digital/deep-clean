@@ -1,3 +1,4 @@
+import { getPaySummary } from "../payroll/paySummary.service";
 import { Request, Response } from "express";
 import fs from "node:fs";
 import { asyncHandler } from "../../utils/asyncHandler";
@@ -70,6 +71,13 @@ export const managerTimeEntryHandler = asyncHandler(async (req: Request, res: Re
 export const myMonthlySummaryHandler = asyncHandler(async (req: Request, res: Response) => {
   const months = await timesheetsService.getMyMonthlySummary(actorOf(req));
   res.status(200).json({ months });
+});
+
+export const paySummaryHandler = asyncHandler(async (req: Request, res: Response) => {
+  const actor = actorOf(req);
+  const query = req.query as { userId?: string; month: string };
+  const summary = await getPaySummary(actor, query.userId ?? actor.userId, query.month);
+  res.status(200).json({ summary });
 });
 
 export const myStatusHandler = asyncHandler(async (req: Request, res: Response) => {

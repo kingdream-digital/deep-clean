@@ -1,4 +1,4 @@
-import { Prisma, Role } from "@prisma/client";
+import { NightWorkerStatus, Prisma, Role } from "@prisma/client";
 import { calendarDay } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
@@ -32,6 +32,7 @@ const publicSelect = {
   isActive: true,
   hireDate: true,
   weeklyHours: true,
+  nightWorkerStatus: true,
   leaveAccrualRate: true,
   leaveAccrualCap: true,
   mustChangePassword: true,
@@ -265,6 +266,9 @@ interface UpdateUserInput {
   leaveAccrualCap?: number | null;
   hireDate?: string;
   weeklyHours?: number | null;
+  // Travailleur de nuit : AUTO (calculé d'après les pointages), YES / NO
+  // (décision de la RH, ex. contrat de nuit). Voir payroll/paySummary.service.ts.
+  nightWorkerStatus?: NightWorkerStatus;
 }
 
 // Détache un utilisateur de tous les chantiers dont il est responsable —

@@ -778,6 +778,25 @@ async function main() {
     console.log("Pointages terrain démo prêts (photos d'arrivée et de départ, positions GPS).");
   }
 
+  // Mise en service au 1er juin : solde de chacun repris par la RH. Fait
+  // AVANT les demandes de congé, qui sont refusées au-delà du solde.
+  const periodStartYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
+  const goLive = new Date(`${periodStartYear}-06-01T00:00:00.000Z`);
+  if ((await prisma.leaveTransaction.count()) === 0) {
+    const staff = [rh, directeur, superviseur, karim, sophie, lucas, emma, nathan, chloe, ines, thomas];
+    const carriedOver: Record<string, number> = {
+      [rh.id]: 20, [directeur.id]: 25, [superviseur.id]: 16, [karim.id]: 18, [sophie.id]: 14, [lucas.id]: 12,
+      [emma.id]: 8, [nathan.id]: 15, [chloe.id]: 4, [ines.id]: 6, [thomas.id]: 10,
+    };
+    for (const person of staff) {
+      await prisma.user.update({ where: { id: person.id }, data: { createdAt: goLive } });
+      await leaveService.createLeaveAdjustment(actor(rh.id === person.id ? directeur : rh), person.id, {
+        days: carriedOver[person.id]!,
+        note: "Reprise du solde au 1er juin (mise en service de l'application)",
+      });
+    }
+  }
+
   // Deux demandes de congé à approuver.
   if ((await prisma.absence.count()) === 0) {
     await absencesService.createAbsence(actor(emma), {
@@ -805,10 +824,10 @@ async function main() {
       [chloe, -18, -14, "Déménagement", "UNPAID_LEAVE"],
     ];
     for (const [person, from, to, reason, type] of approvedLeaves) {
-      const leave = await absencesService.createAbsence(actor(person), {
-        type, startDate: isoDate(addDays(today, from)), endDate: isoDate(addDays(today, to)), reason,
+      // Saisis par la superviseure (congés passés compris) : approuvés d'office.
+      await absencesService.createAbsence(actor(superviseur), {
+        userId: person.id, type, startDate: isoDate(addDays(today, from)), endDate: isoDate(addDays(today, to)), reason,
       });
-      await absencesService.decideAbsence(actor(superviseur), leave.id, { status: "APPROVED", decisionNote: "Bonnes vacances !" });
     }
     // Une demande déjà acceptée par la superviseure (statut « Approuvée »).
     const approved = await absencesService.createAbsence(actor(thomas), {
@@ -924,8 +943,13 @@ async function main() {
   if ((await prisma.mission.count({ where: { date: { lt: historyStart } } })) === 0) {
     const patterns = [
       { site: siteTilleuls, title: "Nettoyage parties communes", weekdays: [1, 3, 5], start: "08:00", end: "11:00", team: [lucas, emma, ines], lead: karim },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", weekdays: [2, 4], start: "18:00", end: "20:30", team: [nathan, chloe, thomas], lead: sophie },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", weekdays: [2, 4], start: "18:00", end: "20:30", team: [nathan, chloe], lead: sophie },
       { site: siteClinique, title: "Désinfection salles de consultation", weekdays: [6], start: "09:00", end: "11:00", team: [lucas, nathan], lead: karim },
+      // Heures majorées (retour explicite du client) : une équipe de nuit
+      // (Thomas, reconnu travailleur de nuit, acquiert du repos compensateur)
+      // et une désinfection le dimanche matin.
+      { site: siteTechcorp, title: "Nettoyage de nuit open space", weekdays: [1, 3, 5], start: "21:30", end: "04:30", team: [], lead: thomas },
+      { site: siteClinique, title: "Désinfection du dimanche", weekdays: [0], start: "07:00", end: "10:00", team: [], lead: chloe },
     ];
     let state = 7;
     const rand = (max: number) => {
@@ -945,7 +969,9 @@ async function main() {
         if (!pattern.weekdays.includes(day.getDay())) continue;
         const people = [...pattern.team, pattern.lead].filter((person) => !isOnLeave(person.id, dateStr));
         const start = combineDateTime(dateStr, pattern.start);
-        const end = combineDateTime(dateStr, pattern.end);
+        let end = combineDateTime(dateStr, pattern.end);
+        // Vacation de nuit : se termine le lendemain matin.
+        if (end <= start) end = combineDateTime(isoDate(addDays(day, 1)), pattern.end);
         const mission = await prisma.mission.create({
           data: {
             siteId: pattern.site.id, title: pattern.title, date: dayOnly(dateStr), startTime: start, endTime: end,
@@ -978,20 +1004,6 @@ async function main() {
   // puis relevés mensuels calculés automatiquement ; les mois passés sont
   // validés, le dernier mois reste « à valider » pour la démonstration.
   if ((await prisma.leaveAccrual.count()) === 0) {
-    const periodStartYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
-    const goLive = new Date(`${periodStartYear}-06-01T00:00:00.000Z`);
-    const staff = [rh, directeur, superviseur, karim, sophie, lucas, emma, nathan, chloe, ines, thomas];
-    const carriedOver: Record<string, number> = {
-      [rh.id]: 20, [directeur.id]: 25, [superviseur.id]: 16, [karim.id]: 18, [sophie.id]: 14, [lucas.id]: 12,
-      [emma.id]: 8, [nathan.id]: 15, [chloe.id]: 4, [ines.id]: 6, [thomas.id]: 10,
-    };
-    for (const person of staff) {
-      await prisma.user.update({ where: { id: person.id }, data: { createdAt: goLive } });
-      await leaveService.createLeaveAdjustment(actor(rh.id === person.id ? directeur : rh), person.id, {
-        days: carriedOver[person.id]!,
-        note: "Reprise du solde au 1er juin (mise en service de l'application)",
-      });
-    }
     await leaveService.generateAccruals();
     const lastMonth = isoDate(new Date(today.getFullYear(), today.getMonth() - 1, 1)).slice(0, 7);
     const toValidate = await prisma.leaveAccrual.findMany({ where: { month: { lt: lastMonth } }, select: { id: true, userId: true } });

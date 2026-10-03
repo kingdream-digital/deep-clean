@@ -79,6 +79,9 @@ const ASSIMILATED_TYPES: AbsenceType[] = [
   AbsenceType.PAID_LEAVE,
   AbsenceType.WORK_ACCIDENT,
   AbsenceType.PARENTAL_LEAVE,
+  // Repos compensateur des travailleurs de nuit : temps de travail effectif
+  // (Code du travail L3122-8) — il ne fait perdre aucun jour de congé.
+  AbsenceType.COMPENSATORY_REST,
   AbsenceType.OTHER,
 ];
 const SICK_RATE_RATIO = 2 / 2.5;

@@ -19,6 +19,8 @@ export interface DirectoryUser {
   hireDate?: string;
   // Heures par semaine au contrat (ex. 35) — vue RH/direction/admin/superviseur.
   weeklyHours?: number | null;
+  // Travailleur de nuit : AUTO (d'après les pointages), YES / NO (décision RH).
+  nightWorkerStatus?: "AUTO" | "YES" | "NO";
   // Paramètres de congés du contrat (null = règle légale par défaut).
   leaveAccrualRate?: number | null;
   leaveAccrualCap?: number | null;
@@ -104,7 +106,7 @@ export async function createUser(input: CreateUserInput): Promise<{ user: Direct
 
 export async function updateUser(
   id: string,
-  input: { firstName?: string; lastName?: string; phone?: string | null; role?: Role; hireDate?: string; weeklyHours?: number | null; leaveAccrualRate?: number | null; leaveAccrualCap?: number | null }
+  input: { firstName?: string; lastName?: string; phone?: string | null; role?: Role; hireDate?: string; weeklyHours?: number | null; nightWorkerStatus?: "AUTO" | "YES" | "NO"; leaveAccrualRate?: number | null; leaveAccrualCap?: number | null }
 ): Promise<DirectoryUser> {
   const { data } = await apiClient.patch<{ user: DirectoryUser }>(`/users/${id}`, input);
   return data.user;

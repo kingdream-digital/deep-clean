@@ -804,6 +804,11 @@ async function assertCanViewEntry(actor: Actor, entry: { userId: string }): Prom
   );
 }
 
+/** Même règle que pour un pointage : soi-même, l'encadrement, ou le chef d'équipe de la personne. */
+export async function canViewUserHours(actor: Actor, userId: string): Promise<boolean> {
+  return assertCanViewEntry(actor, { userId });
+}
+
 // 404 (jamais 403) hors périmètre, pour ne pas révéler l'existence du pointage.
 export async function getTimeEntryById(actor: Actor, id: string) {
   const entry = await findEntryOrThrow(id);

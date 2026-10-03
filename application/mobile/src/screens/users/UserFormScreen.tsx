@@ -9,6 +9,7 @@ import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { DateTimeField } from "../../components/DateTimeField";
 import { calendarDay, frenchDateFormat } from "../../utils/frenchDate";
 import { toLocalDateKey } from "../../utils/missionFormat";
@@ -67,6 +68,7 @@ export function UserFormScreen() {
   // Heures par semaine au contrat : le planning en déduit ce qu'il reste à
   // planifier pour la personne chaque semaine.
   const [weeklyHoursText, setWeeklyHoursText] = useState("");
+  const [nightWorkerStatus, setNightWorkerStatus] = useState<"AUTO" | "YES" | "NO">("AUTO");
   // Congés : vide = règle légale (2,5 jours ouvrables / mois, 30 / an).
   const [accrualRateText, setAccrualRateText] = useState("");
   const [accrualCapText, setAccrualCapText] = useState("");
@@ -83,6 +85,7 @@ export function UserFormScreen() {
       setRole(account.role);
       if (account.hireDate) setHireDate(calendarDay(account.hireDate));
       setWeeklyHoursText(account.weeklyHours != null ? String(account.weeklyHours).replace(".", ",") : "");
+      setNightWorkerStatus(account.nightWorkerStatus ?? "AUTO");
       setAccrualRateText(account.leaveAccrualRate != null ? String(account.leaveAccrualRate).replace(".", ",") : "");
       setAccrualCapText(account.leaveAccrualCap != null ? String(account.leaveAccrualCap).replace(".", ",") : "");
       setLoadState("ready");
@@ -129,6 +132,7 @@ export function UserFormScreen() {
           role,
           hireDate: toLocalDateKey(hireDate),
           weeklyHours: weeklyHoursValue,
+          nightWorkerStatus,
           leaveAccrualRate: rateValue,
           leaveAccrualCap: capValue,
         });
@@ -226,6 +230,24 @@ export function UserFormScreen() {
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
           Le planning affiche ensuite combien d'heures il reste à planifier pour la personne chaque semaine.
         </Text>
+
+        {isEdit && (
+          <>
+            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>TRAVAILLEUR DE NUIT</Text>
+            <SegmentedControl
+              value={nightWorkerStatus}
+              onChange={setNightWorkerStatus}
+              options={[
+                { label: "Automatique", value: "AUTO" },
+                { label: "Oui", value: "YES" },
+                { label: "Non", value: "NO" },
+              ]}
+            />
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xs, marginBottom: spacing.md }]}>
+              Automatique : reconnu d'après ses pointages (3 h entre 21 h et 6 h au moins 2 fois par semaine, ou 270 h de nuit sur 12 mois). Il acquiert alors un repos compensateur payé de 2 % de ses heures de nuit. Les heures de nuit restent majorées dans tous les cas.
+            </Text>
+          </>
+        )}
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>CONGÉS PAYÉS DU CONTRAT</Text>
         <View style={{ flexDirection: "row", gap: spacing.sm }}>

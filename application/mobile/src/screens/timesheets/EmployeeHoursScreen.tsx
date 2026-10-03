@@ -23,6 +23,7 @@ import { shareFile } from "../../utils/shareFile";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
+import { PaySummaryCard } from "../../components/PaySummaryCard";
 
 const dayFmt = frenchDateFormat({ day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -129,8 +130,10 @@ export function EmployeeHoursScreen() {
 
   const summary = computeWeekSummary(items);
 
-  return (
-    <ScreenContainer style={{ paddingTop: spacing.md }}>
+  // Tout l'en-tête défile avec la liste : sur téléphone, la carte des
+  // majorations ne doit pas réduire la liste à quelques lignes.
+  const header = (
+    <View>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
         <PressableScale onPress={() => setMonth((m) => addMonths(m, -1))} style={{ padding: spacing.xs }}>
           <Ionicons name="chevron-back" size={22} color={colors.accent} />
@@ -158,6 +161,8 @@ export function EmployeeHoursScreen() {
         </View>
       </Card>
 
+      <PaySummaryCard month={toLocalDateKey(month).slice(0, 7)} userId={params.userId} />
+
       <View style={{ marginTop: spacing.md, marginBottom: spacing.lg }}>
         <Button
           label="Télécharger le fichier du mois"
@@ -174,10 +179,14 @@ export function EmployeeHoursScreen() {
       {state === "ready" && items.length === 0 && (
         <StateView kind="empty" icon="time-outline" message="Aucun pointage sur ce mois." />
       )}
+    </View>
+  );
 
-      {state === "ready" && items.length > 0 && (
-        <FlatList
-          data={items}
+  return (
+    <ScreenContainer style={{ paddingTop: spacing.md }}>
+      <FlatList
+          data={state === "ready" ? items : []}
+          ListHeaderComponent={header}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: spacing.xxl }}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
@@ -203,7 +212,6 @@ export function EmployeeHoursScreen() {
             </Animated.View>
           )}
         />
-      )}
     </ScreenContainer>
   );
 }
