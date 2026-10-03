@@ -39,7 +39,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   EMPLOYEE: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
-    { icon: "warning-outline", label: "Mes signalements", message: "Suivi de vos signalements", tone: "danger", screen: "ProblemsList" },
+    { icon: "warning-outline", label: "Signalements", message: "Ceux de vos missions et leur suivi", tone: "danger", screen: "ProblemsList" },
   ],
   SITE_MANAGER: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },

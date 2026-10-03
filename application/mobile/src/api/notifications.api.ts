@@ -31,6 +31,7 @@ export type NotificationType =
   // l'identifiant de l'EXPÉDITEUR (pas du message), pour ouvrir directement
   // le bon fil au clic.
   | "MESSAGE_RECEIVED"
+  | "COMMERCIAL_UPDATE"
   | "GENERAL";
 
 export interface AppNotification {

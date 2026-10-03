@@ -25,7 +25,9 @@ export type NotificationEntityType =
   | "Announcement"
   | "Conversation"
   | "LeaveBalance"
-  | "LeaveAccruals";
+  | "LeaveAccruals"
+  | "Quote"
+  | "Invoice";
 
 /**
  * Crée la notification interne (persistée, visible dans le centre de notifications)

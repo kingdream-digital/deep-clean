@@ -27,7 +27,7 @@ export const DASHBOARD_SECTIONS: Record<Role, DashboardSection[]> = {
   EMPLOYEE: [
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },
     { icon: "megaphone-outline", label: "Actualités", screen: "AnnouncementsList", tone: "purple" },
-    { icon: "warning-outline", label: "Mes signalements", screen: "ProblemsList", tone: "danger" },
+    { icon: "warning-outline", label: "Signalements", screen: "ProblemsList", tone: "danger" },
   ],
   SITE_MANAGER: [
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },

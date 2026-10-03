@@ -101,6 +101,7 @@ async function openPushTarget(response: Notifications.NotificationResponse): Pro
     if (!navigationRef.isReady()) return;
     const navigate = navigationRef.navigate as (name: string, params?: object) => void;
     if (data.type === "MISSION_UNASSIGNED") navigate("Planning");
+    else if (target?.tab) navigate(target.tab, { screen: target.screen, params: target.params });
     else navigate("Messagerie", target ? { screen: target.screen, params: target.params } : undefined);
   } catch {
     // Élément supprimé entre-temps : l'app reste simplement ouverte.

@@ -175,7 +175,10 @@ export function HomeScreen() {
         return;
       }
       const target = await resolveNotificationTarget(notif);
-      if (target?.screen === "MissionDetail") {
+      if (target?.tab) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tabNavigation?.navigate(target.tab, { screen: target.screen, params: target.params } as any);
+      } else if (target?.screen === "MissionDetail") {
         tabNavigation?.navigate("Missions", { screen: "MissionDetail", params: target.params });
       } else if (target) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

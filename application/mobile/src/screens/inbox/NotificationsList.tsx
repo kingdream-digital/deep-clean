@@ -142,7 +142,9 @@ export function NotificationsList() {
       }
       const target = await resolveNotificationTarget(notification);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (target) navigation.navigate(target.screen as any, target.params as any);
+      if (target?.tab) (navigation.getParent() as any)?.navigate(target.tab, { screen: target.screen, params: target.params });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      else if (target) navigation.navigate(target.screen as any, target.params as any);
     } catch (err) {
       Alert.alert("Impossible d'ouvrir", extractErrorMessage(err));
     }

@@ -11,7 +11,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
 import { listActivityLogs } from "../../api/activityLog.api";
 import type { ActivityLogEntry } from "../../api/activityLog.api";
-import { formatAction } from "../../utils/activityLogLabels";
+import { formatAction, formatEntity } from "../../utils/activityLogLabels";
 import { toLocalDateKey } from "../../utils/missionFormat";
 import { frenchDateFormat } from "../../utils/frenchDate";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
@@ -35,21 +35,11 @@ function periodToFrom(period: Period): string | undefined {
   return toLocalDateKey(d);
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  User: "Compte",
-  Site: "Chantier",
-  Mission: "Mission",
-  Problem: "Signalement",
-  TimeEntry: "Pointage",
-  Absence: "Absence",
-  CleaningStandard: "Standard",
-};
-
 // Journal d'activité (cahier des charges §21) — jusqu'ici les actions
 // sensibles étaient bien enregistrées côté serveur mais aucun écran ne
 // permettait de les consulter : en cas d'incident ("qui a désactivé ce
 // compte ?"), la RH/direction n'avait aucun moyen de le savoir depuis
-// l'application. Réservé RH/Direction/Admin (voir activity.routes.ts).
+// l'application. Réservé à l'admin technique (voir activity.routes.ts).
 const TABLE_COLUMNS: DataTableColumn<ActivityLogEntry>[] = [
   {
     key: "action",
@@ -65,7 +55,8 @@ const TABLE_COLUMNS: DataTableColumn<ActivityLogEntry>[] = [
   {
     key: "entity",
     label: "Élément",
-    render: (item) => <ActivityFootnoteCell text={item.entityType ? ENTITY_LABELS[item.entityType] ?? item.entityType : "—"} />,
+    flex: 2,
+    render: (item) => <ActivityFootnoteCell text={formatEntity(item.entityType, item.entityLabel)} />,
   },
   {
     key: "date",
@@ -128,7 +119,7 @@ export function ActivityLogScreen() {
                   <Text style={[type.headline, { color: colors.ink }]}>{formatAction(item.action)}</Text>
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
                     {item.user ? `${item.user.firstName} ${item.user.lastName}` : "Système"}
-                    {item.entityType ? ` · ${ENTITY_LABELS[item.entityType] ?? item.entityType}` : ""}
+                    {item.entityType ? ` · ${formatEntity(item.entityType, item.entityLabel)}` : ""}
                   </Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>

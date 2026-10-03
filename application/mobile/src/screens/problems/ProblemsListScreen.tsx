@@ -71,7 +71,7 @@ export function ProblemsListScreen() {
       {!!isDesktopWeb && (
         <View style={{ marginBottom: spacing.lg }}>
           <Text style={[typeScale.title1, { color: colors.ink }]}>
-            {user?.role === "EMPLOYEE" ? "Mes signalements" : "Problèmes"}
+            {user?.role === "EMPLOYEE" ? "Signalements" : "Problèmes"}
           </Text>
           {state === "ready" && (
             <Text style={[typeScale.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
@@ -141,7 +141,9 @@ export function ProblemsListScreen() {
                       </Text>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm }}>
                         <ProblemStatusBadge status={item.status} />
-                        <Text style={[typeScale.caption, { color: colors.inkTertiary }]}>{timeAgo(item.createdAt)}</Text>
+                        <Text style={[typeScale.caption, { color: colors.inkTertiary, flexShrink: 1, marginLeft: spacing.sm }]} numberOfLines={1}>
+                          {item.reportedBy.id === user?.id ? "Vous" : `${item.reportedBy.firstName} ${item.reportedBy.lastName}`} · {timeAgo(item.createdAt)}
+                        </Text>
                       </View>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />

@@ -696,6 +696,9 @@ enum NotificationType {
   // messages.service.ts::sendMessage), au motif que le badge de non-lus de
   // l'onglet Messagerie suffisait déjà. Le client veut la cloche en plus.
   MESSAGE_RECEIVED
+  // Circuit commercial (retour d'audit) : devis à valider, validé, accepté,
+  // refusé — ouvre la fiche du devis.
+  COMMERCIAL_UPDATE
   GENERAL
 }
 

@@ -233,7 +233,7 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
     kpis: [
       { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
       { key: "upcoming", label: "À venir (7 jours)", value: String(upcomingRes.items.filter((m) => m.date.slice(0, 10) >= today).length), tone: "info", icon: "time-outline" },
-      { key: "problems", label: "Mes signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
+      { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
     ],
   };
 }

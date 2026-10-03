@@ -110,7 +110,7 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     menuStep({
       icon: "warning-outline",
       title: "Signaler un problème",
-      body: "Sur place, ouvrez la mission et touchez « Signaler un problème » : décrivez, ajoutez des photos, envoyez. Ici, dans Mes signalements, vous suivez ensuite son traitement.",
+      body: "Sur place, ouvrez la mission et touchez « Signaler un problème » : décrivez, ajoutez des photos, envoyez. Ici, dans Signalements, vous suivez ensuite son traitement.",
       targetId: "menu.ProblemsList",
     }),
     ABSENCES,

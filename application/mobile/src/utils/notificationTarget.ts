@@ -6,9 +6,14 @@ import type { InboxStackParamList } from "../navigation/InboxStack";
 // centre de notifications ET l'activité récente de l'accueil (retour explicite
 // du client : chaque notification doit mener à ce qu'elle annonce). Toutes les
 // cibles existent sur la pile Messagerie (InboxStack).
-export type NotificationTarget = {
-  [K in keyof InboxStackParamList]: { screen: K; params: InboxStackParamList[K] };
-}[keyof InboxStackParamList];
+export type NotificationTarget =
+  | {
+      [K in keyof InboxStackParamList]: { screen: K; params: InboxStackParamList[K]; tab?: undefined };
+    }[keyof InboxStackParamList]
+  // Devis et factures : écrans de l'onglet Menu (circuit commercial complet :
+  // créer le chantier, la facture… depuis la fiche).
+  | { tab: "Menu"; screen: "QuoteDetail"; params: { quoteId: string } }
+  | { tab: "Menu"; screen: "InvoiceDetail"; params: { invoiceId: string } };
 
 // Notifications créées avant que chaque notification ait une cible côté
 // serveur : retrouvées par leur titre.
@@ -61,6 +66,10 @@ export async function resolveNotificationTarget(n: AppNotification): Promise<Not
       return { screen: "ConversationThread", params: { conversationId: id } };
     case "LeaveBalance":
       return { screen: "MyAbsences", params: undefined };
+    case "Quote":
+      return { tab: "Menu", screen: "QuoteDetail", params: { quoteId: id } };
+    case "Invoice":
+      return { tab: "Menu", screen: "InvoiceDetail", params: { invoiceId: id } };
     case "LeaveAccruals":
       return { screen: "LeaveAccruals", params: /^\d{4}-\d{2}$/.test(id) ? { month: id } : undefined };
     default:
