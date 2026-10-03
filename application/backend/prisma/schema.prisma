@@ -699,6 +699,9 @@ enum NotificationType {
   // Circuit commercial (retour d'audit) : devis à valider, validé, accepté,
   // refusé — ouvre la fiche du devis.
   COMMERCIAL_UPDATE
+  // Rappels automatiques (pointage oublié, mission du lendemain, devis à
+  // envoyer, validations en attente…) — voir modules/automations.
+  REMINDER
   GENERAL
 }
 
@@ -1302,4 +1305,16 @@ model ActivityLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@map("activity_logs")
+}
+
+/// Trace des automatisations déjà déclenchées (rappels, relances) : une clé
+/// unique par rappel garantit qu'il n'est jamais envoyé deux fois, même si le
+/// serveur redémarre ou si la tâche tourne plusieurs fois.
+model AutomationEvent {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("automation_events")
 }

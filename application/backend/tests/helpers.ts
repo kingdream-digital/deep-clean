@@ -10,6 +10,7 @@ export const TEST_PASSWORD = "CorrectHorse9!Battery";
 export async function resetDatabase() {
   // Ordre inverse des dépendances pour respecter les contraintes de clé étrangère.
   await prisma.activityLog.deleteMany();
+  await prisma.automationEvent.deleteMany();
   // Explicite (comme mission/problem plus bas) plutôt que de compter sur la
   // cascade de `userId` : `createdById` est en onDelete: Restrict (traçabilité
   // de qui a enregistré la transaction), qui bloquerait sinon la suppression

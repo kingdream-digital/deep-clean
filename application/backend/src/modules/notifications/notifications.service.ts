@@ -27,7 +27,11 @@ export type NotificationEntityType =
   | "LeaveBalance"
   | "LeaveAccruals"
   | "Quote"
-  | "Invoice";
+  | "Invoice"
+  // Listes à traiter (rappels automatiques).
+  | "TimesheetValidation"
+  | "AbsencesManagement"
+  | "InvoicesList";
 
 /**
  * Crée la notification interne (persistée, visible dans le centre de notifications)
