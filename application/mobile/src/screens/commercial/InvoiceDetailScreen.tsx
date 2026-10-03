@@ -10,6 +10,7 @@ import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { InvoiceStatusBadge } from "../../components/InvoiceStatusBadge";
+import { EinvoiceCard } from "../../components/EinvoiceCard";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
 import { shareFile } from "../../utils/shareFile";
@@ -191,6 +192,8 @@ export function InvoiceDetailScreen() {
             <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(invoice.totalTtc)}</Text>
           </View>
         </Card>
+
+        <EinvoiceCard invoice={invoice} onChanged={load} />
 
         <View style={{ gap: spacing.sm }}>
           <Button label="Voir / partager le PDF" variant="secondary" onPress={handleSharePdf} loading={actionLoading} />

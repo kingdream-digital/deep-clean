@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import { companyDateLabel } from "../../utils/companyTime";
-import { env } from "../../config/env";
+import { companyFooterLine, getCompanyProfile, sellerBlockLines, sirenOf } from "../einvoicing/companyProfile";
+import { LATE_FEE_NOTE, NO_DISCOUNT_NOTE, VAT_ON_DEBITS_NOTE, effectiveDueDate, latePenaltyNote } from "../einvoicing/enInvoice";
 import { BRAND, CONTENT_WIDTH, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination, formatEuroPdf } from "../../utils/pdfBrand";
 import type { QuoteItemUnit } from "@prisma/client";
 
@@ -28,9 +29,10 @@ interface InvoicePdfData {
   vatRate: number;
   vatAmount: number;
   totalTtc: number;
-  client: { companyName: string };
+  client: { companyName: string; siren?: string | null; siret?: string | null };
   quote: { quoteNumber: string } | null;
-  site: { name: string } | null;
+  site: { name: string; address?: string } | null;
+  paidAt?: Date | null;
   items: InvoicePdfItem[];
   // `internalNotes` n'est volontairement pas dans cette interface — jamais lu
   // ici, même règle que quotes.pdf.ts.
@@ -83,23 +85,40 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
   doc.on("pageAdded", () => drawHeader(doc, title, subtitle));
   drawHeader(doc, title, subtitle);
 
-  const metaY = doc.y;
-  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
-  doc.text(`Date d'émission : ${dateFmt(invoice.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
-  if (invoice.period) doc.text(`Mois facturé : ${periodLabel(invoice.period)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  if (invoice.dueDate) doc.text(`Échéance : ${calendarDateFmt(invoice.dueDate)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  if (invoice.quote) doc.text(`Devis associé : ${invoice.quote.quoteNumber}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  if (invoice.site) doc.text(`Chantier : ${invoice.site.name}`, PAGE_LEFT, doc.y + 2, { width: 250 });
+  const company = getCompanyProfile();
+  const dueDate = effectiveDueDate(invoice, company);
 
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("CLIENT", PAGE_LEFT + 300, metaY, { width: 215 });
-  doc.font("Helvetica").fontSize(9).fillColor(BRAND.inkSecondary);
+  // Émetteur (identité légale complète) à gauche, client à droite.
+  const topY = doc.y;
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("ÉMETTEUR", PAGE_LEFT, topY, { width: 250 });
+  doc.font("Helvetica").fontSize(8.5).fillColor(BRAND.inkSecondary);
+  const sellerLines = sellerBlockLines(company);
+  for (const line of sellerLines) doc.text(line, PAGE_LEFT, doc.y, { width: 250 });
+  const leftBottom = doc.y;
+
+  const clientSiren = sirenOf({ siren: invoice.client.siren, siret: invoice.siret ?? invoice.client.siret });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("CLIENT", PAGE_LEFT + 300, topY, { width: 215 });
+  doc.font("Helvetica").fontSize(8.5).fillColor(BRAND.inkSecondary);
   doc.text(invoice.client.companyName, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (invoice.contactName) doc.text(invoice.contactName, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (invoice.billingAddress) doc.text(invoice.billingAddress, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (invoice.contactEmail) doc.text(invoice.contactEmail, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (invoice.siret) doc.text(`SIRET : ${invoice.siret}`, PAGE_LEFT + 300, doc.y, { width: 215 });
+  else if (clientSiren) doc.text(`SIREN : ${clientSiren}`, PAGE_LEFT + 300, doc.y, { width: 215 });
 
-  doc.y = Math.max(doc.y, metaY + 90) + 10;
+  doc.y = Math.max(leftBottom, doc.y) + 12;
+  const metaY = doc.y;
+  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
+  doc.text(`Date d'émission : ${dateFmt(invoice.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
+  doc.text(`Échéance : ${calendarDateFmt(dueDate)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
+  if (invoice.period) doc.text(`Mois facturé : ${periodLabel(invoice.period)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
+  const leftMetaBottom = doc.y;
+  doc.text("Nature : prestations de services", PAGE_LEFT + 300, metaY, { width: 215 });
+  if (invoice.quote) doc.text(`Devis associé : ${invoice.quote.quoteNumber}`, PAGE_LEFT + 300, doc.y + 2, { width: 215 });
+  if (invoice.site) {
+    doc.text(`Lieu d'intervention : ${invoice.site.name}${invoice.site.address ? ` — ${invoice.site.address}` : ""}`, PAGE_LEFT + 300, doc.y + 2, { width: 215 });
+  }
+  doc.y = Math.max(leftMetaBottom, doc.y) + 14;
 
   let headerY = doc.y;
   drawItemsHeaderRow(doc, headerY);
@@ -148,28 +167,29 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
   totalLine("Total TTC", formatEuroPdf(invoice.totalTtc), true);
   doc.y = totalsY + 10;
 
-  if (invoice.paymentTerms) {
-    ensureSpace(doc, 40, () => undefined);
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text("Conditions de paiement", PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
-    doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9).text(invoice.paymentTerms, PAGE_LEFT, doc.y + 2, { width: CONTENT_WIDTH });
+  if (invoice.paidAt) {
+    ensureSpace(doc, 30, () => undefined);
+    doc.fillColor("#067647").font("Helvetica-Bold").fontSize(11).text(`Facture acquittée le ${calendarDateFmt(invoice.paidAt)}`, PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
+    doc.y += 8;
   }
 
-  ensureSpace(doc, 40, () => undefined);
-  const legalParts = [
-    env.COMPANY_LEGAL_NAME,
-    env.COMPANY_ADDRESS,
-    env.COMPANY_SIRET ? `SIRET ${env.COMPANY_SIRET}` : undefined,
-    env.COMPANY_VAT_NUMBER ? `TVA ${env.COMPANY_VAT_NUMBER}` : undefined,
-    env.COMPANY_PHONE,
-    env.COMPANY_EMAIL,
-  ].filter(Boolean);
-  doc
-    .fillColor(BRAND.inkTertiary)
-    .font("Helvetica")
-    .fontSize(7.5)
-    .text(legalParts.join(" · "), PAGE_LEFT, doc.y + 10, { width: CONTENT_WIDTH });
+  // Conditions de paiement et mentions obligatoires (Code de commerce
+  // L441-9 et L441-10, CGI art. 242 nonies A).
+  const conditions = [
+    `Échéance : ${calendarDateFmt(dueDate)}. ${invoice.paymentTerms?.trim() || `Paiement à ${company.paymentDays} jours par virement.`}`,
+    company.iban ? `Virement : IBAN ${company.iban}${company.bic ? ` · BIC ${company.bic}` : ""} · référence ${invoice.invoiceNumber}` : undefined,
+    latePenaltyNote(company),
+    LATE_FEE_NOTE,
+    NO_DISCOUNT_NOTE,
+    company.vatOnDebits ? VAT_ON_DEBITS_NOTE : undefined,
+  ].filter(Boolean) as string[];
+  const conditionsText = conditions.join("\n");
+  const conditionsHeight = doc.font("Helvetica").fontSize(8.5).heightOfString(conditionsText, { width: CONTENT_WIDTH }) + 20;
+  ensureSpace(doc, conditionsHeight, () => undefined);
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text("Conditions de paiement", PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
+  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(8.5).text(conditionsText, PAGE_LEFT, doc.y + 3, { width: CONTENT_WIDTH, lineGap: 1.5 });
 
-  finalizePagination(doc);
+  finalizePagination(doc, companyFooterLine(company));
   doc.end();
   return done;
 }

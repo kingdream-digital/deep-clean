@@ -33,3 +33,8 @@ invoicesRouter.post("/:id/validate", validate(invoiceIdParamSchema), invoicesCon
 invoicesRouter.post("/:id/send", validate(sendInvoiceSchema), invoicesController.sendInvoiceHandler);
 invoicesRouter.post("/:id/pay", validate(invoiceIdParamSchema), invoicesController.markInvoicePaidHandler);
 invoicesRouter.post("/:id/cancel", validate(cancelInvoiceSchema), invoicesController.cancelInvoiceHandler);
+
+// Facture électronique (réforme 2026) via la plateforme agréée Super PDP.
+invoicesRouter.get("/:id/einvoice", validate(invoiceIdParamSchema), invoicesController.getEinvoiceHandler);
+invoicesRouter.post("/:id/einvoice", validate(invoiceIdParamSchema), invoicesController.sendEinvoiceHandler);
+invoicesRouter.post("/:id/einvoice/refresh", validate(invoiceIdParamSchema), invoicesController.refreshEinvoiceHandler);

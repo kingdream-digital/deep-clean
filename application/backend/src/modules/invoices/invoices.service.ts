@@ -6,6 +6,7 @@ import { logActivity } from "../../utils/activityLog";
 import { escapeLikePattern } from "../../utils/likePattern";
 import { sendMail } from "../../utils/mailer";
 import { buildInvoicePdf } from "./invoices.pdf";
+import { effectiveDueDate } from "../einvoicing/enInvoice";
 
 interface Actor {
   userId: string;
@@ -29,11 +30,11 @@ const invoiceSelect = {
   id: true,
   invoiceNumber: true,
   clientId: true,
-  client: { select: { id: true, companyName: true, email: true } },
+  client: { select: { id: true, companyName: true, email: true, siret: true, siren: true } },
   quoteId: true,
   quote: { select: { id: true, quoteNumber: true } },
   siteId: true,
-  site: { select: { id: true, name: true } },
+  site: { select: { id: true, name: true, address: true } },
   createdById: true,
   createdBy: { select: userSummarySelect },
   status: true,
@@ -56,6 +57,13 @@ const invoiceSelect = {
   paidAt: true,
   cancelledAt: true,
   cancelledComment: true,
+  // Facture électronique (Super PDP).
+  pdpInvoiceId: true,
+  pdpStatus: true,
+  pdpStatusLabel: true,
+  pdpSentAt: true,
+  pdpUpdatedAt: true,
+  pdpError: true,
   createdAt: true,
   updatedAt: true,
   items: { select: invoiceItemSelect, orderBy: { sortOrder: "asc" } },
@@ -310,7 +318,10 @@ export async function validateInvoice(actor: Actor, id: string) {
   if (existing.status !== InvoiceStatus.DRAFT) {
     throw ApiError.conflict("Seule une facture à préparer peut être validée.");
   }
-  const invoice = await prisma.invoice.update({ where: { id }, data: { status: InvoiceStatus.VALIDATED }, select: invoiceSelect });
+  // Échéance obligatoire sur une facture : à défaut, délai de paiement de
+  // l'entreprise (INVOICE_PAYMENT_DAYS) à compter de l'émission.
+  const dueDate = existing.dueDate ?? effectiveDueDate(existing);
+  const invoice = await prisma.invoice.update({ where: { id }, data: { status: InvoiceStatus.VALIDATED, dueDate }, select: invoiceSelect });
   await logActivity({ userId: actor.userId, action: "INVOICE_VALIDATED", entityType: "Invoice", entityId: id });
   return presentInvoice(invoice);
 }

@@ -87,6 +87,7 @@ const ACTION_LABELS: Record<string, string> = {
   INVOICE_SENT: "Facture envoyée",
   INVOICE_PAID: "Facture payée",
   INVOICE_CANCELLED: "Facture annulée",
+  INVOICE_EINVOICE_SENT: "Facture électronique envoyée",
 };
 
 /** Libellé du type d'élément concerné par une action du journal. */

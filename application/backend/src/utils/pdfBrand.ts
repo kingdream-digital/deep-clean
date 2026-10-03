@@ -64,14 +64,19 @@ export function drawHeader(doc: PDFKit.PDFDocument, title: string, subtitle: str
 }
 
 /** Pied de page — le libellé (ex. "Page 2 sur 3") est calculé par l'appelant, voir `finalizePagination`. */
-export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string): void {
+export const INTERNAL_FOOTER = "Deep Clean — document à usage interne, généré automatiquement.";
+
+export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string, footerText: string = INTERNAL_FOOTER): void {
   doc.moveTo(PAGE_LEFT, FOOTER_Y).lineTo(PAGE_RIGHT, FOOTER_Y).strokeColor(BRAND.border).lineWidth(1).stroke();
   doc
     .fillColor(BRAND.inkTertiary)
     .font("Helvetica")
     .fontSize(8)
-    .text("Deep Clean — document à usage interne, généré automatiquement.", PAGE_LEFT, FOOTER_Y + 8, {
-      width: CONTENT_WIDTH / 2,
+    // Une seule ligne, jamais plus : un texte qui passe à la ligne sous le
+    // pied de page déclenche un saut de page (page blanche en trop).
+    .text(footerText.length > 105 ? `${footerText.slice(0, 104)}…` : footerText, PAGE_LEFT, FOOTER_Y + 8, {
+      width: CONTENT_WIDTH * 0.8,
+      lineBreak: false,
     });
   doc.text(pageLabel, PAGE_LEFT, FOOTER_Y + 8, { width: CONTENT_WIDTH, align: "right" });
 }
@@ -82,11 +87,11 @@ export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string): void {
  * (document construit avec `bufferPages: true`), donc appelé juste avant
  * `doc.end()`, jamais pendant l'écriture du contenu.
  */
-export function finalizePagination(doc: PDFKit.PDFDocument): void {
+export function finalizePagination(doc: PDFKit.PDFDocument, footerText?: string): void {
   const pageRange = doc.bufferedPageRange();
   for (let i = 0; i < pageRange.count; i++) {
     doc.switchToPage(i);
-    drawFooter(doc, `Page ${i + 1} sur ${pageRange.count}`);
+    drawFooter(doc, `Page ${i + 1} sur ${pageRange.count}`, footerText);
   }
 }
 

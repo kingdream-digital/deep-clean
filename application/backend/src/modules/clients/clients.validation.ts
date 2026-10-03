@@ -11,6 +11,8 @@ const clientFields = {
   postalCode: z.string().trim().max(12).optional(),
   city: z.string().trim().max(100).optional(),
   siret: z.string().trim().max(20).optional(),
+  // Mention obligatoire de la facture électronique (déduit du SIRET si vide).
+  siren: z.string().trim().regex(/^\d{3}\s?\d{3}\s?\d{3}$/, "Le SIREN compte 9 chiffres.").optional(),
   notes: z.string().trim().max(4000).optional(),
 };
 
@@ -32,6 +34,7 @@ export const updateClientSchema = {
       postalCode: clientFields.postalCode.nullable(),
       city: clientFields.city.nullable(),
       siret: clientFields.siret.nullable(),
+      siren: clientFields.siren.nullable(),
       notes: clientFields.notes.nullable(),
     })
     .partial()
