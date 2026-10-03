@@ -30,11 +30,14 @@ const ENTRY_FOR_USER_ROLES = ["SITE_MANAGER", "SUPERVISOR", "HR", "DIRECTOR", "A
 
 type Route = RouteProp<MenuStackParamList, "ReconciliationDetail">;
 
-function GapBadge({ gapMinutes }: { gapMinutes: number }) {
+function GapBadge({ gapMinutes, upcoming }: { gapMinutes: number; upcoming?: boolean }) {
   const { colors, spacing, radius, type } = useTheme();
   let label = "Conforme";
   let tone = colors.success;
-  if (gapMinutes > GAP_TOLERANCE_MINUTES) {
+  if (upcoming) {
+    label = "À venir";
+    tone = colors.inkTertiary;
+  } else if (gapMinutes > GAP_TOLERANCE_MINUTES) {
     label = `+${formatHoursMinutes(gapMinutes)} (heures supp.)`;
     tone = colors.warning;
   } else if (gapMinutes < -GAP_TOLERANCE_MINUTES) {
@@ -252,10 +255,10 @@ export function ReconciliationDetailScreen() {
                     {timeFmt.format(new Date(m.mission.endTime))} ({formatHoursMinutes(m.scheduledMinutes)})
                   </Text>
                 </View>
-                <GapBadge gapMinutes={m.gapMinutes} />
+                <GapBadge gapMinutes={m.gapMinutes} upcoming={m.upcoming} />
               </View>
 
-              {m.matchedEntries.length === 0 ? (
+              {m.matchedEntries.length === 0 && m.upcoming ? null : m.matchedEntries.length === 0 ? (
                 <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}>
                   <Ionicons name="alert-circle-outline" size={14} color={colors.danger} />
                   <Text style={[type.footnote, { color: colors.danger, marginLeft: 4 }]}>Aucun pointage rattaché à cette mission.</Text>

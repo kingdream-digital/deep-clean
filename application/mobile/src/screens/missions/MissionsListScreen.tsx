@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useState } from "react";
+import { toLocalDateKey } from "../../utils/missionFormat";
 import { RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -114,7 +115,12 @@ export function MissionsListScreen() {
       if (!silent) setState("loading");
       let fetched: Mission[];
       if (activeTab === "upcoming") {
-        const res = await listMissions({ from: todayKey() });
+        // Depuis la veille : après minuit, une mission de la veille encore en
+        // cours ou jamais démarrée doit rester visible pour être clôturée
+        // (retour d'audit — travail de nuit).
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const res = await listMissions({ from: toLocalDateKey(yesterday) });
         fetched = res.items.filter((m) => m.status === "SCHEDULED" || m.status === "IN_PROGRESS");
       } else if (activeTab === "toValidate" || activeTab === "validated") {
         // Plus récentes d'abord, côté serveur : avec un tri croissant puis

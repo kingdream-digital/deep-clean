@@ -36,6 +36,7 @@ const TYPE_OPTIONS: { label: string; value: AbsenceType }[] = [
 const MORE_TYPE_OPTIONS: { label: string; value: AbsenceType }[] = [
   { label: "Accident du travail", value: "WORK_ACCIDENT" },
   { label: "Maternité / paternité", value: "PARENTAL_LEAVE" },
+  { label: "Repos compensateur (nuit)", value: "COMPENSATORY_REST" },
 ];
 
 // Effet de chaque type sur l'acquisition des congés payés (affiché sous le
@@ -46,6 +47,7 @@ const RIGHTS_NOTE: Record<AbsenceType, string> = {
   UNPAID_LEAVE: "N'est pas décompté du solde, mais n'ouvre aucun droit à congés sur ces jours.",
   WORK_ACCIDENT: "N'est pas décompté du solde. Assimilé à du travail : ouvre 2,5 jours par mois.",
   PARENTAL_LEAVE: "N'est pas décompté du solde. Assimilé à du travail : ouvre 2,5 jours par mois.",
+  COMPENSATORY_REST: "Décompté de votre repos compensateur acquis par le travail de nuit (2 % des heures de nuit). Assimilé à du travail.",
   OTHER: "N'est pas décompté du solde. Assimilé à du travail (formation, événement familial…).",
 };
 
@@ -154,7 +156,11 @@ export function AbsenceFormScreen() {
           label="Du"
           mode="date"
           value={startDate}
-          onChange={setStartDate}
+          onChange={(d) => {
+            setStartDate(d);
+            // Fin recalée si le début la dépasse (retour d'audit : « 0 jour » sans explication).
+            if (d > endDate) setEndDate(d);
+          }}
           formatValue={(d) => dateFmt.format(d)}
         />
         <DateTimeField

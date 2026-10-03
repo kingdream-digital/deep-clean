@@ -6,6 +6,7 @@ import { generateTemporaryPassword, hashPassword } from "../../utils/password";
 import { generateUsername } from "../../utils/username";
 import { logActivity } from "../../utils/activityLog";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
+import { countWorkableDays } from "../../utils/frenchCalendar";
 
 // Peut consulter le dossier complet d'un employé (pointages, absences,
 // missions, journal) : la RH au premier chef, mais aussi direction/admin
@@ -496,7 +497,9 @@ export async function getEmployeeDossier(actorRole: Role, targetId: string) {
 
   const absenceDaysByType: Record<string, number> = {};
   for (const absence of absencesThisYear) {
-    const days = Math.round((absence.endDate.getTime() - absence.startDate.getTime()) / MS_PER_DAY);
+    // Jours ouvrables (lundi → samedi hors fériés), même unité que le
+    // décompte des congés — et non des jours calendaires (retour d'audit).
+    const days = countWorkableDays(absence.startDate, absence.endDate);
     absenceDaysByType[absence.type] = (absenceDaysByType[absence.type] ?? 0) + days;
   }
 

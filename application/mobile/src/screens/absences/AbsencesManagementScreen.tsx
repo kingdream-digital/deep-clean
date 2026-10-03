@@ -18,6 +18,7 @@ import type { Absence, AbsenceStatus } from "../../api/absences.api";
 import { formatAbsencePeriod } from "../../utils/frenchDate";
 import { formatDaysWithUnit } from "../../utils/leaveDays";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
+import { ReasonPromptModal } from "../../components/ReasonPromptModal";
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",
@@ -25,6 +26,7 @@ const TYPE_LABELS: Record<Absence["type"], string> = {
   UNPAID_LEAVE: "Sans solde",
   WORK_ACCIDENT: "Accident du travail",
   PARENTAL_LEAVE: "Maternité / paternité",
+  COMPENSATORY_REST: "Repos compensateur",
   OTHER: "Autre",
 };
 
@@ -70,10 +72,14 @@ export function AbsencesManagementScreen() {
     }, [load])
   );
 
-  async function handleDecide(id: string, status: "APPROVED" | "REJECTED") {
+  // Refus : saisie du motif, transmis au salarié (retour d'audit).
+  const [rejecting, setRejecting] = useState<Absence | null>(null);
+
+  async function handleDecide(id: string, status: "APPROVED" | "REJECTED", note?: string) {
     setDecidingId(id);
     try {
-      await decideAbsence(id, status);
+      await decideAbsence(id, status, note || undefined);
+      setRejecting(null);
       await load();
     } catch (err) {
       Alert.alert("Action impossible", extractErrorMessage(err));
@@ -83,14 +89,7 @@ export function AbsencesManagementScreen() {
   }
 
   function confirmReject(item: Absence) {
-    Alert.alert(
-      "Refuser cette demande ?",
-      `${item.user.firstName} ${item.user.lastName} — ${formatRange(item.startDate, item.endDate)}`,
-      [
-        { text: "Annuler", style: "cancel" },
-        { text: "Refuser", style: "destructive", onPress: () => void handleDecide(item.id, "REJECTED") },
-      ]
-    );
+    setRejecting(item);
   }
 
   async function handleCancel(item: Absence) {
@@ -283,6 +282,18 @@ export function AbsencesManagementScreen() {
           )}
         />
       )}
+    <ReasonPromptModal
+        visible={!!rejecting}
+        title="Refuser cette demande ?"
+        subtitle={rejecting ? `${rejecting.user.firstName} ${rejecting.user.lastName} — ${formatRange(rejecting.startDate, rejecting.endDate)}` : undefined}
+        label="Motif du refus"
+        placeholder="Ex : période de forte activité, proposez d'autres dates."
+        confirmLabel="Refuser"
+        required
+        loading={!!rejecting && decidingId === rejecting.id}
+        onCancel={() => setRejecting(null)}
+        onConfirm={(note) => rejecting && void handleDecide(rejecting.id, "REJECTED", note)}
+      />
     </ScreenContainer>
   );
 }

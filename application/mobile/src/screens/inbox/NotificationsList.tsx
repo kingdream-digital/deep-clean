@@ -20,7 +20,7 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "../../api/notifications.api";
-import { hasNotificationTarget, resolveNotificationTarget } from "../../utils/notificationTarget";
+import { hasNotificationTarget, opensPlanningTab, resolveNotificationTarget } from "../../utils/notificationTarget";
 import { readCache, writeCache } from "../../offline/cache";
 import { timeAgo } from "../../utils/timeAgo";
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
@@ -136,6 +136,10 @@ export function NotificationsList() {
   async function handlePress(notification: AppNotification) {
     void handleMarkAsRead(notification);
     try {
+      if (opensPlanningTab(notification)) {
+        navigation.getParent()?.navigate("Planning" as never);
+        return;
+      }
       const target = await resolveNotificationTarget(notification);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (target) navigation.navigate(target.screen as any, target.params as any);

@@ -54,6 +54,10 @@ function wallParts(instant: Date): WallParts {
 }
 
 /** Décalage (ms) de l'heure de Paris par rapport à UTC à cet instant. */
+export function companyOffsetMs(instant: Date): number {
+  return offsetAt(instant);
+}
+
 function offsetAt(instant: Date): number {
   const p = wallParts(instant);
   const wallAsUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);

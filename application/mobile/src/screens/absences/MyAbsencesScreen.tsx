@@ -30,6 +30,7 @@ const TYPE_LABELS: Record<Absence["type"], string> = {
   UNPAID_LEAVE: "Sans solde",
   WORK_ACCIDENT: "Accident du travail",
   PARENTAL_LEAVE: "Maternité / paternité",
+  COMPENSATORY_REST: "Repos compensateur",
   OTHER: "Autre",
 };
 

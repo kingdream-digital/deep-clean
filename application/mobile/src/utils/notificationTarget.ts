@@ -19,12 +19,22 @@ const LEGACY_TITLES: Record<string, NotificationTarget> = {
 };
 
 /** Cible connue sans appel réseau (sert aussi à afficher le chevron). */
-export function hasNotificationTarget(n: Pick<AppNotification, "relatedEntityType" | "relatedEntityId" | "title">): boolean {
+export function hasNotificationTarget(n: Pick<AppNotification, "relatedEntityType" | "relatedEntityId" | "title" | "type">): boolean {
+  if (opensPlanningTab(n)) return true;
   return n.relatedEntityType ? !!n.relatedEntityId : n.title in LEGACY_TITLES;
+}
+
+/**
+ * Mission retirée à la personne (confiée à un collègue) : elle n'y a plus
+ * accès — on ouvre son planning, à jour, plutôt qu'une fiche introuvable.
+ */
+export function opensPlanningTab(n: Pick<AppNotification, "type">): boolean {
+  return n.type === "MISSION_UNASSIGNED";
 }
 
 export async function resolveNotificationTarget(n: AppNotification): Promise<NotificationTarget | null> {
   const id = n.relatedEntityId;
+  if (opensPlanningTab(n)) return null;
   if (!n.relatedEntityType) return LEGACY_TITLES[n.title] ?? null;
   if (!id) return null;
   switch (n.relatedEntityType) {
@@ -35,7 +45,9 @@ export async function resolveNotificationTarget(n: AppNotification): Promise<Not
     case "Problem":
       return { screen: "ProblemDetail", params: { problemId: id } };
     case "Absence":
-      if (n.type === "ABSENCE_REQUESTED") {
+      // Demande à décider, ou annulation faite par le salarié lui-même :
+      // fiche de la personne concernée (pas « Mes absences » du responsable).
+      if (n.type === "ABSENCE_REQUESTED" || n.title === "Demande d'absence annulée" || n.title === "Congé annulé par le salarié") {
         // Demande à valider : fiche de l'employé concerné, pour décider.
         const absence = await getAbsence(id);
         return { screen: "UserDetail", params: { userId: absence.userId } };

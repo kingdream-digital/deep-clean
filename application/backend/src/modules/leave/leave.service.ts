@@ -547,6 +547,11 @@ export async function createLeaveAdjustment(
 ) {
   if (!canManageLeave(actor)) throw ApiError.forbidden();
   if (input.days === 0) throw ApiError.badRequest("Le nombre de jours de la correction ne peut pas être nul.");
+  // Garde-fous (retour d'audit) : motif obligatoire, montant plausible, et
+  // jamais sur son propre compteur (même règle que la validation des relevés).
+  if (!input.note?.trim()) throw ApiError.badRequest("Indiquez le motif de la correction (il est communiqué au salarié).");
+  if (Math.abs(input.days) > 60) throw ApiError.badRequest("Une correction ne peut pas dépasser 60 jours. Faites-en plusieurs si nécessaire.");
+  if (targetUserId === actor.userId) throw ApiError.forbidden("Vous ne pouvez pas corriger votre propre compteur : demandez à une autre personne habilitée.");
 
   const target = await prisma.user.findUnique({ where: { id: targetUserId } });
   if (!target) throw ApiError.notFound("Compte introuvable.");

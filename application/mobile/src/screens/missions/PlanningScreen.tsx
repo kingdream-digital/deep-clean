@@ -20,7 +20,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listMissions, listMissionsToReassign } from "../../api/missions.api";
 import type { Mission, MissionAssignee } from "../../api/missions.api";
 import { listUsers } from "../../api/users.api";
-import { listAbsences } from "../../api/absences.api";
+import { ABSENCE_TYPE_LABELS, listAbsences } from "../../api/absences.api";
 import type { PlanningStackParamList } from "../../navigation/PlanningStack";
 
 type Route = RouteProp<PlanningStackParamList, "PlanningHome">;
@@ -145,9 +145,25 @@ export function PlanningScreen() {
   // Clé « userId|AAAA-MM-JJ » → motif affiché (« En congé », « Arrêt maladie »…).
   const [absentKeys, setAbsentKeys] = useState<Map<string, string>>(new Map());
   const loadTeam = useCallback(async () => {
-    if (!managesTeam) return;
     const from = toLocalDateKey(weekStart);
     const to = toLocalDateKey(weekEnd);
+    if (!managesTeam) {
+      // Employé / chef d'équipe : ses propres absences approuvées, affichées
+      // sur son planning (retour d'audit : un congé approuvé n'y figurait pas).
+      const mine = await listAbsences({ status: "APPROVED", from, to }).catch(() => null);
+      const own = new Map<string, string>();
+      for (const absence of mine?.items ?? []) {
+        if (absence.userId !== user?.id) continue;
+        const cursor = new Date(absence.startDate);
+        const end = new Date(absence.endDate);
+        while (cursor.getTime() <= end.getTime()) {
+          own.set(`${absence.userId}|${cursor.toISOString().slice(0, 10)}`, ABSENCE_TYPE_LABELS[absence.type] ?? "Absence");
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+      }
+      setAbsentKeys(own);
+      return;
+    }
     const [employees, leads, absences] = await Promise.all([
       listUsers({ role: "EMPLOYEE", isActive: true }).catch(() => null),
       listUsers({ role: "SITE_MANAGER", isActive: true }).catch(() => null),
@@ -184,7 +200,7 @@ export function PlanningScreen() {
       }
     }
     setAbsentKeys(keys);
-  }, [managesTeam, weekStart, weekEnd]);
+  }, [managesTeam, weekStart, weekEnd, user?.id]);
 
   const load = useCallback(async () => {
     const silent = isBackgroundRefresh();
@@ -595,6 +611,12 @@ export function PlanningScreen() {
                       navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay), initialAssigneeId: member.id })
                   : undefined
               }
+            />
+          ) : !managesTeam && user && absentKeys.has(`${user.id}|${toLocalDateKey(selectedDay)}`) ? (
+            <StateView
+              kind="empty"
+              icon="sunny-outline"
+              message={`${absentKeys.get(`${user.id}|${toLocalDateKey(selectedDay)}`)} ce jour-là.${selectedDayMissions.length ? " Une mission y est encore prévue : votre responsable va la réaffecter." : ""}`}
             />
           ) : selectedDayMissions.length === 0 ? (
             <StateView kind="empty" icon="calendar-outline" message="Aucune mission ce jour-là." />

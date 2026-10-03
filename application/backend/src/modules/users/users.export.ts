@@ -138,7 +138,7 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
   doc.y += 24;
 
   // --- Pointages ---
-  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(11).text("PONCTAGES", PAGE_LEFT, doc.y);
+  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(11).text("POINTAGES", PAGE_LEFT, doc.y);
   doc.y += 16;
   let timeHeaderY = doc.y;
   drawTimeTableHeader(doc, timeHeaderY);

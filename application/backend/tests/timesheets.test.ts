@@ -189,7 +189,7 @@ describe("Pointage — visibilité et validation", () => {
 
     const notifications = await prisma.notification.findMany({ where: { userId: employee.id } });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.type).toBe("TIMESHEET_VALIDATED");
+    expect(notifications[0]!.type).toBe("TIMESHEET_REJECTED");
   });
 
   it("la notification de validation mentionne le validateur et précise la transmission à la RH", async () => {
@@ -390,7 +390,10 @@ describe("Export CSV des pointages (dossier RH pour la paie)", () => {
     expect(res.headers["content-type"]).toContain("text/csv");
     const text = res.text.replace(/^﻿/, "");
     const lines = text.split("\r\n");
-    expect(lines[0]).toBe("Employé;Date;Arrivée;Départ;Durée (h);Statut;Différé;Commentaire");
+    expect(lines[0]).toBe(
+      "Employé;Date;Arrivée;Départ;Durée (h);Heures comptées (h);Dont nuit (h);Dont dimanche (h);Dont férié (h);Majoration (h);Statut;Différé;Commentaire"
+    );
+    expect(lines[lines.length - 1]).toMatch(/^TOTAL;/);
     expect(lines[1]).toContain("Test User");
     expect(lines[1]).toContain("En attente");
   });
@@ -410,7 +413,8 @@ describe("Export CSV des pointages (dossier RH pour la paie)", () => {
     expect(res.status).toBe(200);
     const text = res.text.replace(/^﻿/, "");
     const lines = text.split("\r\n").filter(Boolean);
-    expect(lines).toHaveLength(1); // en-tête seul, aucune ligne de données
+    expect(lines).toHaveLength(2); // en-tête + ligne de total, aucune ligne de données
+    expect(lines[1]).toBe("TOTAL;;;;;0,00;0,00;0,00;0,00;0,00;;;");
   });
 
   it("neutralise l'injection de formule CSV et échappe le point-virgule dans un commentaire", async () => {
@@ -514,12 +518,25 @@ describe("Rapprochement pointage <-> mission (menu RH — qui a un écart à exa
     expect(row.pendingCount).toBe(1);
   });
 
+  it("une mission pas encore terminée ne compte jamais comme heures manquantes", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-recon-fut@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-recon-fut@deepclean.test" });
+    const site = await createTestSite();
+    const hrToken = await loginAs(hr);
+    const date = tomorrowDateString();
+    await createMission(hrToken, site.id, employee.id, date, "08:00", "16:00");
+    const res = await request(app).get(`/api/v1/time-entries/reconciliation?from=${date}&to=${date}`).set("Authorization", `Bearer ${hrToken}`);
+    const row = res.body.items?.find?.((r: { user: { id: string } }) => r.user.id === employee.id) ?? res.body.find?.((r: { user: { id: string } }) => r.user.id === employee.id);
+    expect(row?.status ?? "OK").toBe("OK");
+  });
+
   it("statut ANOMALY quand les heures pointées sont nettement inférieures à la mission planifiée (un trou), même validées", async () => {
     const hr = await createTestUser({ role: Role.HR, email: "hr-recon3@deepclean.test" });
     const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-recon3@deepclean.test" });
     const site = await createTestSite();
     const hrToken = await loginAs(hr);
-    const date = tomorrowDateString();
+    // Mission déjà passée : seules les missions terminées sont comparées.
+    const date = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
 
     await createMission(hrToken, site.id, employee.id, date, "08:00", "16:00");
     await prisma.timeEntry.create({

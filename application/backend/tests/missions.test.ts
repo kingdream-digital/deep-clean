@@ -11,6 +11,16 @@ beforeEach(async () => {
   await resetDatabase();
 });
 
+// Mission « en cours de journée » : le suivi terrain refuse de démarrer une
+// mission plus de 2 h avant son début (missions.service.ts::setMissionStatus).
+async function makeOngoing(missionId: string) {
+  const now = Date.now();
+  await prisma.mission.update({
+    where: { id: missionId },
+    data: { startTime: new Date(now - 30 * 60_000), endTime: new Date(now + 60 * 60_000) },
+  });
+}
+
 afterAll(async () => {
   await prisma.$disconnect();
 });
@@ -119,10 +129,12 @@ describe("Création de mission — réservée aux rôles de gestion du planning"
 
     // Le chef d'équipe garde le suivi terrain (démarrer/terminer), même
     // sans droit de gestion du planning.
+    await makeOngoing(missionId);
     await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
       .send({ status: "IN_PROGRESS" });
+    await makeOngoing(missionId);
     await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
@@ -149,9 +161,12 @@ describe("Statut de suivi terrain d'une mission — une mission terminée est un
       .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
     const missionId = created.body.mission.id as string;
 
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "IN_PROGRESS" });
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "COMPLETED" });
 
+    await makeOngoing(missionId);
     const regress = await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${token}`)
@@ -396,12 +411,14 @@ describe("Chef d'équipe — droits limités à la consigne et au suivi terrain"
       .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
     const missionId = created.body.mission.id as string;
 
+    await makeOngoing(missionId);
     const start = await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
       .send({ status: "IN_PROGRESS" });
     expect(start.status).toBe(200);
 
+    await makeOngoing(missionId);
     const complete = await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
@@ -425,7 +442,9 @@ describe("Validation d'une mission terminée — chef d'équipe propriétaire, R
       .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
     const missionId = created.body.mission.id as string;
 
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "IN_PROGRESS" });
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "COMPLETED" });
 
     return { manager, managerToken: token, hr, hrToken, missionId, site };

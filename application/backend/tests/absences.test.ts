@@ -2,7 +2,15 @@ import request from "supertest";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
-import { createTestSite, createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+import { createTestSite, createTestUser as createUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+
+// Chaque salarié de test dispose d'un solde de congés (reprise de 30 jours) :
+// une demande de congé payé au-delà du solde est désormais refusée.
+async function createTestUser(...args: Parameters<typeof createUser>) {
+  const user = await createUser(...args);
+  await prisma.leaveTransaction.create({ data: { userId: user.id, type: "ADJUSTMENT", days: 30, createdById: user.id, note: "Reprise de solde (test)" } });
+  return user;
+}
 
 const app = createApp();
 
@@ -26,6 +34,22 @@ function futureRange(startInDays: number, endInDays: number): { startDate: strin
   end.setDate(end.getDate() + endInDays);
   return { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
 }
+
+describe("Congés — contrôles à la demande de l'employé", () => {
+  it("refuse un congé payé au-delà du solde, et une demande dans le passé", async () => {
+    const employee = await createUser({ role: Role.EMPLOYEE, email: "abs-solde@deepclean.test" });
+    const token = await loginAs(employee);
+    const { startDate, endDate } = futureRange(10, 12);
+    const tooMuch = await request(app).post("/api/v1/absences").set("Authorization", `Bearer ${token}`).send({ type: "PAID_LEAVE", startDate, endDate });
+    expect(tooMuch.status).toBe(400);
+    expect(tooMuch.body.error.message).toContain("Solde insuffisant");
+    const past = await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ type: "UNPAID_LEAVE", startDate: "2026-01-05", endDate: "2026-01-06" });
+    expect(past.status).toBe(400);
+  });
+});
 
 describe("Congés — le chef d'équipe n'en décide jamais (simple référent de chantier)", () => {
   it("refuse à un chef d'équipe de valider le congé d'un membre de sa propre équipe (retour explicite du client, correction)", async () => {

@@ -223,6 +223,8 @@ export interface ReconciliationMissionEntry {
   }>;
   workedMinutes: number;
   gapMinutes: number;
+  // Mission pas encore terminée : jamais « heures manquantes ».
+  upcoming?: boolean;
 }
 
 export interface ReconciliationDetail {

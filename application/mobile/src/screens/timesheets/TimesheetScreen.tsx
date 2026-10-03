@@ -29,6 +29,16 @@ import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const dayFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+const PAGE_SIZE = 30;
+
+// « +1 j » quand la sortie tombe un autre jour que l'arrivée (travail de nuit, oubli).
+function dayShiftLabel(clockIn: string, clockOut: string | null): string {
+  if (!clockOut) return "";
+  const a = new Date(clockIn);
+  const b = new Date(clockOut);
+  const days = Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime() - new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime()) / 86_400_000);
+  return days > 0 ? ` (+${days} j)` : "";
+}
 const monthLabelFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 
 // « 2026-10 » → « Octobre 2026 ».
@@ -68,13 +78,35 @@ export function TimesheetScreen() {
     const silent = isBackgroundRefresh();
     try {
       if (!silent) setState("loading");
-      const res = await listTimeEntries();
+      const res = await listTimeEntries({ page: 1, pageSize: PAGE_SIZE });
       setItems(res.items);
+      setTotal(res.total);
+      setPage(1);
       setState("ready");
     } catch {
       if (!silent) setState("error");
     }
   }, []);
+
+  // Historique complet, page par page (retour d'audit : il s'arrêtait
+  // silencieusement aux 50 derniers pointages).
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  async function loadMore() {
+    if (loadingMore || items.length >= total) return;
+    setLoadingMore(true);
+    try {
+      const res = await listTimeEntries({ page: page + 1, pageSize: PAGE_SIZE });
+      setItems((prev) => [...prev, ...res.items.filter((e) => !prev.some((p) => p.id === e.id))]);
+      setTotal(res.total);
+      setPage(page + 1);
+    } catch {
+      // Nouvel essai au prochain défilement.
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const loadCurrentMission = useCallback(async () => {
     try {
@@ -366,8 +398,18 @@ export function TimesheetScreen() {
               <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>HISTORIQUE</Text>
             </>
           }
+          onEndReached={() => void loadMore()}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            items.length < total ? (
+              <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center", marginTop: spacing.md }]}>
+                {loadingMore ? "Chargement…" : `${items.length} pointages sur ${total} — faites défiler pour voir la suite`}
+              </Text>
+            ) : null
+          }
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
+              <PressableScale onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} accessibilityLabel="Voir le détail du pointage">
               <Card>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                   <View style={{ flex: 1, marginRight: spacing.sm }}>
@@ -379,6 +421,7 @@ export function TimesheetScreen() {
                       <Text style={[type.footnote, { color: colors.inkSecondary, marginLeft: 4 }]}>
                         {timeFmt.format(new Date(item.clockIn))} –{" "}
                         {item.clockOut ? timeFmt.format(new Date(item.clockOut)) : "en cours"}
+                        {dayShiftLabel(item.clockIn, item.clockOut)}
                         {"  ·  "}
                         {formatDuration(item.clockIn, item.clockOut)}
                       </Text>
@@ -406,6 +449,7 @@ export function TimesheetScreen() {
                   <TimeEntryStatusBadge status={item.status} />
                 </View>
               </Card>
+              </PressableScale>
             </Animated.View>
           )}
         />

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { calendarDay, calendarDayEnd, calendarDayKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
+import { calendarDay, calendarDayEnd, calendarDayKey, companyDateKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
 import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
@@ -661,7 +661,10 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
     throw ApiError.badRequest("L'heure de fin doit être postérieure à l'heure de début.");
   }
 
-  const timeChanged = Boolean(input.date || input.startTime || input.endTime);
+  // Changement RÉEL d'horaire (retour d'audit : le formulaire renvoie toujours
+  // date et heures, et une simple consigne déclenchait « Horaire modifié »).
+  const timeChanged =
+    startTime.getTime() !== mission.startTime.getTime() || endTime.getTime() !== mission.endTime.getTime();
   if (timeChanged) {
     await assertNoScheduleOverlap(
       mission.assignments.map((a) => a.userId),
@@ -807,6 +810,8 @@ export async function cancelMission(actor: Actor, id: string, scope: "one" | "se
   return { ...presentMission(updated), seriesCancelledCount };
 }
 
+const EARLY_START_MS = 2 * 60 * 60 * 1000;
+
 export async function setMissionStatus(actor: Actor, id: string, status: "IN_PROGRESS" | "COMPLETED") {
   const mission = await findMissionOrThrow(id);
   assertCanSeeMission(actor, mission);
@@ -831,6 +836,17 @@ export async function setMissionStatus(actor: Actor, id: string, status: "IN_PRO
   }
   if (status === MissionStatus.COMPLETED && mission.status === MissionStatus.SCHEDULED) {
     throw ApiError.conflict("La mission doit être en cours avant de pouvoir être terminée.");
+  }
+  // Suivi terrain cohérent avec le planning (retour d'audit : une mission du
+  // mardi suivant pouvait être démarrée, terminée et validée le samedi).
+  const now = Date.now();
+  if (status === MissionStatus.IN_PROGRESS && now < mission.startTime.getTime() - EARLY_START_MS) {
+    throw ApiError.conflict(
+      `Cette mission est prévue le ${companyLongDayLabel(mission.startTime)} à ${companyTimeKey(mission.startTime)} : elle ne peut être démarrée qu'à partir de 2 h avant.`
+    );
+  }
+  if (status === MissionStatus.COMPLETED && now < mission.startTime.getTime()) {
+    throw ApiError.conflict("Cette mission n'a pas encore commencé : elle ne peut pas être terminée.");
   }
 
   const updated = await prisma.mission.update({ where: { id }, data: { status }, select: missionSelect });
@@ -1220,7 +1236,8 @@ export async function removeStandardDocument(actor: Actor, missionId: string) {
 
 export async function listMissionsToReassign(actor: Actor) {
   if (!canManagePlanning(actor)) throw ApiError.forbidden();
-  const today = calendarDay(new Date().toISOString().slice(0, 10));
+  // Aujourd'hui en heure de Paris (entre 0 h et 2 h, l'UTC donnait la veille).
+  const today = calendarDay(companyDateKey(new Date()));
   const absences = await prisma.absence.findMany({
     where: { status: "APPROVED", endDate: { gte: today } },
     select: { id: true, userId: true, type: true, startDate: true, endDate: true },

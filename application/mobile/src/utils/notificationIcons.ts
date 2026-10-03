@@ -16,6 +16,7 @@ export const NOTIFICATION_TYPE_ICON: Record<NotificationType, keyof typeof Ionic
   PHOTO_EXPIRING_SOON: "image-outline",
   VALIDATION_REQUESTED: "checkmark-done-outline",
   TIMESHEET_VALIDATED: "time-outline",
+  TIMESHEET_REJECTED: "alert-circle-outline",
   ACCOUNT_UPDATE: "person-outline",
   ABSENCE_REQUESTED: "calendar-outline",
   ABSENCE_DECIDED: "calendar-outline",
