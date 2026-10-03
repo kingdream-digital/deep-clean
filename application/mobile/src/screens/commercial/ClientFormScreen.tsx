@@ -36,6 +36,7 @@ export function ClientFormScreen() {
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
   const [siret, setSiret] = useState("");
+  const [siren, setSiren] = useState("");
   const [notes, setNotes] = useState("");
 
   const load = useCallback(async () => {
@@ -53,6 +54,7 @@ export function ClientFormScreen() {
         setPostalCode(client.postalCode ?? "");
         setCity(client.city ?? "");
         setSiret(client.siret ?? "");
+        setSiren(client.siren ?? "");
         setNotes(client.notes ?? "");
       }
       setLoadState("ready");
@@ -87,6 +89,7 @@ export function ClientFormScreen() {
         postalCode: postalCode.trim() || undefined,
         city: city.trim() || undefined,
         siret: siret.trim() || undefined,
+        siren: siren.replace(/\s/g, "") || undefined,
         notes: notes.trim() || undefined,
       };
 
@@ -132,6 +135,10 @@ export function ClientFormScreen() {
         <TextField label="Code postal" placeholder="75000" value={postalCode} onChangeText={setPostalCode} keyboardType="number-pad" />
         <TextField label="Ville" placeholder="Paris" value={city} onChangeText={setCity} />
         <TextField label="SIRET" placeholder="123 456 789 00012" value={siret} onChangeText={setSiret} keyboardType="number-pad" />
+        <TextField label="SIREN (si pas de SIRET)" placeholder="123 456 789" value={siren} onChangeText={setSiren} keyboardType="number-pad" />
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          Obligatoire pour la facture électronique (déduit du SIRET s'il est rempli).
+        </Text>
         <TextField label="Notes" placeholder="Informations internes" value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
 
         {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}

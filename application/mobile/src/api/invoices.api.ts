@@ -67,6 +67,13 @@ export interface Invoice {
   totalTtc: number;
   sentAt: string | null;
   paidAt: string | null;
+  // Facture électronique (plateforme agréée Super PDP).
+  pdpInvoiceId?: string | null;
+  pdpStatus?: string | null;
+  pdpStatusLabel?: string | null;
+  pdpSentAt?: string | null;
+  pdpUpdatedAt?: string | null;
+  pdpError?: string | null;
   cancelledAt: string | null;
   cancelledComment: string | null;
   createdAt: string;
@@ -144,4 +151,25 @@ export async function cancelInvoice(id: string, comment?: string): Promise<Invoi
 export async function downloadInvoicePdf(id: string): Promise<Uint8Array> {
   const { data } = await apiClient.get<ArrayBuffer>(`/invoices/${id}/pdf`, { responseType: "arraybuffer" });
   return new Uint8Array(data);
+}
+
+// Facture électronique (réforme 2026) via Super PDP.
+export interface EinvoiceReadiness {
+  configured: boolean;
+  blockers: string[];
+}
+
+export async function getEinvoiceReadiness(id: string): Promise<EinvoiceReadiness> {
+  const { data } = await apiClient.get<EinvoiceReadiness>(`/invoices/${id}/einvoice`);
+  return data;
+}
+
+export async function sendEinvoice(id: string): Promise<Invoice> {
+  const { data } = await apiClient.post<{ invoice: Invoice }>(`/invoices/${id}/einvoice`);
+  return data.invoice;
+}
+
+export async function refreshEinvoice(id: string): Promise<Invoice> {
+  const { data } = await apiClient.post<{ invoice: Invoice }>(`/invoices/${id}/einvoice/refresh`);
+  return data.invoice;
 }

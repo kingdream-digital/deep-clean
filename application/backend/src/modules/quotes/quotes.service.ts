@@ -32,7 +32,7 @@ const quoteSelect = {
   id: true,
   quoteNumber: true,
   clientId: true,
-  client: { select: { id: true, companyName: true, contactFirstName: true, contactLastName: true, email: true, phone: true } },
+  client: { select: { id: true, companyName: true, contactFirstName: true, contactLastName: true, email: true, phone: true, siret: true, siren: true } },
   assignedUserId: true,
   assignedUser: { select: userSummarySelect },
   createdById: true,

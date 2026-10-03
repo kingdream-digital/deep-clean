@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { companyDateLabel } from "../../utils/companyTime";
-import { env } from "../../config/env";
+import { companyFooterLine, getCompanyProfile, sellerBlockLines, sirenOf } from "../einvoicing/companyProfile";
 import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination, formatEuroPdf } from "../../utils/pdfBrand";
 import type { QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit } from "@prisma/client";
 
@@ -35,7 +35,7 @@ interface QuotePdfData {
   vatAmount: number;
   totalTtc: number;
   monthlyAmountHt: number;
-  client: { companyName: string };
+  client: { companyName: string; siren?: string | null; siret?: string | null };
   items: QuotePdfItem[];
   // Volontairement absent de cette interface : `internalNotes` n'est jamais
   // lu ici (cahier des charges §9/§15 : "Les notes internes ne doivent
@@ -100,27 +100,37 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
   doc.on("pageAdded", () => drawHeader(doc, title, subtitle));
   drawHeader(doc, title, subtitle);
 
-  // Bloc "méta" (dates) à gauche, client à droite — deux colonnes côte à côte.
-  const metaY = doc.y;
-  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
-  doc.text(`Date d'émission : ${dateFmt(quote.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
-  if (quote.validUntil) {
-    doc.text(`Valable jusqu'au : ${calendarDateFmt(quote.validUntil)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  }
-  if (quote.siteAddress) {
-    doc.text(`Chantier : ${quote.siteAddress}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  }
+  const company = getCompanyProfile();
 
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("CLIENT", PAGE_LEFT + 300, metaY, { width: 215 });
-  doc.font("Helvetica").fontSize(9).fillColor(BRAND.inkSecondary);
+  // Émetteur (identité légale complète) à gauche, client à droite.
+  const topY = doc.y;
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("ÉMETTEUR", PAGE_LEFT, topY, { width: 250 });
+  doc.font("Helvetica").fontSize(8.5).fillColor(BRAND.inkSecondary);
+  for (const line of sellerBlockLines(company)) doc.text(line, PAGE_LEFT, doc.y, { width: 250 });
+  const leftBottom = doc.y;
+
+  const clientSiren = sirenOf({ siren: quote.client.siren, siret: quote.siret ?? quote.client.siret });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("CLIENT", PAGE_LEFT + 300, topY, { width: 215 });
+  doc.font("Helvetica").fontSize(8.5).fillColor(BRAND.inkSecondary);
   doc.text(quote.client.companyName, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (quote.contactName) doc.text(quote.contactName, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (quote.billingAddress) doc.text(quote.billingAddress, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (quote.contactEmail) doc.text(quote.contactEmail, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (quote.contactPhone) doc.text(quote.contactPhone, PAGE_LEFT + 300, doc.y, { width: 215 });
   if (quote.siret) doc.text(`SIRET : ${quote.siret}`, PAGE_LEFT + 300, doc.y, { width: 215 });
+  else if (clientSiren) doc.text(`SIREN : ${clientSiren}`, PAGE_LEFT + 300, doc.y, { width: 215 });
 
-  doc.y = Math.max(doc.y, metaY + 90) + 10;
+  doc.y = Math.max(leftBottom, doc.y) + 12;
+  const metaY = doc.y;
+  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
+  doc.text(`Date d'émission : ${dateFmt(quote.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
+  if (quote.validUntil) {
+    doc.text(`Valable jusqu'au : ${calendarDateFmt(quote.validUntil)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
+  }
+  const leftMetaBottom = doc.y;
+  doc.text("Nature : prestations de services", PAGE_LEFT + 300, metaY, { width: 215 });
+  if (quote.siteAddress) doc.text(`Lieu d'intervention : ${quote.siteAddress}`, PAGE_LEFT + 300, doc.y + 2, { width: 215 });
+  doc.y = Math.max(leftMetaBottom, doc.y) + 14;
 
   if (quote.description) {
     doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.5).text(quote.description, PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
@@ -192,37 +202,34 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
   totalLine("Sous-total HT", formatEuroPdf(quote.subtotalHt));
   if (quote.discount > 0) totalLine("Remise", `- ${formatEuroPdf(quote.discount)}`);
   totalLine(`TVA (${quote.vatRate}%)`, formatEuroPdf(quote.vatAmount));
-  totalLine("Total TTC", formatEuroPdf(quote.totalTtc), true);
+  // Contrat récurrent : le total d'un passage n'est pas ce que le client
+  // paiera — le montant mensuel, en dessous, est mis en avant.
+  totalLine(quote.monthlyAmountHt > 0 ? "Total TTC d'un passage" : "Total TTC", formatEuroPdf(quote.totalTtc), quote.monthlyAmountHt === 0);
   if (quote.monthlyAmountHt > 0) {
-    totalLine("Prévisionnel mensuel HT", formatEuroPdf(quote.monthlyAmountHt));
+    // Contrat récurrent : ce que le client paiera chaque mois.
+    totalLine("Montant mensuel HT", formatEuroPdf(quote.monthlyAmountHt));
+    totalLine("Montant mensuel TTC", formatEuroPdf(Math.round(quote.monthlyAmountHt * (1 + quote.vatRate / 100) * 100) / 100), true);
   }
   doc.y = totalsY + 10;
 
-  if (quote.paymentTerms) {
-    ensureSpace(doc, 40, () => undefined);
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text("Conditions", PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
-    doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9).text(quote.paymentTerms, PAGE_LEFT, doc.y + 2, { width: CONTENT_WIDTH });
-  }
+  const conditions = [
+    quote.paymentTerms?.trim() || `Paiement à ${company.paymentDays} jours par virement, à réception de facture.`,
+    quote.validUntil ? `Offre valable jusqu'au ${calendarDateFmt(quote.validUntil)}.` : undefined,
+    "Pénalités de retard : " + company.latePenaltyText + " ; indemnité forfaitaire pour frais de recouvrement : 40 €.",
+  ].filter(Boolean) as string[];
+  const conditionsText = conditions.join("\n");
+  ensureSpace(doc, doc.font("Helvetica").fontSize(8.5).heightOfString(conditionsText, { width: CONTENT_WIDTH }) + 110, () => undefined);
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text("Conditions", PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
+  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(8.5).text(conditionsText, PAGE_LEFT, doc.y + 3, { width: CONTENT_WIDTH, lineGap: 1.5 });
 
-  // Mentions légales de l'entreprise émettrice — à compléter par le client
-  // via les variables d'environnement COMPANY_* (voir config/env.ts) avant
-  // une mise en production réelle du module commercial.
-  ensureSpace(doc, 40, () => undefined);
-  const legalParts = [
-    env.COMPANY_LEGAL_NAME,
-    env.COMPANY_ADDRESS,
-    env.COMPANY_SIRET ? `SIRET ${env.COMPANY_SIRET}` : undefined,
-    env.COMPANY_VAT_NUMBER ? `TVA ${env.COMPANY_VAT_NUMBER}` : undefined,
-    env.COMPANY_PHONE,
-    env.COMPANY_EMAIL,
-  ].filter(Boolean);
-  doc
-    .fillColor(BRAND.inkTertiary)
-    .font("Helvetica")
-    .fontSize(7.5)
-    .text(legalParts.join(" · "), PAGE_LEFT, doc.y + 10, { width: CONTENT_WIDTH });
+  // Bon pour accord : signature du client.
+  const signY = doc.y + 16;
+  doc.roundedRect(PAGE_RIGHT - 240, signY, 240, 70, 6).strokeColor(BRAND.border).lineWidth(1).stroke();
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text("Bon pour accord", PAGE_RIGHT - 230, signY + 8, { width: 220 });
+  doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(8).text("Date, nom, signature et cachet du client", PAGE_RIGHT - 230, signY + 21, { width: 220 });
+  doc.y = signY + 78;
 
-  finalizePagination(doc);
+  finalizePagination(doc, companyFooterLine(company));
   doc.end();
   return done;
 }

@@ -103,6 +103,7 @@ export function ClientDetailScreen() {
           )}
           {!!fullAddress && <InfoRow icon="location-outline" label="Adresse de facturation" value={fullAddress} />}
           {!!client.siret && <InfoRow icon="business-outline" label="SIRET" value={client.siret} />}
+          {!client.siret && !!client.siren && <InfoRow icon="business-outline" label="SIREN" value={client.siren} />}
           {!!client.notes && <InfoRow icon="document-text-outline" label="Notes" value={client.notes} />}
         </Card>
 

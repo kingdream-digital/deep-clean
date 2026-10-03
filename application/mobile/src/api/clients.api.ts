@@ -16,6 +16,7 @@ export interface Client {
   postalCode: string | null;
   city: string | null;
   siret: string | null;
+  siren?: string | null;
   notes: string | null;
   prospectId: string | null;
   createdById: string;
@@ -51,6 +52,7 @@ export interface ClientInput {
   postalCode?: string;
   city?: string;
   siret?: string;
+  siren?: string;
   notes?: string;
 }
 

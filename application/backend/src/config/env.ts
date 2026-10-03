@@ -62,6 +62,36 @@ const envSchema = z.object({
   COMPANY_PHONE: z.string().optional(),
   COMPANY_EMAIL: z.string().optional(),
   COMPANY_VAT_NUMBER: z.string().optional(),
+  // Mentions légales complètes (facture électronique, réforme 2026) :
+  // adresse découpée (exigée par le format structuré), SIREN, forme
+  // juridique, capital, RCS, coordonnées bancaires et conditions de paiement.
+  COMPANY_POSTAL_CODE: z.string().optional(),
+  COMPANY_CITY: z.string().optional(),
+  COMPANY_SIREN: z.string().optional(),
+  COMPANY_LEGAL_FORM: z.string().optional(), // ex. « SAS »
+  COMPANY_SHARE_CAPITAL: z.string().optional(), // ex. « 10 000 € »
+  COMPANY_RCS: z.string().optional(), // ex. « RCS Paris 123 456 789 »
+  COMPANY_IBAN: z.string().optional(),
+  COMPANY_BIC: z.string().optional(),
+  // « true » si l'entreprise a opté pour le paiement de la TVA d'après les
+  // débits (mention obligatoire sur la facture dans ce cas).
+  COMPANY_VAT_ON_DEBITS: z
+    .string()
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+  INVOICE_PAYMENT_DAYS: z.coerce.number().int().min(0).max(60).default(30),
+  // Taux des pénalités de retard (mention obligatoire). Par défaut : trois
+  // fois le taux d'intérêt légal, minimum prévu par le Code de commerce.
+  INVOICE_LATE_PENALTY_TEXT: z.string().default("trois fois le taux d'intérêt légal"),
+
+  // Facture électronique via la plateforme agréée Super PDP
+  // (https://www.superpdp.tech). Identifiants « client credentials » créés
+  // dans l'espace Super PDP ; sans eux, l'envoi électronique est désactivé
+  // (le reste de la facturation fonctionne normalement). Un identifiant de
+  // « bac à sable » envoie en test, sans valeur légale.
+  SUPERPDP_CLIENT_ID: z.string().optional(),
+  SUPERPDP_CLIENT_SECRET: z.string().optional(),
+  SUPERPDP_API_URL: z.string().url().default("https://api.superpdp.tech"),
 
   // Envoi d'email (devis/factures au client final, §16) — si non configuré,
   // le serveur reste fonctionnel (mode simulation journalisé) mais aucun

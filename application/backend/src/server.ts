@@ -7,6 +7,7 @@ import { runPhotoRetentionJob } from "./jobs/photoRetention";
 import { runMessagesMigration } from "./db/migrateMessagesToConversations";
 import { COMPANY_TIME_ZONE } from "./utils/companyTime";
 import { runMonthlyAccrualJob } from "./modules/leave/leave.service";
+import { runEinvoiceStatusJob } from "./modules/einvoicing/einvoicing.service";
 
 const app = createApp();
 
@@ -47,6 +48,12 @@ if (!env.isTest) {
     },
     { timezone: COMPANY_TIME_ZONE }
   );
+
+  // Facture électronique : statuts relus sur Super PDP toutes les 30 minutes
+  // (la plateforme ne prévient pas d'elle-même). Sans effet si non configurée.
+  cron.schedule("*/30 * * * *", () => {
+    void runEinvoiceStatusJob().catch((err) => logger.error({ err }, "Échec du suivi des factures électroniques"));
+  });
 }
 
 async function shutdown(signal: string) {
