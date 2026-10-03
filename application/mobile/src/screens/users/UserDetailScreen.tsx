@@ -587,7 +587,16 @@ export function UserDetailScreen() {
               label="Réinitialiser l'accès"
               variant="secondary"
               loading={actionLoading === "reset"}
-              onPress={handleResetAccess}
+              onPress={() =>
+                Alert.alert(
+                  "Réinitialiser l'accès ?",
+                  "Le mot de passe actuel ne fonctionnera plus et la personne sera déconnectée. Un nouveau mot de passe temporaire s'affichera une seule fois : communiquez-le-lui.",
+                  [
+                    { text: "Annuler", style: "cancel" },
+                    { text: "Réinitialiser", style: "destructive", onPress: () => void handleResetAccess() },
+                  ]
+                )
+              }
             />
             <Button
               label={account.isActive ? "Désactiver le compte" : "Réactiver le compte"}

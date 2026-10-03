@@ -109,6 +109,7 @@ export function MissionFormScreen() {
   const [startTime, setStartTime] = useState<Date>(timeAt(8, 0));
   const [endTime, setEndTime] = useState<Date>(timeAt(17, 0));
   const [instructions, setInstructions] = useState("");
+  const [isExceptional, setIsExceptional] = useState(false);
   const [employeeIds, setEmployeeIds] = useState<string[]>([]);
   const [leadId, setLeadId] = useState<string | undefined>(undefined);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -151,6 +152,7 @@ export function MissionFormScreen() {
         setStartTime(new Date(mission.startTime));
         setEndTime(new Date(mission.endTime));
         setInstructions(mission.instructions ?? "");
+        setIsExceptional(!!mission.isExceptional);
         const ids = mission.assignments.map((a) => a.userId);
         const lead = mission.assignments.find((a) => a.isLead)?.userId;
         setEmployeeIds(lead ? ids.filter((id) => id !== lead) : ids);
@@ -335,6 +337,10 @@ export function MissionFormScreen() {
           startTime: toTimeInput(startTime),
           endTime: toTimeInput(endTime),
           instructions: instructions.trim() || null,
+          // Changement de chantier possible en modification (retour d'audit) :
+          // les personnes affectées sont prévenues du nouveau lieu.
+          siteId,
+          isExceptional,
         });
 
         const assignmentsChanged =
@@ -354,6 +360,7 @@ export function MissionFormScreen() {
           startTime: toTimeInput(startTime),
           endTime: toTimeInput(endTime),
           instructions: instructions.trim() || undefined,
+          isExceptional,
           assigneeIds,
           leadId,
           standardId: standardId || undefined,
@@ -405,7 +412,7 @@ export function MissionFormScreen() {
           isDesktopWeb && { maxWidth: 640, width: "100%", alignSelf: "center" },
         ]}
       >
-        {!isEdit && (
+        {(
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Chantier</Text>
             <Card padded={false}>
@@ -452,6 +459,13 @@ export function MissionFormScreen() {
           <View style={{ flex: 1 }}>
             <DateTimeField label="Fin" mode="time" value={endTime} onChange={setEndTime} formatValue={(d) => timeFmt.format(d)} />
           </View>
+        </View>
+
+        <View style={{ marginBottom: spacing.md }}>
+          <Checkbox label="Intervention exceptionnelle (hors planning habituel)" checked={isExceptional} onChange={setIsExceptional} />
+          <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]}>
+            Heures de nuit, de dimanche et de jour férié majorées à 100 % (convention de la propreté).
+          </Text>
         </View>
 
         {!isEdit && (

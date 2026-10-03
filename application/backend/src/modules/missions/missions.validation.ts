@@ -20,6 +20,7 @@ export const createMissionSchema = {
       startTime: timeString,
       endTime: timeString,
       instructions: z.string().trim().max(4000).optional(),
+      isExceptional: z.boolean().optional(),
       assigneeIds: z.array(z.string().uuid()).min(1, "Au moins un employé doit être affecté."),
       leadId: z.string().uuid().optional(),
       standardId: z.string().uuid().optional(),
@@ -45,6 +46,7 @@ export const updateMissionSchema = {
       startTime: timeString.optional(),
       endTime: timeString.optional(),
       instructions: z.string().trim().max(4000).nullable().optional(),
+      isExceptional: z.boolean().optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),
 };

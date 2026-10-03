@@ -185,8 +185,21 @@ interface ListUsersFilters {
   pageSize: number;
 }
 
-export async function listUsers(viewerRole: Role, filters: ListUsersFilters) {
+export async function listUsers(viewerRole: Role, filters: ListUsersFilters, viewerId?: string) {
+  // Chef d'équipe : son équipe (membres de ses chantiers) et l'encadrement,
+  // jamais l'annuaire complet avec les coordonnées de tous (retour d'audit).
+  let scope: Record<string, unknown> = {};
+  if (viewerRole === Role.SITE_MANAGER && viewerId) {
+    const members = await prisma.siteMember.findMany({ where: { site: { managerId: viewerId } }, select: { userId: true } });
+    scope = {
+      OR: [
+        { id: { in: [viewerId, ...members.map((m) => m.userId)] } },
+        { role: { in: [Role.SUPERVISOR, Role.HR, Role.DIRECTOR] } },
+      ],
+    };
+  }
   const where = {
+    AND: [scope],
     ...(filters.role ? { role: filters.role } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search

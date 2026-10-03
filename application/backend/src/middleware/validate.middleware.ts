@@ -26,7 +26,10 @@ export function validate(schemas: ValidationSchemas) {
       next();
     } catch (err) {
       if (err instanceof ZodError) {
-        return next(ApiError.badRequest("Données invalides.", err.flatten().fieldErrors));
+        // Premier problème en clair (« Le nouveau mot de passe doit contenir
+        // au moins 10 caractères. ») plutôt qu'un « Données invalides. » vague.
+        const first = err.issues[0]?.message;
+        return next(ApiError.badRequest(first ?? "Données invalides.", err.flatten().fieldErrors));
       }
       next(err);
     }

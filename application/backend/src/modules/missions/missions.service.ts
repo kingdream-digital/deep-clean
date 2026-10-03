@@ -4,7 +4,7 @@ import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
-import { createNotification } from "../notifications/notifications.service";
+import { createNotification, markRelatedNotificationsRead } from "../notifications/notifications.service";
 import { findApprovedAbsencesInRange } from "../absences/absences.service";
 import { deleteStoredFile, storePdfDocument } from "../../utils/storage";
 
@@ -33,6 +33,7 @@ const MISSION_MANAGE_ROLES: Role[] = [Role.SUPERVISOR, Role.HR, Role.DIRECTOR, R
 const VALIDATE_MISSION_ROLES: Role[] = [Role.HR, Role.SUPERVISOR, Role.DIRECTOR];
 
 const missionSelect = {
+  isExceptional: true,
   id: true,
   title: true,
   date: true,
@@ -379,6 +380,7 @@ interface CreateMissionInput {
   startTime: string;
   endTime: string;
   instructions?: string;
+  isExceptional?: boolean;
   assigneeIds: string[];
   leadId?: string;
   standardId?: string;
@@ -438,6 +440,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
       startTime,
       endTime,
       instructions: input.instructions,
+      isExceptional: input.isExceptional ?? false,
       createdById: actor.userId,
       standardId: input.standardId,
       recurrenceGroupId,
@@ -477,6 +480,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
         startTime: combineDateTime(d, input.startTime),
         endTime: combineDateTime(d, input.endTime),
         instructions: input.instructions,
+        isExceptional: input.isExceptional ?? false,
         createdById: actor.userId,
         standardId: input.standardId,
         recurrenceGroupId,
@@ -621,6 +625,7 @@ interface UpdateMissionInput {
   startTime?: string;
   endTime?: string;
   instructions?: string | null;
+  isExceptional?: boolean;
 }
 
 export async function updateMission(actor: Actor, id: string, input: UpdateMissionInput) {
@@ -683,6 +688,8 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       ...(input.siteId ? { siteId: input.siteId } : {}),
       ...(timeChanged ? { date: calendarDay(date), startTime, endTime } : {}),
       ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
+      // Réservé à ceux qui gèrent le planning (le chef d'équipe ne touche qu'à la consigne).
+      ...(input.isExceptional !== undefined && managesPlanning ? { isExceptional: input.isExceptional } : {}),
     },
     select: missionSelect,
   });
@@ -1009,6 +1016,13 @@ export async function validateMission(actor: Actor, id: string, comment?: string
     `Votre mission « ${mission.title} » a été validée par ${validatorName}.`,
     id
   );
+  // Chef d'équipe du chantier prévenu quand un autre valide (retour d'audit),
+  // et la demande « Mission à valider » ne reste en attente chez personne.
+  const siteManagerId = mission.site.managerId;
+  if (siteManagerId && siteManagerId !== actor.userId && !mission.assignments.some((a) => a.userId === siteManagerId)) {
+    await notifyAssignees([siteManagerId], NotificationType.GENERAL, "Mission validée", `La mission « ${mission.title} » a été validée par ${validatorName}.`, id);
+  }
+  await markRelatedNotificationsRead("Mission", id, NotificationType.VALIDATION_REQUESTED);
 
   return presentMission(await findMissionOrThrow(id));
 }

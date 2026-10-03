@@ -144,7 +144,7 @@ export function ProspectFormScreen() {
         notes: notes.trim() || undefined,
         status,
         nextFollowUpAt: followUpEnabled ? followUpDate.toISOString() : undefined,
-        ...(canReassign ? { assignedUserId: assignedUserId === NONE ? null : assignedUserId } : {}),
+        ...(canReassign ? { assignedUserId: assignedUserId === NONE ? (user?.id ?? null) : assignedUserId } : {}),
       };
 
       if (isEdit && prospectId) {

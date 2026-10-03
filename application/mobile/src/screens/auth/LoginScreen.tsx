@@ -14,7 +14,7 @@ import { extractErrorMessage } from "../../api/client";
 
 export function LoginScreen() {
   const { colors, spacing, type } = useTheme();
-  const { login, sessionExpired } = useAuth();
+  const { login, sessionExpired, endMessage } = useAuth();
   const { isDesktopWeb } = useResponsive();
 
   const [username, setUsername] = useState("");
@@ -41,7 +41,7 @@ export function LoginScreen() {
 
   const form = (
     <>
-      {!!sessionExpired && (
+      {(!!sessionExpired || !!endMessage) && (
         <View
           style={{
             backgroundColor: colors.warningSoft,
@@ -51,7 +51,7 @@ export function LoginScreen() {
           }}
         >
           <Text style={[type.footnote, { color: colors.warning }]}>
-            Votre session a expiré. Reconnectez-vous pour continuer.
+            {endMessage ?? "Votre session a expiré. Reconnectez-vous pour continuer."}
           </Text>
         </View>
       )}

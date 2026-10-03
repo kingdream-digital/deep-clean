@@ -181,7 +181,7 @@ export function QuoteFormScreen() {
     setSaving(true);
     try {
       const payload = {
-        assignedUserId: canReassign ? (assignedUserId === NONE ? null : assignedUserId) : undefined,
+        assignedUserId: canReassign ? (assignedUserId === NONE ? (user?.id ?? null) : assignedUserId) : undefined,
         validUntil: hasValidUntil ? validUntil.toISOString() : undefined,
         subject: subject.trim() || undefined,
         siteAddress: siteAddress.trim() || undefined,
