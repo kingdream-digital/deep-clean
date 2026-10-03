@@ -1,13 +1,11 @@
 import React, { useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { ScreenContainer } from "../../components/ScreenContainer";
-import { LogoHalo } from "../../components/LogoHalo";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeInUp } from "react-native-reanimated";
+import { LoginHero } from "../../components/LoginHero";
 import { TextField } from "../../components/TextField";
 import { Checkbox } from "../../components/Checkbox";
 import { Button } from "../../components/Button";
-import { LogoMark } from "../../components/LogoMark";
-import { BrandTitle } from "../../components/BrandLockup";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -17,6 +15,8 @@ export function LoginScreen() {
   const { colors, spacing, type } = useTheme();
   const { login, sessionExpired, endMessage } = useAuth();
   const { isDesktopWeb } = useResponsive();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -91,63 +91,50 @@ export function LoginScreen() {
     </Text>
   );
 
-  // Panneau desktop web : hero de marque à gauche, formulaire dans une carte
-  // centrée à droite — le formulaire mobile (colonne unique, centré verticalement)
-  // n'est jamais rendu dans cette branche, et inversement, donc aucun changement
-  // pour l'app mobile.
+  // Ordinateur : visuel de marque animé à gauche, formulaire dans une carte
+  // à droite. Téléphone : visuel en haut (sous la barre d'état), formulaire
+  // qui glisse en dessous.
   if (isDesktopWeb) {
     return (
-      <View style={styles.desktopWrap}>
-        <LinearGradient
-          colors={colors.accentGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.desktopHero}
-        >
-          <View style={{ maxWidth: 420 }}>
-            <LogoMark size={64} />
-            <View style={{ marginTop: spacing.xl }}>
-              <BrandTitle height={36} variant="white" />
-            </View>
-            <Text style={[type.title3, { color: "rgba(255,255,255,0.85)", marginTop: spacing.lg }]}>
-              Le panel de pilotage de vos chantiers, de vos équipes et de vos plannings.
-            </Text>
-          </View>
-        </LinearGradient>
-
+      <View style={[styles.desktopWrap, { backgroundColor: colors.background }]}>
+        <View style={{ flex: 1.1 }}>
+          <LoginHero emblemSize={230} titleWidth={380} pageColor={colors.background} fill />
+        </View>
         <View style={[styles.desktopFormSide, { backgroundColor: colors.background }]}>
-          <View style={[styles.desktopCard, { backgroundColor: colors.backgroundElevated, borderColor: colors.border, shadowColor: colors.shadow }]}>
+          <Animated.View
+            entering={FadeInUp.duration(600).delay(200)}
+            style={[styles.desktopCard, { backgroundColor: colors.backgroundElevated, borderColor: colors.border, shadowColor: colors.shadow }]}
+          >
             <Text style={[type.title2, { color: colors.ink }]}>Connexion</Text>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs, marginBottom: spacing.xl }]}>
               Connectez-vous avec les identifiants fournis par la RH.
             </Text>
             {form}
             <View style={{ marginTop: spacing.xl }}>{helpLine}</View>
-          </View>
+          </Animated.View>
         </View>
       </View>
     );
   }
 
   return (
-    <ScreenContainer noHeader avoidKeyboard gradient style={styles.container}>
-      <View>
-        <View style={styles.brand}>
-          <LogoHalo />
-          <LogoMark size={64} />
-          <View style={{ marginTop: spacing.md }}>
-            <BrandTitle height={26} />
-          </View>
-          <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.md, textAlign: "center" }]}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }} bounces={false}>
+        <View style={{ paddingTop: insets.top }}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#1F2D69", bottom: "50%" }]} />
+          <LoginHero emblemSize={Math.min(width * 0.4, height * 0.17, 170)} titleWidth={Math.min(width * 0.7, height * 0.36, 290)} pageColor={colors.background} />
+        </View>
+        <Animated.View entering={FadeInUp.duration(600).delay(300)} style={{ flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg + insets.bottom }}>
+          <Text style={[type.title2, { color: colors.ink }]}>Connexion</Text>
+          <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs, marginBottom: spacing.lg }]}>
             Connectez-vous avec les identifiants fournis par la RH.
           </Text>
-        </View>
-
-        <View style={{ marginTop: spacing.xxl }}>{form}</View>
-      </View>
-
-      <View style={styles.footer}>{helpLine}</View>
-    </ScreenContainer>
+          {form}
+          <View style={{ flex: 1, minHeight: spacing.xl }} />
+          <View style={styles.footer}>{helpLine}</View>
+        </Animated.View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -156,12 +143,9 @@ const styles = StyleSheet.create({
   // dans le flux flex normal : quand le clavier s'ouvre, KeyboardAvoidingView
   // réduit la hauteur disponible et l'espace entre les deux se resserre au lieu
   // que le message (autrefois en position absolute) ne se superpose au clavier.
-  container: { justifyContent: "space-between", paddingVertical: 24 },
-  brand: { alignItems: "center" },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   footer: { paddingTop: 16 },
   desktopWrap: { flex: 1, flexDirection: "row", ...Platform.select({ web: { minHeight: "100vh" as unknown as number } }) },
-  desktopHero: { flex: 1, alignItems: "center", justifyContent: "center", padding: 64 },
   desktopFormSide: { flex: 1, alignItems: "center", justifyContent: "center", padding: 48 },
   desktopCard: { width: "100%", maxWidth: 400, borderRadius: 20, borderWidth: 1, padding: 36, shadowOpacity: 0.5, shadowRadius: 24, shadowOffset: { width: 0, height: 12 } },
 });

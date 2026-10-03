@@ -46,10 +46,10 @@ export const TAGLINE_RATIO = TAGLINE_VIEWBOX.w / TAGLINE_VIEWBOX.h;
 const titleVb = `${TITLE_VIEWBOX.x} ${TITLE_VIEWBOX.y} ${TITLE_VIEWBOX.w} ${TITLE_VIEWBOX.h}`;
 
 /** « DEEP » ou « CLEAN » seul, cadré comme le titre complet (superposables). */
-export function TitlePart({ part, width, deepColor = BRAND_COLORS.navy }: { part: "deep" | "clean"; width: number; deepColor?: string }) {
+export function TitlePart({ part, width, deepColor = BRAND_COLORS.navy, cleanColor = BRAND_COLORS.drop }: { part: "deep" | "clean"; width: number; deepColor?: string; cleanColor?: string }) {
   return (
     <Svg width={width} height={width / TITLE_RATIO} viewBox={titleVb}>
-      <Path d={part === "deep" ? BRAND_ART.title.deep : BRAND_ART.title.clean} fill={part === "deep" ? deepColor : BRAND_COLORS.drop} fillRule="evenodd" />
+      <Path d={part === "deep" ? BRAND_ART.title.deep : BRAND_ART.title.clean} fill={part === "deep" ? deepColor : cleanColor} fillRule="evenodd" />
     </Svg>
   );
 }
