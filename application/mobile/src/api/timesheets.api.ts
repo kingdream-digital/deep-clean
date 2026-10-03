@@ -271,3 +271,34 @@ export async function getMyMonthlyHours(): Promise<MonthlyHours[]> {
   const { data } = await apiClient.get<{ months: MonthlyHours[] }>("/time-entries/me/monthly");
   return data.months;
 }
+
+export type NightWorkerStatus = "AUTO" | "YES" | "NO";
+
+// Heures majorées du mois (nuit 21 h–6 h, dimanche, jour férié) et repos
+// compensateur des travailleurs de nuit — tout est calculé par le serveur à
+// partir des pointages (voir backend payroll/paySummary.service.ts).
+export interface PaySummary {
+  month: string;
+  user: { id: string; firstName: string; lastName: string; nightWorkerStatus: NightWorkerStatus };
+  totals: {
+    countedMinutes: number;
+    pendingMinutes: number;
+    minutesByCategory: { normal: number; night: number; sunday: number; holiday: number };
+    premiumMinutes: number;
+    nightMinutes: number;
+    byRate: { rate: number; minutes: number }[];
+  };
+  nightWorker: { isNightWorker: boolean; source: NightWorkerStatus; reason: string };
+  compensatoryRest: {
+    monthAcquiredMinutes: number;
+    yearAcquiredMinutes: number;
+    yearTakenMinutes: number;
+    balanceMinutes: number;
+    restDayMinutes: number;
+  };
+}
+
+export async function getPaySummary(month: string, userId?: string): Promise<PaySummary> {
+  const { data } = await apiClient.get<{ summary: PaySummary }>("/time-entries/pay-summary", { params: { month, userId } });
+  return data.summary;
+}

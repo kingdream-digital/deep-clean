@@ -26,6 +26,13 @@ export const exportTimeEntriesQuerySchema = {
   }),
 };
 
+export const paySummaryQuerySchema = {
+  query: z.object({
+    userId: z.string().uuid().optional(),
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mois invalide (format AAAA-MM)."),
+  }),
+};
+
 export const timeEntryIdParamSchema = {
   params: z.object({ id: z.string().uuid() }),
 };

@@ -39,6 +39,7 @@ export const updateUserSchema = {
       leaveAccrualCap: z.coerce.number().positive().nullable().optional(),
       hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).").optional(),
       weeklyHours: z.coerce.number().positive("Indiquez un nombre d'heures positif.").max(60, "60 heures par semaine au maximum.").nullable().optional(),
+      nightWorkerStatus: z.enum(["AUTO", "YES", "NO"]).optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),
 };

@@ -13,6 +13,7 @@ import {
   timeEntryIdParamSchema,
   validateTimeEntrySchema,
   managerTimeEntrySchema,
+  paySummaryQuerySchema,
 } from "./timesheets.validation";
 import * as timesheetsController from "./timesheets.controller";
 
@@ -67,6 +68,8 @@ timesheetsRouter.get(
   validate(reconciliationDetailSchema),
   timesheetsController.getReconciliationDetailHandler
 );
+// Heures majorées du mois (nuit, dimanche, férié) et repos compensateur.
+timesheetsRouter.get("/pay-summary", validate(paySummaryQuerySchema), timesheetsController.paySummaryHandler);
 timesheetsRouter.get("/:id", validate(timeEntryIdParamSchema), timesheetsController.getTimeEntryHandler);
 timesheetsRouter.post("/:id/validate", validate(validateTimeEntrySchema), timesheetsController.validateTimeEntryHandler);
 timesheetsRouter.post("/:id/reject", validate(rejectTimeEntrySchema), timesheetsController.rejectTimeEntryHandler);
