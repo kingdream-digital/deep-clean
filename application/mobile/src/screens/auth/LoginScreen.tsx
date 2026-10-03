@@ -7,6 +7,7 @@ import { TextField } from "../../components/TextField";
 import { Checkbox } from "../../components/Checkbox";
 import { Button } from "../../components/Button";
 import { LogoMark } from "../../components/LogoMark";
+import { BrandTitle } from "../../components/BrandLockup";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -104,9 +105,11 @@ export function LoginScreen() {
           style={styles.desktopHero}
         >
           <View style={{ maxWidth: 420 }}>
-            <LogoMark size={48} variant="white" />
-            <Text style={[type.largeTitle, { color: colors.onAccent, marginTop: spacing.xl }]}>Deep Clean</Text>
-            <Text style={[type.title3, { color: "rgba(255,255,255,0.85)", marginTop: spacing.sm }]}>
+            <LogoMark size={64} />
+            <View style={{ marginTop: spacing.xl }}>
+              <BrandTitle height={36} variant="white" />
+            </View>
+            <Text style={[type.title3, { color: "rgba(255,255,255,0.85)", marginTop: spacing.lg }]}>
               Le panel de pilotage de vos chantiers, de vos équipes et de vos plannings.
             </Text>
           </View>
@@ -131,9 +134,11 @@ export function LoginScreen() {
       <View>
         <View style={styles.brand}>
           <LogoHalo />
-          <LogoMark size={56} />
-          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.md }]}>Deep Clean</Text>
-          <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
+          <LogoMark size={64} />
+          <View style={{ marginTop: spacing.md }}>
+            <BrandTitle height={26} />
+          </View>
+          <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.md, textAlign: "center" }]}>
             Connectez-vous avec les identifiants fournis par la RH.
           </Text>
         </View>

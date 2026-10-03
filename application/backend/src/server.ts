@@ -8,6 +8,15 @@ import { runMessagesMigration } from "./db/migrateMessagesToConversations";
 import { COMPANY_TIME_ZONE } from "./utils/companyTime";
 import { runMonthlyAccrualJob } from "./modules/leave/leave.service";
 import { runEinvoiceStatusJob } from "./modules/einvoicing/einvoicing.service";
+import {
+  pruneAutomationEvents,
+  runAutomation,
+  runEveReminders,
+  runFieldReminders,
+  runMonthlyBillingReminder,
+  runMorningDigest,
+  runQuoteReminders,
+} from "./modules/automations/automations.service";
 
 const app = createApp();
 
@@ -54,6 +63,16 @@ if (!env.isTest) {
   cron.schedule("*/30 * * * *", () => {
     void runEinvoiceStatusJob().catch((err) => logger.error({ err }, "Échec du suivi des factures électroniques"));
   });
+
+  // Automatisations du quotidien (voir modules/automations) — chaque rappel
+  // ne part qu'une fois (clé unique en base), heures de Paris.
+  const paris = { timezone: COMPANY_TIME_ZONE };
+  cron.schedule("*/5 * * * *", () => void runAutomation("pointages", () => runFieldReminders()), paris);
+  cron.schedule("0 8 * * *", () => void runAutomation("récap du matin", () => runMorningDigest()), paris);
+  cron.schedule("0 9 * * *", () => void runAutomation("devis", () => runQuoteReminders()), paris);
+  cron.schedule("0 18 * * *", () => void runAutomation("veille", () => runEveReminders()), paris);
+  cron.schedule("10 8 1 * *", () => void runAutomation("facturation du mois", () => runMonthlyBillingReminder()), paris);
+  cron.schedule("30 4 * * 0", () => void pruneAutomationEvents().catch(() => undefined), paris);
 }
 
 async function shutdown(signal: string) {

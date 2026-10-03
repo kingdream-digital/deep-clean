@@ -32,6 +32,7 @@ export type NotificationType =
   // le bon fil au clic.
   | "MESSAGE_RECEIVED"
   | "COMMERCIAL_UPDATE"
+  | "REMINDER"
   | "GENERAL";
 
 export interface AppNotification {

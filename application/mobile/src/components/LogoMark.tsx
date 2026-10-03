@@ -1,26 +1,19 @@
 import React from "react";
 import { Image } from "react-native";
-import { useTheme } from "../theme/ThemeProvider";
 
-const markWhite = require("../../assets/brand/mark-white.png");
-const markInk = require("../../assets/brand/mark-ink.png");
+// Goutte du logo officiel Deep Clean (vectorisée depuis le logo fourni par le
+// client, source : assets/brand/logo-drop.svg). Bleu sur fond clair comme
+// sombre : la même goutte partout.
+const drop = require("../../assets/brand/drop.png");
+export const DROP_RATIO = 203 / 300;
 
 interface LogoMarkProps {
+  /** Hauteur de la goutte. */
   size?: number;
-  /** Force une variante précise au lieu de suivre le thème courant. */
+  /** Conservé pour compatibilité : la goutte est la même sur tous les fonds. */
   variant?: "auto" | "white" | "ink";
 }
 
-export function LogoMark({ size = 40, variant = "auto" }: LogoMarkProps) {
-  const { isDark } = useTheme();
-  const useWhite = variant === "white" || (variant === "auto" && isDark);
-
-  return (
-    <Image
-      source={useWhite ? markWhite : markInk}
-      style={{ width: size, height: size }}
-      resizeMode="contain"
-      accessibilityLabel="Deep Clean"
-    />
-  );
+export function LogoMark({ size = 40 }: LogoMarkProps) {
+  return <Image source={drop} style={{ width: Math.round(size * DROP_RATIO), height: size }} resizeMode="contain" accessibilityLabel="Deep Clean" />;
 }

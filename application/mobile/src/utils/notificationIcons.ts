@@ -24,5 +24,6 @@ export const NOTIFICATION_TYPE_ICON: Record<NotificationType, keyof typeof Ionic
   ANNOUNCEMENT_POSTED: "megaphone-outline",
   MESSAGE_RECEIVED: "chatbubble-ellipses-outline",
   COMMERCIAL_UPDATE: "document-text-outline",
+  REMINDER: "alarm-outline",
   GENERAL: "notifications-outline",
 };

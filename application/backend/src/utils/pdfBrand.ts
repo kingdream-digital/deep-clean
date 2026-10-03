@@ -5,21 +5,30 @@ import path from "node:path";
 // Logo pré-redimensionné/recadré (voir src/assets/brand/README pour la
 // commande sharp utilisée) : ~8 Ko, pour que le PDF reste léger même avec le
 // logo intégré sur chaque page — jamais le fichier source (1254×1254, ~400 Ko).
-const LOGO_PATH = path.join(__dirname, "../assets/brand/logo-mark.png");
+// Logo officiel (goutte bleue) — vectorisé depuis le logo fourni par le
+// client (sources .svg dans mobile/assets/brand).
+const LOGO_PATH = path.join(__dirname, "../assets/brand/drop.png");
 export const logoExists = fs.existsSync(LOGO_PATH);
+export const DROP_PATH = LOGO_PATH;
+export const TITLE_PATH = path.join(__dirname, "../assets/brand/title.png"); // « DEEPCLEAN », 1200 × 168
+export const TAGLINE_PATH = path.join(__dirname, "../assets/brand/tagline.png"); // slogan, 1200 × 59
 
 // Palette reprise de mobile/src/theme/colors.ts (thème clair) : même identité
 // visuelle que l'application, jamais des couleurs choisies indépendamment.
 export const BRAND = {
-  accent: "#0E7490",
-  accentDeep: "#0B5A70",
-  ink: "#101322",
-  inkSecondary: "#5B6472",
-  inkTertiary: "#8891A0",
-  border: "#E6E9EF",
-  rowAlt: "#F4F7F9",
+  // Couleurs du logo : bleu marine (« DEEP », cercle) et bleu clair
+  // (« CLEAN », goutte).
+  accent: "#1E9CC6",
+  accentDeep: "#1F2D69",
+  accentSoft: "#E8F4FA",
+  ink: "#141A33",
+  inkSecondary: "#56607A",
+  inkTertiary: "#8B93A7",
+  border: "#DCE4EE",
+  rowAlt: "#F4F8FB",
   white: "#FFFFFF",
   danger: "#B42318",
+  success: "#067647",
 };
 
 export const PAGE_LEFT = 40;
@@ -45,9 +54,9 @@ export function drawHeader(doc: PDFKit.PDFDocument, title: string, subtitle: str
     // Hauteur de dessin fixe (28pt) ; la largeur suit le ratio réel du fichier
     // (recadré non carré, voir src/assets/brand/logo-mark.png) plutôt qu'un
     // carré forcé qui l'étirerait.
-    doc.image(LOGO_PATH, PAGE_LEFT, 34, { height: 28 });
+    doc.image(LOGO_PATH, PAGE_LEFT, 32, { height: 32 });
   }
-  const textX = logoExists ? PAGE_LEFT + 34 : PAGE_LEFT;
+  const textX = logoExists ? PAGE_LEFT + 32 : PAGE_LEFT;
   doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(17).text(title, textX, 36);
   doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(10).text(subtitle, textX, 57);
 

@@ -15,7 +15,7 @@ import { PulsingDot } from "../../components/PulsingDot";
 import { TimesheetWidget } from "../../components/TimesheetWidget";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
 import { useOnboardingScrollProps } from "../../onboarding/useOnboardingScrollProps";
-import { LogoMark } from "../../components/LogoMark";
+import { BrandLockup } from "../../components/BrandLockup";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
@@ -217,10 +217,7 @@ export function HomeScreen() {
             style={StyleSheet.absoluteFill}
           />
           <View style={[styles.bannerRow, { paddingHorizontal: spacing.lg }]}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <LogoMark size={22} variant="white" />
-              <Text style={[type.headline, { color: "#FFFFFF", marginLeft: spacing.xs }]}>Deep Clean</Text>
-            </View>
+            <BrandLockup height={28} variant="white" />
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <PressableScale
                 onPress={() => tabNavigation?.navigate("Messagerie")}

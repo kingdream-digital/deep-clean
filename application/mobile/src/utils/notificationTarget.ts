@@ -13,7 +13,9 @@ export type NotificationTarget =
   // Devis et factures : écrans de l'onglet Menu (circuit commercial complet :
   // créer le chantier, la facture… depuis la fiche).
   | { tab: "Menu"; screen: "QuoteDetail"; params: { quoteId: string } }
-  | { tab: "Menu"; screen: "InvoiceDetail"; params: { invoiceId: string } };
+  | { tab: "Menu"; screen: "InvoiceDetail"; params: { invoiceId: string } }
+  // Rappels automatiques qui renvoient vers une liste à traiter.
+  | { tab: "Menu"; screen: "TimesheetValidation" | "AbsencesManagement" | "InvoicesList"; params: undefined };
 
 // Notifications créées avant que chaque notification ait une cible côté
 // serveur : retrouvées par leur titre.
@@ -70,6 +72,10 @@ export async function resolveNotificationTarget(n: AppNotification): Promise<Not
       return { tab: "Menu", screen: "QuoteDetail", params: { quoteId: id } };
     case "Invoice":
       return { tab: "Menu", screen: "InvoiceDetail", params: { invoiceId: id } };
+    case "TimesheetValidation":
+    case "AbsencesManagement":
+    case "InvoicesList":
+      return { tab: "Menu", screen: n.relatedEntityType, params: undefined };
     case "LeaveAccruals":
       return { screen: "LeaveAccruals", params: /^\d{4}-\d{2}$/.test(id) ? { month: id } : undefined };
     default:
