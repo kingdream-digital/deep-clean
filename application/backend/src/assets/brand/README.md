@@ -1,23 +1,13 @@
 # Logo pour les PDF générés
 
-`logo-mark.png` est une version recadrée et réduite de
-`mobile/assets/brand/mark-ink.png` (le pictogramme noir, pour un fond
-clair), utilisée par `modules/timesheets/timesheets.export.ts` pour l'en-tête
-des PDF générés côté serveur. Régénérée avec :
+Fichiers tirés du logo officiel fourni par le client (cercle aux vagues,
+goutte bleue, « DEEPCLEAN » marine et bleu clair, « SERVICE DE NETTOYAGE »).
+Ils ont été vectorisés (potrace) puis exportés en PNG légers. Les sources
+vectorielles sont dans `mobile/assets/brand/logo-*.svg`.
 
-```bash
-node -e "
-const sharp = require('sharp');
-sharp('../mobile/assets/brand/mark-ink.png')
-  .trim()
-  .resize({ width: 240, height: 240, fit: 'inside' })
-  .png({ compressionLevel: 9, palette: true })
-  .toFile('src/assets/brand/logo-mark.png');
-"
-```
+- `drop.png` : la goutte (240 px de haut) ;
+- `title.png` : « DEEPCLEAN » (1200 × 168) ;
+- `tagline.png` : « SERVICE DE NETTOYAGE » (1200 × 59).
 
-Ne jamais utiliser directement le fichier source (`mobile/assets/brand/mark-ink.png`,
-~100 Ko) ou `logo.png`/`pharse sous logo.png` à la racine du dépôt (souvent
-la version presque blanche, invisible sur un fond de page clair) : `logo-mark.png`
-est recadré (marges transparentes retirées) et compressé pour que chaque PDF
-reste léger malgré le logo embarqué sur chaque page.
+Couleurs du logo : marine `#1F2D69`, bleu clair `#1E9CC6` (voir
+`src/utils/pdfBrand.ts`).

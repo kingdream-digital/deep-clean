@@ -6,7 +6,7 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { PressableScale } from "../../components/PressableScale";
-import { LogoMark } from "../../components/LogoMark";
+import { BrandLockup } from "../../components/BrandLockup";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { avatarUrl } from "../../api/users.api";
 import type { Role } from "../../api/auth.api";
@@ -111,8 +111,7 @@ export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps
           marginBottom: spacing.xl,
         }}
       >
-        <LogoMark size={32} />
-        <Text style={[type.headline, { color: colors.ink, marginLeft: spacing.sm }]}>Deep Clean</Text>
+        <BrandLockup height={34} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
