@@ -27,25 +27,25 @@ enum Role {
 }
 
 model User {
-  id                 String    @id @default(uuid())
+  id                 String            @id @default(uuid())
   // Identifiant de connexion — jamais l'email (retour explicite du client) :
   // généré côté serveur à la création du compte, à partir de la première
   // lettre du prénom suivie du nom (ex. "Jean Dupont" -> "jdupont"), avec un
   // suffixe numérique en cas de collision (voir utils/username.ts). RH le
   // communique à l'utilisateur comme son identifiant, au même titre que le
   // mot de passe temporaire.
-  username           String    @unique
+  username           String            @unique
   // Conservé comme coordonnée de contact (annuaire, export PDF) mais n'a plus
   // aucun rôle dans l'authentification — optionnel désormais, RH n'a plus à
   // en fournir un à la création du compte.
-  email              String?   @unique
+  email              String?           @unique
   passwordHash       String
-  role               Role      @default(EMPLOYEE)
+  role               Role              @default(EMPLOYEE)
   firstName          String
   lastName           String
   phone              String?
-  isActive           Boolean   @default(true)
-  mustChangePassword Boolean   @default(true) // vrai tant que le mot de passe temporaire fourni par la RH n'a pas été changé
+  isActive           Boolean           @default(true)
+  mustChangePassword Boolean           @default(true) // vrai tant que le mot de passe temporaire fourni par la RH n'a pas été changé
   // Photo de profil facultative (retour explicite du client : l'utilisateur
   // doit pouvoir en mettre une, en changer, ou ne pas en avoir du tout) —
   // clé opaque vers utils/storage.ts, jamais une URL publique permanente ;
@@ -60,18 +60,19 @@ model User {
   // — null = valeur par défaut de l'entreprise (DEFAULT_LEAVE_ACCRUAL_RATE_PER_MONTH,
   // aucun plafond). Voir leave.service.ts pour le calcul (jamais une règle
   // figée dans le code).
-  hireDate           DateTime  @default(now())
+  hireDate           DateTime          @default(now())
   leaveAccrualRate   Float?
   leaveAccrualCap    Float?
   // Heures prévues au contrat par semaine (ex. 35), saisies par la RH : le
   // planning affiche ce qu'il reste à planifier à chacun pour la semaine.
   // null = non renseigné (aucun compteur affiché).
   weeklyHours        Float?
+  nightWorkerStatus  NightWorkerStatus @default(AUTO)
   createdById        String? // RH ayant créé le compte
-  createdBy          User?     @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdUsers       User[]    @relation("UserCreatedBy")
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdBy          User?             @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers       User[]            @relation("UserCreatedBy")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   sessions                         Session[]
   pushTokens                       PushToken[]
@@ -294,6 +295,9 @@ model Mission {
   endTime                      DateTime
   instructions                 String?
   status                       MissionStatus     @default(SCHEDULED)
+  // Intervention exceptionnelle, hors planning ou contrat habituel : les
+  // heures de nuit, de dimanche et de jour férié sont majorées à 100 %.
+  isExceptional                Boolean           @default(false)
   createdById                  String
   createdBy                    User              @relation("MissionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   // Standard de nettoyage appliqué à la création (traçabilité) — son contenu
@@ -532,7 +536,18 @@ enum AbsenceType {
   UNPAID_LEAVE // Congé sans solde
   WORK_ACCIDENT // Accident du travail / maladie professionnelle
   PARENTAL_LEAVE // Congé maternité / paternité / adoption
+  // Repos compensateur du travailleur de nuit (convention propreté art. 6.3 :
+  // 2 % des heures de nuit du mois), décompté du compteur acquis.
+  COMPENSATORY_REST
   OTHER
+}
+
+// Statut de travailleur de nuit : déterminé automatiquement chaque mois
+// (payroll/workHours.ts::isNightWorker), ou fixé par la RH selon le contrat.
+enum NightWorkerStatus {
+  AUTO
+  YES
+  NO
 }
 
 enum AbsenceStatus {
@@ -657,6 +672,8 @@ enum NotificationType {
   PHOTO_EXPIRING_SOON
   VALIDATION_REQUESTED
   TIMESHEET_VALIDATED
+  // Pointage refusé (« à corriger ») — distinct de la validation.
+  TIMESHEET_REJECTED
   ACCOUNT_UPDATE
   // Envoyée à la RH/direction/admin quand un employé demande une absence
   // (voir absences.service.ts::notifyAbsenceManagers) — distincte de
@@ -679,6 +696,9 @@ enum NotificationType {
   // messages.service.ts::sendMessage), au motif que le badge de non-lus de
   // l'onglet Messagerie suffisait déjà. Le client veut la cloche en plus.
   MESSAGE_RECEIVED
+  // Circuit commercial (retour d'audit) : devis à valider, validé, accepté,
+  // refusé — ouvre la fiche du devis.
+  COMMERCIAL_UPDATE
   GENERAL
 }
 
@@ -941,6 +961,9 @@ model Client {
   postalCode       String?
   city             String?
   siret            String?
+  // SIREN (9 chiffres) — mention obligatoire de la facture électronique ;
+  // déduit du SIRET s'il est absent.
+  siren            String?
   notes            String?
   prospectId       String?   @unique
   prospect         Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
@@ -1224,6 +1247,14 @@ model Invoice {
 
   sentAt           DateTime?
   paidAt           DateTime?
+  // Facture électronique (réforme 2026) : transmission via la plateforme
+  // agréée (Super PDP), identifiant chez elle et dernier statut connu.
+  pdpInvoiceId     String?
+  pdpStatus        String?
+  pdpStatusLabel   String?
+  pdpSentAt        DateTime?
+  pdpUpdatedAt     DateTime?
+  pdpError         String?
   cancelledAt      DateTime?
   cancelledComment String?
 

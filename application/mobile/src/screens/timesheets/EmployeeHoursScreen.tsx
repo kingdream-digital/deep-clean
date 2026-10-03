@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -53,6 +53,8 @@ type Route = RouteProp<MenuStackParamList, "EmployeeHours">;
 export function EmployeeHoursScreen() {
   const { colors, spacing, type } = useTheme();
   const { params } = useRoute<Route>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const navigation = useNavigation<any>();
 
   const [month, setMonth] = useState(() => {
     if (params.initialMonth) {
@@ -181,6 +183,7 @@ export function EmployeeHoursScreen() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 30).duration(240)}>
+              <PressableScale onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} accessibilityLabel="Voir le détail du pointage">
               <Card>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                   <View style={{ flex: 1, marginRight: spacing.sm }}>
@@ -196,6 +199,7 @@ export function EmployeeHoursScreen() {
                   <TimeEntryStatusBadge status={item.status} />
                 </View>
               </Card>
+              </PressableScale>
             </Animated.View>
           )}
         />

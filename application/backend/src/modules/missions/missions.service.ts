@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
-import { calendarDay, calendarDayEnd, calendarDayKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
+import { calendarDay, calendarDayEnd, calendarDayKey, companyDateKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
 import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
-import { createNotification } from "../notifications/notifications.service";
+import { createNotification, markRelatedNotificationsRead } from "../notifications/notifications.service";
 import { findApprovedAbsencesInRange } from "../absences/absences.service";
 import { deleteStoredFile, storePdfDocument } from "../../utils/storage";
 
@@ -33,6 +33,7 @@ const MISSION_MANAGE_ROLES: Role[] = [Role.SUPERVISOR, Role.HR, Role.DIRECTOR, R
 const VALIDATE_MISSION_ROLES: Role[] = [Role.HR, Role.SUPERVISOR, Role.DIRECTOR];
 
 const missionSelect = {
+  isExceptional: true,
   id: true,
   title: true,
   date: true,
@@ -379,6 +380,7 @@ interface CreateMissionInput {
   startTime: string;
   endTime: string;
   instructions?: string;
+  isExceptional?: boolean;
   assigneeIds: string[];
   leadId?: string;
   standardId?: string;
@@ -438,6 +440,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
       startTime,
       endTime,
       instructions: input.instructions,
+      isExceptional: input.isExceptional ?? false,
       createdById: actor.userId,
       standardId: input.standardId,
       recurrenceGroupId,
@@ -477,6 +480,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
         startTime: combineDateTime(d, input.startTime),
         endTime: combineDateTime(d, input.endTime),
         instructions: input.instructions,
+        isExceptional: input.isExceptional ?? false,
         createdById: actor.userId,
         standardId: input.standardId,
         recurrenceGroupId,
@@ -621,6 +625,7 @@ interface UpdateMissionInput {
   startTime?: string;
   endTime?: string;
   instructions?: string | null;
+  isExceptional?: boolean;
 }
 
 export async function updateMission(actor: Actor, id: string, input: UpdateMissionInput) {
@@ -661,7 +666,10 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
     throw ApiError.badRequest("L'heure de fin doit être postérieure à l'heure de début.");
   }
 
-  const timeChanged = Boolean(input.date || input.startTime || input.endTime);
+  // Changement RÉEL d'horaire (retour d'audit : le formulaire renvoie toujours
+  // date et heures, et une simple consigne déclenchait « Horaire modifié »).
+  const timeChanged =
+    startTime.getTime() !== mission.startTime.getTime() || endTime.getTime() !== mission.endTime.getTime();
   if (timeChanged) {
     await assertNoScheduleOverlap(
       mission.assignments.map((a) => a.userId),
@@ -680,6 +688,8 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       ...(input.siteId ? { siteId: input.siteId } : {}),
       ...(timeChanged ? { date: calendarDay(date), startTime, endTime } : {}),
       ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
+      // Réservé à ceux qui gèrent le planning (le chef d'équipe ne touche qu'à la consigne).
+      ...(input.isExceptional !== undefined && managesPlanning ? { isExceptional: input.isExceptional } : {}),
     },
     select: missionSelect,
   });
@@ -807,6 +817,8 @@ export async function cancelMission(actor: Actor, id: string, scope: "one" | "se
   return { ...presentMission(updated), seriesCancelledCount };
 }
 
+const EARLY_START_MS = 2 * 60 * 60 * 1000;
+
 export async function setMissionStatus(actor: Actor, id: string, status: "IN_PROGRESS" | "COMPLETED") {
   const mission = await findMissionOrThrow(id);
   assertCanSeeMission(actor, mission);
@@ -831,6 +843,17 @@ export async function setMissionStatus(actor: Actor, id: string, status: "IN_PRO
   }
   if (status === MissionStatus.COMPLETED && mission.status === MissionStatus.SCHEDULED) {
     throw ApiError.conflict("La mission doit être en cours avant de pouvoir être terminée.");
+  }
+  // Suivi terrain cohérent avec le planning (retour d'audit : une mission du
+  // mardi suivant pouvait être démarrée, terminée et validée le samedi).
+  const now = Date.now();
+  if (status === MissionStatus.IN_PROGRESS && now < mission.startTime.getTime() - EARLY_START_MS) {
+    throw ApiError.conflict(
+      `Cette mission est prévue le ${companyLongDayLabel(mission.startTime)} à ${companyTimeKey(mission.startTime)} : elle ne peut être démarrée qu'à partir de 2 h avant.`
+    );
+  }
+  if (status === MissionStatus.COMPLETED && now < mission.startTime.getTime()) {
+    throw ApiError.conflict("Cette mission n'a pas encore commencé : elle ne peut pas être terminée.");
   }
 
   const updated = await prisma.mission.update({ where: { id }, data: { status }, select: missionSelect });
@@ -993,6 +1016,13 @@ export async function validateMission(actor: Actor, id: string, comment?: string
     `Votre mission « ${mission.title} » a été validée par ${validatorName}.`,
     id
   );
+  // Chef d'équipe du chantier prévenu quand un autre valide (retour d'audit),
+  // et la demande « Mission à valider » ne reste en attente chez personne.
+  const siteManagerId = mission.site.managerId;
+  if (siteManagerId && siteManagerId !== actor.userId && !mission.assignments.some((a) => a.userId === siteManagerId)) {
+    await notifyAssignees([siteManagerId], NotificationType.GENERAL, "Mission validée", `La mission « ${mission.title} » a été validée par ${validatorName}.`, id);
+  }
+  await markRelatedNotificationsRead("Mission", id, NotificationType.VALIDATION_REQUESTED);
 
   return presentMission(await findMissionOrThrow(id));
 }
@@ -1220,7 +1250,8 @@ export async function removeStandardDocument(actor: Actor, missionId: string) {
 
 export async function listMissionsToReassign(actor: Actor) {
   if (!canManagePlanning(actor)) throw ApiError.forbidden();
-  const today = calendarDay(new Date().toISOString().slice(0, 10));
+  // Aujourd'hui en heure de Paris (entre 0 h et 2 h, l'UTC donnait la veille).
+  const today = calendarDay(companyDateKey(new Date()));
   const absences = await prisma.absence.findMany({
     where: { status: "APPROVED", endDate: { gte: today } },
     select: { id: true, userId: true, type: true, startDate: true, endDate: true },

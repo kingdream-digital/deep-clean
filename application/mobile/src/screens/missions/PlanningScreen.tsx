@@ -20,7 +20,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listMissions, listMissionsToReassign } from "../../api/missions.api";
 import type { Mission, MissionAssignee } from "../../api/missions.api";
 import { listUsers } from "../../api/users.api";
-import { listAbsences } from "../../api/absences.api";
+import { ABSENCE_TYPE_LABELS, listAbsences } from "../../api/absences.api";
 import type { PlanningStackParamList } from "../../navigation/PlanningStack";
 
 type Route = RouteProp<PlanningStackParamList, "PlanningHome">;
@@ -145,9 +145,25 @@ export function PlanningScreen() {
   // Clé « userId|AAAA-MM-JJ » → motif affiché (« En congé », « Arrêt maladie »…).
   const [absentKeys, setAbsentKeys] = useState<Map<string, string>>(new Map());
   const loadTeam = useCallback(async () => {
-    if (!managesTeam) return;
     const from = toLocalDateKey(weekStart);
     const to = toLocalDateKey(weekEnd);
+    if (!managesTeam) {
+      // Employé / chef d'équipe : ses propres absences approuvées, affichées
+      // sur son planning (retour d'audit : un congé approuvé n'y figurait pas).
+      const mine = await listAbsences({ status: "APPROVED", from, to }).catch(() => null);
+      const own = new Map<string, string>();
+      for (const absence of mine?.items ?? []) {
+        if (absence.userId !== user?.id) continue;
+        const cursor = new Date(absence.startDate);
+        const end = new Date(absence.endDate);
+        while (cursor.getTime() <= end.getTime()) {
+          own.set(`${absence.userId}|${cursor.toISOString().slice(0, 10)}`, ABSENCE_TYPE_LABELS[absence.type] ?? "Absence");
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+      }
+      setAbsentKeys(own);
+      return;
+    }
     const [employees, leads, absences] = await Promise.all([
       listUsers({ role: "EMPLOYEE", isActive: true }).catch(() => null),
       listUsers({ role: "SITE_MANAGER", isActive: true }).catch(() => null),
@@ -184,7 +200,7 @@ export function PlanningScreen() {
       }
     }
     setAbsentKeys(keys);
-  }, [managesTeam, weekStart, weekEnd]);
+  }, [managesTeam, weekStart, weekEnd, user?.id]);
 
   const load = useCallback(async () => {
     const silent = isBackgroundRefresh();
@@ -596,6 +612,12 @@ export function PlanningScreen() {
                   : undefined
               }
             />
+          ) : !managesTeam && user && absentKeys.has(`${user.id}|${toLocalDateKey(selectedDay)}`) ? (
+            <StateView
+              kind="empty"
+              icon="sunny-outline"
+              message={`${absentKeys.get(`${user.id}|${toLocalDateKey(selectedDay)}`)} ce jour-là.${selectedDayMissions.length ? " Une mission y est encore prévue : votre responsable va la réaffecter." : ""}`}
+            />
           ) : selectedDayMissions.length === 0 ? (
             <StateView kind="empty" icon="calendar-outline" message="Aucune mission ce jour-là." />
           ) : (
@@ -753,22 +775,35 @@ function DesktopWeekGrid({
 // ci-dessus, organisée par jour, puisqu'il ne suit que ses propres chantiers.
 // « 28 h / 35 h · reste 7 h » : heures planifiées cette semaine face aux
 // heures du contrat (si la RH les a renseignées).
-function WeekHoursLine({ member, plannedMinutes }: { member: MissionAssignee["user"]; plannedMinutes: number }) {
+function WeekHoursLine({ member, plannedMinutes, absentDays = 0 }: { member: MissionAssignee["user"]; plannedMinutes: number; absentDays?: number }) {
   const { colors, type } = useTheme();
   const planned = formatHoursShort(plannedMinutes);
   if (member.weeklyHours == null) {
     return <Text style={[type.caption, { color: colors.inkTertiary }]}>{planned} planifiées cette semaine</Text>;
   }
-  const remaining = member.weeklyHours * 60 - plannedMinutes;
+  // Capacité réduite des jours d'absence (base 5 jours travaillés par semaine).
+  const capacityMinutes = Math.max(0, member.weeklyHours * 60 * (1 - Math.min(absentDays, 5) / 5));
+  const remaining = capacityMinutes - plannedMinutes;
   const tone = remaining < 0 ? colors.danger : remaining === 0 ? colors.success : colors.accentText;
   return (
     <Text style={[type.caption, { color: colors.inkTertiary }]}>
-      {planned} / {formatHoursShort(member.weeklyHours * 60)}
+      {planned} / {formatHoursShort(capacityMinutes)}
+      {absentDays > 0 ? ` (absent ${absentDays} j)` : ""}
       <Text style={{ color: tone, fontWeight: "700" }}>
         {remaining > 0 ? ` · reste ${formatHoursShort(remaining)}` : remaining === 0 ? " · complet" : ` · +${formatHoursShort(-remaining)}`}
       </Text>
     </Text>
   );
+}
+
+/** Jours du lundi au vendredi de la semaine où la personne est absente. */
+function weekOf(day: Date): Date[] {
+  const monday = mondayOf(day);
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}
+
+function countAbsentWeekdays(absentKeys: Map<string, string>, userId: string, weekDays: Date[]): number {
+  return weekDays.filter((d) => d.getDay() >= 1 && d.getDay() <= 5 && absentKeys.has(`${userId}|${toLocalDateKey(d)}`)).length;
 }
 
 function formatHoursShort(minutes: number): string {
@@ -881,7 +916,7 @@ function TeamWeekGrid({
                   </Text>
                   {isActive ? (
                     <View style={{ marginTop: 2 }}>
-                      <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} />
+                      <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} absentDays={countAbsentWeekdays(absentKeys, member.id, days)} />
                     </View>
                   ) : (
                     <Text style={[type.caption, { color: colors.neutral, marginTop: 2 }]}>Compte désactivé</Text>
@@ -1063,7 +1098,7 @@ function TeamDayList({
                       ? "Disponible"
                       : `${dayMissions.length} mission${dayMissions.length > 1 ? "s" : ""}`}
                 </Text>
-                {isActive && <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} />}
+                {isActive && <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} absentDays={countAbsentWeekdays(absentKeys, member.id, weekOf(day))} />}
               </View>
               {!!onDeclareAbsence && isActive && !isAbsent && (
                 <PressableScale

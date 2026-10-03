@@ -213,7 +213,8 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
   // EMPLOYEE
   const [weekRes, upcomingRes, openProblems, notifRes, announcementRes] = await Promise.all([
     listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) }),
-    listMissions({ from: toLocalDateKey(new Date()), to: toLocalDateKey(addDays(new Date(), 7)) }),
+    // Depuis la veille : une mission de nuit commencée hier reste la mission actuelle.
+    listMissions({ from: toLocalDateKey(addDays(new Date(), -1)), to: toLocalDateKey(addDays(new Date(), 7)) }),
     countOpenProblems(),
     notifPromise,
     announcementPromise,
@@ -231,8 +232,8 @@ async function loadForRole(user: AuthUser): Promise<DashboardData> {
     latestAnnouncement: announcementRes.items[0] ?? null,
     kpis: [
       { key: "today", label: "Missions aujourd'hui", value: String(todayCount), tone: "accent", icon: "today-outline" },
-      { key: "upcoming", label: "À venir (7 jours)", value: String(upcomingRes.total), tone: "info", icon: "time-outline" },
-      { key: "problems", label: "Mes signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
+      { key: "upcoming", label: "À venir (7 jours)", value: String(upcomingRes.items.filter((m) => m.date.slice(0, 10) >= today).length), tone: "info", icon: "time-outline" },
+      { key: "problems", label: "Signalements ouverts", value: String(openProblems), tone: "danger", icon: "warning-outline" },
     ],
   };
 }

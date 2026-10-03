@@ -23,6 +23,8 @@ import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
 import { ReassignMissionsScreen } from "../screens/missions/ReassignMissionsScreen";
 import { LeaveAccrualsScreen } from "../screens/absences/LeaveAccrualsScreen";
 import { UserDetailScreen } from "../screens/users/UserDetailScreen";
+import { TimesheetRejectScreen } from "../screens/timesheets/TimesheetRejectScreen";
+import { RetroactiveClockScreen } from "../screens/timesheets/RetroactiveClockScreen";
 import { UserFormScreen } from "../screens/users/UserFormScreen";
 import { AnnouncementDetailScreen } from "../screens/announcements/AnnouncementDetailScreen";
 
@@ -49,6 +51,10 @@ export type InboxStackParamList = {
   ReportProblem: { missionId: string };
   ProblemDetail: { problemId: string };
   TimeEntryDetail: { entryId: string };
+  // Depuis le détail d'un pointage ouvert par une notification : décider, ou
+  // (employé) re-saisir un pointage refusé.
+  TimesheetReject: { entryId: string };
+  TimesheetRetroactive: undefined;
   StandardDetail: { standardId: string };
   StandardForm: { siteId: string; standardId?: string };
   // Ajoutés (audit notifications) : ABSENCE_DECIDED pointe vers relatedEntityType
@@ -131,6 +137,8 @@ export function InboxStack() {
       />
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
       <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
+      <Stack.Screen name="TimesheetReject" component={TimesheetRejectScreen} options={{ title: "Refuser le pointage", presentation: "modal" }} />
+      <Stack.Screen name="TimesheetRetroactive" component={RetroactiveClockScreen} options={{ title: "Pointage différé", presentation: "modal" }} />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
       <Stack.Screen
         name="StandardForm"

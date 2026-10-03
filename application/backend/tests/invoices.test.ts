@@ -88,6 +88,27 @@ describe("Facturation — référence devis/chantier, jamais d'effet sur le plan
     expect(res.body.invoice.contactEmail).toBe("invoice-quote@abc.test");
   });
 
+  it("refuse de facturer deux fois le même mois pour le même devis, sauf si la première facture est annulée", async () => {
+    const { accessToken } = await loginAs(Role.HR, "hr-invoice-dup@deepclean.test");
+    const client = await createTestClient(accessToken, { email: "dup@abc.test" });
+    const quoteId = await createAcceptedQuote(accessToken, client.id);
+    const body = { clientId: client.id, quoteId, billingMode: "FLAT_RATE", period: "2026-10", items: [{ description: "Forfait", quantity: 1, unit: "INTERVENTION", unitPriceHt: 990 }] };
+
+    const first = await request(app).post("/api/v1/invoices").set("Authorization", `Bearer ${accessToken}`).send(body);
+    expect(first.status).toBe(201);
+
+    const second = await request(app).post("/api/v1/invoices").set("Authorization", `Bearer ${accessToken}`).send(body);
+    expect(second.status).toBe(409);
+    expect(second.body.error.message).toContain("Octobre 2026 est déjà facturé");
+
+    const otherMonth = await request(app).post("/api/v1/invoices").set("Authorization", `Bearer ${accessToken}`).send({ ...body, period: "2026-11" });
+    expect(otherMonth.status).toBe(201);
+
+    await request(app).post(`/api/v1/invoices/${first.body.invoice.id}/cancel`).set("Authorization", `Bearer ${accessToken}`).send({ comment: "Erreur" });
+    const redo = await request(app).post("/api/v1/invoices").set("Authorization", `Bearer ${accessToken}`).send(body);
+    expect(redo.status).toBe(201);
+  });
+
   it("refuse de référencer un devis non accepté", async () => {
     const { accessToken } = await loginAs(Role.HR, "hr-invoice3@deepclean.test");
     const client = await createTestClient(accessToken);

@@ -57,7 +57,89 @@ export async function listActivityLogs(filters: ListActivityLogsFilters) {
     prisma.activityLog.count({ where }),
   ]);
 
-  return { items, total, page: filters.page, pageSize: filters.pageSize };
+  const labels = await resolveEntityLabels(items);
+  return {
+    items: items.map((item) => ({ ...item, entityLabel: item.entityId ? labels.get(`${item.entityType}:${item.entityId}`) ?? null : null })),
+    total,
+    page: filters.page,
+    pageSize: filters.pageSize,
+  };
+}
+
+/**
+ * Nom lisible de l'élément concerné (« Compte désactivé » → quel compte ?).
+ * Une requête groupée par type d'élément présent dans la page, jamais une
+ * par ligne.
+ */
+async function resolveEntityLabels(items: { entityType: string | null; entityId: string | null }[]): Promise<Map<string, string>> {
+  const idsByType = new Map<string, string[]>();
+  for (const item of items) {
+    if (!item.entityType || !item.entityId) continue;
+    const list = idsByType.get(item.entityType) ?? [];
+    if (!list.includes(item.entityId)) list.push(item.entityId);
+    idsByType.set(item.entityType, list);
+  }
+  const labels = new Map<string, string>();
+  const put = (type: string, rows: { id: string; label: string }[]) => {
+    for (const row of rows) labels.set(`${type}:${row.id}`, row.label);
+  };
+  const ids = (type: string) => ({ in: idsByType.get(type) ?? [] });
+  await Promise.all(
+    [...idsByType.keys()].map(async (type) => {
+      switch (type) {
+        case "User":
+        case "EmployeeDocument": {
+          if (type === "EmployeeDocument") {
+            const docs = await prisma.employeeDocument.findMany({ where: { id: ids(type) }, select: { id: true, user: { select: { firstName: true, lastName: true } } } });
+            put(type, docs.map((d) => ({ id: d.id, label: `${d.user.firstName} ${d.user.lastName}` })));
+          } else {
+            const users = await prisma.user.findMany({ where: { id: ids(type) }, select: { id: true, firstName: true, lastName: true } });
+            put(type, users.map((u) => ({ id: u.id, label: `${u.firstName} ${u.lastName}` })));
+          }
+          break;
+        }
+        case "Site":
+          put(type, (await prisma.site.findMany({ where: { id: ids(type) }, select: { id: true, name: true } })).map((r) => ({ id: r.id, label: r.name })));
+          break;
+        case "Mission":
+          put(type, (await prisma.mission.findMany({ where: { id: ids(type) }, select: { id: true, title: true } })).map((r) => ({ id: r.id, label: r.title })));
+          break;
+        case "Problem":
+          put(type, (await prisma.problem.findMany({ where: { id: ids(type) }, select: { id: true, description: true } })).map((r) => ({ id: r.id, label: r.description.slice(0, 60) })));
+          break;
+        case "TimeEntry":
+          put(type, (await prisma.timeEntry.findMany({ where: { id: ids(type) }, select: { id: true, user: { select: { firstName: true, lastName: true } } } })).map((r) => ({ id: r.id, label: `${r.user.firstName} ${r.user.lastName}` })));
+          break;
+        case "Absence":
+          put(type, (await prisma.absence.findMany({ where: { id: ids(type) }, select: { id: true, user: { select: { firstName: true, lastName: true } } } })).map((r) => ({ id: r.id, label: `${r.user.firstName} ${r.user.lastName}` })));
+          break;
+        case "CleaningStandard":
+          put(type, (await prisma.cleaningStandard.findMany({ where: { id: ids(type) }, select: { id: true, name: true } })).map((r) => ({ id: r.id, label: r.name })));
+          break;
+        case "Announcement":
+          put(type, (await prisma.announcement.findMany({ where: { id: ids(type) }, select: { id: true, title: true } })).map((r) => ({ id: r.id, label: r.title })));
+          break;
+        case "Conversation":
+          put(type, (await prisma.conversation.findMany({ where: { id: ids(type) }, select: { id: true, title: true } })).map((r) => ({ id: r.id, label: r.title ?? "Discussion" })));
+          break;
+        case "Prospect":
+          put(type, (await prisma.prospect.findMany({ where: { id: ids(type) }, select: { id: true, companyName: true } })).map((r) => ({ id: r.id, label: r.companyName })));
+          break;
+        case "Client":
+          put(type, (await prisma.client.findMany({ where: { id: ids(type) }, select: { id: true, companyName: true } })).map((r) => ({ id: r.id, label: r.companyName })));
+          break;
+        case "Quote":
+          put(type, (await prisma.quote.findMany({ where: { id: ids(type) }, select: { id: true, quoteNumber: true } })).map((r) => ({ id: r.id, label: r.quoteNumber })));
+          break;
+        case "Invoice":
+          put(type, (await prisma.invoice.findMany({ where: { id: ids(type) }, select: { id: true, invoiceNumber: true } })).map((r) => ({ id: r.id, label: r.invoiceNumber })));
+          break;
+        default:
+          break;
+      }
+    })
+  );
+  return labels;
 }
 
 // Liste distincte des valeurs d'`action` déjà enregistrées, pour peupler un

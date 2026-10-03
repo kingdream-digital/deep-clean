@@ -34,6 +34,7 @@ import { formatAbsencePeriod, frenchDateFormat } from "../../utils/frenchDate";
 import { formatAction } from "../../utils/activityLogLabels";
 import { shareFile } from "../../utils/shareFile";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
+import { ReasonPromptModal } from "../../components/ReasonPromptModal";
 
 type Route = RouteProp<{ UserDetail: { userId: string; temporaryPassword?: string } }, "UserDetail">;
 
@@ -48,8 +49,8 @@ const MANAGE_ROLES = ["HR", "DIRECTOR", "ADMIN"];
 const DOSSIER_VIEW_ROLES = ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"];
 // Qui peut valider/refuser une absence depuis cette fiche — même liste que
 // backend/src/modules/absences/absences.service.ts::MANAGE_ABSENCES_ROLES
-// (le superviseur consulte le dossier mais ne décide pas des absences).
-const ABSENCE_DECISION_ROLES = ["HR", "DIRECTOR", "ADMIN"];
+// (le superviseur en décide aussi : il reçoit les demandes — retour d'audit).
+const ABSENCE_DECISION_ROLES = ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"];
 
 const ABSENCE_TYPE_LABELS: Record<string, string> = {
   PAID_LEAVE: "Congé payé",
@@ -57,6 +58,7 @@ const ABSENCE_TYPE_LABELS: Record<string, string> = {
   UNPAID_LEAVE: "Congé sans solde",
   WORK_ACCIDENT: "Accident du travail",
   PARENTAL_LEAVE: "Maternité / paternité",
+  COMPENSATORY_REST: "Repos compensateur",
   OTHER: "Autre",
 };
 
@@ -266,10 +268,13 @@ export function UserDetailScreen() {
     }
   }
 
-  async function handleDecideAbsence(absenceId: string, status: "APPROVED" | "REJECTED") {
+  const [rejectingAbsence, setRejectingAbsence] = useState<{ id: string; type: string; startDate: string; endDate: string } | null>(null);
+
+  async function handleDecideAbsence(absenceId: string, status: "APPROVED" | "REJECTED", note?: string) {
     setDecidingAbsenceId(absenceId);
     try {
-      await decideAbsence(absenceId, status);
+      await decideAbsence(absenceId, status, note || undefined);
+      setRejectingAbsence(null);
       await load();
     } catch (err) {
       Alert.alert("Action impossible", extractErrorMessage(err));
@@ -279,15 +284,7 @@ export function UserDetailScreen() {
   }
 
   function confirmRejectAbsence(absence: { id: string; type: string; startDate: string; endDate: string }) {
-    const period = formatAbsencePeriod(absence.startDate, absence.endDate);
-    Alert.alert(
-      "Refuser cette demande ?",
-      `${ABSENCE_TYPE_LABELS[absence.type] ?? absence.type} · ${period}`,
-      [
-        { text: "Annuler", style: "cancel" },
-        { text: "Refuser", style: "destructive", onPress: () => void handleDecideAbsence(absence.id, "REJECTED") },
-      ]
-    );
+    setRejectingAbsence(absence);
   }
 
   return (
@@ -490,8 +487,8 @@ export function UserDetailScreen() {
                   {dossier.absences.recent.slice(0, 5).map((absence) => (
                     <View key={absence.id} style={{ marginTop: spacing.xs }}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                        <Text style={[type.footnote, { color: colors.inkSecondary }]} numberOfLines={1}>
-                          {ABSENCE_TYPE_LABELS[absence.type]} · {formatAbsencePeriod(absence.startDate, absence.endDate)}
+                        <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1, marginRight: spacing.xs }]} numberOfLines={2}>
+                          {ABSENCE_TYPE_LABELS[absence.type] ?? "Absence"} · {formatAbsencePeriod(absence.startDate, absence.endDate)}
                         </Text>
                         <AbsenceStatusBadge status={absence.status} />
                       </View>
@@ -590,7 +587,16 @@ export function UserDetailScreen() {
               label="Réinitialiser l'accès"
               variant="secondary"
               loading={actionLoading === "reset"}
-              onPress={handleResetAccess}
+              onPress={() =>
+                Alert.alert(
+                  "Réinitialiser l'accès ?",
+                  "Le mot de passe actuel ne fonctionnera plus et la personne sera déconnectée. Un nouveau mot de passe temporaire s'affichera une seule fois : communiquez-le-lui.",
+                  [
+                    { text: "Annuler", style: "cancel" },
+                    { text: "Réinitialiser", style: "destructive", onPress: () => void handleResetAccess() },
+                  ]
+                )
+              }
             />
             <Button
               label={account.isActive ? "Désactiver le compte" : "Réactiver le compte"}
@@ -601,6 +607,22 @@ export function UserDetailScreen() {
           </View>
         )}
       </ScrollView>
+    <ReasonPromptModal
+        visible={!!rejectingAbsence}
+        title="Refuser cette demande ?"
+        subtitle={
+          rejectingAbsence
+            ? `${ABSENCE_TYPE_LABELS[rejectingAbsence.type] ?? rejectingAbsence.type} · ${formatAbsencePeriod(rejectingAbsence.startDate, rejectingAbsence.endDate)}`
+            : undefined
+        }
+        label="Motif du refus"
+        placeholder="Ex : période de forte activité, proposez d'autres dates."
+        confirmLabel="Refuser"
+        required
+        loading={!!rejectingAbsence && decidingAbsenceId === rejectingAbsence.id}
+        onCancel={() => setRejectingAbsence(null)}
+        onConfirm={(note) => rejectingAbsence && void handleDecideAbsence(rejectingAbsence.id, "REJECTED", note)}
+      />
     </ScreenContainer>
   );
 }

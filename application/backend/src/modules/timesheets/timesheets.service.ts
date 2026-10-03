@@ -4,6 +4,7 @@ import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
+import { computePayBreakdown } from "../payroll/workHours";
 import { MISSION_TIME_ENTRY_BUFFER_MS } from "../missions/missions.service";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
 
@@ -238,6 +239,9 @@ export async function createRetroactiveTimeEntry(
     const overlapping = await tx.timeEntry.findFirst({
       where: {
         userId: actor.userId,
+        // Un pointage refusé ne bloque jamais sa correction (retour d'audit :
+        // l'employé à qui l'on demande de corriger ne pouvait plus re-saisir).
+        status: { not: TimeEntryStatus.REJECTED },
         OR: [{ clockOut: null }, { clockOut: { gt: clockInDate } }],
         clockIn: { lt: clockOutDate },
       },
@@ -311,6 +315,9 @@ export async function createTimeEntryForUser(
     const overlapping = await tx.timeEntry.findFirst({
       where: {
         userId: targetUserId,
+        // Un pointage refusé ne bloque jamais sa correction (retour d'audit :
+        // l'employé à qui l'on demande de corriger ne pouvait plus re-saisir).
+        status: { not: TimeEntryStatus.REJECTED },
         OR: [{ clockOut: null }, { clockOut: { gt: clockInDate } }],
         clockIn: { lt: clockOutDate },
       },
@@ -692,6 +699,29 @@ const STATUS_LABEL_FR: Record<TimeEntryStatus, string> = {
 // peut exporter que les siens, un chef d'équipe que son équipe,
 // superviseur/RH/direction/admin n'importe qui) : le dossier RH "par
 // personne" pour la paie réutilise cette même règle, jamais un contournement.
+/**
+ * Pointages rattachés à une intervention exceptionnelle (hors planning
+ * habituel) : majorations à 100 % (voir payroll/payRules.ts).
+ */
+export async function exceptionalEntryIds(entries: Array<{ id: string; userId: string; clockIn: Date; clockOut: Date | null }>): Promise<Set<string>> {
+  const closed = entries.filter((e) => e.clockOut);
+  if (closed.length === 0) return new Set();
+  const from = new Date(Math.min(...closed.map((e) => e.clockIn.getTime())) - 86_400_000);
+  const to = new Date(Math.max(...closed.map((e) => e.clockOut!.getTime())) + 86_400_000);
+  const missions = await prisma.missionAssignment.findMany({
+    where: {
+      userId: { in: [...new Set(closed.map((e) => e.userId))] },
+      mission: { isExceptional: true, status: { not: MissionStatus.CANCELLED }, startTime: { lt: to }, endTime: { gt: from } },
+    },
+    select: { userId: true, mission: { select: { startTime: true, endTime: true } } },
+  });
+  const ids = new Set<string>();
+  for (const e of closed) {
+    if (missions.some((m) => m.userId === e.userId && e.clockIn < m.mission.endTime && e.clockOut! > m.mission.startTime)) ids.add(e.id);
+  }
+  return ids;
+}
+
 export async function exportTimeEntriesCsv(actor: Actor, filters: ListFilters): Promise<string> {
   const where = await buildTimeEntriesWhere(actor, filters);
 
@@ -701,22 +731,44 @@ export async function exportTimeEntriesCsv(actor: Actor, filters: ListFilters): 
     orderBy: { clockIn: "asc" },
   });
 
-  const header = ["Employé", "Date", "Arrivée", "Départ", "Durée (h)", "Statut", "Différé", "Commentaire"];
+  // Format français (retour d'audit) : virgule décimale pour qu'Excel lise
+  // des nombres, une colonne « heures comptées » (0 pour un pointage refusé),
+  // la ventilation des majorations (nuit, dimanche, férié) et une ligne de total.
+  const dec = (minutes: number) => (minutes / 60).toFixed(2).replace(".", ",");
+  const header = [
+    "Employé", "Date", "Arrivée", "Départ", "Durée (h)", "Heures comptées (h)",
+    "Dont nuit (h)", "Dont dimanche (h)", "Dont férié (h)", "Majoration (h)", "Statut", "Différé", "Commentaire",
+  ];
+  const exceptionalIds = await exceptionalEntryIds(items);
+  const totals = { counted: 0, night: 0, sunday: 0, holiday: 0, premium: 0 };
   const rows = items.map((entry) => {
-    const durationHours = entry.clockOut
-      ? ((entry.clockOut.getTime() - entry.clockIn.getTime()) / 3_600_000).toFixed(2)
-      : "";
+    const minutes = entry.clockOut ? (entry.clockOut.getTime() - entry.clockIn.getTime()) / 60_000 : 0;
+    const counted = entry.clockOut && entry.status !== TimeEntryStatus.REJECTED;
+    const b = counted ? computePayBreakdown([{ clockIn: entry.clockIn, clockOut: entry.clockOut!, exceptional: exceptionalIds.has(entry.id) }]) : null;
+    if (b) {
+      totals.counted += b.totalMinutes;
+      totals.night += b.minutesByCategory.night;
+      totals.sunday += b.minutesByCategory.sunday;
+      totals.holiday += b.minutesByCategory.holiday;
+      totals.premium += b.premiumMinutes;
+    }
     return [
       `${entry.user.firstName} ${entry.user.lastName}`,
       csvDateFmt(entry.clockIn),
       csvTimeFmt(entry.clockIn),
       entry.clockOut ? csvTimeFmt(entry.clockOut) : "",
-      durationHours,
+      entry.clockOut ? dec(minutes) : "",
+      b ? dec(b.totalMinutes) : "0,00",
+      b ? dec(b.minutesByCategory.night) : "",
+      b ? dec(b.minutesByCategory.sunday) : "",
+      b ? dec(b.minutesByCategory.holiday) : "",
+      b ? dec(b.premiumMinutes) : "",
       STATUS_LABEL_FR[entry.status],
       entry.isRetroactive ? "Oui" : "",
       entry.comment ?? "",
     ];
   });
+  rows.push(["TOTAL", "", "", "", "", dec(totals.counted), dec(totals.night), dec(totals.sunday), dec(totals.holiday), dec(totals.premium), "", "", ""]);
 
   // Export de données nominatives d'heures (potentiellement toute l'équipe
   // pour un rôle habilité) destinées à la paie — journalisé comme toute autre
@@ -856,7 +908,7 @@ export async function rejectTimeEntry(actor: Actor, id: string, comment: string)
   const validatorName = validator ? `${validator.firstName} ${validator.lastName}` : "un validateur";
   await createNotification({
     userId: entry.userId,
-    type: "TIMESHEET_VALIDATED",
+    type: "TIMESHEET_REJECTED",
     title: "Pointage à corriger",
     body: `Vos heures du ${formatEntryWindow(entry.clockIn, entry.clockOut)} ont été refusées par ${validatorName} : ${comment}`,
     relatedEntityType: "TimeEntry",
@@ -949,9 +1001,13 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
     rows.set(u.id, { user: u, scheduledMinutes: 0, workedMinutes: 0, missionsCount: 0, pendingCount: 0, rejectedCount: 0, status: "OK" });
   }
 
+  const nowMs = Date.now();
   for (const a of assignments) {
     const row = rows.get(a.userId);
     if (!row) continue;
+    // Seules les missions déjà terminées sont comparées aux pointages (retour
+    // d'audit : les missions à venir de la semaine comptaient en « manquant »).
+    if (a.mission.endTime.getTime() > nowMs) continue;
     row.scheduledMinutes += (a.mission.endTime.getTime() - a.mission.startTime.getTime()) / 60000;
     row.missionsCount += 1;
   }
@@ -984,12 +1040,21 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
 
   return Array.from(rows.values())
     .filter((r) => r.missionsCount > 0 || r.workedMinutes > 0)
-    .sort((a, b) => (a.status === b.status ? 0 : a.status === "ANOMALY" ? -1 : 1));
+    // Anomalies d'abord, puis ordre alphabétique stable (la liste ne « saute »
+    // plus à chaque rechargement automatique).
+    .sort(
+      (a, b) =>
+        (a.status === b.status ? 0 : a.status === "ANOMALY" ? -1 : 1) ||
+        a.user.lastName.localeCompare(b.user.lastName, "fr") ||
+        a.user.firstName.localeCompare(b.user.firstName, "fr")
+    );
 }
 
 export interface ReconciliationMissionEntry {
   mission: { id: string; title: string; date: Date; startTime: Date; endTime: Date; site: { name: string } };
   scheduledMinutes: number;
+  /** Mission pas encore terminée : jamais comptée comme « heures manquantes ». */
+  upcoming: boolean;
   matchedEntries: Array<{
     id: string;
     clockIn: Date;
@@ -1133,9 +1198,10 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
     return {
       mission,
       scheduledMinutes: Math.round(scheduledMinutes),
+      upcoming: mission.endTime.getTime() > Date.now(),
       matchedEntries: matched,
       workedMinutes: Math.round(workedMinutes),
-      gapMinutes: Math.round(workedMinutes - scheduledMinutes),
+      gapMinutes: mission.endTime.getTime() > Date.now() ? 0 : Math.round(workedMinutes - scheduledMinutes),
     };
   });
 
@@ -1146,7 +1212,7 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
     missions,
     unmatchedEntries,
     totals: {
-      scheduledMinutes: Math.round(missions.reduce((s, m) => s + m.scheduledMinutes, 0)),
+      scheduledMinutes: Math.round(missions.filter((m) => !m.upcoming).reduce((s, m) => s + m.scheduledMinutes, 0)),
       workedMinutes: Math.round(
         entries.reduce(
           (s, e) => s + (e.clockOut && e.status !== TimeEntryStatus.REJECTED ? (e.clockOut.getTime() - e.clockIn.getTime()) / 60000 : 0),

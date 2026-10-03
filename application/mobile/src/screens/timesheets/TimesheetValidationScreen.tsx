@@ -307,15 +307,23 @@ export function TimesheetValidationScreen() {
                       </View>
                     )}
                     {(() => {
-                      const farDistance = [item.clockInDistanceMeters, item.clockOutDistanceMeters]
-                        .filter((d): d is number => d != null && d > DISTANCE_ALERT_METERS)
-                        .sort((a, b) => b - a)[0];
-                      return farDistance != null ? (
+                      // Précise le moment concerné (retour d'audit : l'arrivée
+                      // pouvait être sur place et seule la sortie éloignée).
+                      const far = (d: number | null | undefined) => d != null && d > DISTANCE_ALERT_METERS;
+                      const inFar = far(item.clockInDistanceMeters);
+                      const outFar = far(item.clockOutDistanceMeters);
+                      const label =
+                        inFar && outFar
+                          ? `Arrivée et sortie pointées à ${formatDistance(item.clockInDistanceMeters!)} et ${formatDistance(item.clockOutDistanceMeters!)} du chantier`
+                          : inFar
+                            ? `Arrivée pointée à ${formatDistance(item.clockInDistanceMeters!)} du chantier prévu`
+                            : outFar
+                              ? `Sortie pointée à ${formatDistance(item.clockOutDistanceMeters!)} du chantier prévu`
+                              : null;
+                      return label ? (
                         <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                           <Ionicons name="warning-outline" size={12} color={colors.warning} />
-                          <Text style={[type.caption, { color: colors.warning, marginLeft: 3 }]}>
-                            Pointé à {formatDistance(farDistance)} du chantier prévu
-                          </Text>
+                          <Text style={[type.caption, { color: colors.warning, marginLeft: 3, flex: 1 }]}>{label}</Text>
                         </View>
                       ) : null;
                     })()}

@@ -6,6 +6,7 @@ import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
@@ -68,6 +69,7 @@ function billingPeriodOptions(): { value: string; label: string }[] {
 
 export function InvoiceFormScreen() {
   const { colors, spacing, type } = useTheme();
+  const { isDesktopWeb } = useResponsive();
   const route = useRoute<Route>();
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
   const invoiceId = route.params?.invoiceId;
@@ -225,8 +227,16 @@ export function InvoiceFormScreen() {
       setError("Sélectionnez un client.");
       return;
     }
-    if (items.some((it) => !it.description.trim() || it.unitPriceHt < 0 || it.quantity <= 0)) {
-      setError("Vérifiez les lignes (description, quantité et prix requis).");
+    const badIndex = items.findIndex((it) => !it.description.trim() || it.unitPriceHt < 0 || it.quantity <= 0);
+    if (badIndex >= 0) {
+      const bad = items[badIndex]!;
+      setError(
+        !bad.description.trim()
+          ? `Ligne ${badIndex + 1} : la description est obligatoire.`
+          : bad.quantity <= 0
+            ? `Ligne ${badIndex + 1} : la quantité est à 0. Corrigez-la ou supprimez la ligne.`
+            : `Ligne ${badIndex + 1} : le prix ne peut pas être négatif.`
+      );
       return;
     }
 
@@ -276,7 +286,7 @@ export function InvoiceFormScreen() {
 
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
         {(quoteLabel || siteLabel) && (
           <Card style={{ marginBottom: spacing.md, flexDirection: "row", alignItems: "center" }}>
             <Ionicons name="link-outline" size={16} color={colors.accent} />

@@ -423,6 +423,9 @@ export interface SiteProgress {
   extraVisits: number;
   plannedHours: number;
   actualHours: number;
+  // Objectif proposé à partir du devis du chantier, tant qu'aucun objectif
+  // n'est défini pour le mois (retour d'audit : ressaisie source d'écarts).
+  suggestedTarget: { plannedVisits: number; plannedHours: number | null; plannedAmount: number | null } | null;
 }
 
 // Suivi mensuel (§23/§34) — tout est recalculé en direct depuis les missions
@@ -466,7 +469,28 @@ export async function getSiteProgress(actor: Actor, siteId: string, period: stri
     }
   }
 
+  let suggestedTarget: SiteProgress["suggestedTarget"] = null;
+  if (!target && site.quoteId) {
+    const quote = await prisma.quote.findUnique({
+      where: { id: site.quoteId },
+      select: { monthlyAmountHt: true, items: { select: { frequency: true, occurrencesPerMonth: true, estimatedHours: true } } },
+    });
+    const recurring = (quote?.items ?? []).filter((i) => i.frequency !== "ONE_TIME" && (i.occurrencesPerMonth ?? 0) > 0);
+    if (quote && recurring.length > 0) {
+      // Plusieurs lignes récurrentes sont en général faites pendant les mêmes
+      // passages : le nombre de passages est celui de la ligne la plus fréquente.
+      const visits = Math.round(Math.max(...recurring.map((i) => i.occurrencesPerMonth ?? 0)));
+      const hours = recurring.reduce((sum, i) => sum + (i.estimatedHours ?? 0) * (i.occurrencesPerMonth ?? 0), 0);
+      suggestedTarget = {
+        plannedVisits: visits,
+        plannedHours: hours > 0 ? round1(hours) : null,
+        plannedAmount: quote.monthlyAmountHt > 0 ? Math.round(quote.monthlyAmountHt * 100) / 100 : null,
+      };
+    }
+  }
+
   return {
+    suggestedTarget,
     period,
     target: target
       ? { plannedVisits: target.plannedVisits, plannedHours: target.plannedHours, plannedAmount: target.plannedAmount, billingMode: target.billingMode }

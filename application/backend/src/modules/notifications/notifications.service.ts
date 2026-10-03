@@ -25,7 +25,9 @@ export type NotificationEntityType =
   | "Announcement"
   | "Conversation"
   | "LeaveBalance"
-  | "LeaveAccruals";
+  | "LeaveAccruals"
+  | "Quote"
+  | "Invoice";
 
 /**
  * Crée la notification interne (persistée, visible dans le centre de notifications)
@@ -62,6 +64,19 @@ export async function createNotification(input: CreateNotificationInput) {
   }
 
   return notification;
+}
+
+/**
+ * Marque comme lues, chez tout le monde, les notifications d'une demande
+ * déjà traitée (ex. « Demande d'absence » une fois décidée, « Mission à
+ * valider » une fois validée) : elles ne restent pas en attente chez les
+ * autres responsables.
+ */
+export async function markRelatedNotificationsRead(relatedEntityType: NotificationEntityType, relatedEntityId: string, type: NotificationType) {
+  await prisma.notification.updateMany({
+    where: { relatedEntityType, relatedEntityId, type, isRead: false },
+    data: { isRead: true, readAt: new Date() },
+  });
 }
 
 export async function listNotifications(

@@ -31,7 +31,7 @@ import { addDays, formatWeekRange, toLocalDateKey } from "../../utils/missionFor
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import type { AppTabsParamList } from "../../navigation/AppTabs";
-import { resolveNotificationTarget } from "../../utils/notificationTarget";
+import { opensPlanningTab, resolveNotificationTarget } from "../../utils/notificationTarget";
 import { Alert } from "../../utils/alert";
 import { extractErrorMessage } from "../../api/client";
 
@@ -170,8 +170,15 @@ export function HomeScreen() {
   // sur la pile Messagerie (une mission garde son onglet Missions).
   async function openRecentActivity(notif: (typeof data.recentActivity)[number]) {
     try {
+      if (opensPlanningTab(notif)) {
+        tabNavigation?.navigate("Planning");
+        return;
+      }
       const target = await resolveNotificationTarget(notif);
-      if (target?.screen === "MissionDetail") {
+      if (target?.tab) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tabNavigation?.navigate(target.tab, { screen: target.screen, params: target.params } as any);
+      } else if (target?.screen === "MissionDetail") {
         tabNavigation?.navigate("Missions", { screen: "MissionDetail", params: target.params });
       } else if (target) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -100,7 +100,9 @@ async function openPushTarget(response: Notifications.NotificationResponse): Pro
     for (let i = 0; i < 50 && !navigationRef.isReady(); i++) await new Promise((r) => setTimeout(r, 100));
     if (!navigationRef.isReady()) return;
     const navigate = navigationRef.navigate as (name: string, params?: object) => void;
-    navigate("Messagerie", target ? { screen: target.screen, params: target.params } : undefined);
+    if (data.type === "MISSION_UNASSIGNED") navigate("Planning");
+    else if (target?.tab) navigate(target.tab, { screen: target.screen, params: target.params });
+    else navigate("Messagerie", target ? { screen: target.screen, params: target.params } : undefined);
   } catch {
     // Élément supprimé entre-temps : l'app reste simplement ouverte.
   }

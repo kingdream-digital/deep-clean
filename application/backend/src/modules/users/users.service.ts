@@ -6,6 +6,7 @@ import { generateTemporaryPassword, hashPassword } from "../../utils/password";
 import { generateUsername } from "../../utils/username";
 import { logActivity } from "../../utils/activityLog";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
+import { countWorkableDays } from "../../utils/frenchCalendar";
 
 // Peut consulter le dossier complet d'un employé (pointages, absences,
 // missions, journal) : la RH au premier chef, mais aussi direction/admin
@@ -184,8 +185,21 @@ interface ListUsersFilters {
   pageSize: number;
 }
 
-export async function listUsers(viewerRole: Role, filters: ListUsersFilters) {
+export async function listUsers(viewerRole: Role, filters: ListUsersFilters, viewerId?: string) {
+  // Chef d'équipe : son équipe (membres de ses chantiers) et l'encadrement,
+  // jamais l'annuaire complet avec les coordonnées de tous (retour d'audit).
+  let scope: Record<string, unknown> = {};
+  if (viewerRole === Role.SITE_MANAGER && viewerId) {
+    const members = await prisma.siteMember.findMany({ where: { site: { managerId: viewerId } }, select: { userId: true } });
+    scope = {
+      OR: [
+        { id: { in: [viewerId, ...members.map((m) => m.userId)] } },
+        { role: { in: [Role.SUPERVISOR, Role.HR, Role.DIRECTOR] } },
+      ],
+    };
+  }
   const where = {
+    AND: [scope],
     ...(filters.role ? { role: filters.role } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search
@@ -496,7 +510,9 @@ export async function getEmployeeDossier(actorRole: Role, targetId: string) {
 
   const absenceDaysByType: Record<string, number> = {};
   for (const absence of absencesThisYear) {
-    const days = Math.round((absence.endDate.getTime() - absence.startDate.getTime()) / MS_PER_DAY);
+    // Jours ouvrables (lundi → samedi hors fériés), même unité que le
+    // décompte des congés — et non des jours calendaires (retour d'audit).
+    const days = countWorkableDays(absence.startDate, absence.endDate);
     absenceDaysByType[absence.type] = (absenceDaysByType[absence.type] ?? 0) + days;
   }
 

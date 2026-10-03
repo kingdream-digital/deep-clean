@@ -147,6 +147,8 @@ export interface SiteProgress {
   extraVisits: number;
   plannedHours: number;
   actualHours: number;
+  // Proposé à partir du devis tant qu'aucun objectif n'est défini ce mois-ci.
+  suggestedTarget?: { plannedVisits: number; plannedHours: number | null; plannedAmount: number | null } | null;
 }
 
 export async function upsertSiteTarget(

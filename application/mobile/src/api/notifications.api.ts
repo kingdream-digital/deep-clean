@@ -11,6 +11,7 @@ export type NotificationType =
   | "PHOTO_EXPIRING_SOON"
   | "VALIDATION_REQUESTED"
   | "TIMESHEET_VALIDATED"
+  | "TIMESHEET_REJECTED"
   | "ACCOUNT_UPDATE"
   // ABSENCE_DECIDED / ABSENCE_CONFLICT existent côté backend (schema.prisma)
   // depuis l'ajout des congés/absences mais manquaient ici — bug confirmé en
@@ -30,6 +31,7 @@ export type NotificationType =
   // l'identifiant de l'EXPÉDITEUR (pas du message), pour ouvrir directement
   // le bon fil au clic.
   | "MESSAGE_RECEIVED"
+  | "COMMERCIAL_UPDATE"
   | "GENERAL";
 
 export interface AppNotification {

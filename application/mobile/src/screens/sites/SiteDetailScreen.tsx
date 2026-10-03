@@ -401,9 +401,11 @@ interface SiteTargetSectionProps {
 
 function SiteTargetSection({ siteId, period, progress, canManage, onSchedule, editing, onStartEdit, onCancelEdit, onSaved }: SiteTargetSectionProps) {
   const { colors, spacing, radius, type } = useTheme();
-  const [plannedVisits, setPlannedVisits] = useState(String(progress.target?.plannedVisits ?? ""));
-  const [plannedHours, setPlannedHours] = useState(progress.target?.plannedHours != null ? String(progress.target.plannedHours) : "");
-  const [plannedAmount, setPlannedAmount] = useState(progress.target?.plannedAmount != null ? String(progress.target.plannedAmount) : "");
+  // Sans objectif ce mois-ci : valeurs reprises du devis du chantier.
+  const initial = progress.target ?? progress.suggestedTarget;
+  const [plannedVisits, setPlannedVisits] = useState(String(initial?.plannedVisits ?? ""));
+  const [plannedHours, setPlannedHours] = useState(initial?.plannedHours != null ? String(initial.plannedHours) : "");
+  const [plannedAmount, setPlannedAmount] = useState(initial?.plannedAmount != null ? String(initial.plannedAmount) : "");
   const [billingMode, setBillingMode] = useState<SiteBillingMode>(progress.target?.billingMode ?? "FLAT_RATE");
   const [saving, setSaving] = useState(false);
 

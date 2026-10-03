@@ -176,7 +176,9 @@ export function QuoteDetailScreen() {
           <InfoRow icon="calendar-outline" label="Émis le" value={dateFmt.format(new Date(quote.issueDate))} />
           {!!quote.validUntil && <InfoRow icon="hourglass-outline" label="Valable jusqu'au" value={dateFmt.format(new Date(quote.validUntil))} />}
           {!!quote.siteAddress && <InfoRow icon="location-outline" label="Chantier" value={quote.siteAddress} />}
-          {!!quote.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={quote.contactEmail} />}
+          {!!quote.contactName && <InfoRow icon="person-circle-outline" label="Contact" value={quote.contactName} />}
+          {!!quote.contactPhone && <InfoRow icon="call-outline" label="Téléphone" value={quote.contactPhone} />}
+          {!!quote.contactEmail && <InfoRow icon="mail-outline" label="E-mail" value={quote.contactEmail} />}
           {!!quote.assignedUser && <InfoRow icon="person-outline" label="Commercial" value={`${quote.assignedUser.firstName} ${quote.assignedUser.lastName}`} />}
           {!!quote.nextVersion && <InfoRow icon="git-branch-outline" label="Nouvelle version" value={quote.nextVersion.quoteNumber} />}
           {!!quote.previousVersionId && <InfoRow icon="git-commit-outline" label="Version précédente" value="Voir l'historique" />}
@@ -220,13 +222,28 @@ export function QuoteDetailScreen() {
             <Text style={[type.footnote, { color: colors.ink }]}>{currencyFmt.format(quote.vatAmount)}</Text>
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <Text style={[type.headline, { color: colors.ink }]}>Total TTC</Text>
-            <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(quote.totalTtc)}</Text>
+            <Text style={[quote.monthlyAmountHt > 0 ? type.callout : type.headline, { color: colors.ink }]}>
+              {quote.monthlyAmountHt > 0 ? "Base TTC (1 passage par ligne)" : "Total TTC"}
+            </Text>
+            <Text style={[quote.monthlyAmountHt > 0 ? type.callout : type.headline, { color: quote.monthlyAmountHt > 0 ? colors.ink : colors.accent }]}>
+              {currencyFmt.format(quote.totalTtc)}
+            </Text>
           </View>
           {quote.monthlyAmountHt > 0 && (
-            <Text style={[type.footnote, { color: colors.accentText, marginTop: 6 }]}>
-              Prévisionnel : {currencyFmt.format(quote.monthlyAmountHt)} HT / mois
-            </Text>
+            // Retour d'audit : pour un contrat récurrent, le « Total TTC »
+            // d'un seul passage ne correspond à rien de ce que le client
+            // paiera — le montant mensuel est donc mis en avant.
+            <View style={{ marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={[type.headline, { color: colors.ink }]}>Par mois</Text>
+                <Text style={[type.headline, { color: colors.accent }]}>
+                  {currencyFmt.format(Math.round(quote.monthlyAmountHt * (1 + quote.vatRate / 100) * 100) / 100)} TTC
+                </Text>
+              </View>
+              <Text style={[type.footnote, { color: colors.accentText, marginTop: 2 }]}>
+                soit {currencyFmt.format(quote.monthlyAmountHt)} HT / mois
+              </Text>
+            </View>
           )}
         </Card>
 

@@ -3,8 +3,31 @@ import { calendarDay, calendarDayEnd } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
-import { createNotification } from "../notifications/notifications.service";
-import { countBusinessDays, recordLeaveCancelled, recordLeaveTaken } from "../leave/leave.service";
+import { createNotification, markRelatedNotificationsRead } from "../notifications/notifications.service";
+import { countBusinessDays, getLeaveBalance, recordLeaveCancelled, recordLeaveTaken } from "../leave/leave.service";
+import { companyDateKey } from "../../utils/companyTime";
+
+const TYPE_LABELS: Record<AbsenceType, string> = {
+  PAID_LEAVE: "congé payé",
+  SICK_LEAVE: "arrêt maladie",
+  UNPAID_LEAVE: "congé sans solde",
+  WORK_ACCIDENT: "accident du travail",
+  PARENTAL_LEAVE: "congé maternité/paternité",
+  COMPENSATORY_REST: "repos compensateur",
+  OTHER: "absence",
+};
+
+// Jours calendaires (minuit UTC → 23:59 UTC) : lus en UTC, jamais convertis
+// en heure de Paris (la fin tomberait sur le lendemain).
+function dayLabel(d: Date): string {
+  const key = d.toISOString().slice(0, 10);
+  return `${key.slice(8, 10)}/${key.slice(5, 7)}/${key.slice(0, 4)}`;
+}
+function periodLabel(start: Date, end: Date): string {
+  const from = dayLabel(start);
+  const to = dayLabel(end);
+  return from === to ? `le ${from}` : `du ${from} au ${to}`;
+}
 
 interface Actor {
   userId: string;
@@ -87,7 +110,7 @@ async function resolveManagedTeamIds(managerId: string): Promise<string[]> {
 
 interface CreateAbsenceInput {
   userId?: string;
-  type: "PAID_LEAVE" | "SICK_LEAVE" | "UNPAID_LEAVE" | "OTHER";
+  type: AbsenceType;
   startDate: string;
   endDate: string;
   reason?: string;
@@ -105,6 +128,25 @@ export async function createAbsence(actor: Actor, input: CreateAbsenceInput) {
 
   const startDate = toDayStart(input.startDate);
   const endDate = toDayEnd(input.endDate);
+  if (endDate < startDate) throw ApiError.badRequest("La date de fin doit être après la date de début.");
+
+  // Demande faite par l'employé lui-même (retour d'audit) : jamais dans le
+  // passé, et un congé payé jamais au-delà du solde disponible — un
+  // responsable habilité peut, lui, régulariser ou accorder une anticipation.
+  const isOwnRequest = targetUserId === actor.userId || !canManageAbsences(actor);
+  if (isOwnRequest && input.startDate < companyDateKey(new Date()) && input.type !== AbsenceType.SICK_LEAVE) {
+    throw ApiError.badRequest("Une demande ne peut pas commencer dans le passé. Pour une régularisation, contactez la RH.");
+  }
+  if (isOwnRequest && input.type === AbsenceType.PAID_LEAVE) {
+    const balance = await getLeaveBalance(actor, targetUserId, new Date().getFullYear());
+    const days = countBusinessDays(startDate, endDate);
+    if (days > balance.remaining) {
+      const left = Math.max(0, balance.remaining);
+      throw ApiError.badRequest(
+        `Solde insuffisant : ${String(left).replace(".", ",")} jour${left >= 2 ? "s" : ""} disponible${left >= 2 ? "s" : ""} pour ${days} demandé${days >= 2 ? "s" : ""}. Pour un congé par anticipation, contactez la RH.`
+      );
+    }
+  }
 
   // Chevauchement avec une absence DÉJÀ APPROUVÉE du même utilisateur : refusé
   // d'emblée (incohérence réelle) — deux demandes PENDING qui se chevauchent
@@ -154,32 +196,18 @@ export async function createAbsence(actor: Actor, input: CreateAbsenceInput) {
     // La personne concernée est toujours prévenue quand un responsable
     // enregistre une absence pour elle (ex. arrêt maladie signalé par
     // téléphone et saisi par la RH depuis le planning).
-    const ABSENCE_TYPE_LABELS: Record<string, string> = {
-      PAID_LEAVE: "congé payé",
-      SICK_LEAVE: "arrêt maladie",
-      UNPAID_LEAVE: "congé sans solde",
-      OTHER: "absence",
-    };
     const author = await prisma.user.findUnique({ where: { id: actor.userId }, select: { firstName: true, lastName: true } });
-    // Jours calendaires (minuit UTC → 23:59 UTC) : lus en UTC, jamais
-    // convertis en heure de Paris (la fin tomberait sur le lendemain).
-    const dayLabel = (d: Date) => {
-      const key = d.toISOString().slice(0, 10);
-      return `${key.slice(8, 10)}/${key.slice(5, 7)}/${key.slice(0, 4)}`;
-    };
-    const from = dayLabel(startDate);
-    const to = dayLabel(endDate);
     await createNotification({
       userId: targetUserId,
       type: NotificationType.ABSENCE_DECIDED,
       title: "Absence enregistrée",
-      body: `${author ? `${author.firstName} ${author.lastName}` : "La RH"} a enregistré pour vous : ${ABSENCE_TYPE_LABELS[input.type] ?? "absence"} ${from === to ? `le ${from}` : `du ${from} au ${to}`}.`,
+      body: `${author ? `${author.firstName} ${author.lastName}` : "La RH"} a enregistré pour vous : ${TYPE_LABELS[input.type]} ${periodLabel(startDate, endDate)}.`,
       relatedEntityType: "Absence",
       relatedEntityId: absence.id,
     });
     await notifyMissionConflicts(absence.id, targetUserId, startDate, endDate);
   } else {
-    await notifyAbsenceManagers(absence.id, target);
+    await notifyAbsenceManagers(absence.id, target, `${TYPE_LABELS[input.type]} ${periodLabel(startDate, endDate)}`);
   }
 
   return presentAbsence(absence);
@@ -190,7 +218,8 @@ export async function createAbsence(actor: Actor, input: CreateAbsenceInput) {
 // décide jamais, un précédent réglage l'avait par erreur ajouté ici aussi).
 async function notifyAbsenceManagers(
   absenceId: string,
-  target: { firstName: string; lastName: string }
+  target: { firstName: string; lastName: string },
+  what: string
 ): Promise<void> {
   const managers = await prisma.user.findMany({ where: { role: { in: MANAGE_ABSENCES_ROLES }, isActive: true }, select: { id: true } });
   await Promise.all(
@@ -199,7 +228,7 @@ async function notifyAbsenceManagers(
         userId: m.id,
         type: NotificationType.ABSENCE_REQUESTED,
         title: "Demande d'absence",
-        body: `${target.firstName} ${target.lastName} a demandé une absence à valider.`,
+        body: `${target.firstName} ${target.lastName} demande un ${what}, à valider.`,
         relatedEntityType: "Absence",
         relatedEntityId: absenceId,
       })
@@ -240,7 +269,9 @@ async function notifyMissionConflicts(absenceId: string, userId: string, startDa
   });
   const recipientIds = new Set<string>([
     ...planners.map((p) => p.id),
-    ...conflictingMissions.flatMap((m) => [m.createdById, ...(m.site.managerId ? [m.site.managerId] : [])]),
+    // Seulement ceux qui peuvent réaffecter (retour d'audit : le chef d'équipe
+    // recevait la notification mais l'écran lui était interdit → erreur).
+    ...conflictingMissions.map((m) => m.createdById),
   ]);
   recipientIds.delete(userId);
   const count = conflictingMissions.length;
@@ -251,7 +282,7 @@ async function notifyMissionConflicts(absenceId: string, userId: string, startDa
         userId: recipientId,
         type: NotificationType.ABSENCE_CONFLICT,
         title: count > 1 ? `${count} missions à réaffecter` : "Mission à réaffecter",
-        body: `${name} sera absent(e) : ${count > 1 ? `${count} missions prévues sont` : `la mission « ${conflictingMissions[0]!.title} » est`} à confier à un autre employé.`,
+        body: `Absence de ${name} : ${count > 1 ? `${count} missions prévues sont` : `la mission « ${conflictingMissions[0]!.title} » est`} à confier à un autre employé.`,
         relatedEntityType: "MissionsToReassign",
         relatedEntityId: absenceId,
       })
@@ -389,11 +420,14 @@ export async function decideAbsence(
     title: input.status === AbsenceStatus.APPROVED ? "Absence approuvée" : "Absence refusée",
     body:
       input.status === AbsenceStatus.APPROVED
-        ? "Votre demande d'absence a été approuvée."
-        : `Votre demande d'absence a été refusée${input.decisionNote ? " : " + input.decisionNote : "."}`,
+        ? `Votre demande (${TYPE_LABELS[absence.type]} ${periodLabel(absence.startDate, absence.endDate)}) a été approuvée.`
+        : `Votre demande (${TYPE_LABELS[absence.type]} ${periodLabel(absence.startDate, absence.endDate)}) a été refusée${input.decisionNote ? " : " + input.decisionNote : "."}`,
     relatedEntityType: "Absence",
     relatedEntityId: id,
   });
+
+  // La demande traitée ne reste pas « à valider » chez les autres responsables.
+  await markRelatedNotificationsRead("Absence", id, NotificationType.ABSENCE_REQUESTED);
 
   if (input.status === AbsenceStatus.APPROVED) {
     await notifyMissionConflicts(id, absence.userId, absence.startDate, absence.endDate);
@@ -453,16 +487,40 @@ export async function cancelAbsence(actor: Actor, id: string) {
     metadata: { recreditedDays },
   });
 
+  const what = `${TYPE_LABELS[absence.type]} ${periodLabel(absence.startDate, absence.endDate)}`;
+  const recredit = recreditedDays > 0 ? ` — ${recreditedDays} jour${recreditedDays >= 2 ? "s" : ""} recrédité${recreditedDays >= 2 ? "s" : ""}` : "";
   if (!isOwnRequest) {
     await createNotification({
       userId: absence.userId,
       type: NotificationType.ABSENCE_CANCELLED,
       title: "Congé annulé",
-      body: recreditedDays > 0 ? `Votre congé a été annulé — ${recreditedDays} jour(s) recrédité(s).` : "Votre congé a été annulé.",
+      body: `Votre ${what} a été annulé${recredit}.`,
       relatedEntityType: "Absence",
       relatedEntityId: id,
     });
+  } else {
+    // L'employé annule lui-même : les responsables sont prévenus (retour
+    // d'audit : le congé disparaissait du planning sans que personne le sache).
+    const person = await prisma.user.findUnique({ where: { id: absence.userId }, select: { firstName: true, lastName: true } });
+    const managers = await prisma.user.findMany({
+      where: { role: { in: MANAGE_ABSENCES_ROLES }, isActive: true, id: { not: actor.userId } },
+      select: { id: true },
+    });
+    const wasPending = absence.status === AbsenceStatus.PENDING;
+    await Promise.all(
+      managers.map((m) =>
+        createNotification({
+          userId: m.id,
+          type: NotificationType.ABSENCE_CANCELLED,
+          title: wasPending ? "Demande d'absence annulée" : "Congé annulé par le salarié",
+          body: `${person ? `${person.firstName} ${person.lastName}` : "Un salarié"} a annulé : ${what}${recredit}.`,
+          relatedEntityType: "Absence",
+          relatedEntityId: id,
+        })
+      )
+    );
   }
+  await markRelatedNotificationsRead("Absence", id, NotificationType.ABSENCE_REQUESTED);
 
   return presentAbsence(updated);
 }

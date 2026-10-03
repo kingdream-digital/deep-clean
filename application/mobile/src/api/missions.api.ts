@@ -46,6 +46,9 @@ export interface Mission {
   endTime: string;
   instructions: string | null;
   status: MissionStatus;
+  // Intervention exceptionnelle (hors planning habituel) : nuit, dimanche et
+  // jours fériés majorés à 100 %.
+  isExceptional?: boolean;
   createdAt: string;
   updatedAt: string;
   site: {
@@ -121,6 +124,7 @@ export interface CreateMissionInput {
   startTime: string;
   endTime: string;
   instructions?: string;
+  isExceptional?: boolean;
   assigneeIds: string[];
   leadId?: string;
   standardId?: string;
@@ -146,6 +150,8 @@ export interface UpdateMissionInput {
   startTime?: string;
   endTime?: string;
   instructions?: string | null;
+  siteId?: string;
+  isExceptional?: boolean;
 }
 
 export async function updateMission(id: string, input: UpdateMissionInput): Promise<Mission> {

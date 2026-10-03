@@ -6,6 +6,7 @@ import { clearCache } from "../offline/cache";
 import { clearQueue } from "../offline/queue";
 import { startSyncManager, stopSyncManager } from "../offline/syncManager";
 import { registerForPushNotificationsAsync, unregisterCurrentPushToken } from "../notifications/push";
+import { subscribeToDataChanges } from "../sync/liveSync";
 
 type Status = "booting" | "authenticated" | "unauthenticated";
 
@@ -17,6 +18,8 @@ interface AuthState {
   // message explicite plutôt que de renvoyer silencieusement à l'écran de
   // connexion (état prévu par le cahier des charges, jusque-là jamais déclenché).
   sessionExpired: boolean;
+  // Message précis affiché à l'écran de connexion (ex. compte désactivé par la RH).
+  endMessage?: string;
 }
 
 interface AuthContextValue extends AuthState {
@@ -47,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ status: "authenticated", user: session.user, sessionExpired: false });
   }, []);
 
-  const clearSession = useCallback(async (reason?: "expired") => {
+  const clearSession = useCallback(async (reason?: "expired", endMessage?: string) => {
     accessTokenRef.current = null;
     refreshTokenRef.current = null;
     await clearPersistedRefreshToken();
@@ -63,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // le pointage. On vide donc la file à chaque fin de session, comme le
     // cache.
     await clearQueue();
-    setState({ status: "unauthenticated", user: null, sessionExpired: reason === "expired" });
+    setState({ status: "unauthenticated", user: null, sessionExpired: reason === "expired", endMessage });
   }, []);
 
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
@@ -92,6 +95,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
   }, [refreshAccessToken, clearSession]);
+
+  // Compte modifié ailleurs (rôle, nom, désactivation par la RH) : appliqué
+  // tout de suite sur cet appareil, sans attendre une reconnexion (retour
+  // d'audit : les anciens menus restaient affichés).
+  useEffect(() => {
+    if (state.status !== "authenticated") return undefined;
+    return subscribeToDataChanges(() => {
+      authApi
+        .fetchCurrentUser()
+        .then((fresh) =>
+          setState((prev) =>
+            prev.status === "authenticated" && prev.user && JSON.stringify({ ...prev.user, ...fresh }) !== JSON.stringify(prev.user)
+              ? { ...prev, user: { ...prev.user, ...fresh } }
+              : prev
+          )
+        )
+        .catch((err: unknown) => {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          const message = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
+          if (status === 403 && message?.includes("désactivé")) void clearSession(undefined, message);
+        });
+    });
+  }, [state.status, clearSession]);
 
   // Restauration de session au démarrage si un refresh token a été persisté
   // (c'est-à-dire si "Rester connecté" avait été activé à la dernière connexion).

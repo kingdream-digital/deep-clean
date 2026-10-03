@@ -43,7 +43,77 @@ const ACTION_LABELS: Record<string, string> = {
   ABSENCE_REJECTED: "Absence refusée",
   ABSENCE_MISSION_CONFLICT_DETECTED: "Conflit absence/mission détecté",
   MESSAGE_SENT: "Message envoyé",
+  ABSENCE_CANCELLED: "Absence annulée",
+  LEAVE_ADJUSTMENT: "Solde de congés ajusté",
+  LEAVE_ACCRUAL_VALIDATED: "Congés acquis validés",
+  LEAVE_ACCRUAL_CORRECTED: "Congés acquis corrigés",
+  ANNOUNCEMENT_POSTED: "Actualité publiée",
+  ANNOUNCEMENT_DELETED: "Actualité supprimée",
+  CONVERSATION_GROUP_CREATED: "Groupe de discussion créé",
+  CONVERSATION_LEFT: "Départ d'un groupe",
+  CONVERSATION_PARTICIPANTS_ADDED: "Participants ajoutés au groupe",
+  CONVERSATION_PARTICIPANT_REMOVED: "Participant retiré du groupe",
+  CONVERSATION_RENAMED: "Groupe renommé",
+  EMPLOYEE_DOCUMENT_UPLOADED: "Document salarié ajouté",
+  EMPLOYEE_DOCUMENT_DELETED: "Document salarié supprimé",
+  EMPLOYEE_DOSSIER_EXPORTED: "Dossier salarié exporté",
+  MISSION_REASSIGNED: "Mission réaffectée",
+  MISSION_STATUS_CANCELLED: "Mission annulée",
+  MISSION_STANDARD_DOCUMENT_ATTACHED: "Document joint à la mission",
+  MISSION_STANDARD_DOCUMENT_REMOVED: "Document retiré de la mission",
+  STANDARD_DOCUMENT_ATTACHED: "Document joint au standard",
+  STANDARD_DOCUMENT_REMOVED: "Document retiré du standard",
+  SITE_PHOTO_UPDATED: "Photo du chantier modifiée",
+  SITE_PHOTO_REMOVED: "Photo du chantier supprimée",
+  SITE_TARGET_SET: "Objectif du chantier défini",
+  PROSPECT_CREATED: "Prospect créé",
+  PROSPECT_UPDATED: "Prospect modifié",
+  PROSPECT_CONVERTED_TO_CLIENT: "Prospect transformé en client",
+  CLIENT_CREATED: "Client créé",
+  CLIENT_UPDATED: "Client modifié",
+  QUOTE_CREATED: "Devis créé",
+  QUOTE_UPDATED: "Devis modifié",
+  QUOTE_SUBMITTED_FOR_VALIDATION: "Devis soumis à validation",
+  QUOTE_VALIDATED: "Devis validé",
+  QUOTE_SENT: "Devis envoyé",
+  QUOTE_ACCEPTED: "Devis accepté",
+  QUOTE_REJECTED: "Devis refusé",
+  QUOTE_EXPIRED: "Devis expiré",
+  QUOTE_FOLLOW_UP: "Relance du devis",
+  QUOTE_NEW_VERSION: "Nouvelle version du devis",
+  INVOICE_CREATED: "Facture créée",
+  INVOICE_UPDATED: "Facture modifiée",
+  INVOICE_VALIDATED: "Facture validée",
+  INVOICE_SENT: "Facture envoyée",
+  INVOICE_PAID: "Facture payée",
+  INVOICE_CANCELLED: "Facture annulée",
 };
+
+/** Libellé du type d'élément concerné par une action du journal. */
+export const ENTITY_LABELS: Record<string, string> = {
+  User: "Compte",
+  Site: "Chantier",
+  Mission: "Mission",
+  Problem: "Signalement",
+  TimeEntry: "Pointage",
+  Absence: "Absence",
+  CleaningStandard: "Standard",
+  Announcement: "Actualité",
+  Conversation: "Discussion",
+  EmployeeDocument: "Document salarié",
+  Message: "Message",
+  Prospect: "Prospect",
+  Client: "Client",
+  Quote: "Devis",
+  Invoice: "Facture",
+};
+
+/** « Compte · Marie Dupont » — type de l'élément suivi de son nom quand il est connu. */
+export function formatEntity(entityType: string | null, entityLabel?: string | null): string {
+  if (!entityType) return "—";
+  const typeLabel = ENTITY_LABELS[entityType] ?? entityType;
+  return entityLabel ? `${typeLabel} · ${entityLabel}` : typeLabel;
+}
 
 export function formatAction(action: string): string {
   if (ACTION_LABELS[action]) return ACTION_LABELS[action];

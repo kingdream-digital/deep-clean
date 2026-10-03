@@ -6,6 +6,7 @@ import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
@@ -55,6 +56,7 @@ function defaultValidUntil(): Date {
 
 export function QuoteFormScreen() {
   const { colors, spacing, radius, type } = useTheme();
+  const { isDesktopWeb } = useResponsive();
   const { user } = useAuth();
   const route = useRoute<Route>();
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
@@ -96,6 +98,18 @@ export function QuoteFormScreen() {
           : []),
       ]);
       setClients(clientsRes.items);
+      // Devis lancé depuis la fiche client : coordonnées préremplies tout de
+      // suite (avant, les champs restaient vides à l'écran).
+      if (!isEdit && route.params?.clientId) {
+        const preset = clientsRes.items.find((c) => c.id === route.params?.clientId);
+        if (preset) {
+          setContactName([preset.contactFirstName, preset.contactLastName].filter(Boolean).join(" "));
+          setContactEmail(preset.email ?? "");
+          setContactPhone(preset.phone ?? "");
+          setBillingAddress(preset.billingAddress ?? "");
+          setSiret(preset.siret ?? "");
+        }
+      }
       if (canReassign) setCommercials(commercialLists.flatMap((r) => r.items));
 
       if (isEdit && quoteId) {
@@ -181,7 +195,7 @@ export function QuoteFormScreen() {
     setSaving(true);
     try {
       const payload = {
-        assignedUserId: canReassign ? (assignedUserId === NONE ? null : assignedUserId) : undefined,
+        assignedUserId: canReassign ? (assignedUserId === NONE ? (user?.id ?? null) : assignedUserId) : undefined,
         validUntil: hasValidUntil ? validUntil.toISOString() : undefined,
         subject: subject.trim() || undefined,
         siteAddress: siteAddress.trim() || undefined,
@@ -229,7 +243,7 @@ export function QuoteFormScreen() {
 
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Client</Text>
           <Card padded={false}>
@@ -271,7 +285,7 @@ export function QuoteFormScreen() {
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <View style={{ flex: 1 }}>
                   <TextField
-                    label="Quantité"
+                    label={item.frequency === "ONE_TIME" ? "Quantité" : "Quantité par passage"}
                     keyboardType="decimal-pad"
                     value={String(item.quantity)}
                     onChangeText={(v) => updateItem(item.key, { quantity: Number(v.replace(",", ".")) || 0 })}
@@ -415,13 +429,25 @@ export function QuoteFormScreen() {
             <Text style={[type.footnote, { color: colors.ink }]}>{currencyFmt.format(quoteTotals.vatAmount)}</Text>
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <Text style={[type.headline, { color: colors.ink }]}>Total TTC</Text>
-            <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(quoteTotals.totalTtc)}</Text>
+            <Text style={[quoteTotals.monthlyAmountHt > 0 ? type.callout : type.headline, { color: colors.ink }]}>
+              {quoteTotals.monthlyAmountHt > 0 ? "Base TTC (1 passage par ligne)" : "Total TTC"}
+            </Text>
+            <Text style={[quoteTotals.monthlyAmountHt > 0 ? type.callout : type.headline, { color: quoteTotals.monthlyAmountHt > 0 ? colors.ink : colors.accent }]}>
+              {currencyFmt.format(quoteTotals.totalTtc)}
+            </Text>
           </View>
           {quoteTotals.monthlyAmountHt > 0 && (
-            <Text style={[type.footnote, { color: colors.accentText, marginTop: 6 }]}>
-              Prévisionnel : {currencyFmt.format(quoteTotals.monthlyAmountHt)} HT / mois
-            </Text>
+            <View style={{ marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={[type.headline, { color: colors.ink }]}>Par mois</Text>
+                <Text style={[type.headline, { color: colors.accent }]}>
+                  {currencyFmt.format(Math.round(quoteTotals.monthlyAmountHt * (1 + (Number(vatRate) || 0) / 100) * 100) / 100)} TTC
+                </Text>
+              </View>
+              <Text style={[type.footnote, { color: colors.accentText, marginTop: 2 }]}>
+                soit {currencyFmt.format(quoteTotals.monthlyAmountHt)} HT / mois
+              </Text>
+            </View>
           )}
         </Card>
 

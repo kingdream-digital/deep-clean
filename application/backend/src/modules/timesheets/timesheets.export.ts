@@ -106,7 +106,7 @@ export async function exportTimeEntriesExcel(actor: Actor, filters: ListFilters)
       employee: v.name,
       validated: Number(v.validated.toFixed(2)),
       pending: Number(v.pending.toFixed(2)),
-      total: Number((v.validated + v.pending).toFixed(2)),
+      total: Number(v.validated.toFixed(2)) + Number(v.pending.toFixed(2)),
     });
   }
 

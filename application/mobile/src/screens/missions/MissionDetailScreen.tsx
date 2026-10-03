@@ -195,6 +195,7 @@ export function MissionDetailScreen() {
     try {
       const updated = await updateMission(missionId, { instructions: instructionsDraft.trim() || null });
       setMission(updated);
+      Alert.alert("Consigne enregistrée", "L'équipe affectée à cette mission a été prévenue.");
     } catch (err) {
       Alert.alert("Enregistrement impossible", extractErrorMessage(err));
     } finally {

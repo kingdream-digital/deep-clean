@@ -1,5 +1,7 @@
 import React, { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { pickWebImages } from "../../utils/webImagePicker";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, RouteProp } from "@react-navigation/native";
@@ -16,7 +18,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { fontFamily } from "../../theme/typography";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
-import { addProblemComment, getProblem, problemPhotoUrl, setProblemStatus } from "../../api/problems.api";
+import { addProblemComment, getProblem, problemPhotoUrl, setProblemStatus, uploadProblemPhoto } from "../../api/problems.api";
 import type { Problem, ProblemStatus } from "../../api/problems.api";
 import { downloadAndSharePhoto } from "../../utils/downloadPhoto";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
@@ -107,8 +109,38 @@ export function ProblemDetailScreen() {
       setProblem(updated);
     } catch (err) {
       setError(extractErrorMessage(err));
+      // Un autre responsable a pu agir entre-temps : état réel rechargé.
+      void load();
     } finally {
       setStatusLoading(false);
+    }
+  }
+
+  // Ajouter une photo après la création (retour d'audit : impossible jusque-là).
+  const [addingPhoto, setAddingPhoto] = useState(false);
+  async function handleAddPhoto() {
+    try {
+      let assets: { uri: string; fileName?: string | null; mimeType?: string | null; file?: File }[] = [];
+      if (Platform.OS === "web") {
+        assets = await pickWebImages({ multiple: true });
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert("Accès refusé", "Autorisez l'accès aux photos dans les réglages pour en ajouter.");
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8, allowsMultipleSelection: true, selectionLimit: 5 });
+        if (result.canceled) return;
+        assets = result.assets;
+      }
+      if (assets.length === 0) return;
+      setAddingPhoto(true);
+      for (const asset of assets) await uploadProblemPhoto(problemId, asset);
+      await load();
+    } catch (err) {
+      Alert.alert("Ajout impossible", extractErrorMessage(err));
+    } finally {
+      setAddingPhoto(false);
     }
   }
 
@@ -244,6 +276,12 @@ export function ProblemDetailScreen() {
               </View>
             )}
           </>
+        )}
+
+        {problem.status !== "VALIDATED" && (
+          <View style={{ marginTop: spacing.sm }}>
+            <Button label="Ajouter une photo" variant="secondary" size="md" icon="camera-outline" loading={addingPhoto} onPress={handleAddPhoto} />
+          </View>
         )}
 
         {canManage && nextStep && (
