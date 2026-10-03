@@ -1,5 +1,5 @@
 import React from "react";
-import { ImageBackground, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
@@ -16,6 +16,9 @@ import { TimesheetWidget } from "../../components/TimesheetWidget";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
 import { useOnboardingScrollProps } from "../../onboarding/useOnboardingScrollProps";
 import { BrandLockup } from "../../components/BrandLockup";
+import { BrandEmblem } from "../../components/BrandEmblem";
+import { AnimatedWaves } from "../../components/AnimatedWaves";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
@@ -38,7 +41,12 @@ import { extractErrorMessage } from "../../api/client";
 // Photo de remplissage (licence Unsplash, libre pour usage commercial) — voir
 // assets/photos/README.md : à remplacer par une vraie photo de l'entreprise
 // avant publication sur les stores.
-const homeBanner = require("../../../assets/photos/home-banner.jpg");
+const todayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+
+/** « LUNDI 5 OCTOBRE » (« 1ER » le premier du mois). */
+function todayLabel(): string {
+  return todayFmt.format(new Date()).replace(/(^|\s)1(?=\s)/, "$11er").toUpperCase();
+}
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -209,15 +217,17 @@ export function HomeScreen() {
         contentContainerStyle={{ paddingBottom: spacing.xxl }}
         refreshControl={<RefreshControl refreshing={state === "loading" && data.kpis.length > 0} onRefresh={reload} tintColor={colors.accent} />}
       >
-        {/* Bandeau photo — voir assets/photos/README.md (placeholder libre de
-            droits, à remplacer par une vraie photo de l'entreprise). */}
-        <ImageBackground source={homeBanner} style={styles.banner} imageStyle={{ opacity: 0.9 }}>
-          <LinearGradient
-            colors={["rgba(11,59,73,0.55)", "rgba(16,19,34,0.55)", "rgba(16,19,34,0.92)"]}
-            style={StyleSheet.absoluteFill}
-          />
+        {/* En-tête aux couleurs du logo (retour explicite du client : un
+            accueil « waouh » avec le vrai logo) : dégradé marine → bleu, grand
+            médaillon en filigrane, vagues qui ondulent et se fondent dans la
+            page. */}
+        <View style={styles.hero}>
+          <LinearGradient colors={["#1F2D69", "#24478A", "#1E86B8"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <View style={styles.heroWatermark} pointerEvents="none">
+            <BrandEmblem size={230} opacity={0.13} />
+          </View>
           <View style={[styles.bannerRow, { paddingHorizontal: spacing.lg }]}>
-            <BrandLockup height={28} variant="white" />
+            <BrandLockup height={30} variant="white" />
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <PressableScale
                 onPress={() => tabNavigation?.navigate("Messagerie")}
@@ -253,17 +263,19 @@ export function HomeScreen() {
               </PressableScale>
             </View>
           </View>
-          <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>
-            <Text style={[type.largeTitle, { color: "#FFFFFF" }]}>
+          <Animated.View entering={FadeInDown.duration(500).delay(80)} style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+            <Text style={[type.overline, { color: "rgba(255,255,255,0.7)", letterSpacing: 1.2 }]}>{todayLabel()}</Text>
+            <Text style={[type.largeTitle, { color: "#FFFFFF", marginTop: 4 }]}>
               {greeting()}, {user.firstName}
             </Text>
             <Text style={[type.subhead, { color: "rgba(255,255,255,0.85)", marginTop: spacing.xxs }]}>
               Voici votre programme du jour.
             </Text>
-          </View>
-        </ImageBackground>
+          </Animated.View>
+          <AnimatedWaves height={72} pageColor={colors.background} />
+        </View>
 
-        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xs }}>
         {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
         {state === "error" && (
           <View style={{ marginTop: spacing.lg }}>
@@ -499,7 +511,8 @@ const styles = StyleSheet.create({
   // `height` fixe (pas juste `minHeight`) + `overflow: "hidden"` : la photo
   // de fond reste bornée à ce bandeau du haut, jamais un fond qui pourrait
   // déborder sur le reste de la page (retour explicite du client).
-  banner: { width: "100%", height: 200, overflow: "hidden", justifyContent: "flex-end" },
+  hero: { width: "100%", overflow: "hidden", paddingTop: 6 },
+  heroWatermark: { position: "absolute", right: -60, top: -30 },
   bannerRow: {
     flexDirection: "row",
     alignItems: "center",

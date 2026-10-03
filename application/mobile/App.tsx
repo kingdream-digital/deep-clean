@@ -1,6 +1,7 @@
 // Doit être le tout premier import du point d'entrée (exigence react-native-reanimated).
 import "react-native-reanimated";
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
@@ -16,6 +17,8 @@ import { OnboardingProvider } from "./src/onboarding/OnboardingContext";
 import { OnboardingTargetProvider } from "./src/onboarding/OnboardingTargetContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { SplashGate } from "./src/components/SplashGate";
+import { BrandIntro } from "./src/components/BrandIntro";
+import { claimDailyIntro } from "./src/components/introStorage";
 import { AlertHost } from "./src/components/AlertHost";
 import { OnboardingOverlay } from "./src/components/OnboardingOverlay";
 import { injectWebScrollbarStyle } from "./src/utils/webScrollbar";
@@ -38,11 +41,19 @@ function AppContent() {
     Inter_700Bold,
   });
 
-  if (!fontsLoaded) {
+  // Animation du logo, une fois par jour : décidée avant le premier rendu de
+  // l'app pour qu'aucun écran n'apparaisse puis disparaisse derrière elle.
+  const [intro, setIntro] = useState<"checking" | "play" | "done">("checking");
+  useEffect(() => {
+    void claimDailyIntro().then((play) => setIntro(play ? "play" : "done"));
+  }, []);
+
+  if (!fontsLoaded || intro === "checking") {
     return <SplashGate />;
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <AuthProvider>
       <StatusBarBridge />
       <OnboardingTargetProvider>
@@ -53,6 +64,8 @@ function AppContent() {
       </OnboardingTargetProvider>
       <AlertHost />
     </AuthProvider>
+    {intro === "play" && <BrandIntro onDone={() => setIntro("done")} />}
+    </View>
   );
 }
 
