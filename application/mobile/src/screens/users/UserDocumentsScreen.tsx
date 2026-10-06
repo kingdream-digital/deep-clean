@@ -3,7 +3,7 @@ import { Platform, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
+import { useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -17,10 +17,12 @@ import type { EmployeeDocument, LocalDocumentAsset } from "../../api/documents.a
 import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
 import { formatFileSize } from "../../utils/fileSize";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ UserDocuments: { userId: string; fullName: string } }, "UserDocuments">;
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dayFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 // Gestion RH/direction de l'espace documents d'un collaborateur (retour
 // explicite du client) : déposer un document (contrat, avenant...) dans son
@@ -39,16 +41,17 @@ export function UserDocumentsScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setItems(await listUserDocuments(userId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [userId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

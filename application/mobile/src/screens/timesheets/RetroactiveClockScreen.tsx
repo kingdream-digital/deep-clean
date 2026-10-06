@@ -11,8 +11,9 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { createRetroactiveTimeEntry } from "../../api/timesheets.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 function combine(date: Date, time: Date): Date {
@@ -35,19 +36,23 @@ export function RetroactiveClockScreen() {
   const { isDesktopWeb } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
 
-  const [date, setDate] = useState<Date>(roundedNow(0));
+  // Date de l'ARRIVÉE (il y a 2 h) : juste après minuit, c'est la veille.
+  const [date, setDate] = useState<Date>(roundedNow(-120));
   const [startTime, setStartTime] = useState<Date>(roundedNow(-120));
   const [endTime, setEndTime] = useState<Date>(roundedNow(0));
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const endsNextDay = combine(date, endTime) <= combine(date, startTime);
+
   async function handleSave() {
     setError(null);
     const clockInDate = combine(date, startTime);
-    const clockOutDate = combine(date, endTime);
-    if (clockOutDate <= clockInDate) {
-      setError("L'heure de sortie doit être postérieure à l'heure d'entrée.");
+    // Sortie avant l'arrivée : vacation de nuit qui se termine le lendemain.
+    const clockOutDate = endsNextDay ? new Date(combine(date, endTime).getTime() + 86_400_000) : combine(date, endTime);
+    if (clockOutDate.getTime() === clockInDate.getTime()) {
+      setError("L'heure de sortie doit être différente de l'heure d'arrivée.");
       return;
     }
 
@@ -95,7 +100,13 @@ export function RetroactiveClockScreen() {
             <DateTimeField label="Arrivée" mode="time" value={startTime} onChange={setStartTime} formatValue={(d) => timeFmt.format(d)} />
           </View>
           <View style={{ flex: 1 }}>
-            <DateTimeField label="Sortie" mode="time" value={endTime} onChange={setEndTime} formatValue={(d) => timeFmt.format(d)} />
+            <DateTimeField
+              label={endsNextDay ? "Sortie (le lendemain)" : "Sortie"}
+              mode="time"
+              value={endTime}
+              onChange={setEndTime}
+              formatValue={(d) => timeFmt.format(d)}
+            />
           </View>
         </View>
 
@@ -107,7 +118,7 @@ export function RetroactiveClockScreen() {
           multiline
         />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label="Enregistrer ce pointage" onPress={handleSave} loading={saving} />
       </ScrollView>

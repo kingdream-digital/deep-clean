@@ -1,6 +1,8 @@
 import PDFDocument from "pdfkit";
-import { env } from "../../config/env";
-import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination } from "../../utils/pdfBrand";
+import { companyDateLabel } from "../../utils/companyTime";
+import { companyFooterLine, getCompanyProfile, sellerBlockLines, sirenOf } from "../einvoicing/companyProfile";
+import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, ensureSpace, finalizePagination, formatEuroPdf } from "../../utils/pdfBrand";
+import { drawCommercialHeader, drawInfoStrip, drawNoteBox, drawParties, drawTableHeader, drawTotals } from "../../utils/pdfCommercial";
 import type { QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit } from "@prisma/client";
 
 interface QuotePdfItem {
@@ -34,15 +36,17 @@ interface QuotePdfData {
   vatAmount: number;
   totalTtc: number;
   monthlyAmountHt: number;
-  client: { companyName: string };
+  client: { companyName: string; siren?: string | null; siret?: string | null };
   items: QuotePdfItem[];
   // Volontairement absent de cette interface : `internalNotes` n'est jamais
   // lu ici (cahier des charges §9/§15 : "Les notes internes ne doivent
   // JAMAIS apparaître dans le PDF client").
 }
 
-const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
-const dateFmt = (d: Date) => d.toLocaleDateString("fr-FR");
+// Date d'émission : instant, lu en heure de Paris.
+const dateFmt = (d: Date) => companyDateLabel(d);
+// Échéance / validité : le moment choisi dans l'app, lu en heure de Paris.
+const calendarDateFmt = (d: Date) => companyDateLabel(d);
 
 const UNIT_LABELS: Record<QuoteItemUnit, string> = {
   HOUR: "heure",
@@ -64,25 +68,21 @@ const FREQUENCY_LABELS: Record<QuoteItemFrequency, string> = {
   CUSTOM: "Personnalisée",
 };
 
-const COL = { desc: PAGE_LEFT, unit: PAGE_LEFT + 210, qty: PAGE_LEFT + 275, price: PAGE_LEFT + 325, discount: PAGE_LEFT + 400, total: PAGE_LEFT + 450 };
-const COL_W = { desc: 205, unit: 60, qty: 45, price: 70, discount: 45, total: 65 };
-
-function drawItemsHeaderRow(doc: PDFKit.PDFDocument, y: number): void {
-  doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 20).fill(BRAND.accentDeep);
-  doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(8.5);
-  doc.text("PRESTATION", COL.desc + 8, y + 6, { width: COL_W.desc });
-  doc.text("UNITÉ", COL.unit, y + 6, { width: COL_W.unit, align: "right" });
-  doc.text("QTÉ", COL.qty, y + 6, { width: COL_W.qty, align: "right" });
-  doc.text("PU HT", COL.price, y + 6, { width: COL_W.price, align: "right" });
-  doc.text("REMISE", COL.discount, y + 6, { width: COL_W.discount, align: "right" });
-  doc.text("TOTAL HT", COL.total, y + 6, { width: COL_W.total - 8, align: "right" });
-}
+const COL = { desc: PAGE_LEFT + 12, unit: PAGE_LEFT + 222, qty: PAGE_LEFT + 285, price: PAGE_LEFT + 330, discount: PAGE_LEFT + 400, total: PAGE_LEFT + 445 };
+const COL_W = { desc: 205, unit: 58, qty: 40, price: 66, discount: 42, total: 58 };
+const HEADER_COLUMNS = [
+  { label: "PRESTATION", x: COL.desc, width: COL_W.desc },
+  { label: "UNITÉ", x: COL.unit, width: COL_W.unit, align: "right" as const },
+  { label: "QTÉ", x: COL.qty, width: COL_W.qty, align: "right" as const },
+  { label: "PU HT", x: COL.price, width: COL_W.price, align: "right" as const },
+  { label: "REMISE", x: COL.discount, width: COL_W.discount, align: "right" as const },
+  { label: "TOTAL HT", x: COL.total, width: COL_W.total, align: "right" as const },
+];
 
 /**
- * PDF du devis envoyé au client final (cahier des charges §15) — logo,
- * coordonnées de l'entreprise, numéro/dates, client, prestations, totaux,
- * conditions, mentions légales. Ne lit jamais `internalNotes` (voir
- * QuotePdfData ci-dessus) : impossible d'exposer par erreur une note interne.
+ * PDF du devis envoyé au client final, aux couleurs du logo. Ne lit jamais
+ * `internalNotes` (voir QuotePdfData ci-dessus) : impossible d'exposer par
+ * erreur une note interne.
  */
 export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
@@ -92,132 +92,107 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
   });
 
-  const title = `Devis ${quote.quoteNumber}`;
-  const subtitle = quote.subject ?? quote.client.companyName;
-  doc.on("pageAdded", () => drawHeader(doc, title, subtitle));
-  drawHeader(doc, title, subtitle);
+  const company = getCompanyProfile();
+  doc.on("pageAdded", () => drawCommercialHeader(doc, "DEVIS", quote.quoteNumber, quote.client.companyName));
+  drawCommercialHeader(doc, "DEVIS", quote.quoteNumber, quote.subject ?? `Émis le ${dateFmt(quote.issueDate)}`);
 
-  // Bloc "méta" (dates) à gauche, client à droite — deux colonnes côte à côte.
-  const metaY = doc.y;
-  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
-  doc.text(`Date d'émission : ${dateFmt(quote.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
-  if (quote.validUntil) {
-    doc.text(`Valable jusqu'au : ${dateFmt(quote.validUntil)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  }
-  if (quote.siteAddress) {
-    doc.text(`Chantier : ${quote.siteAddress}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  }
+  const clientSiren = sirenOf({ siren: quote.client.siren, siret: quote.siret ?? quote.client.siret });
+  drawParties(doc, sellerBlockLines(company), {
+    name: quote.client.companyName,
+    lines: [
+      quote.contactName ? `À l'attention de ${quote.contactName}` : undefined,
+      quote.billingAddress ?? undefined,
+      [quote.contactPhone, quote.contactEmail].filter(Boolean).join(" · ") || undefined,
+      quote.siret ? `SIRET ${quote.siret}` : clientSiren ? `SIREN ${clientSiren}` : undefined,
+    ].filter(Boolean) as string[],
+  });
 
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("CLIENT", PAGE_LEFT + 300, metaY, { width: 215 });
-  doc.font("Helvetica").fontSize(9).fillColor(BRAND.inkSecondary);
-  doc.text(quote.client.companyName, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (quote.contactName) doc.text(quote.contactName, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (quote.billingAddress) doc.text(quote.billingAddress, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (quote.contactEmail) doc.text(quote.contactEmail, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (quote.contactPhone) doc.text(quote.contactPhone, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (quote.siret) doc.text(`SIRET : ${quote.siret}`, PAGE_LEFT + 300, doc.y, { width: 215 });
-
-  doc.y = Math.max(doc.y, metaY + 90) + 10;
+  drawInfoStrip(doc, [
+    { label: "Date d'émission", value: dateFmt(quote.issueDate) },
+    ...(quote.validUntil ? [{ label: "Valable jusqu'au", value: calendarDateFmt(quote.validUntil) }] : []),
+    { label: "Nature", value: "Prestations de services" },
+    ...(quote.siteAddress ? [{ label: "Lieu d'intervention", value: quote.siteAddress }] : []),
+  ]);
 
   if (quote.description) {
     doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.5).text(quote.description, PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
-    doc.y += 10;
+    doc.y += 12;
   }
 
   let headerY = doc.y;
-  drawItemsHeaderRow(doc, headerY);
-  doc.y = headerY + 22;
+  drawTableHeader(doc, headerY, HEADER_COLUMNS);
+  doc.y = headerY + 24;
 
   quote.items.forEach((item, index) => {
-    // Hauteur variable selon la présence d'une ligne de fréquence en dessous.
-    const rowHeight = item.frequency === "ONE_TIME" ? 20 : 32;
+    // Hauteur mesurée : un libellé long passe sur plusieurs lignes, la ligne
+    // de fréquence se place alors juste en dessous (jamais par-dessus).
+    const frequencyText =
+      item.frequency === "ONE_TIME"
+        ? null
+        : `${FREQUENCY_LABELS[item.frequency]}${item.occurrencesPerMonth ? ` · ${String(item.occurrencesPerMonth).replace(".", ",")} passage${item.occurrencesPerMonth > 1 ? "s" : ""} / mois` : ""} — soit ${formatEuroPdf(item.monthlyAmountHt)} HT / mois`;
+    const descHeight = doc.font("Helvetica").fontSize(9).heightOfString(item.description, { width: COL_W.desc });
+    const freqHeight = frequencyText ? doc.font("Helvetica-Bold").fontSize(7.5).heightOfString(frequencyText, { width: CONTENT_WIDTH - 24 }) : 0;
+    const rowHeight = Math.max(24, 8 + descHeight + (frequencyText ? 4 + freqHeight : 0) + 8);
     ensureSpace(doc, rowHeight, () => {
       headerY = doc.y;
-      drawItemsHeaderRow(doc, headerY);
-      doc.y = headerY + 22;
+      drawTableHeader(doc, headerY, HEADER_COLUMNS);
+      doc.y = headerY + 24;
     });
 
     const y = doc.y;
-    if (index % 2 === 1) {
-      doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, rowHeight).fill(BRAND.rowAlt);
-    }
-    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9);
-    doc.text(item.description, COL.desc + 8, y + 5, { width: COL_W.desc - 8 });
+    if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, rowHeight).fill(BRAND.rowAlt);
+    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9).text(item.description, COL.desc, y + 8, { width: COL_W.desc });
     doc.fillColor(BRAND.inkSecondary);
-    doc.text(UNIT_LABELS[item.unit], COL.unit, y + 5, { width: COL_W.unit, align: "right" });
-    doc.text(String(item.quantity), COL.qty, y + 5, { width: COL_W.qty, align: "right" });
-    doc.text(currencyFmt.format(item.unitPriceHt), COL.price, y + 5, { width: COL_W.price, align: "right" });
-    doc.text(item.discount > 0 ? `-${item.discount}%` : "—", COL.discount, y + 5, { width: COL_W.discount, align: "right" });
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(currencyFmt.format(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
-
-    if (item.frequency !== "ONE_TIME") {
-      doc
-        .fillColor(BRAND.accentDeep)
-        .font("Helvetica")
-        .fontSize(8)
-        .text(
-          `${FREQUENCY_LABELS[item.frequency]}${item.occurrencesPerMonth ? ` · ${item.occurrencesPerMonth} / mois` : ""} — soit ${currencyFmt.format(item.monthlyAmountHt)} HT / mois`,
-          COL.desc + 8,
-          y + 18,
-          { width: CONTENT_WIDTH - 16 }
-        );
+    doc.text(UNIT_LABELS[item.unit], COL.unit, y + 8, { width: COL_W.unit, align: "right" });
+    doc.text(String(item.quantity).replace(".", ","), COL.qty, y + 8, { width: COL_W.qty, align: "right" });
+    doc.text(formatEuroPdf(item.unitPriceHt), COL.price, y + 8, { width: COL_W.price, align: "right" });
+    doc.text(item.discount > 0 ? `-${item.discount} %` : "—", COL.discount, y + 8, { width: COL_W.discount, align: "right" });
+    doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").text(formatEuroPdf(item.totalHt), COL.total, y + 8, { width: COL_W.total, align: "right" });
+    if (frequencyText) {
+      doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(7.5).text(frequencyText, COL.desc, y + 8 + descHeight + 4, { width: CONTENT_WIDTH - 24 });
     }
-
     doc.y = y + rowHeight;
   });
+  doc.moveTo(PAGE_LEFT, doc.y).lineTo(PAGE_RIGHT, doc.y).strokeColor(BRAND.border).lineWidth(1).stroke();
 
-  ensureSpace(doc, 110, () => {
-    headerY = doc.y;
-  });
-
-  doc.moveTo(PAGE_LEFT, doc.y + 4).lineTo(PAGE_RIGHT, doc.y + 4).strokeColor(BRAND.border).lineWidth(1).stroke();
-  let totalsY = doc.y + 14;
-  const totalsX = PAGE_RIGHT - 220;
-
-  function totalLine(label: string, value: string, bold = false) {
-    doc
-      .font(bold ? "Helvetica-Bold" : "Helvetica")
-      .fontSize(bold ? 11 : 9.5)
-      .fillColor(bold ? BRAND.ink : BRAND.inkSecondary)
-      .text(label, totalsX, totalsY, { width: 130 })
-      .text(value, totalsX + 130, totalsY, { width: 90, align: "right" });
-    totalsY += bold ? 18 : 14;
+  ensureSpace(doc, 150, () => undefined);
+  const recurring = quote.monthlyAmountHt > 0;
+  const monthlyTtc = Math.round(quote.monthlyAmountHt * (1 + quote.vatRate / 100) * 100) / 100;
+  const baseRows = [
+    { label: recurring ? "Total HT d'un passage" : "Total HT", value: formatEuroPdf(quote.subtotalHt) },
+    ...(quote.discount > 0 ? [{ label: "Remise", value: `- ${formatEuroPdf(quote.discount)}` }] : []),
+    { label: `TVA ${String(quote.vatRate).replace(".", ",")} %`, value: formatEuroPdf(quote.vatAmount) },
+  ];
+  if (recurring) {
+    // Contrat récurrent : ce que le client paiera chaque mois est mis en avant.
+    drawTotals(doc, [...baseRows, { label: "Total TTC d'un passage", value: formatEuroPdf(quote.totalTtc) }, { label: "Montant mensuel HT", value: formatEuroPdf(quote.monthlyAmountHt) }], {
+      label: "Par mois TTC",
+      value: formatEuroPdf(monthlyTtc),
+    });
+  } else {
+    drawTotals(doc, baseRows, { label: "Total TTC", value: formatEuroPdf(quote.totalTtc) });
   }
 
-  totalLine("Sous-total HT", currencyFmt.format(quote.subtotalHt));
-  if (quote.discount > 0) totalLine("Remise", `- ${currencyFmt.format(quote.discount)}`);
-  totalLine(`TVA (${quote.vatRate}%)`, currencyFmt.format(quote.vatAmount));
-  totalLine("Total TTC", currencyFmt.format(quote.totalTtc), true);
-  if (quote.monthlyAmountHt > 0) {
-    totalLine("Prévisionnel mensuel HT", currencyFmt.format(quote.monthlyAmountHt));
-  }
-  doc.y = totalsY + 10;
+  drawNoteBox(
+    doc,
+    "Conditions",
+    [
+      quote.paymentTerms?.trim() || `Paiement à ${company.paymentDays} jours par virement, à réception de facture.`,
+      quote.validUntil ? `Offre valable jusqu'au ${calendarDateFmt(quote.validUntil)}.` : undefined,
+      `Pénalités de retard : ${company.latePenaltyText} ; indemnité forfaitaire pour frais de recouvrement : 40 €.`,
+    ].filter(Boolean) as string[]
+  );
 
-  if (quote.paymentTerms) {
-    ensureSpace(doc, 40, () => undefined);
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text("Conditions", PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
-    doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9).text(quote.paymentTerms, PAGE_LEFT, doc.y + 2, { width: CONTENT_WIDTH });
-  }
+  // Bon pour accord : signature du client.
+  if (doc.y + 92 > FOOTER_Y) doc.addPage();
+  const signY = doc.y + 4;
+  doc.roundedRect(PAGE_RIGHT - 250, signY, 250, 80, 8).lineWidth(1.2).strokeColor(BRAND.accent).stroke();
+  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(9.5).text("Bon pour accord", PAGE_RIGHT - 238, signY + 10, { width: 226 });
+  doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(8).text("Date, nom, signature et cachet du client, précédés de la mention « Bon pour accord »", PAGE_RIGHT - 238, signY + 24, { width: 226 });
+  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.5).text("Merci pour votre confiance.", PAGE_LEFT, signY + 34, { width: 220 });
+  doc.y = signY + 90;
 
-  // Mentions légales de l'entreprise émettrice — à compléter par le client
-  // via les variables d'environnement COMPANY_* (voir config/env.ts) avant
-  // une mise en production réelle du module commercial.
-  ensureSpace(doc, 40, () => undefined);
-  const legalParts = [
-    env.COMPANY_LEGAL_NAME,
-    env.COMPANY_ADDRESS,
-    env.COMPANY_SIRET ? `SIRET ${env.COMPANY_SIRET}` : undefined,
-    env.COMPANY_VAT_NUMBER ? `TVA ${env.COMPANY_VAT_NUMBER}` : undefined,
-    env.COMPANY_PHONE,
-    env.COMPANY_EMAIL,
-  ].filter(Boolean);
-  doc
-    .fillColor(BRAND.inkTertiary)
-    .font("Helvetica")
-    .fontSize(7.5)
-    .text(legalParts.join(" · "), PAGE_LEFT, doc.y + 10, { width: CONTENT_WIDTH });
-
-  finalizePagination(doc);
+  finalizePagination(doc, companyFooterLine(company));
   doc.end();
   return done;
 }

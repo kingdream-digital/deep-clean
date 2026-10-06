@@ -20,17 +20,17 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "../../api/notifications.api";
-import { getAbsence } from "../../api/absences.api";
+import { hasNotificationTarget, opensPlanningTab, resolveNotificationTarget } from "../../utils/notificationTarget";
 import { readCache, writeCache } from "../../offline/cache";
 import { timeAgo } from "../../utils/timeAgo";
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
 import type { InboxStackParamList } from "../../navigation/InboxStack";
+import { useReloadOnDataChange } from "../../sync/liveSync";
 
 const CACHE_KEY = "notifications.list";
 
 type LoadState = "loading" | "ready" | "error";
 
-const RELATED_ENTITY_TYPES = new Set(["Mission", "TimeEntry", "Problem", "Absence", "Announcement", "Conversation"]);
 
 // Regroupement par jour façon Centre de notifications iOS ("Aujourd'hui",
 // "Hier"...) — les éléments arrivent déjà triés du plus récent au plus ancien
@@ -95,6 +95,7 @@ export function NotificationsList() {
   useEffect(() => {
     void load();
   }, [load]);
+  useReloadOnDataChange(load);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -134,47 +135,35 @@ export function NotificationsList() {
 
   async function handlePress(notification: AppNotification) {
     void handleMarkAsRead(notification);
-    if (!notification.relatedEntityId) return;
-
-    if (notification.relatedEntityType === "Mission") {
-      navigation.navigate("MissionDetail", { missionId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "TimeEntry") {
-      navigation.navigate("TimeEntryDetail", { entryId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "Problem") {
-      navigation.navigate("ProblemDetail", { problemId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "Absence") {
-      if (notification.type === "ABSENCE_REQUESTED") {
-        // Demande à valider (RH/direction/admin) : relatedEntityId est
-        // l'absence, pas l'employé — on la récupère pour connaître son
-        // auteur, puis on amène directement sur sa fiche pour décider (retour
-        // explicite du client : ça basculait à tort sur "Mes absences", les
-        // absences de la personne connectée, pas de l'employé concerné).
-        try {
-          const absence = await getAbsence(notification.relatedEntityId);
-          navigation.navigate("UserDetail", { userId: absence.userId });
-        } catch (err) {
-          Alert.alert("Impossible d'ouvrir la fiche", extractErrorMessage(err));
-        }
-      } else {
-        // ABSENCE_DECIDED : ne cible que l'intéressé, "Mes absences" suffit,
-        // l'absence décidée y est visible avec son statut.
-        navigation.navigate("MyAbsences");
+    try {
+      if (opensPlanningTab(notification)) {
+        navigation.getParent()?.navigate("Planning" as never);
+        return;
       }
-    } else if (notification.relatedEntityType === "Announcement") {
-      navigation.navigate("AnnouncementDetail", { announcementId: notification.relatedEntityId });
-    } else if (notification.relatedEntityType === "Conversation") {
-      // relatedEntityId porte l'identifiant de l'EXPÉDITEUR (pas du message) —
-      // voir messages.service.ts::sendMessage.
-      navigation.navigate("ConversationThread", { userId: notification.relatedEntityId });
+      const target = await resolveNotificationTarget(notification);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (target?.tab) (navigation.getParent() as any)?.navigate(target.tab, { screen: target.screen, params: target.params });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      else if (target) navigation.navigate(target.screen as any, target.params as any);
+    } catch (err) {
+      Alert.alert("Impossible d'ouvrir", extractErrorMessage(err));
     }
   }
+
 
   const hasUnread = items.some((n) => !n.isRead);
 
   if (state === "loading") return <StateView kind="loading" />;
   if (state === "error") return <StateView kind="error" onRetry={load} />;
   if (items.length === 0) {
-    return <StateView kind="empty" icon="notifications-outline" message="Vous n'avez aucune notification." />;
+    return (
+      <StateView
+        kind="empty"
+        icon="notifications-outline"
+        title="Aucune notification"
+        message="Nouvelles missions, changements d'horaire, consignes : tout ce qui vous concerne s'affichera ici."
+      />
+    );
   }
 
   return (
@@ -188,8 +177,8 @@ export function NotificationsList() {
       SectionSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
       ListHeaderComponent={
         <>
-          {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
-          {hasUnread && (
+          {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {!!hasUnread && (
             <Pressable onPress={handleMarkAllAsRead} style={{ alignSelf: "flex-end", marginBottom: spacing.xs }}>
               <Text style={[type.subhead, { color: colors.accent }]}>Tout marquer comme lu</Text>
             </Pressable>
@@ -207,7 +196,7 @@ export function NotificationsList() {
         </Text>
       )}
       renderItem={({ item, index }) => {
-        const hasRelatedEntity = !!item.relatedEntityId && RELATED_ENTITY_TYPES.has(item.relatedEntityType ?? "");
+        const hasRelatedEntity = hasNotificationTarget(item);
 
         return (
           <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 30).duration(240)}>
@@ -243,7 +232,7 @@ export function NotificationsList() {
                       </Text>
                     </View>
 
-                    {hasRelatedEntity && (
+                    {!!hasRelatedEntity && (
                       <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: spacing.xs }} />
                     )}
                   </View>

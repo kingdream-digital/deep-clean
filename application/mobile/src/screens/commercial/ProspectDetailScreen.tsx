@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -15,9 +15,11 @@ import { extractErrorMessage } from "../../api/client";
 import { convertProspectToClient, getProspect } from "../../api/prospects.api";
 import type { Prospect } from "../../api/prospects.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<MenuStackParamList, "ProspectDetail">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
   const { colors, spacing, type } = useTheme();
@@ -43,16 +45,17 @@ export function ProspectDetailScreen() {
   const [converting, setConverting] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setProspect(await getProspect(prospectId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [prospectId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -107,45 +110,42 @@ export function ProspectDetailScreen() {
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={[type.title2, { color: colors.ink }]}>{prospect.companyName}</Text>
-              {contactName && (
-                <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
-                  {contactName}
-                  {prospect.jobTitle ? ` · ${prospect.jobTitle}` : ""}
-                </Text>
-              )}
-            </View>
-            <ProspectStatusBadge status={prospect.status} />
-          </View>
+          {/* Statut au-dessus du nom, qui garde toute la largeur. */}
+          <ProspectStatusBadge status={prospect.status} />
+          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{prospect.companyName}</Text>
+          {!!contactName && (
+            <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
+              {contactName}
+              {prospect.jobTitle ? ` · ${prospect.jobTitle}` : ""}
+            </Text>
+          )}
 
-          {prospect.phone && (
+          {!!prospect.phone && (
             <PressableScale onPress={() => Linking.openURL(`tel:${prospect.phone}`)}>
               <InfoRow icon="call-outline" label="Téléphone" value={prospect.phone} />
             </PressableScale>
           )}
-          {prospect.email && (
+          {!!prospect.email && (
             <PressableScale onPress={() => Linking.openURL(`mailto:${prospect.email}`)}>
               <InfoRow icon="mail-outline" label="Email" value={prospect.email} />
             </PressableScale>
           )}
-          {fullAddress && <InfoRow icon="location-outline" label="Adresse" value={fullAddress} />}
-          {prospect.siret && <InfoRow icon="business-outline" label="SIRET" value={prospect.siret} />}
-          {prospect.source && <InfoRow icon="compass-outline" label="Source" value={prospect.source} />}
-          {prospect.serviceType && <InfoRow icon="sparkles-outline" label="Type de prestation" value={prospect.serviceType} />}
-          {prospect.need && <InfoRow icon="chatbubble-ellipses-outline" label="Besoin" value={prospect.need} />}
-          {prospect.nextFollowUpAt && (
+          {!!fullAddress && <InfoRow icon="location-outline" label="Adresse" value={fullAddress} />}
+          {!!prospect.siret && <InfoRow icon="business-outline" label="SIRET" value={prospect.siret} />}
+          {!!prospect.source && <InfoRow icon="compass-outline" label="Source" value={prospect.source} />}
+          {!!prospect.serviceType && <InfoRow icon="sparkles-outline" label="Type de prestation" value={prospect.serviceType} />}
+          {!!prospect.need && <InfoRow icon="chatbubble-ellipses-outline" label="Besoin" value={prospect.need} />}
+          {!!prospect.nextFollowUpAt && (
             <InfoRow icon="alarm-outline" label="Prochaine relance" value={dateFmt.format(new Date(prospect.nextFollowUpAt))} />
           )}
-          {prospect.assignedUser && (
+          {!!prospect.assignedUser && (
             <InfoRow
               icon="person-outline"
               label="Commercial responsable"
               value={`${prospect.assignedUser.firstName} ${prospect.assignedUser.lastName}`}
             />
           )}
-          {prospect.notes && <InfoRow icon="document-text-outline" label="Notes" value={prospect.notes} />}
+          {!!prospect.notes && <InfoRow icon="document-text-outline" label="Notes" value={prospect.notes} />}
         </Card>
 
         <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>

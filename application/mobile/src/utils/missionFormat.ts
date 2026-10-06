@@ -1,6 +1,7 @@
 import type { Mission } from "../api/missions.api";
+import { dayOfMonthLabel, frenchDateFormat } from "./frenchDate";
 
-const dayFormatter = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+const dayFormatter = frenchDateFormat({ weekday: "long", day: "numeric", month: "long" });
 const timeFormatter = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 export function formatMissionDay(dateIso: string): string {
@@ -49,6 +50,22 @@ export function groupMissionsByDate(missions: Mission[]): MissionGroup[] {
     .map(([key, list]) => ({ key, label: formatMissionDay(list[0].date), missions: list }));
 }
 
+/**
+ * Mission planifiée dont l'horaire est terminé sans qu'elle ait été démarrée.
+ * Ce n'est pas un statut enregistré : elle reste « planifiée » en base et peut
+ * encore être démarrée en retard. C'est la façon de l'AFFICHER — présentée
+ * comme « planifiée », donc à venir, elle laissait croire qu'il fallait encore
+ * s'y rendre alors que son créneau était passé depuis des heures.
+ */
+/** Mission terminée ET validée par un responsable (validation de fin de mission). */
+export function isMissionValidated(mission: { validations?: Array<{ type: string }> | null }): boolean {
+  return !!mission.validations?.some((v) => v.type === "MISSION_COMPLETION");
+}
+
+export function isMissionOverdue(mission: Pick<Mission, "status" | "endTime">, now: number = Date.now()): boolean {
+  return mission.status === "SCHEDULED" && new Date(mission.endTime).getTime() <= now;
+}
+
 // --- Vue "semaine" du planning (lundi → dimanche) ---------------------------
 
 export const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -87,13 +104,13 @@ export function relativeDayLabel(dateIso: string): string | null {
   return null;
 }
 
-const weekRangeSameMonthFormatter = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
-const weekRangeShortFormatter = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const weekRangeSameMonthFormatter = frenchDateFormat({ day: "numeric", month: "long" });
+const weekRangeShortFormatter = frenchDateFormat({ day: "numeric", month: "short" });
 
-/** Ex: "22 – 28 septembre" ou "29 sept. – 5 oct." si la semaine chevauche deux mois. */
+/** Ex: "22 – 28 septembre", "1er – 7 juin" ou "29 sept. – 5 oct." si la semaine chevauche deux mois. */
 export function formatWeekRange(monday: Date, sunday: Date): string {
   if (monday.getMonth() === sunday.getMonth()) {
-    return `${monday.getDate()} – ${weekRangeSameMonthFormatter.format(sunday)}`;
+    return `${dayOfMonthLabel(monday.getDate())} – ${weekRangeSameMonthFormatter.format(sunday)}`;
   }
   return `${weekRangeShortFormatter.format(monday)} – ${weekRangeShortFormatter.format(sunday)}`;
 }

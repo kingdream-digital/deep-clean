@@ -6,7 +6,17 @@ export type MissionStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELL
 export interface MissionAssignee {
   userId: string;
   isLead: boolean;
-  user: { id: string; firstName: string; lastName: string; email: string | null; role: string; hasAvatar: boolean; isActive?: boolean };
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+    role: string;
+    hasAvatar: boolean;
+    isActive?: boolean;
+    // Renseigné seulement pour la grille du planning (heures au contrat).
+    weeklyHours?: number | null;
+  };
 }
 
 export interface MissionValidation {
@@ -36,6 +46,9 @@ export interface Mission {
   endTime: string;
   instructions: string | null;
   status: MissionStatus;
+  // Intervention exceptionnelle (hors planning habituel) : nuit, dimanche et
+  // jours fériés majorés à 100 %.
+  isExceptional?: boolean;
   createdAt: string;
   updatedAt: string;
   site: {
@@ -79,6 +92,9 @@ export interface ListMissionsParams {
   siteId?: string;
   mine?: boolean;
   status?: MissionStatus;
+  // Missions terminées : true = validées, false = encore à valider.
+  validated?: boolean;
+  sort?: "asc" | "desc";
   from?: string;
   to?: string;
   page?: number;
@@ -108,6 +124,7 @@ export interface CreateMissionInput {
   startTime: string;
   endTime: string;
   instructions?: string;
+  isExceptional?: boolean;
   assigneeIds: string[];
   leadId?: string;
   standardId?: string;
@@ -133,6 +150,8 @@ export interface UpdateMissionInput {
   startTime?: string;
   endTime?: string;
   instructions?: string | null;
+  siteId?: string;
+  isExceptional?: boolean;
 }
 
 export async function updateMission(id: string, input: UpdateMissionInput): Promise<Mission> {
@@ -263,4 +282,26 @@ export async function downloadMissionStandardDocument(missionId: string): Promis
     responseType: "arraybuffer",
   });
   return new Uint8Array(data);
+}
+
+// Missions dont une personne affectée sera absente (absence approuvée) —
+// superviseur, RH, direction, admin.
+export interface MissionToReassign {
+  mission: Mission;
+  absentees: Array<{
+    user: { id: string; firstName: string; lastName: string };
+    isLead: boolean;
+    absence: { type: string; startDate: string; endDate: string };
+  }>;
+}
+
+export async function listMissionsToReassign(): Promise<MissionToReassign[]> {
+  const { data } = await apiClient.get<{ items: MissionToReassign[] }>("/missions/to-reassign");
+  return data.items;
+}
+
+// Remplace une personne par une autre sur une mission (les deux sont prévenues).
+export async function replaceMissionAssignee(missionId: string, fromUserId: string, toUserId: string): Promise<Mission> {
+  const { data } = await apiClient.post<{ mission: Mission }>(`/missions/${missionId}/replace`, { fromUserId, toUserId });
+  return data.mission;
 }

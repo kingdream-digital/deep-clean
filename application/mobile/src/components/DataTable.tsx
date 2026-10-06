@@ -44,7 +44,7 @@ export function DataTable<T>({ columns, data, keyExtractor, onRowPress }: DataTa
             {col.label}
           </Text>
         ))}
-        {onRowPress && <View style={{ width: 24 }} />}
+        {!!onRowPress && <View style={{ width: 24 }} />}
       </View>
 
       <FlatList
@@ -79,7 +79,7 @@ function DataTableRow<T>({
           {col.render(item)}
         </View>
       ))}
-      {onPress && <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />}
+      {!!onPress && <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />}
     </>
   );
 

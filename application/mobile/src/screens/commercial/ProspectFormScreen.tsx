@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
@@ -18,10 +20,11 @@ import type { ProspectStatus } from "../../api/prospects.api";
 import { listUsers } from "../../api/users.api";
 import type { DirectoryUser } from "../../api/users.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "ProspectForm">;
 const NONE = "__none__";
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
 // Seuls RH/Direction/Admin peuvent réassigner un prospect à un autre
 // commercial (retour explicite du cahier des charges §3) — un superviseur
@@ -38,6 +41,7 @@ function tomorrow(): Date {
 
 export function ProspectFormScreen() {
   const { colors, spacing, type } = useTheme();
+  const { isDesktopWeb } = useResponsive();
   const { user } = useAuth();
   const route = useRoute<Route>();
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
@@ -142,7 +146,7 @@ export function ProspectFormScreen() {
         notes: notes.trim() || undefined,
         status,
         nextFollowUpAt: followUpEnabled ? followUpDate.toISOString() : undefined,
-        ...(canReassign ? { assignedUserId: assignedUserId === NONE ? null : assignedUserId } : {}),
+        ...(canReassign ? { assignedUserId: assignedUserId === NONE ? (user?.id ?? null) : assignedUserId } : {}),
       };
 
       if (isEdit && prospectId) {
@@ -176,7 +180,7 @@ export function ProspectFormScreen() {
 
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
         <TextField label="Entreprise" placeholder="Entreprise ABC" value={companyName} onChangeText={setCompanyName} />
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <View style={{ flex: 1 }}>
@@ -207,7 +211,7 @@ export function ProspectFormScreen() {
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Statut</Text>
           <Card padded={false}>
-            <Picker selectedValue={status} onValueChange={(v) => setStatus(v as ProspectStatus)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker selectedValue={status} onValueChange={(v) => setStatus(v as ProspectStatus)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               {PROSPECT_STATUS_ORDER.map((s) => (
                 <Picker.Item key={s} label={PROSPECT_STATUS_LABELS[s]} value={s} />
               ))}
@@ -215,11 +219,11 @@ export function ProspectFormScreen() {
           </Card>
         </View>
 
-        {canReassign && (
+        {!!canReassign && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Commercial responsable</Text>
             <Card padded={false}>
-              <Picker selectedValue={assignedUserId} onValueChange={setAssignedUserId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={assignedUserId} onValueChange={setAssignedUserId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 <Picker.Item label="Moi-même" value={NONE} />
                 {commercials.map((c) => (
                   <Picker.Item key={c.id} label={`${c.firstName} ${c.lastName}`} value={c.id} />
@@ -231,7 +235,7 @@ export function ProspectFormScreen() {
 
         <View style={{ marginBottom: spacing.md }}>
           <Checkbox label="Programmer une relance" checked={followUpEnabled} onChange={setFollowUpEnabled} />
-          {followUpEnabled && (
+          {!!followUpEnabled && (
             <View style={{ marginTop: spacing.sm }}>
               <DateTimeField
                 label="Date de la relance"
@@ -245,7 +249,7 @@ export function ProspectFormScreen() {
           )}
         </View>
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le prospect"} onPress={handleSave} loading={saving} />
       </ScrollView>

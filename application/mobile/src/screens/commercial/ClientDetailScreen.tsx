@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -13,6 +13,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { getClient } from "../../api/clients.api";
 import type { Client } from "../../api/clients.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<MenuStackParamList, "ClientDetail">;
 const FULL_ACCESS_ROLES = ["HR", "DIRECTOR", "ADMIN"];
@@ -41,16 +42,17 @@ export function ClientDetailScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setClient(await getClient(clientId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [clientId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -82,31 +84,32 @@ export function ClientDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
           <Text style={[type.title2, { color: colors.ink }]}>{client.companyName}</Text>
-          {contactName && (
+          {!!contactName && (
             <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>
               {contactName}
               {client.jobTitle ? ` · ${client.jobTitle}` : ""}
             </Text>
           )}
 
-          {client.phone && (
+          {!!client.phone && (
             <PressableScale onPress={() => Linking.openURL(`tel:${client.phone}`)}>
               <InfoRow icon="call-outline" label="Téléphone" value={client.phone} />
             </PressableScale>
           )}
-          {client.email && (
+          {!!client.email && (
             <PressableScale onPress={() => Linking.openURL(`mailto:${client.email}`)}>
               <InfoRow icon="mail-outline" label="Email" value={client.email} />
             </PressableScale>
           )}
-          {fullAddress && <InfoRow icon="location-outline" label="Adresse de facturation" value={fullAddress} />}
-          {client.siret && <InfoRow icon="business-outline" label="SIRET" value={client.siret} />}
-          {client.notes && <InfoRow icon="document-text-outline" label="Notes" value={client.notes} />}
+          {!!fullAddress && <InfoRow icon="location-outline" label="Adresse de facturation" value={fullAddress} />}
+          {!!client.siret && <InfoRow icon="business-outline" label="SIRET" value={client.siret} />}
+          {!client.siret && !!client.siren && <InfoRow icon="business-outline" label="SIREN" value={client.siren} />}
+          {!!client.notes && <InfoRow icon="document-text-outline" label="Notes" value={client.notes} />}
         </Card>
 
         <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
           <Button label="Nouveau devis" onPress={() => navigation.navigate("QuoteForm", { clientId })} />
-          {canManage && <Button label="Modifier la fiche" variant="secondary" onPress={() => navigation.navigate("ClientForm", { clientId })} />}
+          {!!canManage && <Button label="Modifier la fiche" variant="secondary" onPress={() => navigation.navigate("ClientForm", { clientId })} />}
         </View>
       </ScrollView>
     </ScreenContainer>

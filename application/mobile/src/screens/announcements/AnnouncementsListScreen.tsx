@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -10,12 +10,14 @@ import { Card } from "../../components/Card";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
+import { Avatar } from "../../components/Avatar";
 import { useAuth } from "../../auth/AuthContext";
 import { announcementCoverPhotoUrl, listAnnouncements } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import { timeAgo } from "../../utils/timeAgo";
 import type { Role } from "../../api/auth.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const ROLE_LABELS: Record<Role, string> = {
   EMPLOYEE: "Employé",
@@ -32,7 +34,6 @@ const ROLE_LABELS: Record<Role, string> = {
 // revérifiée de toute façon côté serveur : ceci ne fait qu'afficher ou non le bouton).
 const CAN_POST_ROLES: Role[] = ["HR", "SUPERVISOR", "DIRECTOR", "ADMIN"];
 
-const initialsOf = (firstName: string, lastName: string) => `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
 
 export function AnnouncementsListScreen() {
   const { colors, spacing, radius, type, isDark } = useTheme();
@@ -43,17 +44,18 @@ export function AnnouncementsListScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listAnnouncements();
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -87,7 +89,7 @@ export function AnnouncementsListScreen() {
               <PressableScale onPress={() => navigation.navigate("AnnouncementDetail", { announcementId: item.id })}>
                 {/* Seule la plus récente porte le glow — carte prioritaire de l'écran. */}
                 <Card glow={index === 0} padded={false}>
-                  {item.hasCoverPhoto && (
+                  {!!item.hasCoverPhoto && (
                     <AuthenticatedImage
                       uri={announcementCoverPhotoUrl(item.id)}
                       style={{ width: "100%", height: 160, backgroundColor: colors.surfaceAlt }}
@@ -95,39 +97,13 @@ export function AnnouncementsListScreen() {
                   )}
                   <View style={{ padding: spacing.lg }}>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <View
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: radius.pill,
-                        backgroundColor: colors.purpleSoft,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text style={[type.caption, { color: colors.purple, fontWeight: "700" }]}>
-                        {initialsOf(item.author.firstName, item.author.lastName)}
-                      </Text>
-                    </View>
+                    <Avatar user={item.author} size={34} />
                     <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
-                          {item.author.firstName} {item.author.lastName}
-                        </Text>
-                        <View
-                          style={{
-                            marginLeft: spacing.xs,
-                            backgroundColor: colors.purpleSoft,
-                            borderRadius: 999,
-                            paddingHorizontal: 8,
-                            paddingVertical: 2,
-                          }}
-                        >
-                          <Text style={[type.caption, { color: colors.purple }]}>{ROLE_LABELS[item.author.role]}</Text>
-                        </View>
-                      </View>
+                      <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]} numberOfLines={1}>
+                        {item.author.firstName} {item.author.lastName}
+                      </Text>
                       <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 1 }]}>
-                        {timeAgo(item.createdAt)} · toute l'entreprise
+                        {ROLE_LABELS[item.author.role]} · {timeAgo(item.createdAt)}
                       </Text>
                     </View>
                   </View>
@@ -143,7 +119,7 @@ export function AnnouncementsListScreen() {
         />
       )}
 
-      {canPost && (
+      {!!canPost && (
         <PressableScale
           onPress={() => navigation.navigate("AnnouncementForm")}
           style={{

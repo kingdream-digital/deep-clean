@@ -1,11 +1,12 @@
 import React from "react";
-import { ImageBackground, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
+import { OfflineBanner } from "../../components/OfflineBanner";
 import { Card } from "../../components/Card";
 import { MissionCard } from "../../components/MissionCard";
 import { WeekMiniGrid } from "../../components/WeekMiniGrid";
@@ -14,10 +15,14 @@ import { PulsingDot } from "../../components/PulsingDot";
 import { TimesheetWidget } from "../../components/TimesheetWidget";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
 import { useOnboardingScrollProps } from "../../onboarding/useOnboardingScrollProps";
-import { LogoMark } from "../../components/LogoMark";
+import { BrandLockup } from "../../components/BrandLockup";
+import { BrandEmblem } from "../../components/BrandEmblem";
+import { AnimatedWaves } from "../../components/AnimatedWaves";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
+import { useResponsive } from "../../hooks/useResponsive";
 import { avatarUrl } from "../../api/users.api";
 import { announcementCoverPhotoUrl } from "../../api/announcements.api";
 import { useUnreadInboxCount } from "../../hooks/useUnreadInboxCount";
@@ -29,11 +34,19 @@ import { addDays, formatWeekRange, toLocalDateKey } from "../../utils/missionFor
 import { NOTIFICATION_TYPE_ICON } from "../../utils/notificationIcons";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import type { AppTabsParamList } from "../../navigation/AppTabs";
+import { opensPlanningTab, resolveNotificationTarget } from "../../utils/notificationTarget";
+import { Alert } from "../../utils/alert";
+import { extractErrorMessage } from "../../api/client";
 
 // Photo de remplissage (licence Unsplash, libre pour usage commercial) — voir
 // assets/photos/README.md : à remplacer par une vraie photo de l'entreprise
 // avant publication sur les stores.
-const homeBanner = require("../../../assets/photos/home-banner.jpg");
+const todayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+
+/** « LUNDI 5 OCTOBRE » (« 1ER » le premier du mois). */
+function todayLabel(): string {
+  return todayFmt.format(new Date()).replace(/(^|\s)1(?=\s)/, "$11er").toUpperCase();
+}
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -61,44 +74,68 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 // partagée dans une carte unique.
 function HeroKpiRow({ tiles, tones }: { tiles: KpiTile[]; tones: Record<DashboardSectionTone, { fg: string; bg: string }> }) {
   const { colors, spacing, radius, type } = useTheme();
+  const { width } = useResponsive();
+  // Sur téléphone, deux cartes par ligne au plus : à trois ou quatre de front,
+  // chaque carte faisait 75 px de large et les libellés se coupaient en plein
+  // mot (« Chantie / rs », « Employ / és »). Une carte seule en fin de grille
+  // prend toute la largeur, en ligne, plutôt que de laisser une demi-ligne vide.
+  const perRow = tiles.length <= 2 || width >= 600 ? tiles.length : 2;
+  const rows: KpiTile[][] = [];
+  for (let i = 0; i < tiles.length; i += perRow) rows.push(tiles.slice(i, i + perRow));
+
   return (
-    <View style={{ flexDirection: "row", gap: spacing.sm }}>
-      {tiles.map((tile) => {
-        const tone = tones[tile.tone];
-        return (
-          <View
-            key={tile.key}
-            style={{
-              flex: 1,
-              backgroundColor: tone.bg,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-            }}
-          >
-            {tile.icon && (
+    <View style={{ gap: spacing.sm }}>
+      {rows.map((row) => (
+        <View key={row.map((t) => t.key).join("-")} style={{ flexDirection: "row", gap: spacing.sm }}>
+          {row.map((tile) => {
+            const tone = tones[tile.tone];
+            const wide = row.length === 1 && tiles.length > 1;
+            return (
               <View
+                key={tile.key}
                 style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: radius.sm,
-                  backgroundColor: tone.fg + "26",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: spacing.sm,
+                  flex: 1,
+                  backgroundColor: tone.bg,
+                  borderRadius: radius.lg,
+                  padding: spacing.md,
+                  flexDirection: wide ? "row" : "column",
+                  alignItems: wide ? "center" : "stretch",
                 }}
               >
-                <Ionicons name={tile.icon} size={15} color={tone.fg} />
+                {!!tile.icon && (
+                  <View
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: radius.sm,
+                      backgroundColor: tone.fg + "26",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: wide ? 0 : spacing.sm,
+                      marginRight: wide ? spacing.sm : 0,
+                    }}
+                  >
+                    <Ionicons name={tile.icon} size={15} color={tone.fg} />
+                  </View>
+                )}
+                <Text style={[type.title2, { color: tone.fg }]} numberOfLines={1}>
+                  {tile.value}
+                </Text>
+                <Text
+                  style={[
+                    type.caption,
+                    { color: colors.inkSecondary },
+                    wide ? { marginLeft: spacing.sm, flex: 1 } : { marginTop: 2 },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {tile.label}
+                </Text>
               </View>
-            )}
-            <Text style={[type.title2, { color: tone.fg }]} numberOfLines={1}>
-              {tile.value}
-            </Text>
-            <Text style={[type.caption, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={2}>
-              {tile.label}
-            </Text>
-          </View>
-        );
-      })}
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -107,7 +144,7 @@ export function HomeScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
-  const { data, state, reload } = useDashboardData(user);
+  const { data, state, offlineCachedAt, reload } = useDashboardData(user);
   const onboardingScrollProps = useOnboardingScrollProps("Home");
 
   const tones: Record<DashboardSectionTone, { fg: string; bg: string }> = {
@@ -137,24 +174,28 @@ export function HomeScreen() {
     });
   }
 
-  function openRecentActivity(notif: (typeof data.recentActivity)[number]) {
-    if (notif.relatedEntityType === "Mission" && notif.relatedEntityId) {
-      tabNavigation?.navigate("Missions", { screen: "MissionDetail", params: { missionId: notif.relatedEntityId } });
-    } else if (notif.relatedEntityType === "TimeEntry" && notif.relatedEntityId) {
-      navigation.navigate("TimeEntryDetail", { entryId: notif.relatedEntityId });
-    } else if (notif.relatedEntityType === "Problem" && notif.relatedEntityId) {
-      navigation.navigate("ProblemDetail", { problemId: notif.relatedEntityId });
-    } else if (notif.relatedEntityType === "Absence") {
-      // Bug corrigé (audit notifications) : ABSENCE_DECIDED retombait dans le
-      // cas générique ci-dessous (juste l'onglet Messagerie, sans montrer
-      // l'absence) faute d'écran de détail par absence — "Mes absences" est
-      // la cible la plus proche, cohérente avec NotificationsList.
-      navigation.navigate("MyAbsences");
-    } else if (notif.relatedEntityType === "Conversation" && notif.relatedEntityId) {
-      // relatedEntityId porte l'identifiant de l'expéditeur (pas du message).
-      tabNavigation?.navigate("Messagerie", { screen: "ConversationThread", params: { userId: notif.relatedEntityId } });
-    } else {
-      tabNavigation?.navigate("Messagerie");
+  // Même cible que dans le centre de notifications : l'écran concerné, ouvert
+  // sur la pile Messagerie (une mission garde son onglet Missions).
+  async function openRecentActivity(notif: (typeof data.recentActivity)[number]) {
+    try {
+      if (opensPlanningTab(notif)) {
+        tabNavigation?.navigate("Planning");
+        return;
+      }
+      const target = await resolveNotificationTarget(notif);
+      if (target?.tab) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tabNavigation?.navigate(target.tab, { screen: target.screen, params: target.params } as any);
+      } else if (target?.screen === "MissionDetail") {
+        tabNavigation?.navigate("Missions", { screen: "MissionDetail", params: target.params });
+      } else if (target) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tabNavigation?.navigate("Messagerie", { screen: target.screen, params: target.params } as any);
+      } else {
+        tabNavigation?.navigate("Messagerie");
+      }
+    } catch (err) {
+      Alert.alert("Impossible d'ouvrir", extractErrorMessage(err));
     }
   }
 
@@ -176,18 +217,17 @@ export function HomeScreen() {
         contentContainerStyle={{ paddingBottom: spacing.xxl }}
         refreshControl={<RefreshControl refreshing={state === "loading" && data.kpis.length > 0} onRefresh={reload} tintColor={colors.accent} />}
       >
-        {/* Bandeau photo — voir assets/photos/README.md (placeholder libre de
-            droits, à remplacer par une vraie photo de l'entreprise). */}
-        <ImageBackground source={homeBanner} style={styles.banner} imageStyle={{ opacity: 0.9 }}>
-          <LinearGradient
-            colors={["rgba(11,59,73,0.55)", "rgba(16,19,34,0.55)", "rgba(16,19,34,0.92)"]}
-            style={StyleSheet.absoluteFill}
-          />
+        {/* En-tête aux couleurs du logo (retour explicite du client : un
+            accueil « waouh » avec le vrai logo) : dégradé marine → bleu, grand
+            médaillon en filigrane, vagues qui ondulent et se fondent dans la
+            page. */}
+        <View style={styles.hero}>
+          <LinearGradient colors={["#1F2D69", "#24478A", "#1E86B8"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <View style={styles.heroWatermark} pointerEvents="none">
+            <BrandEmblem size={230} opacity={0.13} />
+          </View>
           <View style={[styles.bannerRow, { paddingHorizontal: spacing.lg }]}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <LogoMark size={22} variant="white" />
-              <Text style={[type.headline, { color: "#FFFFFF", marginLeft: spacing.xs }]}>Deep Clean</Text>
-            </View>
+            <BrandLockup height={30} variant="white" />
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <PressableScale
                 onPress={() => tabNavigation?.navigate("Messagerie")}
@@ -223,17 +263,20 @@ export function HomeScreen() {
               </PressableScale>
             </View>
           </View>
-          <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>
-            <Text style={[type.largeTitle, { color: "#FFFFFF" }]}>
+          <Animated.View entering={FadeInDown.duration(500).delay(80)} style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+            <Text style={[type.overline, { color: "rgba(255,255,255,0.7)", letterSpacing: 1.2 }]}>{todayLabel()}</Text>
+            <Text style={[type.largeTitle, { color: "#FFFFFF", marginTop: 4 }]}>
               {greeting()}, {user.firstName}
             </Text>
             <Text style={[type.subhead, { color: "rgba(255,255,255,0.85)", marginTop: spacing.xxs }]}>
               Voici votre programme du jour.
             </Text>
-          </View>
-        </ImageBackground>
+          </Animated.View>
+          <AnimatedWaves height={72} pageColor={colors.background} />
+        </View>
 
-        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xs }}>
+        {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
         {state === "error" && (
           <View style={{ marginTop: spacing.lg }}>
             <StateView kind="error" onRetry={reload} />
@@ -254,20 +297,44 @@ export function HomeScreen() {
             (cahier des charges §13/§16) — mission en cours en priorité, sinon
             la prochaine à venir. Seul l'employé reçoit ces champs (voir
             useDashboardData.ts), donc ce bloc ne s'affiche que pour lui. */}
-        {(data.currentMission || data.nextMission) && (
+        {(data.currentMission || data.overdueMission || data.nextMission) && (
           <View style={{ marginTop: spacing.lg }}>
-            <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-              {data.currentMission ? "MISSION EN COURS" : "PROCHAINE MISSION"}
-            </Text>
-            <MissionCard
-              mission={(data.currentMission ?? data.nextMission)!}
-              onPress={() =>
-                tabNavigation?.navigate("Missions", {
-                  screen: "MissionDetail",
-                  params: { missionId: (data.currentMission ?? data.nextMission)!.id },
-                })
-              }
-            />
+            {(() => {
+              // Priorité d'affichage : ce qui se passe maintenant, puis ce qui
+              // aurait dû être fait, puis ce qui vient. Une mission non
+              // démarrée dont l'horaire est passé mérite d'être signalée comme
+              // telle — annoncée comme "prochaine", elle envoyait l'employé sur
+              // un chantier dont l'intervention était terminée depuis des heures.
+              const highlighted = data.currentMission ?? data.overdueMission ?? data.nextMission!;
+              const isOverdue = !data.currentMission && !!data.overdueMission;
+              return (
+                <>
+                  <Text
+                    style={[
+                      type.overline,
+                      { color: isOverdue ? colors.warning : colors.inkTertiary, marginBottom: spacing.sm },
+                    ]}
+                  >
+                    {data.currentMission ? "MISSION EN COURS" : isOverdue ? "MISSION NON DÉMARRÉE" : "PROCHAINE MISSION"}
+                  </Text>
+                  <MissionCard
+                    mission={highlighted}
+                    onPress={() =>
+                      tabNavigation?.navigate("Missions", {
+                        screen: "MissionDetail",
+                        params: { missionId: highlighted.id },
+                      })
+                    }
+                  />
+                  {!!isOverdue && (
+                    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xs }]}>
+                      L'horaire est passé et la mission n'a pas été démarrée. Prévenez votre chef d'équipe si
+                      elle n'a pas eu lieu.
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
           </View>
         )}
 
@@ -288,7 +355,7 @@ export function HomeScreen() {
                 l'accueil comme la mission en cours ci-dessus, en plus de son
                 écran dédié "Actualités" (cahier des charges §13 : "informations
                 importantes" visibles sans avoir à cliquer). */}
-            {data.latestAnnouncement && (
+            {!!data.latestAnnouncement && (
               <>
                 <SectionTitle
                   action={
@@ -305,7 +372,7 @@ export function HomeScreen() {
                   }
                 >
                   <Card padded={false}>
-                    {data.latestAnnouncement.hasCoverPhoto && (
+                    {!!data.latestAnnouncement.hasCoverPhoto && (
                       <AuthenticatedImage
                         uri={announcementCoverPhotoUrl(data.latestAnnouncement.id)}
                         style={{ width: "100%", height: 140, backgroundColor: colors.surfaceAlt }}
@@ -444,7 +511,8 @@ const styles = StyleSheet.create({
   // `height` fixe (pas juste `minHeight`) + `overflow: "hidden"` : la photo
   // de fond reste bornée à ce bandeau du haut, jamais un fond qui pourrait
   // déborder sur le reste de la page (retour explicite du client).
-  banner: { width: "100%", height: 200, overflow: "hidden", justifyContent: "flex-end" },
+  hero: { width: "100%", overflow: "hidden", paddingTop: 6 },
+  heroWatermark: { position: "absolute", right: -60, top: -30 },
   bannerRow: {
     flexDirection: "row",
     alignItems: "center",

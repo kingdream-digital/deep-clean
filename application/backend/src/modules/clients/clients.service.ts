@@ -20,6 +20,7 @@ const clientSelect = {
   postalCode: true,
   city: true,
   siret: true,
+  siren: true,
   notes: true,
   prospectId: true,
   createdById: true,
@@ -57,6 +58,7 @@ interface ClientInput {
   postalCode?: string;
   city?: string;
   siret?: string;
+  siren?: string;
   notes?: string;
 }
 

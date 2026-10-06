@@ -78,11 +78,15 @@ export function SwipeableRow({ onDelete, children }: SwipeableRowProps) {
           <Text style={[type.caption, { color: "#FFF", marginTop: 3, fontWeight: "700" }]}>Supprimer</Text>
         </Pressable>
       </View>
-      <Animated.View style={rowStyle} {...panResponder.panHandlers}>
+      {/* Fond opaque sous la ligne : les teintes « non lu » du mode sombre
+          sont translucides, et le rouge de « Supprimer » transparaissait à
+          travers chaque ligne, même sans balayage (toutes les notifications
+          s'affichaient en rouge). */}
+      <Animated.View style={[rowStyle, { backgroundColor: colors.background, borderRadius: radius.lg }]} {...panResponder.panHandlers}>
         {children}
         {/* Capture le tap quand la ligne est ouverte pour la refermer, sans
             déclencher l'action normale de la ligne (marquer lu, naviguer...). */}
-        {open && <Pressable style={StyleSheet.absoluteFill} onPress={close} />}
+        {!!open && <Pressable style={StyleSheet.absoluteFill} onPress={close} />}
       </Animated.View>
     </View>
   );

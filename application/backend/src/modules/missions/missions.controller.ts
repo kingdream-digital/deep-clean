@@ -104,3 +104,13 @@ export const removeStandardDocumentHandler = asyncHandler(async (req: Request, r
   const mission = await missionsService.removeStandardDocument(actorOf(req), req.params.id as string);
   res.status(200).json({ mission });
 });
+
+export const listMissionsToReassignHandler = asyncHandler(async (req: Request, res: Response) => {
+  const items = await missionsService.listMissionsToReassign(actorOf(req));
+  res.status(200).json({ items });
+});
+
+export const replaceAssigneeHandler = asyncHandler(async (req: Request, res: Response) => {
+  const mission = await missionsService.replaceAssignee(actorOf(req), req.params.id as string, req.body);
+  res.status(200).json({ mission });
+});

@@ -1,11 +1,12 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { LeaveBalanceDetails } from "../../components/LeaveBalanceDetails";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
@@ -18,20 +19,25 @@ import { getLeaveBalance } from "../../api/leave.api";
 import type { LeaveBalance } from "../../api/leave.api";
 import { extractErrorMessage } from "../../api/client";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { formatDays, formatDaysWithUnit } from "../../utils/leaveDays";
+import { formatAbsencePeriod } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",
   SICK_LEAVE: "Maladie",
   UNPAID_LEAVE: "Sans solde",
+  WORK_ACCIDENT: "Accident du travail",
+  PARENTAL_LEAVE: "Maternité / paternité",
+  COMPENSATORY_REST: "Repos compensateur",
   OTHER: "Autre",
 };
 
+// Jours calendaires tels qu'enregistrés (voir formatAbsencePeriod) : lue à
+// l'heure de Paris, la date de fin tombait jusqu'ici le lendemain.
 function formatRange(start: string, end: string): string {
-  const s = dateFmt.format(new Date(start));
-  const e = dateFmt.format(new Date(end));
-  return s === e ? s : `${s} → ${e}`;
+  return formatAbsencePeriod(start, end);
 }
 
 export function MyAbsencesScreen() {
@@ -45,8 +51,9 @@ export function MyAbsencesScreen() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [res, balanceRes] = await Promise.all([
         listAbsences({}),
         // Solde purement informatif ici — jamais bloquant si l'appel échoue
@@ -57,11 +64,11 @@ export function MyAbsencesScreen() {
       setBalance(balanceRes);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [user]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -100,10 +107,10 @@ export function MyAbsencesScreen() {
 
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
-      {balance && (
+      {!!balance && (
         <Card style={{ marginBottom: spacing.lg }}>
           <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-            CONGÉS {balance.year}
+            CONGÉS PAYÉS
           </Text>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <LeaveBalanceStat label="Acquis" value={balance.acquired} color={colors.ink} />
@@ -111,6 +118,7 @@ export function MyAbsencesScreen() {
             <LeaveBalanceStat label="En attente" value={balance.pending} color={colors.warning} />
             <LeaveBalanceStat label="Restant" value={balance.remaining} color={colors.accent} />
           </View>
+          <LeaveBalanceDetails balance={balance} />
         </Card>
       )}
 
@@ -136,9 +144,9 @@ export function MyAbsencesScreen() {
                 <View style={{ flex: 1, marginRight: spacing.sm }}>
                   <Text style={[type.headline, { color: colors.ink }]}>{TYPE_LABELS[item.type]}</Text>
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
-                    {formatRange(item.startDate, item.endDate)} · {item.daysCount} jour{item.daysCount > 1 ? "s" : ""}
+                    {formatRange(item.startDate, item.endDate)} · {formatDaysWithUnit(item.daysCount)}
                   </Text>
-                  {item.reason && (
+                  {!!item.reason && (
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]}>{item.reason}</Text>
                   )}
                   {item.status === "REJECTED" && item.decisionNote && (
@@ -169,7 +177,7 @@ function LeaveBalanceStat({ label, value, color }: { label: string; value: numbe
   const { spacing, type } = useTheme();
   return (
     <View style={{ alignItems: "center", flex: 1 }}>
-      <Text style={[type.title2, { color, fontWeight: "700" }]}>{value}</Text>
+      <Text style={[type.title2, { color, fontWeight: "700" }]}>{formatDays(value)}</Text>
       <Text style={[type.caption, { color, opacity: 0.8, marginTop: spacing.xxs }]}>{label}</Text>
     </View>
   );

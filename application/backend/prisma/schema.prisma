@@ -27,25 +27,25 @@ enum Role {
 }
 
 model User {
-  id                 String    @id @default(uuid())
+  id                 String            @id @default(uuid())
   // Identifiant de connexion — jamais l'email (retour explicite du client) :
   // généré côté serveur à la création du compte, à partir de la première
   // lettre du prénom suivie du nom (ex. "Jean Dupont" -> "jdupont"), avec un
   // suffixe numérique en cas de collision (voir utils/username.ts). RH le
   // communique à l'utilisateur comme son identifiant, au même titre que le
   // mot de passe temporaire.
-  username           String    @unique
+  username           String            @unique
   // Conservé comme coordonnée de contact (annuaire, export PDF) mais n'a plus
   // aucun rôle dans l'authentification — optionnel désormais, RH n'a plus à
   // en fournir un à la création du compte.
-  email              String?   @unique
+  email              String?           @unique
   passwordHash       String
-  role               Role      @default(EMPLOYEE)
+  role               Role              @default(EMPLOYEE)
   firstName          String
   lastName           String
   phone              String?
-  isActive           Boolean   @default(true)
-  mustChangePassword Boolean   @default(true) // vrai tant que le mot de passe temporaire fourni par la RH n'a pas été changé
+  isActive           Boolean           @default(true)
+  mustChangePassword Boolean           @default(true) // vrai tant que le mot de passe temporaire fourni par la RH n'a pas été changé
   // Photo de profil facultative (retour explicite du client : l'utilisateur
   // doit pouvoir en mettre une, en changer, ou ne pas en avoir du tout) —
   // clé opaque vers utils/storage.ts, jamais une URL publique permanente ;
@@ -60,53 +60,62 @@ model User {
   // — null = valeur par défaut de l'entreprise (DEFAULT_LEAVE_ACCRUAL_RATE_PER_MONTH,
   // aucun plafond). Voir leave.service.ts pour le calcul (jamais une règle
   // figée dans le code).
-  hireDate           DateTime  @default(now())
+  hireDate           DateTime          @default(now())
   leaveAccrualRate   Float?
   leaveAccrualCap    Float?
+  // Heures prévues au contrat par semaine (ex. 35), saisies par la RH : le
+  // planning affiche ce qu'il reste à planifier à chacun pour la semaine.
+  // null = non renseigné (aucun compteur affiché).
+  weeklyHours        Float?
+  nightWorkerStatus  NightWorkerStatus @default(AUTO)
   createdById        String? // RH ayant créé le compte
-  createdBy          User?     @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdUsers       User[]    @relation("UserCreatedBy")
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdBy          User?             @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers       User[]            @relation("UserCreatedBy")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  sessions           Session[]
-  pushTokens         PushToken[]
-  notifications      Notification[]
-  managedSites       Site[]              @relation("SiteManager")
-  supervisedSites    Site[]              @relation("SiteSupervisor")
-  siteMemberships    SiteMember[]
-  missionAssignments MissionAssignment[]
-  createdMissions    Mission[]           @relation("MissionCreatedBy")
-  uploadedMissionStandardDocuments Mission[] @relation("MissionStandardDocumentUploadedBy")
-  uploadedStandardDocuments CleaningStandard[] @relation("StandardDocumentUploadedBy")
-  reportedProblems   Problem[]           @relation("ProblemReportedBy")
-  problemComments    ProblemComment[]
-  uploadedPhotos     Photo[]
-  validations        Validation[]
-  activityLogs       ActivityLog[]
-  timeEntries        TimeEntry[]         @relation("TimeEntryUser")
-  validatedTimeEntries TimeEntry[]       @relation("TimeEntryValidatedBy")
-  createdJobSheets   JobSheet[]          @relation("JobSheetCreatedBy")
-  createdStandards   CleaningStandard[]  @relation("StandardCreatedBy")
-  sentMessages       Message[]           @relation("MessageSender")
-  receivedMessages   Message[]           @relation("MessageRecipient")
-  absences           Absence[]           @relation("AbsenceUser")
-  decidedAbsences    Absence[]           @relation("AbsenceDecidedBy")
-  leaveTransactions        LeaveTransaction[] @relation("LeaveTransactionUser")
-  createdLeaveTransactions LeaveTransaction[] @relation("LeaveTransactionCreatedBy")
-  postedAnnouncements Announcement[]     @relation("AnnouncementAuthor")
-  employeeDocuments   EmployeeDocument[] @relation("EmployeeDocumentOwner")
-  uploadedEmployeeDocuments EmployeeDocument[] @relation("EmployeeDocumentUploadedBy")
-  assignedProspects   Prospect[]         @relation("ProspectAssignedUser")
-  createdProspects    Prospect[]         @relation("ProspectCreatedBy")
-  createdClients      Client[]           @relation("ClientCreatedBy")
-  assignedQuotes      Quote[]            @relation("QuoteAssignedUser")
-  createdQuotes       Quote[]            @relation("QuoteCreatedBy")
-  acceptedQuotes      Quote[]            @relation("QuoteAcceptedBy")
-  rejectedQuotes      Quote[]            @relation("QuoteRejectedBy")
-  quoteEvents         QuoteEvent[]       @relation("QuoteEventUser")
-  createdSiteTargets  SiteTarget[]       @relation("SiteTargetCreatedBy")
-  createdInvoices     Invoice[]          @relation("InvoiceCreatedBy")
+  sessions                         Session[]
+  pushTokens                       PushToken[]
+  notifications                    Notification[]
+  managedSites                     Site[]                    @relation("SiteManager")
+  supervisedSites                  Site[]                    @relation("SiteSupervisor")
+  siteMemberships                  SiteMember[]
+  missionAssignments               MissionAssignment[]
+  createdMissions                  Mission[]                 @relation("MissionCreatedBy")
+  uploadedMissionStandardDocuments Mission[]                 @relation("MissionStandardDocumentUploadedBy")
+  uploadedStandardDocuments        CleaningStandard[]        @relation("StandardDocumentUploadedBy")
+  reportedProblems                 Problem[]                 @relation("ProblemReportedBy")
+  problemComments                  ProblemComment[]
+  uploadedPhotos                   Photo[]
+  validations                      Validation[]
+  activityLogs                     ActivityLog[]
+  timeEntries                      TimeEntry[]               @relation("TimeEntryUser")
+  validatedTimeEntries             TimeEntry[]               @relation("TimeEntryValidatedBy")
+  createdJobSheets                 JobSheet[]                @relation("JobSheetCreatedBy")
+  createdStandards                 CleaningStandard[]        @relation("StandardCreatedBy")
+  sentMessages                     Message[]                 @relation("MessageSender")
+  receivedMessages                 Message[]                 @relation("MessageRecipient")
+  conversations                    ConversationParticipant[] @relation("ConversationParticipantUser")
+  createdConversations             Conversation[]            @relation("ConversationCreatedBy")
+  absences                         Absence[]                 @relation("AbsenceUser")
+  decidedAbsences                  Absence[]                 @relation("AbsenceDecidedBy")
+  leaveTransactions                LeaveTransaction[]        @relation("LeaveTransactionUser")
+  createdLeaveTransactions         LeaveTransaction[]        @relation("LeaveTransactionCreatedBy")
+  leaveAccruals                    LeaveAccrual[]            @relation("LeaveAccrualUser")
+  validatedLeaveAccruals           LeaveAccrual[]            @relation("LeaveAccrualValidatedBy")
+  postedAnnouncements              Announcement[]            @relation("AnnouncementAuthor")
+  employeeDocuments                EmployeeDocument[]        @relation("EmployeeDocumentOwner")
+  uploadedEmployeeDocuments        EmployeeDocument[]        @relation("EmployeeDocumentUploadedBy")
+  assignedProspects                Prospect[]                @relation("ProspectAssignedUser")
+  createdProspects                 Prospect[]                @relation("ProspectCreatedBy")
+  createdClients                   Client[]                  @relation("ClientCreatedBy")
+  assignedQuotes                   Quote[]                   @relation("QuoteAssignedUser")
+  createdQuotes                    Quote[]                   @relation("QuoteCreatedBy")
+  acceptedQuotes                   Quote[]                   @relation("QuoteAcceptedBy")
+  rejectedQuotes                   Quote[]                   @relation("QuoteRejectedBy")
+  quoteEvents                      QuoteEvent[]              @relation("QuoteEventUser")
+  createdSiteTargets               SiteTarget[]              @relation("SiteTargetCreatedBy")
+  createdInvoices                  Invoice[]                 @relation("InvoiceCreatedBy")
 
   @@index([role])
   @@map("users")
@@ -134,12 +143,12 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model Site {
-  id          String   @id @default(uuid())
-  name        String
-  address     String
-  description String?
-  managerId   String?
-  manager     User?    @relation("SiteManager", fields: [managerId], references: [id], onDelete: SetNull)
+  id           String   @id @default(uuid())
+  name         String
+  address      String
+  description  String?
+  managerId    String?
+  manager      User?    @relation("SiteManager", fields: [managerId], references: [id], onDelete: SetNull)
   // Superviseur du chantier — retour explicite du client : distinct du chef
   // d'équipe (`managerId`, ou le chef d'équipe désigné mission par mission
   // via `MissionAssignment.isLead`), qui PEUT varier d'un jour à l'autre.
@@ -155,8 +164,8 @@ model Site {
   // jamais une URL publique, clé opaque résolue par une route authentifiée
   // dédiée (voir sites.service.ts `getSitePhotoFile`). Optionnelle : un
   // chantier sans photo garde son icône générique (voir SiteDetailScreen).
-  photoKey    String?
-  isActive    Boolean  @default(true)
+  photoKey     String?
+  isActive     Boolean  @default(true)
   // Position GPS du chantier, enregistrée une fois sur place (bouton "Utiliser
   // ma position actuelle" à la création/édition de la fiche) — retour explicite
   // du client : permet de vérifier automatiquement, EN INTERNE (aucun service
@@ -164,19 +173,19 @@ model Site {
   // chantier prévu (voir timesheets.service.ts, calcul de distance à vol
   // d'oiseau). Optionnelle : les chantiers créés avant cette fonctionnalité
   // n'en ont pas, et la vérification de distance ne s'applique alors pas.
-  latitude    Float?
-  longitude   Float?
+  latitude     Float?
+  longitude    Float?
   // Lien commercial optionnel (cahier des charges module commercial, §19-21)
   // — un chantier "opérationnel" classique n'a besoin d'aucun des deux ;
   // remplis uniquement quand le chantier a été créé à partir d'un devis
   // accepté (action humaine explicite, voir sites.service.ts::createSite).
   // Jamais rempli automatiquement par l'acceptation du devis elle-même.
-  clientId    String?
-  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  quoteId     String?  @unique
-  quote       Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  clientId     String?
+  client       Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  quoteId      String?  @unique
+  quote        Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   members           SiteMember[]
   missions          Mission[]
@@ -277,22 +286,25 @@ enum MissionStatus {
 }
 
 model Mission {
-  id           String        @id @default(uuid())
-  siteId       String
-  site         Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  title        String
-  date         DateTime      @db.Date
-  startTime    DateTime
-  endTime      DateTime
-  instructions String?
-  status       MissionStatus @default(SCHEDULED)
-  createdById  String
-  createdBy    User          @relation("MissionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  id                           String            @id @default(uuid())
+  siteId                       String
+  site                         Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  title                        String
+  date                         DateTime          @db.Date
+  startTime                    DateTime
+  endTime                      DateTime
+  instructions                 String?
+  status                       MissionStatus     @default(SCHEDULED)
+  // Intervention exceptionnelle, hors planning ou contrat habituel : les
+  // heures de nuit, de dimanche et de jour férié sont majorées à 100 %.
+  isExceptional                Boolean           @default(false)
+  createdById                  String
+  createdBy                    User              @relation("MissionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   // Standard de nettoyage appliqué à la création (traçabilité) — son contenu
   // a été copié dans `JobSheet` au moment de la création, donc conservé même
   // si le standard est modifié ou supprimé depuis (onDelete: SetNull).
-  standardId   String?
-  standard     CleaningStandard? @relation(fields: [standardId], references: [id], onDelete: SetNull)
+  standardId                   String?
+  standard                     CleaningStandard? @relation(fields: [standardId], references: [id], onDelete: SetNull)
   // Document PDF déposé directement sur la mission (ex. standard de nettoyage
   // du client, fiche technique produit) — distinct du `CleaningStandard`
   // structuré ci-dessus (`standard`/`standardId`) : un fichier tel quel,
@@ -306,7 +318,7 @@ model Mission {
   standardDocumentFileName     String?
   standardDocumentSizeBytes    Int?
   standardDocumentUploadedById String?
-  standardDocumentUploadedBy   User?     @relation("MissionStandardDocumentUploadedBy", fields: [standardDocumentUploadedById], references: [id], onDelete: SetNull)
+  standardDocumentUploadedBy   User?             @relation("MissionStandardDocumentUploadedBy", fields: [standardDocumentUploadedById], references: [id], onDelete: SetNull)
   standardDocumentUploadedAt   DateTime?
   // Regroupe les occurrences générées ensemble par une mission récurrente
   // (retour explicite du client : "pas besoin de le recréer à chaque fois",
@@ -315,9 +327,9 @@ model Mission {
   // ses occurrences, permet d'annuler la série entière en un geste
   // (`cancelMission` avec `scope: "series"`) plutôt qu'occurrence par
   // occurrence.
-  recurrenceGroupId String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  recurrenceGroupId            String?
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
 
   assignments MissionAssignment[]
   problems    Problem[]
@@ -418,16 +430,16 @@ model ProblemComment {
 // ---------------------------------------------------------------------------
 
 model Photo {
-  id           String   @id @default(uuid())
-  storageKey   String   @unique // clé privée dans le stockage objet (jamais exposée telle quelle)
-  mimeType     String
-  sizeBytes    Int
-  uploadedById String
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
-  problemId    String?
-  problem      Problem? @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  isDeleted    Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  id            String    @id @default(uuid())
+  storageKey    String    @unique // clé privée dans le stockage objet (jamais exposée telle quelle)
+  mimeType      String
+  sizeBytes     Int
+  uploadedById  String
+  uploadedBy    User      @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  problemId     String?
+  problem       Problem?  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  isDeleted     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
   // Horodatage du rappel envoyé à la RH avant suppression automatique — évite
   // de renvoyer le même rappel chaque jour (voir jobs/photoRetention.ts).
   purgeWarnedAt DateTime?
@@ -482,17 +494,17 @@ enum TimeEntryStatus {
 /// null tant que l'utilisateur n'a pas pointé sa sortie ; un utilisateur ne
 /// peut avoir qu'un seul pointage ouvert à la fois (voir timesheets.service.ts).
 model TimeEntry {
-  id            String          @id @default(uuid())
-  userId        String
-  user          User            @relation("TimeEntryUser", fields: [userId], references: [id], onDelete: Cascade)
-  clockIn       DateTime
-  clockOut      DateTime?
-  status        TimeEntryStatus @default(PENDING)
-  validatedById String?
-  validatedBy   User?           @relation("TimeEntryValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
-  validatedAt   DateTime?
-  comment       String?
-  isRetroactive Boolean         @default(false) // pointage saisi après coup (oubli), signalé pour le validateur
+  id                String          @id @default(uuid())
+  userId            String
+  user              User            @relation("TimeEntryUser", fields: [userId], references: [id], onDelete: Cascade)
+  clockIn           DateTime
+  clockOut          DateTime?
+  status            TimeEntryStatus @default(PENDING)
+  validatedById     String?
+  validatedBy       User?           @relation("TimeEntryValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
+  validatedAt       DateTime?
+  comment           String?
+  isRetroactive     Boolean         @default(false) // pointage saisi après coup (oubli), signalé pour le validateur
   // Justificatif anti-fraude (retour explicite du client) : photo + position GPS
   // capturées sur le terrain au moment même du pointage, jamais saisies après
   // coup (absentes sur un pointage différé, `isRetroactive`, par construction —
@@ -507,8 +519,8 @@ model TimeEntry {
   clockOutLongitude Float?
   clockOutAccuracy  Float?
   clockOutPhotoKey  String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([userId, clockIn])
   @@map("time_entries")
@@ -520,9 +532,22 @@ model TimeEntry {
 
 enum AbsenceType {
   PAID_LEAVE // Congé payé
-  SICK_LEAVE // Arrêt maladie
+  SICK_LEAVE // Arrêt maladie (non professionnel)
   UNPAID_LEAVE // Congé sans solde
+  WORK_ACCIDENT // Accident du travail / maladie professionnelle
+  PARENTAL_LEAVE // Congé maternité / paternité / adoption
+  // Repos compensateur du travailleur de nuit (convention propreté art. 6.3 :
+  // 2 % des heures de nuit du mois), décompté du compteur acquis.
+  COMPENSATORY_REST
   OTHER
+}
+
+// Statut de travailleur de nuit : déterminé automatiquement chaque mois
+// (payroll/workHours.ts::isNightWorker), ou fixé par la RH selon le contrat.
+enum NightWorkerStatus {
+  AUTO
+  YES
+  NO
 }
 
 enum AbsenceStatus {
@@ -581,6 +606,37 @@ enum LeaveTransactionType {
   ADJUSTMENT // correction manuelle RH (days positif ou négatif)
 }
 
+// Droits à congés acquis sur UN mois, calculés automatiquement à la fin du
+// mois (voir leave.service.ts::generateAccruals) selon le temps de travail et
+// les absences, puis contrôlés par la RH : « PROPOSED » (calculé, à valider)
+// → « VALIDATED » (définitif, compte dans le solde). La RH peut corriger la
+// valeur avant de valider (`days` ≠ `computedDays`, motif obligatoire).
+enum LeaveAccrualStatus {
+  PROPOSED
+  VALIDATED
+}
+
+model LeaveAccrual {
+  id            String             @id @default(uuid())
+  userId        String
+  user          User               @relation("LeaveAccrualUser", fields: [userId], references: [id], onDelete: Cascade)
+  month         String // « AAAA-MM »
+  computedDays  Float // calcul automatique (jours ouvrables)
+  days          Float // valeur retenue (= calcul, ou corrigée par la RH)
+  details       Json // détail du calcul (jours travaillés, assimilés, maladie, non acquis...)
+  status        LeaveAccrualStatus @default(PROPOSED)
+  note          String?
+  validatedById String?
+  validatedBy   User?              @relation("LeaveAccrualValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
+  validatedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([userId, month])
+  @@index([month, status])
+  @@map("leave_accruals")
+}
+
 model LeaveTransaction {
   id          String               @id @default(uuid())
   userId      String
@@ -616,6 +672,8 @@ enum NotificationType {
   PHOTO_EXPIRING_SOON
   VALIDATION_REQUESTED
   TIMESHEET_VALIDATED
+  // Pointage refusé (« à corriger ») — distinct de la validation.
+  TIMESHEET_REJECTED
   ACCOUNT_UPDATE
   // Envoyée à la RH/direction/admin quand un employé demande une absence
   // (voir absences.service.ts::notifyAbsenceManagers) — distincte de
@@ -638,6 +696,12 @@ enum NotificationType {
   // messages.service.ts::sendMessage), au motif que le badge de non-lus de
   // l'onglet Messagerie suffisait déjà. Le client veut la cloche en plus.
   MESSAGE_RECEIVED
+  // Circuit commercial (retour d'audit) : devis à valider, validé, accepté,
+  // refusé — ouvre la fiche du devis.
+  COMMERCIAL_UPDATE
+  // Rappels automatiques (pointage oublié, mission du lendemain, devis à
+  // envoyer, validations en attente…) — voir modules/automations.
+  REMINDER
   GENERAL
 }
 
@@ -647,17 +711,17 @@ enum NotificationType {
 /// announcements.service.ts) ; pas de brouillon ni d'édition dans cette
 /// première version — publier, c'est notifier immédiatement.
 model Announcement {
-  id        String   @id @default(uuid())
-  authorId  String
-  author    User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  title     String
-  body      String
+  id            String   @id @default(uuid())
+  authorId      String
+  author        User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title         String
+  body          String
   // Photo de couverture facultative (retour explicite du client : "un vrai
   // blog/journal d'entreprise", une photo en tête d'actualité) — même
   // principe que les autres photos de l'app, jamais d'URL publique, servie
   // via une route authentifiée dédiée.
   coverPhotoKey String?
-  createdAt DateTime @default(now())
+  createdAt     DateTime @default(now())
 
   @@index([createdAt])
   @@map("announcements")
@@ -718,31 +782,107 @@ model PushToken {
 // Messagerie interne
 // ---------------------------------------------------------------------------
 
-/// Message direct entre deux comptes de l'entreprise — pas de notion de
-/// "conversation" en base : un fil entre deux utilisateurs se déduit en
-/// filtrant sur (senderId, recipientId) dans les deux sens (voir
-/// messages.service.ts), plutôt qu'une entité séparée à maintenir en plus.
+/// Fil de discussion — à deux (`isGroup = false`) ou à plusieurs
+/// (`isGroup = true`, retour explicite du client : "parler à plusieurs
+/// personnes"). Les fils à deux étaient auparavant déduits à la volée des
+/// couples (senderId, recipientId) sans entité dédiée ; impossible à
+/// généraliser à N participants (nom du groupe, arrivées/départs, lecture par
+/// personne), d'où cette entité. Les fils existants ont été repris
+/// automatiquement au premier démarrage qui suit la mise à jour (voir
+/// src/db/migrateMessagesToConversations.ts).
+model Conversation {
+  id      String  @id @default(uuid())
+  isGroup Boolean @default(false)
+  /// Nom du groupe, choisi à la création et modifiable ensuite par ses
+  /// administrateurs — toujours null pour un fil à deux, qui s'affiche sous
+  /// le nom de l'interlocuteur.
+  title   String?
+
+  createdById String?
+  createdBy   User?   @relation("ConversationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Date du dernier message, dénormalisée pour trier la liste des
+  /// conversations sans sous-requête sur `messages` (l'écran d'accueil de la
+  /// messagerie est un des plus sollicités de l'app, rafraîchi à chaque
+  /// retour sur l'onglet).
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+/// Appartenance d'un compte à un fil. Porte aussi l'état de lecture : un
+/// curseur `lastReadAt` par personne remplace le `isRead` qui était porté par
+/// le message lui-même — à plusieurs, un message est lu par certains et pas
+/// par d'autres, un booléen unique ne peut plus l'exprimer.
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("ConversationParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+  /// Peut renommer le groupe, ajouter et retirer des participants. Jamais
+  /// utilisé pour un fil à deux.
+  isAdmin        Boolean      @default(false)
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+  /// Renseigné quand la personne quitte le groupe ou en est retirée : son
+  /// accès au fil s'arrête là, mais l'historique des messages qu'elle a
+  /// écrits reste lisible par les autres (jamais de suppression silencieuse
+  /// de messages déjà reçus).
+  leftAt         DateTime?
+
+  @@unique([conversationId, userId])
+  @@index([userId, leftAt])
+  @@map("conversation_participants")
+}
+
+/// Message posté dans un fil (`conversationId`) par son auteur (`senderId`).
 model Message {
-  id          String    @id @default(uuid())
-  senderId    String
-  sender      User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  recipientId String
-  recipient   User      @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  senderId       String
+  sender         User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   // Optionnel depuis l'ajout de la photo jointe (retour explicite du client)
-  // : un message peut être une photo seule, sans texte — jamais les deux
-  // absents à la fois (voir messages.service.ts::sendMessage).
-  body        String?
+  // : un message peut être une photo seule, sans texte — jamais texte, photo
+  // et document tous absents à la fois (voir messages.service.ts::sendMessage).
+  body           String?
   // Photo jointe au message (retour explicite du client) — même principe que
   // les autres photos de l'app : jamais d'URL publique, clé opaque résolue
   // par une route authentifiée dédiée (voir messages.service.ts
-  // `getMessagePhoto`), réservée à l'expéditeur et au destinataire.
-  photoKey    String?
+  // `getMessagePhoto`), réservée aux participants du fil.
+  photoKey       String?
+  // Document joint (retour explicite du client : "un partage de document") —
+  // PDF uniquement, vérifié sur les octets réels du fichier et non sur le
+  // type déclaré (utils/storage.ts::storePdfDocument). Nom et taille
+  // d'origine conservés pour l'affichage, le fichier lui-même restant sous
+  // une clé opaque servie par une route authentifiée.
+  documentKey    String?
+  documentName   String?
+  documentSize   Int?
+  /// Événement de vie du groupe (création, arrivée, départ, renommage) plutôt
+  /// qu'un message écrit : affiché centré sans bulle, jamais compté comme
+  /// non-lu et jamais notifié. `senderId` porte l'auteur de l'action.
+  systemEvent    String?
+  createdAt      DateTime      @default(now())
+
+  // Colonnes de l'ancienne messagerie à deux, conservées le temps de valider
+  // la reprise des fils existants (voir Conversation ci-dessus) : plus jamais
+  // écrites ni lues par le code. `recipientId` est devenu optionnel — un
+  // message de groupe n'a pas de destinataire unique.
+  recipientId String?
+  recipient   User?     @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   isRead      Boolean   @default(false)
   readAt      DateTime?
-  createdAt   DateTime  @default(now())
 
-  @@index([senderId, recipientId, createdAt])
-  @@index([recipientId, senderId, isRead])
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
   @@map("messages")
 }
 
@@ -792,12 +932,12 @@ model Prospect {
   // Commercial responsable — un superviseur ne peut s'assigner qu'à
   // lui-même ; seuls RH/Direction/Admin peuvent réassigner un prospect à un
   // autre commercial (voir prospects.service.ts::resolveAssignedUserId).
-  assignedUserId String?
-  assignedUser   User?    @relation("ProspectAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  createdById    String
-  createdBy      User     @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  assignedUserId   String?
+  assignedUser     User?          @relation("ProspectAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdById      String
+  createdBy        User           @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   // Rempli une fois le prospect transformé en client (voir
   // prospects.service.ts::convertProspectToClient) — jamais recréé à la
@@ -824,6 +964,9 @@ model Client {
   postalCode       String?
   city             String?
   siret            String?
+  // SIREN (9 chiffres) — mention obligatoire de la facture électronique ;
+  // déduit du SIRET s'il est absent.
+  siren            String?
   notes            String?
   prospectId       String?   @unique
   prospect         Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
@@ -958,7 +1101,7 @@ model Quote {
   // Acceptation manuelle (§18) — jamais déclenchée par le client lui-même.
   acceptedAt      DateTime?
   acceptedById    String?
-  acceptedBy      User?                 @relation("QuoteAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  acceptedBy      User?                @relation("QuoteAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
   acceptedMethod  QuoteFollowUpMethod?
   acceptedComment String?
 
@@ -1005,7 +1148,7 @@ model QuoteItem {
   // Recalculé côté serveur : quantity * unitPriceHt * (1 - discount / 100).
   totalHt     Float         @default(0)
 
-  frequency QuoteItemFrequency @default(ONE_TIME)
+  frequency           QuoteItemFrequency @default(ONE_TIME)
   // Nombre de passages par mois — requis dès que `frequency` n'est pas
   // ONE_TIME (ex. "6 passages par mois", cahier des charges §11). Sert à
   // calculer `monthlyAmountHt` ci-dessous, jamais à déduire une date de
@@ -1013,7 +1156,7 @@ model QuoteItem {
   occurrencesPerMonth Float?
   // Recalculé côté serveur : totalHt * occurrencesPerMonth si récurrent,
   // sinon 0 (une ligne ponctuelle n'entre pas dans le prévisionnel mensuel).
-  monthlyAmountHt     Float  @default(0)
+  monthlyAmountHt     Float              @default(0)
 
   // Sert de référence au futur chantier (§12) — jamais utilisé pour créer
   // quoi que ce soit automatiquement.
@@ -1062,32 +1205,32 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id            String        @id @default(uuid())
+  id             String          @id @default(uuid())
   // Format FAC-AAAA-NNNN (voir invoices.service.ts::generateInvoiceNumber).
-  invoiceNumber String        @unique
-  clientId      String
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  invoiceNumber  String          @unique
+  clientId       String
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
   // Références optionnelles (§31 : "La facture doit conserver une référence
   // au devis [...] et éventuellement au chantier") — une facture peut aussi
   // être créée directement pour un client, sans devis ni chantier.
-  quoteId       String?
-  quote         Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
-  siteId        String?
-  site          Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  createdById   String
-  createdBy     User          @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  status        InvoiceStatus @default(DRAFT)
+  quoteId        String?
+  quote          Quote?          @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  siteId         String?
+  site           Site?           @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  createdById    String
+  createdBy      User            @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  status         InvoiceStatus   @default(DRAFT)
   // Mode défini au moment de la génération (§33) : FLAT_RATE reprend le
   // montant prévu (devis/objectif), PER_SERVICE se base sur le nombre réel de
   // prestations réalisées sur la période × tarif — le calcul lui-même est
   // fait une fois, à la création (voir invoices.service.ts), jamais recalculé
   // après coup pour ne pas faire varier une facture déjà émise.
-  billingMode   SiteBillingMode @default(FLAT_RATE)
+  billingMode    SiteBillingMode @default(FLAT_RATE)
   // Mois facturé le cas échéant ("AAAA-MM") — pour une facture mensuelle liée
   // à un chantier récurrent.
-  period        String?
-  issueDate     DateTime      @default(now())
-  dueDate       DateTime?
+  period         String?
+  issueDate      DateTime        @default(now())
+  dueDate        DateTime?
   // Coordonnées figées au moment de la création (même principe que
   // Quote.contactName et consorts — jamais relues depuis la fiche client
   // après coup).
@@ -1105,9 +1248,17 @@ model Invoice {
   vatAmount  Float @default(0)
   totalTtc   Float @default(0)
 
-  sentAt      DateTime?
-  paidAt      DateTime?
-  cancelledAt DateTime?
+  sentAt           DateTime?
+  paidAt           DateTime?
+  // Facture électronique (réforme 2026) : transmission via la plateforme
+  // agréée (Super PDP), identifiant chez elle et dernier statut connu.
+  pdpInvoiceId     String?
+  pdpStatus        String?
+  pdpStatusLabel   String?
+  pdpSentAt        DateTime?
+  pdpUpdatedAt     DateTime?
+  pdpError         String?
+  cancelledAt      DateTime?
   cancelledComment String?
 
   createdAt DateTime @default(now())
@@ -1154,4 +1305,16 @@ model ActivityLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@map("activity_logs")
+}
+
+/// Trace des automatisations déjà déclenchées (rappels, relances) : une clé
+/// unique par rappel garantit qu'il n'est jamais envoyé deux fois, même si le
+/// serveur redémarre ou si la tâche tourne plusieurs fois.
+model AutomationEvent {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("automation_events")
 }

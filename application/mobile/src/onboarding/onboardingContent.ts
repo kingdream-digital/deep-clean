@@ -20,7 +20,7 @@ export interface OnboardingStep {
 const WELCOME: OnboardingStep = {
   icon: "sparkles-outline",
   title: "Bienvenue sur Deep Clean",
-  body: "On vous fait faire un vrai tour de l'application, écran par écran. Vous pourrez le revoir à tout moment depuis Profil.",
+  body: "On vous fait faire un vrai tour de l'application, écran par écran. Vous pourrez le revoir à tout moment depuis Menu → Mon profil.",
   tab: "Accueil",
   screen: "Home",
 };
@@ -55,7 +55,7 @@ const PLANNING: OnboardingStep = {
 const MISSIONS: OnboardingStep = {
   icon: "briefcase-outline",
   title: "Vos missions",
-  body: "À venir, terminées ou annulées : basculez entre les trois, puis touchez une mission pour son détail complet.",
+  body: "À venir, à valider, validées ou annulées : choisissez un onglet, puis touchez une mission pour son détail complet.",
   tab: "Missions",
   screen: "MissionsList",
   targetId: "missions.filters",
@@ -64,9 +64,29 @@ const MISSIONS: OnboardingStep = {
 const MESSAGERIE: OnboardingStep = {
   icon: "chatbubbles-outline",
   title: "Notifications et messages",
-  body: "Tout ce qui vous concerne arrive ici : notifications d'un côté, messages directs de l'autre. Le badge rouge compte ce qu'il reste à lire.",
+  body: "Notifications d'un côté, conversations de l'autre : messages à un collègue ou groupes d'équipe, avec photos et documents. Le badge rouge compte ce qu'il reste à lire.",
   tab: "Messagerie",
   targetId: "inbox.segment",
+};
+
+const ABSENCES: OnboardingStep = {
+  icon: "calendar-outline",
+  tab: "Menu",
+  screen: "MenuHome",
+  title: "Congés et absences",
+  body: "Depuis Menu → Mes absences, demandez un congé en quelques secondes. Vous voyez votre solde restant et la réponse arrive en notification.",
+  targetId: "menu.MyAbsences",
+};
+
+// Création des missions : réservée à ceux qui gèrent le planning
+// (superviseur, RH, direction, admin). Cible le bouton « + » du Planning.
+const CREATE_MISSION: OnboardingStep = {
+  icon: "add-circle-outline",
+  tab: "Planning",
+  screen: "PlanningHome",
+  title: "Créer une mission",
+  body: "Ce bouton crée une mission sur le jour affiché : chantier, horaires, équipe et consignes. Chaque personne affectée est prévenue aussitôt, et à chaque modification.",
+  targetId: "planning.create",
 };
 
 function menuStep(step: Omit<OnboardingStep, "tab" | "screen">): OnboardingStep {
@@ -90,12 +110,13 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     menuStep({
       icon: "warning-outline",
       title: "Signaler un problème",
-      body: "Depuis Menu → Mes signalements, suivez le traitement de tout ce que vous avez signalé sur le terrain.",
+      body: "Sur place, ouvrez la mission et touchez « Signaler un problème » : décrivez, ajoutez des photos, envoyez. Ici, dans Signalements, vous suivez ensuite son traitement.",
       targetId: "menu.ProblemsList",
     }),
+    ABSENCES,
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -109,12 +130,19 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     menuStep({
       icon: "checkmark-done-outline",
       title: "Validation des heures",
-      body: "Depuis Menu → Validation des heures, vérifiez et validez les pointages de votre équipe. Sur vos chantiers, vous démarrez, terminez et validez aussi chaque mission.",
+      body: "Depuis Menu → Validation des heures, vérifiez les pointages de votre équipe. Sur le terrain, vous démarrez et terminez les missions, puis validez celles de vos chantiers.",
       targetId: "menu.TimesheetValidation",
     }),
+    menuStep({
+      icon: "warning-outline",
+      title: "Problèmes sur vos chantiers",
+      body: "Tous les signalements de vos chantiers arrivent ici, photos comprises. Faites-les avancer : nouveau, en cours, traité.",
+      targetId: "menu.ProblemsList",
+    }),
+    ABSENCES,
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -125,15 +153,22 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     PLANNING,
     MISSIONS,
     MESSAGERIE,
+    CREATE_MISSION,
+    menuStep({
+      icon: "checkmark-done-outline",
+      title: "Validation des heures",
+      body: "Chaque pointage passe par vous avant la RH. Validez d'un geste ce qui concorde, refusez avec un motif ce qui ne va pas.",
+      targetId: "menu.TimesheetValidation",
+    }),
     menuStep({
       icon: "calendar-number-outline",
-      title: "Congés & absences",
-      body: "Depuis Menu → Congés & absences, approuvez ou refusez les demandes de toute l'équipe. C'est aussi vous qui créez et modifiez les missions sur tous les chantiers.",
+      title: "Validation des congés",
+      body: "Depuis Menu → Validation des congés, approuvez ou refusez les demandes de toute l'équipe. Le salarié reçoit votre réponse immédiatement.",
       targetId: "menu.AbsencesManagement",
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -144,15 +179,16 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     PLANNING,
     MISSIONS,
     MESSAGERIE,
+    CREATE_MISSION,
     menuStep({
       icon: "person-add-outline",
       title: "Comptes utilisateurs",
-      body: "Depuis Menu → Comptes utilisateurs : vous seule créez les comptes, attribuez les rôles, et pouvez activer, désactiver ou réinitialiser l'accès de chacun.",
+      body: "Depuis Menu → Comptes utilisateurs : vous êtes la seule personne à créer les comptes et à attribuer les rôles, et vous pouvez activer, désactiver ou réinitialiser l'accès de chacun.",
       targetId: "menu.UsersList",
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prête",
+      title: "Tout est prêt",
       body: "Vous êtes le point de contact pour tout problème de connexion ou de compte d'un collaborateur. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -163,15 +199,16 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     PLANNING,
     MISSIONS,
     MESSAGERIE,
+    CREATE_MISSION,
     menuStep({
       icon: "stats-chart-outline",
       title: "Statistiques",
-      body: "Depuis Menu → Statistiques, suivez l'activité globale de l'entreprise. Comme la RH et le superviseur, vous pouvez aussi valider une mission terminée.",
+      body: "Depuis Menu → Statistiques, suivez l'activité de toute l'entreprise. Vous avez la main sur tout : planning, heures, congés, chantiers et comptes existants. Seule la création de comptes reste à la RH.",
       targetId: "menu.StatsOverview",
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour tout problème de connexion ou de compte, contactez la RH. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
@@ -185,12 +222,12 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     menuStep({
       icon: "people-outline",
       title: "Comptes",
-      body: "Depuis Menu → Comptes, gestion technique des comptes en appui de la RH. La création des comptes reste sa prérogative.",
+      body: "Depuis Menu → Comptes, gestion technique des comptes en appui de la RH.",
       targetId: "menu.UsersList",
     }),
     {
       ...CLOSING_BASE,
-      title: "Vous êtes prêt",
+      title: "Tout est prêt",
       body: "Pour un problème de compte, la RH reste le premier contact. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],

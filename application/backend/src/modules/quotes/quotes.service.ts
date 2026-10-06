@@ -1,4 +1,5 @@
 import { Prisma, QuoteEventAction, QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit, QuoteStatus, Role } from "@prisma/client";
+import { companyDateLabel } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -7,6 +8,7 @@ import { sendMail } from "../../utils/mailer";
 import { COMMERCIAL_FULL_ROLES, isOwnRecord, resolveAssignedUserId } from "../commercial/roles";
 import type { Actor } from "../commercial/roles";
 import { buildQuotePdf } from "./quotes.pdf";
+import { createNotification, markRelatedNotificationsRead } from "../notifications/notifications.service";
 
 const userSummarySelect = { id: true, firstName: true, lastName: true, email: true, role: true } as const;
 
@@ -30,7 +32,7 @@ const quoteSelect = {
   id: true,
   quoteNumber: true,
   clientId: true,
-  client: { select: { id: true, companyName: true, contactFirstName: true, contactLastName: true, email: true, phone: true } },
+  client: { select: { id: true, companyName: true, contactFirstName: true, contactLastName: true, email: true, phone: true, siret: true, siren: true } },
   assignedUserId: true,
   assignedUser: { select: userSummarySelect },
   createdById: true,
@@ -133,6 +135,41 @@ function buildItemsData(items: QuoteItemInput[]) {
 
 function presentQuote(quote: QuoteRow) {
   return quote;
+}
+
+// Notifications du circuit commercial (retour d'audit : la personne qui doit
+// valider un devis ne l'apprenait qu'en ouvrant la liste). Destinataires
+// selon le lien réel avec le devis, jamais l'auteur de l'action lui-même.
+type QuoteNotice = "submitted" | "validated" | "accepted" | "rejected";
+
+async function notifyQuote(actor: Actor, quote: { id: string; quoteNumber: string; assignedUserId: string | null; createdById: string; client: { companyName: string } }, notice: QuoteNotice) {
+  const owner = quote.assignedUserId ?? quote.createdById;
+  const recipients = new Set<string>();
+  if (notice === "validated") {
+    recipients.add(owner);
+  } else {
+    // Devis à valider / issue d'un devis : la direction et la RH (qui
+    // valident et facturent), plus le commercial responsable.
+    const managers = await prisma.user.findMany({ where: { role: { in: [Role.DIRECTOR, Role.HR] }, isActive: true }, select: { id: true } });
+    for (const m of managers) recipients.add(m.id);
+    if (notice !== "submitted") recipients.add(owner);
+  }
+  recipients.delete(actor.userId);
+  if (recipients.size === 0) return;
+
+  const label = `${quote.quoteNumber} — ${quote.client.companyName}`;
+  const texts: Record<QuoteNotice, { title: string; body: string }> = {
+    submitted: { title: "Devis à valider", body: `Le devis ${label} attend votre validation.` },
+    validated: { title: "Devis validé", body: `Le devis ${label} a été validé : vous pouvez l'envoyer au client.` },
+    accepted: { title: "Devis accepté", body: `Le client a accepté le devis ${label}. Prochaine étape : créer le chantier.` },
+    rejected: { title: "Devis refusé", body: `Le client a refusé le devis ${label}.` },
+  };
+  const { title, body } = texts[notice];
+  await Promise.all(
+    [...recipients].map((userId) =>
+      createNotification({ userId, type: "COMMERCIAL_UPDATE", title, body, relatedEntityType: "Quote", relatedEntityId: quote.id })
+    )
+  );
 }
 
 async function findQuoteOrThrow(id: string) {
@@ -372,6 +409,7 @@ export async function submitQuoteForValidation(actor: Actor, id: string) {
   const quote = await prisma.quote.update({ where: { id }, data: { status: QuoteStatus.TO_VALIDATE }, select: quoteSelect });
   await recordEvent(id, actor.userId, QuoteEventAction.SUBMITTED_FOR_VALIDATION);
   await logActivity({ userId: actor.userId, action: "QUOTE_SUBMITTED_FOR_VALIDATION", entityType: "Quote", entityId: id });
+  await notifyQuote(actor, quote, "submitted");
   return presentQuote(quote);
 }
 
@@ -389,6 +427,9 @@ export async function validateQuote(actor: Actor, id: string) {
   const quote = await prisma.quote.update({ where: { id }, data: { status: QuoteStatus.VALIDATED }, select: quoteSelect });
   await recordEvent(id, actor.userId, QuoteEventAction.VALIDATED);
   await logActivity({ userId: actor.userId, action: "QUOTE_VALIDATED", entityType: "Quote", entityId: id });
+  // « Devis à valider » n'a plus d'objet pour personne.
+  await markRelatedNotificationsRead("Quote", id, "COMMERCIAL_UPDATE");
+  await notifyQuote(actor, quote, "validated");
   return presentQuote(quote);
 }
 
@@ -414,7 +455,7 @@ export async function sendQuote(actor: Actor, id: string, message?: string) {
     greeting,
     "",
     message?.trim() || `Veuillez trouver ci-joint notre devis ${quote.quoteNumber}${quote.subject ? ` concernant "${quote.subject}"` : ""}.`,
-    quote.validUntil ? `Ce devis est valable jusqu'au ${quote.validUntil.toLocaleDateString("fr-FR")}.` : "",
+    quote.validUntil ? `Ce devis est valable jusqu'au ${companyDateLabel(quote.validUntil)}.` : "",
     "",
     "Cordialement,",
   ]
@@ -483,6 +524,7 @@ export async function markQuoteAccepted(actor: Actor, id: string, input: { metho
   });
   await recordEvent(id, actor.userId, QuoteEventAction.ACCEPTED, { method: input.method, comment: input.comment });
   await logActivity({ userId: actor.userId, action: "QUOTE_ACCEPTED", entityType: "Quote", entityId: id });
+  await notifyQuote(actor, quote, "accepted");
   // Retour explicite du cahier des charges §19/§25/§40 : l'acceptation NE crée
   // JAMAIS automatiquement de chantier, de mission ni d'événement de planning
   // — volontairement aucun autre effet de bord ici.
@@ -502,6 +544,7 @@ export async function markQuoteRejected(actor: Actor, id: string, input: { comme
   });
   await recordEvent(id, actor.userId, QuoteEventAction.REJECTED, { comment: input.comment });
   await logActivity({ userId: actor.userId, action: "QUOTE_REJECTED", entityType: "Quote", entityId: id });
+  await notifyQuote(actor, quote, "rejected");
   return presentQuote(quote);
 }
 

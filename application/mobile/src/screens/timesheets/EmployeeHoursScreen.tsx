@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -21,8 +21,11 @@ import { toLocalDateKey } from "../../utils/missionFormat";
 import { shareCsv } from "../../utils/exportCsv";
 import { shareFile } from "../../utils/shareFile";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
+import { PaySummaryCard } from "../../components/PaySummaryCard";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const dayFmt = frenchDateFormat({ day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 
@@ -41,6 +44,9 @@ function capitalize(s: string): string {
 
 type Route = RouteProp<MenuStackParamList, "EmployeeHours">;
 
+// Aussi ouvert par chacun sur ses propres heures (Mes heures → dossier d'un
+// mois) : le serveur limite alors la liste et l'export à ses pointages.
+//
 // Dossier d'heures d'une personne, mois par mois — pour que la RH puisse
 // retrouver rapidement les heures d'un employé et exporter le mois en CSV
 // pour préparer la fiche de paye (voir timesheets.service.ts côté serveur
@@ -48,15 +54,24 @@ type Route = RouteProp<MenuStackParamList, "EmployeeHours">;
 export function EmployeeHoursScreen() {
   const { colors, spacing, type } = useTheme();
   const { params } = useRoute<Route>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const navigation = useNavigation<any>();
 
-  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [month, setMonth] = useState(() => {
+    if (params.initialMonth) {
+      const [y, m] = params.initialMonth.split("-").map(Number);
+      if (y && m) return new Date(y, m - 1, 1);
+    }
+    return startOfMonth(new Date());
+  });
   const [items, setItems] = useState<TimeEntry[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listTimeEntries({
         userId: params.userId,
         from: toLocalDateKey(startOfMonth(month)),
@@ -69,11 +84,11 @@ export function EmployeeHoursScreen() {
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [params.userId, month]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -105,7 +120,7 @@ export function EmployeeHoursScreen() {
   }
 
   function handleExport() {
-    Alert.alert("Exporter le mois", "Choisissez un format", [
+    Alert.alert("Télécharger le mois", "Choisissez un format", [
       { text: "Excel (.xlsx)", onPress: () => runExport("xlsx") },
       { text: "PDF (récapitulatif)", onPress: () => runExport("pdf") },
       { text: "CSV", onPress: () => runExport("csv") },
@@ -115,8 +130,10 @@ export function EmployeeHoursScreen() {
 
   const summary = computeWeekSummary(items);
 
-  return (
-    <ScreenContainer style={{ paddingTop: spacing.md }}>
+  // Tout l'en-tête défile avec la liste : sur téléphone, la carte des
+  // majorations ne doit pas réduire la liste à quelques lignes.
+  const header = (
+    <View>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
         <PressableScale onPress={() => setMonth((m) => addMonths(m, -1))} style={{ padding: spacing.xs }}>
           <Ionicons name="chevron-back" size={22} color={colors.accent} />
@@ -144,9 +161,11 @@ export function EmployeeHoursScreen() {
         </View>
       </Card>
 
+      <PaySummaryCard month={toLocalDateKey(month).slice(0, 7)} userId={params.userId} />
+
       <View style={{ marginTop: spacing.md, marginBottom: spacing.lg }}>
         <Button
-          label="Exporter"
+          label="Télécharger le fichier du mois"
           variant="secondary"
           icon="download-outline"
           loading={exporting}
@@ -160,15 +179,20 @@ export function EmployeeHoursScreen() {
       {state === "ready" && items.length === 0 && (
         <StateView kind="empty" icon="time-outline" message="Aucun pointage sur ce mois." />
       )}
+    </View>
+  );
 
-      {state === "ready" && items.length > 0 && (
-        <FlatList
-          data={items}
+  return (
+    <ScreenContainer style={{ paddingTop: spacing.md }}>
+      <FlatList
+          data={state === "ready" ? items : []}
+          ListHeaderComponent={header}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: spacing.xxl }}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 30).duration(240)}>
+              <PressableScale onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} accessibilityLabel="Voir le détail du pointage">
               <Card>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                   <View style={{ flex: 1, marginRight: spacing.sm }}>
@@ -184,10 +208,10 @@ export function EmployeeHoursScreen() {
                   <TimeEntryStatusBadge status={item.status} />
                 </View>
               </Card>
+              </PressableScale>
             </Animated.View>
           )}
         />
-      )}
     </ScreenContainer>
   );
 }

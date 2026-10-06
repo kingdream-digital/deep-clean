@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -24,19 +25,26 @@ import {
   createMission,
   getAssignmentConflicts,
   getMission,
+  listMissions,
   updateMission,
   updateMissionAssignments,
 } from "../../api/missions.api";
-import type { AssignmentConflict } from "../../api/missions.api";
+import type { AssignmentConflict, Mission } from "../../api/missions.api";
+import { listAbsences } from "../../api/absences.api";
+import { computeAvailability, weekBoundsKeys } from "../../utils/availability";
 import { listStandards } from "../../api/standards.api";
 import type { CleaningStandard } from "../../api/standards.api";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
 import { toLocalDateKey } from "../../utils/missionFormat";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
-type Route = RouteProp<{ MissionForm: { missionId?: string; initialDate?: string } | undefined }, "MissionForm">;
+type Route = RouteProp<
+  { MissionForm: { missionId?: string; initialDate?: string; initialSiteId?: string; initialAssigneeId?: string } | undefined },
+  "MissionForm"
+>;
 
 const NONE = "__none__";
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const dateFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 // 0 = dimanche ... 6 = samedi (JS Date#getDay) — même convention que le serveur.
@@ -75,6 +83,11 @@ export function MissionFormScreen() {
   const missionId = route.params?.missionId;
   const isEdit = !!missionId;
   const initialDateParam = route.params?.initialDate;
+  // Ouvert depuis une fiche chantier : ce chantier est présélectionné.
+  const initialSiteIdParam = route.params?.initialSiteId;
+  // Ouvert depuis une case du planning par personne : cette personne est
+  // déjà affectée (employé) ou désignée chef d'équipe (compte chef d'équipe).
+  const initialAssigneeIdParam = route.params?.initialAssigneeId;
 
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
@@ -96,6 +109,7 @@ export function MissionFormScreen() {
   const [startTime, setStartTime] = useState<Date>(timeAt(8, 0));
   const [endTime, setEndTime] = useState<Date>(timeAt(17, 0));
   const [instructions, setInstructions] = useState("");
+  const [isExceptional, setIsExceptional] = useState(false);
   const [employeeIds, setEmployeeIds] = useState<string[]>([]);
   const [leadId, setLeadId] = useState<string | undefined>(undefined);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -138,14 +152,21 @@ export function MissionFormScreen() {
         setStartTime(new Date(mission.startTime));
         setEndTime(new Date(mission.endTime));
         setInstructions(mission.instructions ?? "");
+        setIsExceptional(!!mission.isExceptional);
         const ids = mission.assignments.map((a) => a.userId);
         const lead = mission.assignments.find((a) => a.isLead)?.userId;
         setEmployeeIds(lead ? ids.filter((id) => id !== lead) : ids);
         setLeadId(lead);
         setInitialAssigneeIds(ids);
         setInitialLeadId(lead);
+      } else if (initialSiteIdParam && sitesRes.items.some((site) => site.id === initialSiteIdParam)) {
+        setSiteId(initialSiteIdParam);
       } else if (sitesRes.items.length > 0) {
         setSiteId(sitesRes.items[0].id);
+      }
+      if (!missionId && initialAssigneeIdParam) {
+        if (employeesRes.items.some((u) => u.id === initialAssigneeIdParam)) setEmployeeIds([initialAssigneeIdParam]);
+        else if (teamLeadsRes.items.some((u) => u.id === initialAssigneeIdParam)) setLeadId(initialAssigneeIdParam);
       }
       setLoadState("ready");
     } catch {
@@ -185,6 +206,49 @@ export function MissionFormScreen() {
         .map((e) => e.firstName)
         .join(", "),
     [employees, employeeIds]
+  );
+
+  // Disponibilité de chaque personne pour le jour et l'horaire choisis
+  // (retour explicite du client) : où elle est déjà affectée et à quelle
+  // heure, pour ne jamais prévoir quelqu'un qui est déjà ailleurs.
+  const [weekMissions, setWeekMissions] = useState<Mission[]>([]);
+  const [absentIds, setAbsentIds] = useState<Set<string>>(new Set());
+  const dayKey = toLocalDateKey(date);
+  // Semaine (lundi → dimanche) de la date choisie : sert au compteur
+  // « heures restantes » face aux heures du contrat.
+  const [weekStartKey, weekEndKey] = useMemo(() => weekBoundsKeys(date, toLocalDateKey), [date]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [missionsRes, absencesRes] = await Promise.all([
+        listMissions({ from: weekStartKey, to: weekEndKey, pageSize: 100 }).catch(() => null),
+        listAbsences({ status: "APPROVED", from: dayKey, to: dayKey }).catch(() => null),
+      ]);
+      if (cancelled) return;
+      setWeekMissions((missionsRes?.items ?? []).filter((m) => m.status !== "CANCELLED" && m.id !== missionId));
+      setAbsentIds(new Set((absencesRes?.items ?? []).map((a) => a.userId)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dayKey, weekStartKey, weekEndKey, missionId]);
+  const dayMissions = useMemo(
+    () => weekMissions.filter((m) => toLocalDateKey(new Date(m.startTime)) === dayKey),
+    [weekMissions, dayKey]
+  );
+
+  const availability = useMemo(
+    () =>
+      computeAvailability({ start: startTime, end: endTime, dayMissions, weekMissions, absentIds, people: [...employees, ...teamLeads] }),
+    [dayMissions, weekMissions, absentIds, startTime, endTime, employees, teamLeads]
+  );
+
+  const unavailableSelected = useMemo(
+    () =>
+      [...employees, ...teamLeads]
+        .filter((u) => (employeeIds.includes(u.id) || u.id === leadId) && availability[u.id]?.blocking)
+        .map((u) => `${u.firstName} ${u.lastName} — ${availability[u.id]!.label}`),
+    [employees, teamLeads, employeeIds, leadId, availability]
   );
 
   function toggleAssignee(userId: string) {
@@ -237,9 +301,20 @@ export function MissionFormScreen() {
             : `${c.user.firstName} : en absence approuvée sur cette période`
         )
         .join("\n");
+      // Chevauchement avec une autre mission : bloquant (retour explicite du
+      // client, aussi refusé par le serveur). Une absence approuvée reste un
+      // avertissement que le responsable peut passer.
+      if (conflicts.some((c) => c.kind === "MISSION_OVERLAP")) {
+        Alert.alert(
+          "Déjà sur une autre mission",
+          `Une personne ne peut pas être sur deux missions en même temps. Changez l'horaire ou retirez-la :\n\n${details}`,
+          [{ text: "Corriger", style: "cancel" }]
+        );
+        return;
+      }
       Alert.alert(
-        "Conflit de planning",
-        `${names} : un point à vérifier avant de confirmer :\n\n${details}`,
+        "Absence prévue",
+        `${names} : absence approuvée sur cette période.\n\n${details}`,
         [
           { text: "Corriger", style: "cancel" },
           { text: "Continuer quand même", style: "destructive", onPress: () => void proceedSave() },
@@ -262,6 +337,10 @@ export function MissionFormScreen() {
           startTime: toTimeInput(startTime),
           endTime: toTimeInput(endTime),
           instructions: instructions.trim() || null,
+          // Changement de chantier possible en modification (retour d'audit) :
+          // les personnes affectées sont prévenues du nouveau lieu.
+          siteId,
+          isExceptional,
         });
 
         const assignmentsChanged =
@@ -281,6 +360,7 @@ export function MissionFormScreen() {
           startTime: toTimeInput(startTime),
           endTime: toTimeInput(endTime),
           instructions: instructions.trim() || undefined,
+          isExceptional,
           assigneeIds,
           leadId,
           standardId: standardId || undefined,
@@ -332,11 +412,11 @@ export function MissionFormScreen() {
           isDesktopWeb && { maxWidth: 640, width: "100%", alignSelf: "center" },
         ]}
       >
-        {!isEdit && (
+        {(
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Chantier</Text>
             <Card padded={false}>
-              <Picker selectedValue={siteId} onValueChange={setSiteId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={siteId} onValueChange={setSiteId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 {sites.map((site) => (
                   <Picker.Item key={site.id} label={site.name} value={site.id} />
                 ))}
@@ -351,7 +431,7 @@ export function MissionFormScreen() {
               Standard de nettoyage (optionnel)
             </Text>
             <Card padded={false}>
-              <Picker selectedValue={standardId} onValueChange={setStandardId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={standardId} onValueChange={setStandardId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 <Picker.Item label="Aucun — consignes libres" value="" />
                 {standards.map((standard) => (
                   <Picker.Item key={standard.id} label={standard.name} value={standard.id} />
@@ -381,6 +461,13 @@ export function MissionFormScreen() {
           </View>
         </View>
 
+        <View style={{ marginBottom: spacing.md }}>
+          <Checkbox label="Intervention exceptionnelle (hors planning habituel)" checked={isExceptional} onChange={setIsExceptional} />
+          <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]}>
+            Heures de nuit, de dimanche et de jour férié majorées à 100 % (convention de la propreté).
+          </Text>
+        </View>
+
         {!isEdit && (
           <View style={{ marginBottom: spacing.md }}>
             <Checkbox
@@ -395,7 +482,7 @@ export function MissionFormScreen() {
                 }
               }}
             />
-            {repeatEnabled && (
+            {!!repeatEnabled && (
               <View style={{ marginTop: spacing.sm }}>
                 <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.xxs }]}>
                   Jours de la semaine à répéter
@@ -449,6 +536,11 @@ export function MissionFormScreen() {
               onPress={() => setPickerOpen(true)}
             />
           </Card>
+          {unavailableSelected.map((line) => (
+            <Text key={line} style={[type.footnote, { color: colors.danger, marginTop: spacing.xxs }]}>
+              {line}
+            </Text>
+          ))}
         </View>
 
         <View style={{ marginBottom: spacing.md }}>
@@ -456,10 +548,18 @@ export function MissionFormScreen() {
             Chef d'équipe (optionnel)
           </Text>
           <Card padded={false}>
-            <Picker selectedValue={leadId ?? NONE} onValueChange={(v) => setLeadId(v === NONE ? undefined : v)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker selectedValue={leadId ?? NONE} onValueChange={(v) => setLeadId(v === NONE ? undefined : v)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               <Picker.Item label="Aucun pour cette mission" value={NONE} />
               {teamLeads.map((t) => (
-                <Picker.Item key={t.id} label={`${t.firstName} ${t.lastName}`} value={t.id} />
+                <Picker.Item
+                  key={t.id}
+                  label={
+                    availability[t.id]?.blocking
+                      ? `${t.firstName} ${t.lastName} — ${availability[t.id]!.label}`
+                      : `${t.firstName} ${t.lastName}`
+                  }
+                  value={t.id}
+                />
               ))}
             </Picker>
           </Card>
@@ -478,7 +578,7 @@ export function MissionFormScreen() {
           style={{ minHeight: Platform.OS === "ios" ? 90 : undefined, textAlignVertical: "top" }}
         />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer la mission"} onPress={handleSave} loading={saving} />
       </ScrollView>
@@ -487,6 +587,7 @@ export function MissionFormScreen() {
         visible={pickerOpen}
         employees={employees}
         selectedIds={employeeIds}
+        availability={availability}
         onToggle={toggleAssignee}
         onClose={() => setPickerOpen(false)}
       />

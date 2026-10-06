@@ -1,12 +1,23 @@
 import { apiClient } from "./client";
 
-export type AbsenceType = "PAID_LEAVE" | "SICK_LEAVE" | "UNPAID_LEAVE" | "OTHER";
+export type AbsenceType = "PAID_LEAVE" | "SICK_LEAVE" | "UNPAID_LEAVE" | "WORK_ACCIDENT" | "PARENTAL_LEAVE" | "COMPENSATORY_REST" | "OTHER";
+
+// Libellés complets, communs à toute l'application.
+export const ABSENCE_TYPE_LABELS: Record<AbsenceType, string> = {
+  PAID_LEAVE: "Congé payé",
+  SICK_LEAVE: "Arrêt maladie",
+  UNPAID_LEAVE: "Congé sans solde",
+  WORK_ACCIDENT: "Accident du travail",
+  PARENTAL_LEAVE: "Maternité / paternité",
+  COMPENSATORY_REST: "Repos compensateur (nuit)",
+  OTHER: "Autre absence",
+};
 export type AbsenceStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 export interface Absence {
   id: string;
   userId: string;
-  user: { id: string; firstName: string; lastName: string; role: string };
+  user: { id: string; firstName: string; lastName: string; role: string; hasAvatar?: boolean };
   type: AbsenceType;
   startDate: string;
   endDate: string;

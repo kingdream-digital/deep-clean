@@ -3,12 +3,14 @@ import { ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { pickerStyle } from "../../components/pickerStyle";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
+import { StatusBadge } from "../../components/StatusBadge";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/TextField";
 import { PressableScale } from "../../components/PressableScale";
@@ -24,8 +26,9 @@ import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { listProblems } from "../../api/problems.api";
 import type { Problem } from "../../api/problems.api";
-import { formatMissionDay, formatMissionTimeRange, todayKey } from "../../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, todayKey, isMissionValidated } from "../../utils/missionFormat";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 const periodFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = { FLAT_RATE: "Forfait (montant prévu au devis)", PER_SERVICE: "À la prestation" };
@@ -36,6 +39,8 @@ const MANAGE_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 // Facturation réservée à RH/Direction/Admin (cahier des charges §1-3) — le
 // Superviseur n'y figure pas, contrairement à la gestion du chantier lui-même.
 const INVOICE_ROLES = ["HR", "DIRECTOR", "ADMIN"];
+// Rôles qui gèrent le planning (mêmes que l'écran Planning, contrôlés côté serveur).
+const PLANNING_ROLES = ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 
 // Fiche chantier — reprend la structure de la maquette validée (bannière,
 // chef d'équipe, standards, consignes, prochaines missions, signalements) ;
@@ -60,8 +65,9 @@ export function SiteDetailScreen() {
   const period = currentPeriod();
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [siteRes, missionsRes, problemsRes, progressRes] = await Promise.all([
         getSite(siteId),
         listMissions({ siteId, from: todayKey(), pageSize: 5 }),
@@ -74,12 +80,12 @@ export function SiteDetailScreen() {
       setProgress(progressRes);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId, period]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -105,21 +111,13 @@ export function SiteDetailScreen() {
 
   return (
     <ScreenContainer style={{ paddingHorizontal: 0 }}>
-      {site.hasPhoto ? (
+      {/* La photo du chantier quand il en a une. Sans photo, plus de bandeau
+          dégradé de 140 px autour d'une simple icône : la fiche commence
+          directement par le nom, comme la liste des chantiers. */}
+      {!!site.hasPhoto && (
         <PressableScale onPress={() => setViewerOpen(true)}>
           <AuthenticatedImage uri={sitePhotoUrl(site.id)} style={{ width: "100%", height: 140, backgroundColor: colors.surfaceAlt }} />
         </PressableScale>
-      ) : (
-        <View style={{ height: 140 }}>
-          <LinearGradient
-            colors={colors.accentGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-          >
-            <Ionicons name="business-outline" size={44} color="rgba(255,255,255,0.85)" />
-          </LinearGradient>
-        </View>
       )}
 
       <ScrollView
@@ -127,21 +125,22 @@ export function SiteDetailScreen() {
         style={{ paddingHorizontal: spacing.lg }}
         contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>{site.name}</Text>
-          <View
-            style={{
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 4,
-              borderRadius: 999,
-              backgroundColor: site.isActive ? colors.successSoft : colors.neutralSoft,
-            }}
-          >
-            <Text style={[type.caption, { color: site.isActive ? colors.success : colors.neutral, fontWeight: "600" }]}>
-              {site.isActive ? "Actif" : "Inactif"}
-            </Text>
-          </View>
+        {/* Statut au-dessus du nom : placé à côté, il le coupait en deux
+            (« Clinique Saint- / Michel »). */}
+        <View
+          style={{
+            alignSelf: "flex-start",
+            paddingHorizontal: spacing.sm,
+            paddingVertical: 4,
+            borderRadius: 999,
+            backgroundColor: site.isActive ? colors.successSoft : colors.neutralSoft,
+          }}
+        >
+          <Text style={[type.caption, { color: site.isActive ? colors.success : colors.neutral, fontWeight: "600" }]}>
+            {site.isActive ? "Actif" : "Inactif"}
+          </Text>
         </View>
+        <Text style={[type.title1, { color: colors.ink, marginTop: spacing.sm }]}>{site.name}</Text>
         <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: 4 }]}>{site.address}</Text>
         {/* Lien commercial (module commercial §20-21) — absent pour un
             chantier opérationnel classique, purement informatif ici. */}
@@ -160,21 +159,7 @@ export function SiteDetailScreen() {
         {site.manager ? (
           <PressableScale onPress={() => navigation.navigate("UserDetail", { userId: site.manager!.id })}>
             <Card style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  backgroundColor: colors.purpleSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={[type.footnote, { color: colors.purple, fontWeight: "700" }]}>
-                  {site.manager.firstName[0]}
-                  {site.manager.lastName[0]}
-                </Text>
-              </View>
+              <Avatar user={site.manager} size={36} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
                 <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
                   {site.manager.firstName} {site.manager.lastName}
@@ -199,21 +184,7 @@ export function SiteDetailScreen() {
         {site.supervisor ? (
           <PressableScale onPress={() => navigation.navigate("UserDetail", { userId: site.supervisor!.id })}>
             <Card style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  backgroundColor: colors.accentSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={[type.footnote, { color: colors.accent, fontWeight: "700" }]}>
-                  {site.supervisor.firstName[0]}
-                  {site.supervisor.lastName[0]}
-                </Text>
-              </View>
+              <Avatar user={site.supervisor} size={36} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
                 <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>
                   {site.supervisor.firstName} {site.supervisor.lastName}
@@ -274,12 +245,17 @@ export function SiteDetailScreen() {
             OBJECTIFS & SUIVI · {periodFmt.format(new Date(`${period}-01`))}
           </Text>
         </View>
-        {progress && (
+        {!!progress && (
           <SiteTargetSection
             siteId={site.id}
             period={period}
             progress={progress}
             canManage={canManage}
+            onSchedule={
+              !!user && PLANNING_ROLES.includes(user.role) && site.isActive
+                ? () => navigation.navigate("MissionForm", { initialSiteId: site.id })
+                : undefined
+            }
             editing={editingTarget}
             onStartEdit={() => setEditingTarget(true)}
             onCancelEdit={() => setEditingTarget(false)}
@@ -319,11 +295,24 @@ export function SiteDetailScreen() {
                       {formatMissionTimeRange(mission.startTime, mission.endTime)} · {mission.title}
                     </Text>
                   </View>
-                  <MissionStatusPill status={mission.status} />
+                  {/* Même badge que partout ailleurs (couleurs et « non démarrée »
+                      comprises) : cette fiche avait sa propre pastille, aux
+                      couleurs différentes du reste de l'application. */}
+                  <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} validated={isMissionValidated(mission)} />
                 </View>
               </PressableScale>
             ))}
           </Card>
+        )}
+
+        {!!user && PLANNING_ROLES.includes(user.role) && site.isActive && (
+          <View style={{ marginTop: spacing.sm }}>
+            <Button
+              label="Programmer une mission"
+              icon="add-circle-outline"
+              onPress={() => navigation.navigate("MissionForm", { initialSiteId: site.id })}
+            />
+          </View>
         )}
 
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg, marginBottom: spacing.sm }}>
@@ -372,24 +361,29 @@ export function SiteDetailScreen() {
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
             {/* Client → Chantier → Facturation (cahier des charges §32) —
                 réservé RH/Direction/Admin, comme le reste de la facturation. */}
-            {canInvoice && (
+            {!!canInvoice && (
               <Button
                 label="Créer une facture"
                 onPress={() => navigation.navigate("InvoiceForm", { clientId: site.clientId ?? undefined, quoteId: site.quoteId ?? undefined, siteId: site.id })}
               />
             )}
-            {canManage && (
+            {!!canManage && (
               <Button label="Modifier le chantier" variant="secondary" onPress={() => navigation.navigate("SiteForm", { siteId: site.id })} />
             )}
           </View>
         )}
       </ScrollView>
 
-      {site.hasPhoto && (
+      {!!site.hasPhoto && (
         <PhotoViewerModal visible={viewerOpen} uri={sitePhotoUrl(site.id)} onClose={() => setViewerOpen(false)} />
       )}
     </ScreenContainer>
   );
+}
+
+// « 9 h », « 7,5 h » : virgule décimale française.
+function formatHours(hours: number): string {
+  return `${String(hours).replace(".", ",")} h`;
 }
 
 interface SiteTargetSectionProps {
@@ -397,17 +391,21 @@ interface SiteTargetSectionProps {
   period: string;
   progress: SiteProgress;
   canManage: boolean;
+  // Raccourci « Programmer » depuis l'alerte (rôles qui gèrent le planning).
+  onSchedule?: () => void;
   editing: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaved: () => void;
 }
 
-function SiteTargetSection({ siteId, period, progress, canManage, editing, onStartEdit, onCancelEdit, onSaved }: SiteTargetSectionProps) {
+function SiteTargetSection({ siteId, period, progress, canManage, onSchedule, editing, onStartEdit, onCancelEdit, onSaved }: SiteTargetSectionProps) {
   const { colors, spacing, radius, type } = useTheme();
-  const [plannedVisits, setPlannedVisits] = useState(String(progress.target?.plannedVisits ?? ""));
-  const [plannedHours, setPlannedHours] = useState(progress.target?.plannedHours != null ? String(progress.target.plannedHours) : "");
-  const [plannedAmount, setPlannedAmount] = useState(progress.target?.plannedAmount != null ? String(progress.target.plannedAmount) : "");
+  // Sans objectif ce mois-ci : valeurs reprises du devis du chantier.
+  const initial = progress.target ?? progress.suggestedTarget;
+  const [plannedVisits, setPlannedVisits] = useState(String(initial?.plannedVisits ?? ""));
+  const [plannedHours, setPlannedHours] = useState(initial?.plannedHours != null ? String(initial.plannedHours) : "");
+  const [plannedAmount, setPlannedAmount] = useState(initial?.plannedAmount != null ? String(initial.plannedAmount) : "");
   const [billingMode, setBillingMode] = useState<SiteBillingMode>(progress.target?.billingMode ?? "FLAT_RATE");
   const [saving, setSaving] = useState(false);
 
@@ -443,7 +441,7 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mode de facturation</Text>
           <Card padded={false}>
-            <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               {Object.entries(BILLING_MODE_LABELS).map(([value, label]) => (
                 <Picker.Item key={value} label={label} value={value} />
               ))}
@@ -466,7 +464,7 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
     return (
       <Card>
         <Text style={[type.callout, { color: colors.inkSecondary }]}>Aucun objectif défini pour ce mois.</Text>
-        {canManage && (
+        {!!canManage && (
           <View style={{ marginTop: spacing.sm }}>
             <Button label="Définir l'objectif" variant="secondary" onPress={onStartEdit} />
           </View>
@@ -476,7 +474,32 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
   }
 
   const targetPlannedVisits = progress.target.plannedVisits;
-  const completionRatio = targetPlannedVisits > 0 ? progress.completedVisits / targetPlannedVisits : 0;
+  const completionRatio = targetPlannedVisits > 0 ? Math.min(1, progress.completedVisits / targetPlannedVisits) : 0;
+  const toSchedule = progress.toScheduleVisits ?? 0;
+  const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
+  const targetHours = progress.target.plannedHours;
+
+  // Alerte du mois : ce qui reste à PROGRAMMER (une mission programmée est
+  // déduite tout de suite), ou confirmation que tout est programmé.
+  const alert =
+    toSchedule > 0
+      ? {
+          tone: colors.warning,
+          bg: colors.warningSoft,
+          icon: "alert-circle" as const,
+          text: `${plural(toSchedule, "prestation")} à programmer ce mois-ci.`,
+        }
+      : targetPlannedVisits > 0
+        ? {
+            tone: colors.success,
+            bg: colors.successSoft,
+            icon: "checkmark-circle" as const,
+            text:
+              progress.extraVisits > 0
+                ? `Objectif programmé, avec ${plural(progress.extraVisits, "mission")} en plus.`
+                : "Toutes les prestations du mois sont programmées.",
+          }
+        : null;
 
   return (
     <Card>
@@ -485,32 +508,32 @@ function SiteTargetSection({ siteId, period, progress, canManage, editing, onSta
           <Text style={[type.title3, { color: colors.ink, fontWeight: "800" }]}>{Math.round(completionRatio * 100)}%</Text>
         </ProgressRing>
         <View style={{ flex: 1, marginLeft: spacing.lg }}>
-          <SiteStat icon="calendar-outline" tint={colors.neutral} label="Prévues" value={String(targetPlannedVisits)} />
+          <SiteStat icon="flag-outline" tint={colors.neutral} label="Objectif du mois" value={String(targetPlannedVisits)} />
+          <SiteStat icon="calendar-outline" tint={colors.info} label="Programmées" value={String(progress.scheduledVisits)} />
           <SiteStat icon="checkmark-circle-outline" tint={colors.success} label="Réalisées" value={String(progress.completedVisits)} />
-          <SiteStat
-            icon="time-outline"
-            tint={colors.warning}
-            label="Restantes"
-            value={progress.remainingVisits != null ? String(progress.remainingVisits) : "—"}
-            last
-          />
+          <SiteStat icon="time-outline" tint={colors.warning} label="À programmer" value={String(toSchedule)} last />
         </View>
       </View>
-      {(progress.target.plannedHours != null || progress.plannedHours > 0) && (
+      <Text style={[type.caption, { color: colors.inkTertiary, marginTop: spacing.xs }]}>Le cercle indique les prestations réalisées sur l'objectif.</Text>
+      {(targetHours != null || progress.plannedHours > 0) && (
         <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.sm }]}>
-          Heures : {progress.plannedHours} h planifiées
-          {progress.actualHours > 0 ? ` · ${progress.actualHours} h pointées (indicatif)` : ""}
+          Heures : {formatHours(progress.plannedHours)} programmées
+          {targetHours != null ? ` sur ${formatHours(targetHours)} prévues` : ""}
+          {progress.actualHours > 0 ? ` · ${formatHours(progress.actualHours)} pointées (indicatif)` : ""}
         </Text>
       )}
-      {progress.remainingVisits !== null && progress.remainingVisits > 0 && (
-        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.warningSoft, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm }}>
-          <Ionicons name="alert-circle" size={16} color={colors.warning} />
-          <Text style={[type.footnote, { color: colors.warning, marginLeft: 6, fontWeight: "600", flex: 1 }]}>
-            {progress.remainingVisits} prestation{progress.remainingVisits > 1 ? "s" : ""} restante{progress.remainingVisits > 1 ? "s" : ""} à programmer ce mois-ci.
-          </Text>
-        </View>
+      {!!alert && (
+        <PressableScale disabled={!onSchedule || toSchedule === 0} onPress={onSchedule}>
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: alert.bg, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm }}>
+            <Ionicons name={alert.icon} size={16} color={alert.tone} />
+            <Text style={[type.footnote, { color: alert.tone, marginLeft: 6, fontWeight: "600", flex: 1 }]}>{alert.text}</Text>
+            {!!onSchedule && toSchedule > 0 && (
+              <Text style={[type.footnote, { color: alert.tone, fontWeight: "700", marginLeft: spacing.xs }]}>Programmer ›</Text>
+            )}
+          </View>
+        </PressableScale>
       )}
-      {canManage && (
+      {!!canManage && (
         <View style={{ marginTop: spacing.sm }}>
           <Button label="Modifier l'objectif" variant="secondary" onPress={onStartEdit} />
         </View>
@@ -552,22 +575,6 @@ function SiteStat({
       </View>
       <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1 }]}>{label}</Text>
       <Text style={[type.headline, { color: colors.ink }]}>{value}</Text>
-    </View>
-  );
-}
-
-function MissionStatusPill({ status }: { status: Mission["status"] }) {
-  const { colors, type } = useTheme();
-  const tone: Record<Mission["status"], { bg: string; fg: string; label: string }> = {
-    SCHEDULED: { bg: colors.neutralSoft, fg: colors.neutral, label: "À venir" },
-    IN_PROGRESS: { bg: colors.successSoft, fg: colors.success, label: "En cours" },
-    COMPLETED: { bg: colors.accentSoft, fg: colors.accent, label: "Terminée" },
-    CANCELLED: { bg: colors.dangerSoft, fg: colors.danger, label: "Annulée" },
-  };
-  const t = tone[status];
-  return (
-    <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: t.bg, flexShrink: 0 }}>
-      <Text style={[type.caption, { color: t.fg, fontWeight: "600" }]}>{t.label}</Text>
     </View>
   );
 }

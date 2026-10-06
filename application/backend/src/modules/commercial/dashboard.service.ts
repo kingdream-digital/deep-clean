@@ -20,7 +20,8 @@ const QUOTE_IN_PROGRESS_STATUSES: QuoteStatus[] = [
 interface SiteAttention {
   siteId: string;
   siteName: string;
-  remainingVisits: number;
+  // Prestations de l'objectif du mois pas encore programmées.
+  toScheduleVisits: number;
 }
 
 export interface CommercialDashboard {
@@ -39,8 +40,10 @@ export interface CommercialDashboard {
     // jamais une valeur stockée qui pourrait dériver (§34).
     period: string;
     plannedVisits: number;
+    scheduledVisits: number;
     completedVisits: number;
     remainingVisits: number;
+    toScheduleVisits: number;
     // Alerte purement informative (§37) — n'affecte jamais le planning.
     sitesNeedingAttention: SiteAttention[];
   };
@@ -80,19 +83,27 @@ export async function getCommercialDashboard(actor: Actor): Promise<CommercialDa
   ]);
 
   let plannedVisits = 0;
+  let scheduledVisits = 0;
   let completedVisits = 0;
+  // Sommes PAR chantier : un chantier en avance ne doit jamais masquer le
+  // retard d'un autre.
+  let remainingVisits = 0;
+  let toScheduleVisits = 0;
   const sitesNeedingAttention: SiteAttention[] = [];
   for (const site of sites) {
     const progress = await getSiteProgress(actor, site.id, period);
     if (progress.target) {
       plannedVisits += progress.target.plannedVisits;
-      completedVisits += progress.completedVisits;
-      if (progress.remainingVisits && progress.remainingVisits > 0) {
-        sitesNeedingAttention.push({ siteId: site.id, siteName: site.name, remainingVisits: progress.remainingVisits });
+      scheduledVisits += Math.min(progress.scheduledVisits, progress.target.plannedVisits);
+      completedVisits += Math.min(progress.completedVisits, progress.target.plannedVisits);
+      remainingVisits += progress.remainingVisits ?? 0;
+      toScheduleVisits += progress.toScheduleVisits ?? 0;
+      if (progress.toScheduleVisits && progress.toScheduleVisits > 0) {
+        sitesNeedingAttention.push({ siteId: site.id, siteName: site.name, toScheduleVisits: progress.toScheduleVisits });
       }
     }
   }
-  sitesNeedingAttention.sort((a, b) => b.remainingVisits - a.remainingVisits);
+  sitesNeedingAttention.sort((a, b) => b.toScheduleVisits - a.toScheduleVisits);
 
   let invoicing: CommercialDashboard["invoicing"] = null;
   if (isFull) {
@@ -112,8 +123,10 @@ export async function getCommercialDashboard(actor: Actor): Promise<CommercialDa
       activeSites: sites.length,
       period,
       plannedVisits,
+      scheduledVisits,
       completedVisits,
-      remainingVisits: Math.max(0, plannedVisits - completedVisits),
+      remainingVisits,
+      toScheduleVisits,
       sitesNeedingAttention: sitesNeedingAttention.slice(0, 5),
     },
     invoicing,

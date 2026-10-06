@@ -1,24 +1,34 @@
 import fs from "node:fs";
+import { companyDateLabel, companyTimeKey } from "./companyTime";
 import path from "node:path";
 
 // Logo pré-redimensionné/recadré (voir src/assets/brand/README pour la
 // commande sharp utilisée) : ~8 Ko, pour que le PDF reste léger même avec le
 // logo intégré sur chaque page — jamais le fichier source (1254×1254, ~400 Ko).
-const LOGO_PATH = path.join(__dirname, "../assets/brand/logo-mark.png");
+// Logo officiel (goutte bleue) — vectorisé depuis le logo fourni par le
+// client (sources .svg dans mobile/assets/brand).
+const LOGO_PATH = path.join(__dirname, "../assets/brand/drop.png");
 export const logoExists = fs.existsSync(LOGO_PATH);
+export const DROP_PATH = LOGO_PATH;
+export const TITLE_PATH = path.join(__dirname, "../assets/brand/title.png"); // « DEEPCLEAN », 1200 × 168
+export const TAGLINE_PATH = path.join(__dirname, "../assets/brand/tagline.png"); // slogan, 1200 × 59
 
 // Palette reprise de mobile/src/theme/colors.ts (thème clair) : même identité
 // visuelle que l'application, jamais des couleurs choisies indépendamment.
 export const BRAND = {
-  accent: "#0E7490",
-  accentDeep: "#0B5A70",
-  ink: "#101322",
-  inkSecondary: "#5B6472",
-  inkTertiary: "#8891A0",
-  border: "#E6E9EF",
-  rowAlt: "#F4F7F9",
+  // Couleurs du logo : bleu marine (« DEEP », cercle) et bleu clair
+  // (« CLEAN », goutte).
+  accent: "#1E9CC6",
+  accentDeep: "#1F2D69",
+  accentSoft: "#E8F4FA",
+  ink: "#141A33",
+  inkSecondary: "#56607A",
+  inkTertiary: "#8B93A7",
+  border: "#DCE4EE",
+  rowAlt: "#F4F8FB",
   white: "#FFFFFF",
   danger: "#B42318",
+  success: "#067647",
 };
 
 export const PAGE_LEFT = 40;
@@ -44,15 +54,14 @@ export function drawHeader(doc: PDFKit.PDFDocument, title: string, subtitle: str
     // Hauteur de dessin fixe (28pt) ; la largeur suit le ratio réel du fichier
     // (recadré non carré, voir src/assets/brand/logo-mark.png) plutôt qu'un
     // carré forcé qui l'étirerait.
-    doc.image(LOGO_PATH, PAGE_LEFT, 34, { height: 28 });
+    doc.image(LOGO_PATH, PAGE_LEFT, 32, { height: 32 });
   }
-  const textX = logoExists ? PAGE_LEFT + 34 : PAGE_LEFT;
+  const textX = logoExists ? PAGE_LEFT + 32 : PAGE_LEFT;
   doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(17).text(title, textX, 36);
   doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(10).text(subtitle, textX, 57);
 
-  const generatedAt = `Généré le ${new Date().toLocaleDateString("fr-FR")} à ${new Date()
-    .toLocaleTimeString("fr-FR")
-    .slice(0, 5)}`;
+  const now = new Date();
+  const generatedAt = `Généré le ${companyDateLabel(now)} à ${companyTimeKey(now)}`;
   doc
     .fillColor(BRAND.inkTertiary)
     .font("Helvetica")
@@ -64,14 +73,19 @@ export function drawHeader(doc: PDFKit.PDFDocument, title: string, subtitle: str
 }
 
 /** Pied de page — le libellé (ex. "Page 2 sur 3") est calculé par l'appelant, voir `finalizePagination`. */
-export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string): void {
+export const INTERNAL_FOOTER = "Deep Clean — document à usage interne, généré automatiquement.";
+
+export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string, footerText: string = INTERNAL_FOOTER): void {
   doc.moveTo(PAGE_LEFT, FOOTER_Y).lineTo(PAGE_RIGHT, FOOTER_Y).strokeColor(BRAND.border).lineWidth(1).stroke();
   doc
     .fillColor(BRAND.inkTertiary)
     .font("Helvetica")
     .fontSize(8)
-    .text("Deep Clean — document à usage interne, généré automatiquement.", PAGE_LEFT, FOOTER_Y + 8, {
-      width: CONTENT_WIDTH / 2,
+    // Une seule ligne, jamais plus : un texte qui passe à la ligne sous le
+    // pied de page déclenche un saut de page (page blanche en trop).
+    .text(footerText.length > 105 ? `${footerText.slice(0, 104)}…` : footerText, PAGE_LEFT, FOOTER_Y + 8, {
+      width: CONTENT_WIDTH * 0.8,
+      lineBreak: false,
     });
   doc.text(pageLabel, PAGE_LEFT, FOOTER_Y + 8, { width: CONTENT_WIDTH, align: "right" });
 }
@@ -82,11 +96,11 @@ export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string): void {
  * (document construit avec `bufferPages: true`), donc appelé juste avant
  * `doc.end()`, jamais pendant l'écriture du contenu.
  */
-export function finalizePagination(doc: PDFKit.PDFDocument): void {
+export function finalizePagination(doc: PDFKit.PDFDocument, footerText?: string): void {
   const pageRange = doc.bufferedPageRange();
   for (let i = 0; i < pageRange.count; i++) {
     doc.switchToPage(i);
-    drawFooter(doc, `Page ${i + 1} sur ${pageRange.count}`);
+    drawFooter(doc, `Page ${i + 1} sur ${pageRange.count}`, footerText);
   }
 }
 
@@ -96,4 +110,14 @@ export function ensureSpace(doc: PDFKit.PDFDocument, neededHeight: number, redra
     doc.addPage();
     redrawSectionHeader();
   }
+}
+
+// Montant en euros pour les PDF. Le format français sépare les milliers par
+// une espace fine insécable (U+202F) que les polices standard des PDF
+// (Helvetica) ne contiennent pas : elle sortait en « / » (« 1 /008,00 € »)
+// sur les devis et factures. Remplacée ici par une espace insécable
+// classique, présente dans la police.
+const euroFormatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+export function formatEuroPdf(amount: number): string {
+  return euroFormatter.format(amount).replace(/[  ]/g, " ");
 }

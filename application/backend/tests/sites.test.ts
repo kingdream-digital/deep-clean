@@ -216,3 +216,25 @@ describe("Chantiers — le chef d'équipe ne modifie plus la fiche chantier", ()
     expect(remove.status).toBe(204);
   });
 });
+
+describe("Chantiers — photo du chef d'équipe et du superviseur", () => {
+  it("indique s'ils ont une photo par un simple booléen, sans jamais exposer la clé de stockage", async () => {
+    const manager = await createTestUser({ role: Role.SITE_MANAGER, email: "smgr-photo@deepclean.test" });
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-photo@deepclean.test" });
+    await prisma.user.update({ where: { id: manager.id }, data: { avatarKey: "avatars/chef.webp" } });
+    const site = await createTestSite({ managerId: manager.id, supervisorId: supervisor.id });
+    const { accessToken } = await loginAs(Role.HR, "hr-photo@deepclean.test");
+
+    const detail = await request(app).get(`/api/v1/sites/${site.id}`).set("Authorization", `Bearer ${accessToken}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.site.manager.hasAvatar).toBe(true);
+    expect(detail.body.site.supervisor.hasAvatar).toBe(false);
+    expect(JSON.stringify(detail.body)).not.toContain("avatarKey");
+    expect(JSON.stringify(detail.body)).not.toContain("avatars/chef.webp");
+
+    const list = await request(app).get("/api/v1/sites").set("Authorization", `Bearer ${accessToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body.items[0].manager.hasAvatar).toBe(true);
+    expect(JSON.stringify(list.body)).not.toContain("avatarKey");
+  });
+});

@@ -216,3 +216,59 @@ describe("Mot de passe temporaire non changé — accès bloqué côté serveur"
     expect(notifications.status).toBe(200);
   });
 });
+
+describe("Dossier employé — missions récentes", () => {
+  it("donne l'heure de fin de chaque mission, pour pouvoir signaler une mission non démarrée", async () => {
+    const { accessToken } = await loginAs(Role.HR);
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "dossier-emp@deepclean.test" });
+    const creator = await createTestUser({ role: Role.SUPERVISOR, email: "dossier-sup@deepclean.test" });
+    const site = await prisma.site.create({ data: { name: "Chantier dossier", address: "1 rue de Test, 75000 Paris" } });
+    const mission = await prisma.mission.create({
+      data: {
+        siteId: site.id,
+        title: "Mission passée jamais démarrée",
+        date: new Date("2026-01-05T00:00:00.000Z"),
+        startTime: new Date("2026-01-05T07:00:00.000Z"),
+        endTime: new Date("2026-01-05T09:00:00.000Z"),
+        createdById: creator.id,
+      },
+    });
+    await prisma.missionAssignment.create({ data: { missionId: mission.id, userId: employee.id } });
+
+    const res = await request(app).get(`/api/v1/users/${employee.id}/dossier`).set("Authorization", `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.missions.recent).toEqual([
+      expect.objectContaining({ id: mission.id, status: "SCHEDULED", endTime: "2026-01-05T09:00:00.000Z" }),
+    ]);
+  });
+});
+
+describe("Heures par semaine au contrat — saisies par la RH, visibles pour le planning", () => {
+  it("la RH les renseigne à la création ; le superviseur les voit, pas un employé", async () => {
+    const { accessToken: hrToken } = await loginAs(Role.HR);
+    const created = await request(app)
+      .post("/api/v1/users")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ firstName: "Paul", lastName: "Martin", role: "EMPLOYEE", weeklyHours: 35 });
+    expect(created.status).toBe(201);
+    const userId = created.body.user.id as string;
+    expect(created.body.user.weeklyHours).toBe(35);
+
+    const updated = await request(app)
+      .patch(`/api/v1/users/${userId}`)
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ weeklyHours: 24 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.user.weeklyHours).toBe(24);
+
+    const { accessToken: supToken } = await loginAs(Role.SUPERVISOR);
+    const asSup = await request(app).get("/api/v1/users").query({ role: "EMPLOYEE" }).set("Authorization", `Bearer ${supToken}`);
+    expect(asSup.body.items.find((u: { id: string }) => u.id === userId).weeklyHours).toBe(24);
+
+    const { accessToken: empToken } = await loginAs(Role.EMPLOYEE);
+    const asEmp = await request(app).get("/api/v1/users").set("Authorization", `Bearer ${empToken}`);
+    const seen = asEmp.body.items?.find((u: { id: string }) => u.id === userId);
+    if (seen) expect(seen.weeklyHours).toBeUndefined();
+  });
+});

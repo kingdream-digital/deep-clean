@@ -3,6 +3,7 @@ import { ScrollView, Text } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
@@ -15,6 +16,7 @@ type Route = RouteProp<MenuStackParamList, "ClientForm">;
 
 export function ClientFormScreen() {
   const { colors, spacing, type } = useTheme();
+  const { isDesktopWeb } = useResponsive();
   const route = useRoute<Route>();
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
   const clientId = route.params?.clientId;
@@ -34,6 +36,7 @@ export function ClientFormScreen() {
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
   const [siret, setSiret] = useState("");
+  const [siren, setSiren] = useState("");
   const [notes, setNotes] = useState("");
 
   const load = useCallback(async () => {
@@ -51,6 +54,7 @@ export function ClientFormScreen() {
         setPostalCode(client.postalCode ?? "");
         setCity(client.city ?? "");
         setSiret(client.siret ?? "");
+        setSiren(client.siren ?? "");
         setNotes(client.notes ?? "");
       }
       setLoadState("ready");
@@ -85,6 +89,7 @@ export function ClientFormScreen() {
         postalCode: postalCode.trim() || undefined,
         city: city.trim() || undefined,
         siret: siret.trim() || undefined,
+        siren: siren.replace(/\s/g, "") || undefined,
         notes: notes.trim() || undefined,
       };
 
@@ -119,7 +124,7 @@ export function ClientFormScreen() {
 
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
         <TextField label="Entreprise" placeholder="Entreprise ABC" value={companyName} onChangeText={setCompanyName} />
         <TextField label="Prénom du contact" placeholder="Julie" value={contactFirstName} onChangeText={setContactFirstName} />
         <TextField label="Nom du contact" placeholder="Dupont" value={contactLastName} onChangeText={setContactLastName} />
@@ -130,9 +135,13 @@ export function ClientFormScreen() {
         <TextField label="Code postal" placeholder="75000" value={postalCode} onChangeText={setPostalCode} keyboardType="number-pad" />
         <TextField label="Ville" placeholder="Paris" value={city} onChangeText={setCity} />
         <TextField label="SIRET" placeholder="123 456 789 00012" value={siret} onChangeText={setSiret} keyboardType="number-pad" />
+        <TextField label="SIREN (si pas de SIRET)" placeholder="123 456 789" value={siren} onChangeText={setSiren} keyboardType="number-pad" />
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          Obligatoire pour la facture électronique (déduit du SIRET s'il est rempli).
+        </Text>
         <TextField label="Notes" placeholder="Informations internes" value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le client"} onPress={handleSave} loading={saving} />
       </ScrollView>

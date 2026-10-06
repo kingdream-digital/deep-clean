@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -10,15 +10,23 @@ import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { PressableScale } from "../../components/PressableScale";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { useTheme } from "../../theme/ThemeProvider";
-import { getTimeEntry, clockInPhotoUrl, clockOutPhotoUrl } from "../../api/timesheets.api";
+import { getTimeEntry, clockInPhotoUrl, clockOutPhotoUrl, validateTimeEntry } from "../../api/timesheets.api";
+import { Button } from "../../components/Button";
+import { useAuth } from "../../auth/AuthContext";
+import { extractErrorMessage } from "../../api/client";
+import { Alert } from "../../utils/alert";
 import type { TimeEntry } from "../../api/timesheets.api";
 import { formatDuration } from "../../utils/duration";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { DISTANCE_ALERT_METERS, formatDistance } from "../../utils/distance";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { isBackgroundRefresh, useReloadOnDataChange } from "../../sync/liveSync";
+
+const DECIDE_ROLES = ["SITE_MANAGER", "SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];
 
 type Route = RouteProp<{ TimeEntryDetail: { entryId: string } }, "TimeEntryDetail">;
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+const dayFmt = frenchDateFormat({ weekday: "long", day: "numeric", month: "long" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
@@ -86,11 +94,11 @@ function ProofSection({
           </Text>
         </View>
       )}
-      {siteAddress && (
+      {!!siteAddress && (
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>Chantier prévu : {siteAddress}</Text>
       )}
 
-      {hasPosition && (
+      {!!hasPosition && (
         <PressableScale
           onPress={() => Linking.openURL(`https://www.google.com/maps?q=${latitude},${longitude}`)}
           style={{ flexDirection: "row", alignItems: "flex-start", marginTop: spacing.xs }}
@@ -116,20 +124,26 @@ export function TimeEntryDetailScreen() {
   const [entry, setEntry] = useState<TimeEntry | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [viewerUri, setViewerUri] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
+  const { user } = useAuth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const navigation = useNavigation<any>();
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setEntry(await getTimeEntry(entryId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [entryId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+  useReloadOnDataChange(load);
 
   if (state === "loading") {
     return (
@@ -168,8 +182,9 @@ export function TimeEntryDetailScreen() {
               entry.clockOut ? timeFmt.format(new Date(entry.clockOut)) : "en cours"
             } (${formatDuration(entry.clockIn, entry.clockOut)})`}
           />
-          {entry.matchedMission && (
+          {!!entry.matchedMission && (
             <>
+              <InfoRow icon="briefcase-outline" label="Mission" value={entry.matchedMission.title} />
               <InfoRow icon="business-outline" label="Chantier" value={entry.matchedMission.site.name} />
               <InfoRow
                 icon="calendar-clear-outline"
@@ -180,10 +195,23 @@ export function TimeEntryDetailScreen() {
               />
             </>
           )}
-          {entry.isRetroactive && (
+          {!!entry.matchedMission && !!entry.clockOut && (() => {
+            const planned = (new Date(entry.matchedMission.endTime).getTime() - new Date(entry.matchedMission.startTime).getTime()) / 60000;
+            const worked = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000;
+            const gap = Math.round(worked - planned);
+            if (Math.abs(gap) < 15) return null;
+            return (
+              <InfoRow
+                icon="alert-circle-outline"
+                label="Écart avec l'horaire prévu"
+                value={`${formatHoursMinutes(Math.abs(gap))} ${gap > 0 ? "de plus" : "de moins"} que prévu`}
+              />
+            );
+          })()}
+          {!!entry.isRetroactive && (
             <InfoRow icon="alert-circle-outline" label="Type" value="Pointage différé (saisi après coup)" />
           )}
-          {entry.validatedBy && (
+          {!!entry.validatedBy && (
             <InfoRow
               icon={entry.status === "REJECTED" ? "close-circle-outline" : "checkmark-circle-outline"}
               label={entry.status === "REJECTED" ? "Refusé par" : "Validé par"}
@@ -192,7 +220,7 @@ export function TimeEntryDetailScreen() {
               }`}
             />
           )}
-          {entry.comment && <InfoRow icon="chatbubble-outline" label="Commentaire" value={entry.comment} />}
+          {!!entry.comment && <InfoRow icon="chatbubble-outline" label="Commentaire" value={entry.comment} />}
           {entry.overtimeMinutes != null && (
             <InfoRow
               icon="trending-up-outline"
@@ -208,7 +236,7 @@ export function TimeEntryDetailScreen() {
         {(entry.hasClockInPhoto || entry.hasClockOutPhoto) && (
           <Card style={{ marginTop: spacing.md }}>
             <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]}>Justificatif de pointage</Text>
-            {entry.hasClockInPhoto && (
+            {!!entry.hasClockInPhoto && (
               <ProofSection
                 title="Prise à l'arrivée"
                 photoUrl={clockInPhotoUrl(entry.id)}
@@ -220,7 +248,7 @@ export function TimeEntryDetailScreen() {
                 onOpenPhoto={setViewerUri}
               />
             )}
-            {entry.hasClockOutPhoto && (
+            {!!entry.hasClockOutPhoto && (
               <ProofSection
                 title="Prise au départ"
                 photoUrl={clockOutPhotoUrl(entry.id)}
@@ -233,6 +261,40 @@ export function TimeEntryDetailScreen() {
               />
             )}
           </Card>
+        )}
+              {/* Décider directement depuis le détail (retour d'audit : il fallait
+            revenir à la liste). Le serveur revérifie toujours le droit. */}
+        {entry.status === "PENDING" && !!entry.clockOut && !!user && user.id !== entry.user.id && DECIDE_ROLES.includes(user.role) && (
+          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
+            <View style={{ flex: 1 }}>
+              <Button label="Refuser" variant="secondary" onPress={() => navigation.navigate("TimesheetReject", { entryId: entry.id })} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                label="Valider"
+                loading={validating}
+                onPress={async () => {
+                  setValidating(true);
+                  try {
+                    setEntry({ ...entry, ...(await validateTimeEntry(entry.id)) });
+                  } catch (err) {
+                    Alert.alert("Validation impossible", extractErrorMessage(err));
+                  } finally {
+                    setValidating(false);
+                  }
+                }}
+              />
+            </View>
+          </View>
+        )}
+        {/* Pointage refusé : l'employé saisit la version corrigée. */}
+        {entry.status === "REJECTED" && !!user && user.id === entry.user.id && (
+          <View style={{ marginTop: spacing.lg }}>
+            <Text style={[type.footnote, { color: colors.inkSecondary, marginBottom: spacing.sm }]}>
+              Ce pointage a été refusé. Saisissez un pointage différé avec les heures réelles : il sera de nouveau soumis à validation.
+            </Text>
+            <Button label="Saisir le pointage corrigé" icon="create-outline" onPress={() => navigation.navigate("TimesheetRetroactive")} />
+          </View>
         )}
       </ScrollView>
       <PhotoViewerModal visible={!!viewerUri} uri={viewerUri} onClose={() => setViewerUri(null)} />

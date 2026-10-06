@@ -1,7 +1,13 @@
 /**
  * Jeu de données de démonstration pour la présentation commerciale
- * (application/presentation) — jamais utilisé en production (voir
- * assertNotProduction ci-dessous, même garde-fou que seedDemo.ts).
+ * (application/presentation) et pour une démo en ligne à montrer au client.
+ *
+ * En développement : `npx tsx prisma/seedPresentationDemo.ts`.
+ * Sur un serveur (NODE_ENV=production) : uniquement sur un serveur de
+ * démonstration, avec `DEMO_MODE=1 npx tsx prisma/seedPresentationDemo.ts`.
+ * Le script refuse alors de tourner dès que la base contient un seul compte
+ * qui n'appartient pas à la démo (voir assertSafeTarget) : il ne peut jamais
+ * mélanger de faux comptes, au mot de passe public, avec de vraies données.
  *
  * Contrairement à seedDemo.ts (données minimales pour développer), ce script
  * vise un rendu "vivant" pour les captures d'écran : photos de profil
@@ -12,26 +18,121 @@
  * exactement comme il le serait en conditions réelles.
  */
 import { PrismaClient, Role, MissionStatus, ProblemType, QuoteItemUnit, QuoteItemFrequency, QuoteFollowUpMethod } from "@prisma/client";
+import PDFDocument from "pdfkit";
+import fs from "node:fs";
+import path from "node:path";
 import { hashPassword } from "../src/utils/password";
 import { generateUsername } from "../src/utils/username";
 import { env } from "../src/config/env";
 import { storeImage } from "../src/utils/storage";
+import { calendarDay, companyDateTime } from "../src/utils/companyTime";
 import * as prospectsService from "../src/modules/prospects/prospects.service";
 import * as clientsService from "../src/modules/clients/clients.service";
 import * as quotesService from "../src/modules/quotes/quotes.service";
 import * as invoicesService from "../src/modules/invoices/invoices.service";
 import * as sitesService from "../src/modules/sites/sites.service";
 import * as problemsService from "../src/modules/problems/problems.service";
+import * as messagesService from "../src/modules/messages/messages.service";
+import * as timesheetsService from "../src/modules/timesheets/timesheets.service";
+import * as absencesService from "../src/modules/absences/absences.service";
+import * as standardsService from "../src/modules/standards/standards.service";
+import * as missionsService from "../src/modules/missions/missions.service";
+import * as leaveService from "../src/modules/leave/leave.service";
+import * as announcementsService from "../src/modules/announcements/announcements.service";
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = "DemoClean2026!";
 
-function assertNotProduction(): void {
-  if (env.isProduction) {
+// Adresses des comptes créés par ce script : tout autre compte (hors admin
+// technique) est considéré comme une vraie donnée de l'entreprise.
+const DEMO_EMAILS = [
+  "rh@deepclean.fr", "directeur@deepclean.fr", "yasmine.superviseur@deepclean.fr", "karim.chef@deepclean.fr",
+  "sophie.chef@deepclean.fr", "lucas.employe@deepclean.fr", "emma.employe@deepclean.fr", "nathan.employe@deepclean.fr",
+  "chloe.employe@deepclean.fr", "ines.employe@deepclean.fr", "thomas.employe@deepclean.fr",
+];
+
+// DEMO_RESET=1 : repart d'une base vide avant de charger la démo, en ne
+// gardant QUE les comptes administrateur technique (retour explicite du
+// client : supprimer ses essais, garder son accès admin). Toutes les autres
+// données (comptes, chantiers, missions, pointages, devis, messages...) sont
+// effacées. Réservé au serveur de démonstration, comme le reste du script.
+async function wipeExceptAdmins(): Promise<void> {
+  const admins = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
+  const adminIds = admins.map((a) => a.id);
+  await prisma.activityLog.deleteMany();
+  await prisma.leaveTransaction.deleteMany();
+  await prisma.absence.deleteMany();
+  await prisma.timeEntry.deleteMany();
+  await prisma.validation.deleteMany();
+  await prisma.photo.deleteMany();
+  await prisma.problemComment.deleteMany();
+  await prisma.problem.deleteMany();
+  await prisma.missionAssignment.deleteMany();
+  await prisma.jobSheet.deleteMany();
+  await prisma.mission.deleteMany();
+  await prisma.cleaningStandard.deleteMany();
+  await prisma.siteTarget.deleteMany();
+  await prisma.siteMember.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.site.deleteMany();
+  await prisma.quote.deleteMany();
+  await prisma.client.deleteMany();
+  await prisma.prospect.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversationParticipant.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.announcement.deleteMany();
+  await prisma.employeeDocument.deleteMany();
+  await prisma.pushToken.deleteMany({ where: { userId: { notIn: adminIds } } });
+  await prisma.session.deleteMany({ where: { userId: { notIn: adminIds } } });
+  const removed = await prisma.user.deleteMany({ where: { role: { not: Role.ADMIN } } });
+  console.log(`Remise à zéro : ${removed.count} compte(s) supprimé(s), ${adminIds.length} compte(s) admin conservé(s).`);
+}
+
+async function assertSafeTarget(): Promise<void> {
+  if (env.isProduction && process.env.DEMO_MODE !== "1") {
     throw new Error(
-      "Ce script de démo ne doit jamais être exécuté en production (NODE_ENV=production) : il crée des comptes avec un mot de passe fixe et public."
+      "Serveur en production : ce script crée des comptes au mot de passe public. Il ne se lance que sur un serveur de démonstration, avec DEMO_MODE=1 devant la commande."
     );
   }
+  if (process.env.DEMO_RESET === "1") {
+    await wipeExceptAdmins();
+    return;
+  }
+  if (!env.isProduction) return;
+  if (process.env.DEMO_MODE !== "1") {
+    throw new Error(
+      "Serveur en production : ce script crée des comptes au mot de passe public. Il ne se lance que sur un serveur de démonstration, avec DEMO_MODE=1 devant la commande."
+    );
+  }
+  const realAccounts = await prisma.user.count({ where: { role: { not: Role.ADMIN }, email: { notIn: DEMO_EMAILS } } });
+  if (realAccounts > 0) {
+    throw new Error(
+      `Arrêt : la base contient ${realAccounts} compte(s) qui ne font pas partie de la démo. Rien n'a été modifié. La démo ne se charge que sur une base vide (hors admin technique).`
+    );
+  }
+}
+
+// Petit PDF réel (consignes de chantier) joint dans le groupe de messagerie.
+function buildSafetyPdf(): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const doc = new PDFDocument({ size: "A4", margin: 56 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c: Buffer) => chunks.push(c));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.fontSize(20).text("Consignes de sécurité · Coworking Le Phare");
+    doc.moveDown().fontSize(11).fillColor("#444");
+    [
+      "Port des gants obligatoire pour les produits désinfectants.",
+      "Signalisation « sol glissant » pendant et après le lavage des sols.",
+      "Local technique : ne jamais laisser les produits sans surveillance.",
+      "Ascenseur réservé au matériel entre 7 h et 9 h.",
+      "Tout incident est signalé le jour même depuis l'application.",
+    ].forEach((line, i) => doc.text(`${i + 1}. ${line}`).moveDown(0.4));
+    doc.moveDown().fillColor("#888").fontSize(9).text("Deep Clean · document interne");
+    doc.end();
+  });
 }
 
 function isoDate(d: Date): string {
@@ -42,9 +143,10 @@ function addDays(base: Date, days: number): Date {
   d.setDate(d.getDate() + days);
   return d;
 }
-function combineDateTime(date: string, time: string): Date {
-  return new Date(`${date}T${time}:00`);
-}
+// Heures en heure de Paris et jours calendaires à minuit UTC, quel que soit
+// le fuseau du serveur (mêmes règles que l'application, utils/companyTime.ts).
+const combineDateTime = companyDateTime;
+const dayOnly = calendarDay;
 
 // Photos de démo (jamais de vraies personnes) : pravatar.cc fournit des
 // portraits explicitement libres pour cet usage ("free to use in personal or
@@ -89,7 +191,12 @@ async function upsertUser(params: { email: string; firstName: string; lastName: 
 }
 
 async function main() {
-  assertNotProduction();
+  await assertSafeTarget();
+  // Les devis et factures de démo passent par le vrai workflow, qui envoie un
+  // e-mail au client à chaque étape. Les adresses de la démo sont inventées :
+  // l'envoi est coupé pour toute la durée du script (simulation, voir
+  // utils/mailer.ts), même si le serveur a un SMTP configuré.
+  (env as { SMTP_HOST?: string }).SMTP_HOST = undefined;
 
   const admin = await prisma.user.findFirst({ where: { role: Role.ADMIN } });
 
@@ -105,6 +212,15 @@ async function main() {
   const chloe = await upsertUser({ email: "chloe.employe@deepclean.fr", firstName: "Chloé", lastName: "Simon", role: Role.EMPLOYEE, createdById: rh.id });
   const ines = await upsertUser({ email: "ines.employe@deepclean.fr", firstName: "Inès", lastName: "Fontaine", role: Role.EMPLOYEE, createdById: rh.id });
   const thomas = await upsertUser({ email: "thomas.employe@deepclean.fr", firstName: "Thomas", lastName: "Roy", role: Role.EMPLOYEE, createdById: rh.id });
+
+  // Dates d'entrée réalistes : les soldes de congés de la démo ressemblent à
+  // ceux d'une vraie équipe (sinon tout le monde démarre à 0 jour acquis).
+  const hireDates: Array<[{ id: string }, string]> = [
+    [rh, "2019-03-01"], [directeur, "2015-09-01"], [superviseur, "2021-01-04"], [karim, "2020-06-15"],
+    [sophie, "2022-02-01"], [lucas, "2023-09-04"], [emma, "2024-01-08"], [nathan, "2022-11-14"],
+    [chloe, "2025-03-03"], [ines, "2024-06-03"], [thomas, "2023-04-17"],
+  ];
+  for (const [u, date] of hireDates) await prisma.user.update({ where: { id: u.id }, data: { hireDate: dayOnly(date) } });
 
   console.log("Photos de profil...");
   await Promise.all([
@@ -126,18 +242,84 @@ async function main() {
     console.log(`  - ${u.username} (${u.role})`);
   }
 
-  // ---------------------------------------------------------------- Chantiers existants
-  async function upsertSite(name: string, address: string, description: string, managerId: string) {
-    const existing = await prisma.site.findFirst({ where: { name } });
+  // ---------------------------------------------------------------- Chantiers, tous issus d'un devis accepté
+  // Retour explicite du client : en démo, chaque chantier vient d'un devis
+  // (client → devis → validation → envoi → accepté → chantier), pour montrer
+  // le suivi complet. Tout passe par les vrais services métier.
+  const hrActor = { userId: rh.id, role: Role.HR };
+  const supActor = { userId: superviseur.id, role: Role.SUPERVISOR };
+
+  async function siteFromAcceptedQuote(spec: {
+    client: { companyName: string; contactFirstName: string; contactLastName: string; jobTitle: string; phone: string; email: string; postalCode: string; city: string };
+    site: { name: string; address: string; description: string; managerId: string };
+    subject: string;
+    items: Array<{ description: string; quantity: number; unit: QuoteItemUnit; unitPriceHt: number; frequency: QuoteItemFrequency; occurrencesPerMonth?: number }>;
+    acceptedNote: string;
+  }) {
+    const existing = await prisma.site.findFirst({ where: { name: spec.site.name } });
     if (existing) return existing;
-    return prisma.site.create({ data: { name, address, description, managerId } });
+    const client =
+      (await prisma.client.findFirst({ where: { companyName: spec.client.companyName } })) ??
+      (await clientsService.createClient(hrActor, { ...spec.client, billingAddress: spec.site.address }));
+    const contactName = `${spec.client.contactFirstName} ${spec.client.contactLastName}`;
+    const quote = await quotesService.createQuote(hrActor, {
+      clientId: client.id, subject: spec.subject, contactName, contactEmail: spec.client.email, billingAddress: spec.site.address, items: spec.items,
+    });
+    await quotesService.submitQuoteForValidation(hrActor, quote.id);
+    await quotesService.validateQuote(hrActor, quote.id);
+    await quotesService.sendQuote(hrActor, quote.id);
+    await quotesService.markQuoteAccepted(hrActor, quote.id, { method: QuoteFollowUpMethod.EMAIL, comment: spec.acceptedNote });
+    return sitesService.createSite(rh.id, {
+      name: spec.site.name, address: spec.site.address, description: spec.site.description,
+      managerId: spec.site.managerId, supervisorId: superviseur.id, clientId: client.id, quoteId: quote.id,
+    });
   }
 
-  const siteTilleuls = await upsertSite("Résidence Les Tilleuls", "12 Rue des Tilleuls, 75015 Paris", "Copropriété résidentielle, 6 étages, parties communes et halls d'entrée.", karim.id);
-  const siteTechcorp = await upsertSite("Bureaux TechCorp", "45 Avenue de la République, 75011 Paris", "Open space et bureaux fermés sur 3 étages, entretien quotidien.", sophie.id);
-  const siteClinique = await upsertSite("Clinique Saint-Michel", "8 Boulevard Saint-Michel, 75005 Paris", "Nettoyage sanitaire renforcé, protocoles spécifiques.", karim.id);
+  const siteTilleuls = await siteFromAcceptedQuote({
+    client: { companyName: "Syndic Résidence Les Tilleuls", contactFirstName: "Patrick", contactLastName: "Morel", jobTitle: "Syndic", phone: "0612345610", email: "p.morel@syndic-tilleuls.fr", postalCode: "75015", city: "Paris" },
+    site: { name: "Résidence Les Tilleuls", address: "12 Rue des Tilleuls, 75015 Paris", description: "Copropriété résidentielle, 6 étages, parties communes et halls d'entrée.", managerId: karim.id },
+    subject: "Entretien des parties communes",
+    items: [{ description: "Nettoyage parties communes (halls, escaliers, vitres RDC)", quantity: 3, unit: QuoteItemUnit.HOUR, unitPriceHt: 28, frequency: QuoteItemFrequency.MULTIPLE_PER_WEEK, occurrencesPerMonth: 12 }],
+    acceptedNote: "Accepté en assemblée générale de copropriété.",
+  });
+  const siteTechcorp = await siteFromAcceptedQuote({
+    client: { companyName: "TechCorp SAS", contactFirstName: "Julie", contactLastName: "Armand", jobTitle: "Office Manager", phone: "0612345611", email: "j.armand@techcorp.fr", postalCode: "75011", city: "Paris" },
+    site: { name: "Bureaux TechCorp", address: "45 Avenue de la République, 75011 Paris", description: "Open space et bureaux fermés sur 3 étages, entretien en soirée.", managerId: sophie.id },
+    subject: "Entretien des bureaux en soirée",
+    items: [
+      { description: "Entretien bureaux et sanitaires", quantity: 2.5, unit: QuoteItemUnit.HOUR, unitPriceHt: 27, frequency: QuoteItemFrequency.MULTIPLE_PER_WEEK, occurrencesPerMonth: 8 },
+      { description: "Shampoing moquette open space (remise en état à la prise du chantier)", quantity: 1, unit: QuoteItemUnit.FLAT_RATE, unitPriceHt: 380, frequency: QuoteItemFrequency.ONE_TIME },
+    ],
+    acceptedNote: "Bon pour accord signé par l'office manager.",
+  });
+  const siteClinique = await siteFromAcceptedQuote({
+    client: { companyName: "Clinique Saint-Michel", contactFirstName: "Hélène", contactLastName: "Garnier", jobTitle: "Cadre de santé", phone: "0612345612", email: "h.garnier@clinique-saint-michel.fr", postalCode: "75005", city: "Paris" },
+    site: { name: "Clinique Saint-Michel", address: "8 Boulevard Saint-Michel, 75005 Paris", description: "Nettoyage sanitaire renforcé, protocoles spécifiques.", managerId: karim.id },
+    subject: "Désinfection hebdomadaire des salles de consultation",
+    items: [{ description: "Désinfection salles de consultation (protocole virucide)", quantity: 2, unit: QuoteItemUnit.HOUR, unitPriceHt: 35, frequency: QuoteItemFrequency.WEEKLY, occurrencesPerMonth: 4 }],
+    acceptedNote: "Accepté après visite du site avec la cadre de santé.",
+  });
+
+  const siteBoutique = await siteFromAcceptedQuote({
+    client: { companyName: "Atelier Rivoli", contactFirstName: "Sarah", contactLastName: "Lenoir", jobTitle: "Gérante", phone: "0612345613", email: "s.lenoir@atelier-rivoli.fr", postalCode: "75001", city: "Paris" },
+    site: { name: "Boutique Atelier Rivoli", address: "112 Rue de Rivoli, 75001 Paris", description: "Boutique de prêt-à-porter, entretien chaque matin avant l'ouverture : vitrine, sol, cabines, caisse.", managerId: sophie.id },
+    subject: "Entretien quotidien avant ouverture",
+    items: [{ description: "Entretien boutique avant ouverture (vitrine, sol, cabines)", quantity: 1, unit: QuoteItemUnit.HOUR, unitPriceHt: 29, frequency: QuoteItemFrequency.DAILY, occurrencesPerMonth: 24 }],
+    acceptedNote: "Devis signé en boutique.",
+  });
+
+  // Position GPS fixe de chaque chantier (adresses de démonstration) : c'est
+  // elle qui sert à calculer la distance du pointage au chantier.
+  const SITE_POSITIONS: Array<[{ id: string }, number, number]> = [
+    [siteTilleuls, 48.84121, 2.29372], [siteTechcorp, 48.86492, 2.37998],
+    [siteClinique, 48.85301, 2.34392], [siteBoutique, 48.86013, 2.34461],
+  ];
+  for (const [site, latitude, longitude] of SITE_POSITIONS) {
+    await prisma.site.update({ where: { id: site.id }, data: { latitude, longitude } });
+  }
 
   const teamMembers: Array<{ siteId: string; userId: string }> = [
+    { siteId: siteBoutique.id, userId: sophie.id }, { siteId: siteBoutique.id, userId: thomas.id }, { siteId: siteBoutique.id, userId: chloe.id },
     { siteId: siteTilleuls.id, userId: karim.id }, { siteId: siteTilleuls.id, userId: lucas.id }, { siteId: siteTilleuls.id, userId: emma.id }, { siteId: siteTilleuls.id, userId: ines.id },
     { siteId: siteTechcorp.id, userId: sophie.id }, { siteId: siteTechcorp.id, userId: nathan.id }, { siteId: siteTechcorp.id, userId: chloe.id }, { siteId: siteTechcorp.id, userId: thomas.id },
     { siteId: siteClinique.id, userId: karim.id }, { siteId: siteClinique.id, userId: lucas.id }, { siteId: siteClinique.id, userId: nathan.id },
@@ -148,55 +330,67 @@ async function main() {
   console.log("Chantiers démo prêts.");
 
   // ---------------------------------------------------------------- Planning : une semaine bien remplie
-  const today = new Date();
-  const monday = addDays(today, 1 - (today.getDay() === 0 ? 7 : today.getDay()));
+  // Tout est daté par rapport au jour de la démonstration : une mission en
+  // cours « aujourd'hui », l'historique les jours d'avant, le planning à
+  // venir ensuite. DEMO_DATE=AAAA-MM-JJ permet de préparer la démo la veille
+  // pour le jour de la présentation (par défaut : aujourd'hui).
+  const demoDate = process.env.DEMO_DATE;
+  if (demoDate && !/^\d{4}-\d{2}-\d{2}$/.test(demoDate)) throw new Error("DEMO_DATE doit être au format AAAA-MM-JJ.");
+  const today = demoDate ? new Date(`${demoDate}T12:00:00`) : new Date();
   const missionIds: Record<string, string> = {};
 
-  // Ne recrée pas la semaine de démo si elle existe déjà pour CETTE semaine
-  // précisément (jamais de suppression des données existantes d'une exécution
-  // précédente, même d'un autre jeu de seed — uniquement une vérification
-  // avant ajout).
-  const currentWeekMissionCount = await prisma.mission.count({
-    where: { date: { gte: new Date(`${isoDate(monday)}T00:00:00`), lte: new Date(`${isoDate(addDays(monday, 6))}T23:59:59`) } },
-  });
+  // DEMO_HEURE=HH:mm : heure de la présentation. Les missions du jour sont
+  // alors placées autour de cette heure (une terminée avant, une en cours, les
+  // suivantes après) au lieu des horaires du matin : une démo à 18 h montrait
+  // sinon une mission « en cours » depuis 8 h et une autre de 14 h encore
+  // planifiée.
+  const demoHour = process.env.DEMO_HEURE;
+  if (demoHour && !/^([01]\d|2[0-3]):[0-5]\d$/.test(demoHour)) throw new Error("DEMO_HEURE doit être au format HH:mm, par exemple 18:00.");
+  const todaySlot = (defaultTime: string, hoursFromDemo: number): string => {
+    if (!demoHour) return defaultTime;
+    const [h = 0, m = 0] = demoHour.split(":").map(Number);
+    const minutes = Math.min(Math.max(h * 60 + m + Math.round(hoursFromDemo * 60), 0), 23 * 60 + 59);
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  };
 
-  if (currentWeekMissionCount === 0) {
+  // Ne recrée jamais le planning de démo s'il existe déjà (aucune suppression,
+  // uniquement une vérification avant ajout).
+  if ((await prisma.mission.count()) === 0) {
     type MissionSeed = { site: { id: string }; title: string; dayOffset: number; start: string; end: string; instructions: string; assignees: string[]; leadId?: string; status: MissionStatus; key?: string };
 
     const missionSeeds: MissionSeed[] = [
-      // Semaine dernière — historique
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: -7, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.COMPLETED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -6, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: -5, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id], leadId: karim.id, status: MissionStatus.COMPLETED },
-      // Lundi
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 0, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id], leadId: karim.id, status: MissionStatus.COMPLETED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 0, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires. Réunion en salle B jusqu'à 18h30.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
-      // Mardi
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 1, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTilleuls, title: "Vitrerie extérieure", dayOffset: 1, start: "14:00", end: "16:00", instructions: "Façade rue des Tilleuls, rez-de-chaussée et 1er étage.", assignees: [emma.id, ines.id], leadId: undefined, status: MissionStatus.SCHEDULED },
-      // Aujourd'hui (mission en cours pour la démo, + une terminée le matin)
-      { site: siteTechcorp, title: "Grand nettoyage open space", dayOffset: 2, start: "07:00", end: "09:30", instructions: "Vitres intérieures, moquette, cuisine partagée.", assignees: [nathan.id, chloe.id, sophie.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 2, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.IN_PROGRESS, key: "todayInProgress" },
-      // Mercredi
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 3, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 7 à 12.", assignees: [lucas.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 3, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
-      // Jeudi
-      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 4, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 4, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.CANCELLED },
-      // Vendredi
-      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 5, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      { site: siteTilleuls, title: "Grand ménage mensuel", dayOffset: 5, start: "13:00", end: "17:00", instructions: "Ascenseurs, local poubelles, parking sous-sol.", assignees: [emma.id, ines.id, thomas.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
-      // Samedi
-      { site: siteTechcorp, title: "Entretien week-end", dayOffset: 6, start: "09:00", end: "12:00", instructions: "Nettoyage léger, accueil dégagé pour le lundi.", assignees: [chloe.id], leadId: undefined, status: MissionStatus.SCHEDULED },
+      // Historique (déjà fait)
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: -9, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -8, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: -7, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: -3, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [lucas.id, emma.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -3, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires. Réunion en salle B jusqu'à 18 h 30.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: -2, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.COMPLETED },
+      { site: siteTilleuls, title: "Vitrerie extérieure", dayOffset: -2, start: "14:00", end: "16:00", instructions: "Façade rue des Tilleuls, rez-de-chaussée et 1er étage.", assignees: [emma.id, ines.id], leadId: undefined, status: MissionStatus.COMPLETED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: -1, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      // Aujourd'hui : une terminée tôt, une en cours, une cet après-midi
+      { site: siteTechcorp, title: "Grand nettoyage open space", dayOffset: 0, start: todaySlot("06:30", -4), end: todaySlot("08:30", -2), instructions: "Vitres intérieures, moquette, cuisine partagée.", assignees: [nathan.id, chloe.id, sophie.id], leadId: sophie.id, status: MissionStatus.COMPLETED },
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 0, start: todaySlot("08:00", -1), end: todaySlot("11:00", 2), instructions: "Hall d'entrée, cages d'escalier.", assignees: [lucas.id, emma.id, ines.id], leadId: karim.id, status: MissionStatus.IN_PROGRESS, key: "todayInProgress" },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 0, start: todaySlot("14:00", 2.5), end: todaySlot("16:00", 4.5), instructions: "Protocole sanitaire renforcé, salles 7 à 12.", assignees: [lucas.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      // À venir
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 1, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id, thomas.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
+      { site: siteClinique, title: "Désinfection salles de consultation", dayOffset: 2, start: "07:00", end: "09:00", instructions: "Protocole sanitaire renforcé, salles 1 à 6.", assignees: [lucas.id, nathan.id, karim.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      { site: siteTilleuls, title: "Nettoyage parties communes", dayOffset: 2, start: "08:00", end: "11:00", instructions: "Hall d'entrée, cages d'escalier, vitres du rez-de-chaussée.", assignees: [emma.id, ines.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 3, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, chloe.id], leadId: sophie.id, status: MissionStatus.CANCELLED },
+      // Mission de Nathan pendant son arrêt maladie (plus bas) : apparaît dans
+      // « Missions à réaffecter » pour la démonstration.
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", dayOffset: 4, start: "18:00", end: "20:30", instructions: "Aspiration, poubelles, sanitaires.", assignees: [nathan.id, sophie.id], leadId: sophie.id, status: MissionStatus.SCHEDULED },
+      { site: siteTilleuls, title: "Grand ménage mensuel", dayOffset: 4, start: "13:00", end: "17:00", instructions: "Ascenseurs, local poubelles, parking sous-sol.", assignees: [emma.id, ines.id, thomas.id], leadId: karim.id, status: MissionStatus.SCHEDULED },
+      { site: siteTechcorp, title: "Entretien week-end", dayOffset: 5, start: "09:00", end: "12:00", instructions: "Nettoyage léger, accueil dégagé pour le lundi.", assignees: [chloe.id], leadId: undefined, status: MissionStatus.SCHEDULED },
     ];
 
     for (const seed of missionSeeds) {
-      const dateStr = isoDate(addDays(monday, seed.dayOffset));
+      const dateStr = isoDate(addDays(today, seed.dayOffset));
       const mission = await prisma.mission.create({
         data: {
           siteId: seed.site.id,
           title: seed.title,
-          date: new Date(`${dateStr}T00:00:00`),
+          date: dayOnly(dateStr),
           startTime: combineDateTime(dateStr, seed.start),
           endTime: combineDateTime(dateStr, seed.end),
           instructions: seed.instructions,
@@ -265,9 +459,16 @@ async function main() {
     }
   }
 
+  // Objectifs du mois sur chaque chantier (anneau d'avancement de la fiche).
+  {
+    const targetPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    const targets: Array<[{ id: string }, number, number]> = [[siteTilleuls, 12, 36], [siteTechcorp, 8, 20], [siteClinique, 4, 8]];
+    for (const [site, plannedVisits, plannedHours] of targets) {
+      await sitesService.upsertSiteTarget(hrActor, site.id, { period: targetPeriod, plannedVisits, plannedHours, billingMode: "FLAT_RATE" });
+    }
+  }
+
   // ================================================================ MODULE COMMERCIAL
-  const hrActor = { userId: rh.id, role: Role.HR };
-  const supActor = { userId: superviseur.id, role: Role.SUPERVISOR };
 
   if ((await prisma.prospect.count()) === 0) {
     console.log("Module commercial : prospects, clients, devis, facturation...");
@@ -301,14 +502,8 @@ async function main() {
     // Prospect converti → client (workflow officiel §5-8), plus deux clients
     // créés directement pour que la liste Clients ne soit jamais vide.
     const clientPhare = await prospectsService.convertProspectToClient(hrActor, wonProspect.id);
-    const clientTilleuls = await clientsService.createClient(hrActor, {
-      companyName: "Syndic Résidence Les Tilleuls", contactFirstName: "Patrick", contactLastName: "Morel", jobTitle: "Syndic",
-      phone: "0612345610", email: "p.morel@syndic-tilleuls.fr", billingAddress: "12 Rue des Tilleuls, 75015 Paris", postalCode: "75015", city: "Paris",
-    });
-    await clientsService.createClient(hrActor, {
-      companyName: "TechCorp SAS", contactFirstName: "Julie", contactLastName: "Armand", jobTitle: "Office Manager",
-      phone: "0612345611", email: "j.armand@techcorp.fr", billingAddress: "45 Avenue de la République, 75011 Paris", postalCode: "75011", city: "Paris",
-    });
+    // Clients déjà créés avec leur chantier (devis acceptés, plus haut).
+    const clientTilleuls = await prisma.client.findFirstOrThrow({ where: { companyName: "Syndic Résidence Les Tilleuls" } });
 
     // Devis n°1 — brouillon (jamais envoyé), pour montrer un devis en cours de rédaction.
     await quotesService.createQuote(hrActor, {
@@ -360,9 +555,13 @@ async function main() {
       description: "Espace de coworking, 400 m², entretien quotidien.",
       managerId: sophie.id, supervisorId: superviseur.id, clientId: clientPhare.id, quoteId: quoteAccepted.id,
     });
+    await prisma.site.update({ where: { id: sitePhare.id }, data: { latitude: 48.88652, longitude: 2.37271 } });
     await prisma.siteMember.createMany({ data: [{ siteId: sitePhare.id, userId: sophie.id }, { siteId: sitePhare.id, userId: thomas.id }, { siteId: sitePhare.id, userId: ines.id }] });
 
     const period = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    // Libellé de ligne lisible par le client (« octobre 2026 »), pas la clé technique AAAA-MM.
+    const monthLabel = (d: Date) => new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(d);
+    const periodLabel = monthLabel(today);
     await sitesService.upsertSiteTarget(hrActor, sitePhare.id, { period, plannedVisits: 22, plannedHours: 44, billingMode: "FLAT_RATE" });
 
     // Quelques prestations déjà réalisées ce mois-ci sur le nouveau chantier,
@@ -373,7 +572,7 @@ async function main() {
       await prisma.mission.create({
         data: {
           siteId: sitePhare.id, title: "Entretien quotidien espace coworking",
-          date: new Date(`${dateStr}T00:00:00`), startTime: combineDateTime(dateStr, "07:00"), endTime: combineDateTime(dateStr, "09:00"),
+          date: dayOnly(dateStr), startTime: combineDateTime(dateStr, "07:00"), endTime: combineDateTime(dateStr, "09:00"),
           instructions: "Accueil, open space, sanitaires, salles de réunion.", status: MissionStatus.COMPLETED, createdById: rh.id,
           assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: thomas.id }] },
         },
@@ -382,9 +581,9 @@ async function main() {
     await prisma.mission.create({
       data: {
         siteId: sitePhare.id, title: "Entretien quotidien espace coworking",
-        date: new Date(`${isoDate(today)}T00:00:00`), startTime: combineDateTime(isoDate(today), "07:00"), endTime: combineDateTime(isoDate(today), "09:00"),
+        date: dayOnly(isoDate(today)), startTime: combineDateTime(isoDate(today), todaySlot("09:30", 1)), endTime: combineDateTime(isoDate(today), todaySlot("11:30", 3)),
         instructions: "Accueil, open space, sanitaires, salles de réunion.", status: MissionStatus.SCHEDULED, createdById: rh.id,
-        assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: ines.id }] },
+        assignments: { create: [{ userId: sophie.id, isLead: true }, { userId: thomas.id }] },
       },
     });
 
@@ -393,14 +592,14 @@ async function main() {
     await invoicesService.createInvoice(hrActor, {
       clientId: clientTilleuls.id, period,
       contactName: "Patrick Morel", contactEmail: "p.morel@syndic-tilleuls.fr", billingAddress: "12 Rue des Tilleuls, 75015 Paris",
-      items: [{ description: "Nettoyage parties communes — " + period, quantity: 36, unit: QuoteItemUnit.HOUR, unitPriceHt: 28 }],
+      items: [{ description: "Nettoyage parties communes — " + periodLabel, quantity: 36, unit: QuoteItemUnit.HOUR, unitPriceHt: 28 }],
     });
 
     // Facture n°2 — envoyée (référencée au devis et au chantier acceptés).
     const invoiceSent = await invoicesService.createInvoice(hrActor, {
       clientId: clientPhare.id, quoteId: quoteAccepted.id, siteId: sitePhare.id, period,
       contactName: "Camille Nguyen", contactEmail: "camille@lephare-coworking.fr", billingAddress: "27 Quai de Seine, 75019 Paris",
-      items: [{ description: "Entretien quotidien espace coworking — " + period, quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
+      items: [{ description: "Entretien quotidien espace coworking — " + periodLabel, quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
     });
     await invoicesService.validateInvoice(hrActor, invoiceSent.id);
     await invoicesService.sendInvoice(hrActor, invoiceSent.id);
@@ -411,15 +610,600 @@ async function main() {
     const invoicePaid = await invoicesService.createInvoice(hrActor, {
       clientId: clientPhare.id, quoteId: quoteAccepted.id, siteId: sitePhare.id, period: lastPeriod,
       contactName: "Camille Nguyen", contactEmail: "camille@lephare-coworking.fr", billingAddress: "27 Quai de Seine, 75019 Paris",
-      items: [{ description: "Entretien quotidien espace coworking — " + lastPeriod, quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
+      items: [{ description: "Entretien quotidien espace coworking — " + monthLabel(lastPeriodDate), quantity: 44, unit: QuoteItemUnit.HOUR, unitPriceHt: 27 }],
     });
     await invoicesService.validateInvoice(hrActor, invoicePaid.id);
     await invoicesService.sendInvoice(hrActor, invoicePaid.id);
     await invoicesService.markInvoicePaid(hrActor, invoicePaid.id);
 
-    console.log("Module commercial démo prêt : 5 prospects, 3 clients, 4 devis, 3 factures, 1 chantier créé depuis un devis accepté.");
+    console.log("Module commercial démo prêt : 5 prospects, 4 clients, 7 devis, 3 factures, 5 chantiers créés depuis un devis accepté.");
   } else {
     console.log("Des prospects existent déjà, création des données commerciales démo ignorée.");
+  }
+
+
+  // ================================================================ VIE QUOTIDIENNE
+  // Tout ce qui rend la démo vivante écran par écran : messagerie, pointages
+  // à valider, congés, standards, fiche de poste, suivi des signalements,
+  // validations. Chaque bloc ne s'ajoute qu'une fois (jamais de doublon si le
+  // script est relancé) et passe par les vrais services de l'application.
+  const actor = (u: { id: string; role: Role }) => ({ userId: u.id, role: u.role });
+
+  // Téléphones (le bouton d'appel de la messagerie a besoin d'un numéro).
+  const phones: Array<[{ id: string }, string]> = [
+    [rh, "+33 6 12 34 56 78"], [directeur, "+33 6 23 45 67 89"], [superviseur, "+33 6 34 56 78 90"], [karim, "+33 6 45 67 89 01"],
+    [sophie, "+33 6 56 78 90 12"], [lucas, "+33 6 67 89 01 23"], [emma, "+33 6 78 90 12 34"], [nathan, "+33 6 89 01 23 45"],
+    [chloe, "+33 6 90 12 34 56"], [ines, "+33 7 01 23 45 67"], [thomas, "+33 7 12 34 56 78"],
+  ];
+  for (const [u, phone] of phones) await prisma.user.update({ where: { id: u.id }, data: { phone } });
+
+  // Heures par semaine au contrat (compteur « reste à planifier » du
+  // planning) : temps plein, un temps partiel, chefs d'équipe à 39 h.
+  const weeklyHours: Array<[{ id: string }, number]> = [
+    [lucas, 35], [emma, 35], [nathan, 35], [chloe, 35], [thomas, 35], [ines, 24], [karim, 39], [sophie, 39],
+  ];
+  for (const [u, hours] of weeklyHours) await prisma.user.update({ where: { id: u.id }, data: { weeklyHours: hours } });
+
+  // Messagerie : trois fils à deux et un groupe de chantier avec un PDF.
+  if ((await prisma.conversation.count()) === 0) {
+    const say = (u: { id: string; role: Role }, conversationId: string, body: string) =>
+      messagesService.sendMessage(actor(u), { conversationId, body });
+    const withKarim = await messagesService.getOrCreateDirectConversation(actor(karim), rh.id);
+    await say(karim, withKarim.id, "Bonjour Marie, l'équipe est au complet ce matin au Phare.");
+    await say(rh, withKarim.id, "Parfait, merci Karim ! Pensez à faire pointer tout le monde.");
+    await say(karim, withKarim.id, "C'est fait 👍 On attaque le 2e étage à 10 h.");
+    const withLucas = await messagesService.getOrCreateDirectConversation(actor(lucas), rh.id);
+    await say(lucas, withLucas.id, "Bonjour, est-ce que je peux poser mon vendredi 17 ?");
+    const withYasmine = await messagesService.getOrCreateDirectConversation(actor(superviseur), rh.id);
+    await say(superviseur, withYasmine.id, "Planning de la semaine prochaine validé, je l'envoie à l'équipe.");
+
+    const group = await messagesService.createGroupConversation(actor(rh), {
+      title: "Chantier Le Phare",
+      participantIds: [karim.id, superviseur.id, lucas.id, emma.id],
+    });
+    await say(rh, group.id, "Bonjour à tous 👋 Point d'équipe demain 8 h devant le Phare.");
+    await say(karim, group.id, "Bien noté, je préviens l'équipe du matin.");
+    await say(superviseur, group.id, "Je passe vers 9 h pour la validation des heures.");
+    await messagesService.sendMessage(actor(rh), { conversationId: group.id, body: "Les consignes de sécurité mises à jour 👇" }, {
+      document: { buffer: await buildSafetyPdf(), fileName: "Consignes-securite-Le-Phare.pdf" },
+    });
+    await say(emma, group.id, "Merci, c'est noté !");
+    console.log("Messagerie démo prête (3 conversations + 1 groupe avec PDF).");
+  }
+
+  // Pointages différés en attente : de quoi remplir « Validation des heures ».
+  if ((await prisma.timeEntry.count()) === 0) {
+    const at = (daysAgo: number, time: string) => combineDateTime(isoDate(addDays(today, -daysAgo)), time).toISOString();
+    const entries: Array<[{ id: string; role: Role }, number, string, string, string | undefined]> = [
+      // Jamais plus de 7 jours en arrière (règle des pointages différés), et
+      // toujours dans le passé même si la démo est préparée la veille.
+      // Deux écarts volontaires avec la mission prévue, pour montrer l'alerte
+      // « de moins / de plus que prévu » de la validation des heures.
+      [lucas, 2, "07:02", "08:05", "Badgeuse en panne à l'arrivée"],
+      [lucas, 3, "08:00", "11:10", undefined],
+      [emma, 3, "07:55", "11:00", "Oubli de pointer"],
+      [nathan, 3, "18:00", "21:45", "Réunion du client prolongée, ménage commencé plus tard"],
+      [chloe, 3, "18:05", "20:40", "Téléphone déchargé"],
+    ];
+    for (const [u, daysAgo, start, end, comment] of entries) {
+      await timesheetsService.createRetroactiveTimeEntry(actor(u), { clockIn: at(daysAgo, start), clockOut: at(daysAgo, end), comment });
+    }
+    console.log("Pointages démo prêts (5 en attente de validation).");
+  }
+
+  // Pointages « terrain » complets, comme en vrai (retour explicite du
+  // client, c'est le but premier du pointage photo) : photo de la devanture
+  // ou de l'entrée du chantier prise par l'employé à son arrivée ET à son
+  // départ, position GPS capturée aux deux moments. Un pointage dont la
+  // sortie est faite loin du chantier montre l'alerte de distance.
+  if ((await prisma.timeEntry.count({ where: { clockInPhotoKey: { not: null } } })) === 0) {
+    const photoDir = path.join(__dirname, "demo-photos");
+    const storePhoto = async (file: string) => {
+      try {
+        return (await storeImage(fs.readFileSync(path.join(photoDir, file)))).storageKey;
+      } catch {
+        return null;
+      }
+    };
+    // Décale une position de quelques mètres (nord / est) : un téléphone ne
+    // donne jamais exactement le point du chantier.
+    const near = (lat: number, lng: number, northM: number, eastM: number) => ({
+      latitude: lat + northM / 111_320,
+      longitude: lng + eastM / (111_320 * Math.cos((lat * Math.PI) / 180)),
+    });
+    const boutique = { lat: 48.86013, lng: 2.34461 };
+    const tilleuls = { lat: 48.84121, lng: 2.29372 };
+
+    // Missions de la boutique (ce matin et hier matin), avant ouverture.
+    const boutiqueMission = async (dayOffset: number, userId: string, status: MissionStatus) => {
+      const dateStr = isoDate(addDays(today, dayOffset));
+      return prisma.mission.create({
+        data: {
+          siteId: siteBoutique.id, title: "Entretien avant ouverture", date: dayOnly(dateStr),
+          startTime: combineDateTime(dateStr, "07:30"), endTime: combineDateTime(dateStr, "08:30"),
+          instructions: "Vitrine intérieure, sol de la boutique, cabines d'essayage, comptoir de caisse.",
+          status, createdById: superviseur.id, assignments: { create: [{ userId, isLead: false }] },
+        },
+      });
+    };
+    await boutiqueMission(0, thomas.id, MissionStatus.COMPLETED);
+    await boutiqueMission(-1, chloe.id, MissionStatus.COMPLETED);
+
+    const todayStr = isoDate(today);
+    const yesterdayStr = isoDate(addDays(today, -1));
+    const devanture = await storePhoto("boutique-devanture.jpg");
+    const devantureSortie = await storePhoto("boutique-devanture-depart.jpg");
+    const devantureHier = await storePhoto("boutique-devanture.jpg");
+    const devantureHierSortie = await storePhoto("boutique-devanture-depart.jpg");
+    const entreeResidence = await storePhoto("residence-entree.jpg");
+
+    // Thomas, ce matin : arrivée et départ devant la boutique (quelques mètres).
+    const thomasIn = near(boutique.lat, boutique.lng, 6, -4);
+    const thomasOut = near(boutique.lat, boutique.lng, -3, 5);
+    await prisma.timeEntry.create({
+      data: {
+        userId: thomas.id, clockIn: combineDateTime(todayStr, "07:27"), clockOut: combineDateTime(todayStr, "08:34"),
+        clockInLatitude: thomasIn.latitude, clockInLongitude: thomasIn.longitude, clockInAccuracy: 8, clockInPhotoKey: devanture,
+        clockOutLatitude: thomasOut.latitude, clockOutLongitude: thomasOut.longitude, clockOutAccuracy: 11, clockOutPhotoKey: devantureSortie,
+      },
+    });
+
+    // Chloé, hier : arrivée devant la boutique, mais sortie pointée à 1,3 km
+    // (dans le métro) — l'alerte de distance s'affiche à la validation.
+    const chloeIn = near(boutique.lat, boutique.lng, 4, 7);
+    const chloeOut = near(boutique.lat, boutique.lng, 1150, 620);
+    await prisma.timeEntry.create({
+      data: {
+        userId: chloe.id, clockIn: combineDateTime(yesterdayStr, "07:31"), clockOut: combineDateTime(yesterdayStr, "08:29"),
+        clockInLatitude: chloeIn.latitude, clockInLongitude: chloeIn.longitude, clockInAccuracy: 9, clockInPhotoKey: devantureHier,
+        clockOutLatitude: chloeOut.latitude, clockOutLongitude: chloeOut.longitude, clockOutAccuracy: 24, clockOutPhotoKey: devantureHierSortie,
+      },
+    });
+
+    // Lucas, en poste en ce moment sur la mission en cours de la résidence :
+    // arrivée pointée avec la photo de l'entrée de l'immeuble.
+    const inProgress = missionIds.todayInProgress
+      ? await prisma.mission.findUnique({ where: { id: missionIds.todayInProgress } })
+      : null;
+    if (inProgress) {
+      const arrival = new Date(inProgress.startTime.getTime() - 3 * 60_000);
+      const lucasIn = near(tilleuls.lat, tilleuls.lng, -5, 3);
+      await prisma.timeEntry.create({
+        data: {
+          userId: lucas.id, clockIn: arrival,
+          clockInLatitude: lucasIn.latitude, clockInLongitude: lucasIn.longitude, clockInAccuracy: 7, clockInPhotoKey: entreeResidence,
+        },
+      });
+    }
+    console.log("Pointages terrain démo prêts (photos d'arrivée et de départ, positions GPS).");
+  }
+
+  // Mise en service au 1er juin : solde de chacun repris par la RH. Fait
+  // AVANT les demandes de congé, qui sont refusées au-delà du solde.
+  const periodStartYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
+  const goLive = new Date(`${periodStartYear}-06-01T00:00:00.000Z`);
+  if ((await prisma.leaveTransaction.count()) === 0) {
+    const staff = [rh, directeur, superviseur, karim, sophie, lucas, emma, nathan, chloe, ines, thomas];
+    const carriedOver: Record<string, number> = {
+      [rh.id]: 20, [directeur.id]: 25, [superviseur.id]: 16, [karim.id]: 18, [sophie.id]: 14, [lucas.id]: 12,
+      [emma.id]: 8, [nathan.id]: 15, [chloe.id]: 4, [ines.id]: 6, [thomas.id]: 10,
+    };
+    for (const person of staff) {
+      await prisma.user.update({ where: { id: person.id }, data: { createdAt: goLive } });
+      await leaveService.createLeaveAdjustment(actor(rh.id === person.id ? directeur : rh), person.id, {
+        days: carriedOver[person.id]!,
+        note: "Reprise du solde au 1er juin (mise en service de l'application)",
+      });
+    }
+  }
+
+  // Deux demandes de congé à approuver.
+  if ((await prisma.absence.count()) === 0) {
+    await absencesService.createAbsence(actor(emma), {
+      type: "PAID_LEAVE", startDate: isoDate(addDays(today, 18)), endDate: isoDate(addDays(today, 22)), reason: "Vacances en famille",
+    });
+    const sick = await absencesService.createAbsence(actor(nathan), {
+      type: "SICK_LEAVE", startDate: isoDate(addDays(today, 4)), endDate: isoDate(addDays(today, 5)),
+    });
+    await absencesService.decideAbsence(actor(superviseur), sick.id, { status: "APPROVED", decisionNote: "Prompt rétablissement." });
+    await absencesService.createAbsence(actor(karim), {
+      type: "OTHER", startDate: isoDate(addDays(today, 12)), endDate: isoDate(addDays(today, 13)), reason: "Formation sécurité incendie",
+    });
+
+    // Congés déjà acceptés, visibles dans le planning (« Absent ») : Inès en
+    // début de semaine, Emma la semaine prochaine, Lucas une semaine en été
+    // (retirée de son historique de missions et de pointages plus bas).
+    // Aucune ne tombe sur une mission de la personne concernée.
+    // Plus, le mois dernier, un arrêt maladie (Karim) et un congé sans
+    // solde (Chloé) : leurs congés acquis du mois en tiennent compte.
+    const approvedLeaves: Array<[{ id: string; role: Role }, number, number, string, "PAID_LEAVE" | "SICK_LEAVE" | "UNPAID_LEAVE"]> = [
+      [ines, -4, -3, "Congé payé", "PAID_LEAVE"],
+      [emma, 5, 9, "Vacances d'automne", "PAID_LEAVE"],
+      [lucas, -55, -51, "Vacances d'été", "PAID_LEAVE"],
+      [karim, -25, -21, "Grippe", "SICK_LEAVE"],
+      [chloe, -18, -14, "Déménagement", "UNPAID_LEAVE"],
+    ];
+    for (const [person, from, to, reason, type] of approvedLeaves) {
+      // Saisis par la superviseure (congés passés compris) : approuvés d'office.
+      await absencesService.createAbsence(actor(superviseur), {
+        userId: person.id, type, startDate: isoDate(addDays(today, from)), endDate: isoDate(addDays(today, to)), reason,
+      });
+    }
+    // Une demande déjà acceptée par la superviseure (statut « Approuvée »).
+    const approved = await absencesService.createAbsence(actor(thomas), {
+      type: "PAID_LEAVE", startDate: isoDate(addDays(today, 30)), endDate: isoDate(addDays(today, 34)), reason: "Mariage d'un proche",
+    });
+    await absencesService.decideAbsence(actor(superviseur), approved.id, { status: "APPROVED", decisionNote: "Bon congé !" });
+    console.log("Congés démo prêts (en attente, approuvés, arrêt maladie).");
+  }
+
+  // Standards de nettoyage de la Résidence Les Tilleuls.
+  if ((await prisma.cleaningStandard.count()) === 0) {
+    await standardsService.createStandard(actor(superviseur), {
+      siteId: siteTilleuls.id,
+      name: "Parties communes · passage hebdomadaire",
+      tasks: ["Balayer et laver le hall d'entrée", "Nettoyer les vitres de la porte d'entrée", "Dépoussiérer les boîtes aux lettres", "Laver les escaliers du RDC au 5e étage", "Vider les poubelles du local vélos"],
+      equipment: ["Autolaveuse compacte", "Seau et frange microfibre", "Produit vitres", "Gants nitrile"],
+      safetyInstructions: "Poser le panneau « Sol glissant » pendant le lavage du hall. Ne jamais mélanger javel et détartrant.",
+      notes: "Passage le mardi matin, avant 10 h.",
+    });
+    await standardsService.createStandard(actor(superviseur), {
+      siteId: siteTilleuls.id,
+      name: "Local poubelles · désinfection mensuelle",
+      tasks: ["Sortir les conteneurs", "Laver le sol au jet", "Désinfecter les conteneurs"],
+      equipment: ["Nettoyeur haute pression", "Désinfectant bactéricide"],
+      safetyInstructions: "Porter lunettes et gants pendant la désinfection.",
+    });
+    console.log("Standards de nettoyage démo prêts.");
+  }
+
+  // Fiche de poste sur la prochaine désinfection de la clinique.
+  if ((await prisma.jobSheet.count()) === 0) {
+    const nextClinic = await prisma.mission.findFirst({
+      where: { siteId: siteClinique.id, status: MissionStatus.SCHEDULED, date: { gte: dayOnly(isoDate(today)) } },
+      orderBy: { startTime: "asc" },
+    });
+    if (nextClinic) {
+      await missionsService.upsertJobSheet(actor(superviseur), nextClinic.id, {
+        tasks: ["Aérer chaque salle 10 minutes avant de commencer", "Désinfecter tables d'examen, poignées et interrupteurs", "Nettoyer les lavabos et recharger savon et essuie-mains", "Laver le sol du couloir à la frange microfibre", "Vider les poubelles DASRI dans le local dédié"],
+        equipment: ["Désinfectant virucide EN 14476", "Lingettes à usage unique", "Chariot de lavage double seau", "Gants nitrile et masque FFP2"],
+        safetyInstructions: "Ne jamais toucher le contenu des boîtes à aiguilles. Respecter le circuit propre / sale indiqué par la clinique.",
+        notes: "Badge d'accès à récupérer à l'accueil, porte B.",
+      });
+      console.log("Fiche de poste démo prête.");
+    }
+  }
+
+  // Suivi d'un signalement (fil de commentaires).
+  const leak = await prisma.problem.findFirst({ where: { description: { startsWith: "Infiltration d'eau" } } });
+  if (leak && (await prisma.problemComment.count({ where: { problemId: leak.id } })) === 0) {
+    await problemsService.addComment(actor(karim), leak.id, "J'ai prévenu le syndic, un plombier passe demain matin.");
+    await problemsService.addComment(actor(directeur), leak.id, "Merci. Pensez à baliser la zone en attendant.");
+    console.log("Suivi de signalement démo prêt.");
+  }
+
+  // Missions terminées validées par la superviseure (sauf les deux dernières,
+  // laissées « à valider » pour la démonstration).
+  if ((await prisma.validation.count()) === 0) {
+    const completed = await prisma.mission.findMany({ where: { status: MissionStatus.COMPLETED }, orderBy: { endTime: "desc" } });
+    for (const mission of completed.slice(2)) {
+      await missionsService.validateMission(actor(superviseur), mission.id);
+    }
+    console.log(`${Math.max(0, completed.length - 2)} missions terminées validées.`);
+  }
+
+  // Signalements dans chaque étape du suivi (Nouveau → En cours → Traité →
+  // Validé), des deux types, avec photo et échanges : aucun écran vide.
+  if ((await prisma.problem.count()) <= 2) {
+    const lastMission = (siteId: string) =>
+      prisma.mission.findFirstOrThrow({ where: { siteId, status: MissionStatus.COMPLETED }, orderBy: { endTime: "desc" } });
+    const sitePhare = await prisma.site.findFirst({ where: { name: "Coworking Le Phare" } });
+    const addPhoto = async (problemId: string, by: { id: string; role: Role }, seed: string) => {
+      const photo = await fetchBuffer(`https://picsum.photos/seed/${seed}/900/1200`);
+      if (photo) await problemsService.addPhoto(actor(by), problemId, photo);
+    };
+
+    const vacuum = await problemsService.createProblem(actor(nathan), {
+      missionId: (await lastMission(siteTechcorp.id)).id, type: ProblemType.MISSING_MATERIAL,
+      description: "L'aspirateur dorsal ne démarre plus, batterie à remplacer.",
+    });
+    await addPhoto(vacuum.id, nathan, "deepclean-aspirateur");
+    await problemsService.setProblemStatus(actor(superviseur), vacuum.id, "IN_PROGRESS");
+    await problemsService.addComment(actor(sophie), vacuum.id, "Batterie commandée, livraison prévue jeudi. On prend l'aspirateur de secours en attendant.");
+
+    const door = await problemsService.createProblem(actor(lucas), {
+      missionId: (await lastMission(siteClinique.id)).id, type: ProblemType.ISSUE,
+      description: "La porte du local DASRI ne ferme plus à clé.",
+    });
+    await addPhoto(door.id, lucas, "deepclean-porte");
+    await problemsService.setProblemStatus(actor(superviseur), door.id, "IN_PROGRESS");
+    await problemsService.addComment(actor(karim), door.id, "Serrurier passé ce matin, la porte ferme de nouveau.");
+    await problemsService.setProblemStatus(actor(superviseur), door.id, "RESOLVED");
+
+    if (sitePhare) {
+      const stain = await problemsService.createProblem(actor(thomas), {
+        missionId: (await lastMission(sitePhare.id)).id, type: ProblemType.ISSUE,
+        description: "Grosse tache de café sur la moquette de la salle de réunion « Océan ».",
+      });
+      await addPhoto(stain.id, thomas, "deepclean-moquette");
+      await problemsService.setProblemStatus(actor(superviseur), stain.id, "IN_PROGRESS");
+      await problemsService.addComment(actor(sophie), stain.id, "Détachage fait avec l'injecteur-extracteur, plus aucune trace.");
+      await problemsService.setProblemStatus(actor(superviseur), stain.id, "RESOLVED");
+      await problemsService.addComment(actor(directeur), stain.id, "Vérifié sur place avec la cliente, parfait.");
+      await problemsService.setProblemStatus(actor(directeur), stain.id, "VALIDATED");
+    }
+    console.log("Signalements démo prêts (nouveau, en cours, traité, validé).");
+  }
+
+  // Quatre mois d'historique (retour explicite du client : chacun revoit ses
+  // heures des mois passés). Missions récurrentes terminées et validées, avec
+  // des pointages validés proches des horaires prévus. Créé directement en
+  // base, sans notifications : ce passé ne doit pas inonder les écrans.
+  const historyStart = dayOnly(isoDate(addDays(today, -10)));
+  if ((await prisma.mission.count({ where: { date: { lt: historyStart } } })) === 0) {
+    const patterns = [
+      { site: siteTilleuls, title: "Nettoyage parties communes", weekdays: [1, 3, 5], start: "08:00", end: "11:00", team: [lucas, emma, ines], lead: karim },
+      { site: siteTechcorp, title: "Entretien bureaux étage 2", weekdays: [2, 4], start: "18:00", end: "20:30", team: [nathan, chloe], lead: sophie },
+      { site: siteClinique, title: "Désinfection salles de consultation", weekdays: [6], start: "09:00", end: "11:00", team: [lucas, nathan], lead: karim },
+      // Heures majorées (retour explicite du client) : une équipe de nuit
+      // (Thomas, reconnu travailleur de nuit, acquiert du repos compensateur)
+      // et une désinfection le dimanche matin.
+      { site: siteTechcorp, title: "Nettoyage de nuit open space", weekdays: [1, 3, 5], start: "21:30", end: "04:30", team: [], lead: thomas },
+      { site: siteClinique, title: "Désinfection du dimanche", weekdays: [0], start: "07:00", end: "10:00", team: [], lead: chloe },
+    ];
+    let state = 7;
+    const rand = (max: number) => {
+      state = (state * 9301 + 49297) % 233280;
+      return Math.floor((state / 233280) * max);
+    };
+    // Jamais de mission ni de pointage un jour de congé approuvé.
+    const approvedAbsences = await prisma.absence.findMany({ where: { status: "APPROVED" }, select: { userId: true, startDate: true, endDate: true } });
+    const isOnLeave = (userId: string, dateStr: string) =>
+      approvedAbsences.some((a) => a.userId === userId && dayOnly(dateStr) >= a.startDate && dayOnly(dateStr) <= a.endDate);
+    const entries: Array<{ userId: string; clockIn: Date; clockOut: Date; status: "VALIDATED"; validatedById: string; validatedAt: Date }> = [];
+    let created = 0;
+    for (let offset = -122; offset <= -11; offset++) {
+      const day = addDays(today, offset);
+      const dateStr = isoDate(day);
+      for (const pattern of patterns) {
+        if (!pattern.weekdays.includes(day.getDay())) continue;
+        const people = [...pattern.team, pattern.lead].filter((person) => !isOnLeave(person.id, dateStr));
+        const start = combineDateTime(dateStr, pattern.start);
+        let end = combineDateTime(dateStr, pattern.end);
+        // Vacation de nuit : se termine le lendemain matin.
+        if (end <= start) end = combineDateTime(isoDate(addDays(day, 1)), pattern.end);
+        const mission = await prisma.mission.create({
+          data: {
+            siteId: pattern.site.id, title: pattern.title, date: dayOnly(dateStr), startTime: start, endTime: end,
+            status: MissionStatus.COMPLETED, createdById: superviseur.id,
+            assignments: { create: people.map((u) => ({ userId: u.id, isLead: u.id === pattern.lead.id })) },
+          },
+        });
+        await prisma.validation.create({
+          data: { type: "MISSION_COMPLETION", missionId: mission.id, validatedById: superviseur.id, createdAt: new Date(end.getTime() + 2 * 3600_000) },
+        });
+        for (const person of people) {
+          entries.push({
+            userId: person.id,
+            clockIn: new Date(start.getTime() + (rand(11) - 8) * 60_000),
+            clockOut: new Date(end.getTime() + (rand(13) - 3) * 60_000),
+            status: "VALIDATED",
+            validatedById: superviseur.id,
+            validatedAt: new Date(end.getTime() + 20 * 3600_000),
+          });
+        }
+        created += 1;
+      }
+    }
+    await prisma.timeEntry.createMany({ data: entries });
+    console.log(`Historique démo prêt : ${created} missions et ${entries.length} pointages validés sur 4 mois.`);
+  }
+
+  // Congés acquis : application en service depuis le début de la période de
+  // référence (1er juin), solde de chacun repris à cette date par la RH,
+  // puis relevés mensuels calculés automatiquement ; les mois passés sont
+  // validés, le dernier mois reste « à valider » pour la démonstration.
+  if ((await prisma.leaveAccrual.count()) === 0) {
+    await leaveService.generateAccruals();
+    const lastMonth = isoDate(new Date(today.getFullYear(), today.getMonth() - 1, 1)).slice(0, 7);
+    const toValidate = await prisma.leaveAccrual.findMany({ where: { month: { lt: lastMonth } }, select: { id: true, userId: true } });
+    for (const accrual of toValidate) {
+      await leaveService.validateAccrual(actor(accrual.userId === rh.id ? directeur : rh), accrual.id, {});
+    }
+    // Notifications datées comme en vrai : reprise du solde au 1er juin,
+    // « Congés acquis » au début du mois suivant chaque relevé validé.
+    await prisma.notification.updateMany({ where: { title: "Correction de votre solde de congés" }, data: { createdAt: goLive } });
+    for (const accrual of await prisma.leaveAccrual.findMany({ where: { status: "VALIDATED" }, select: { id: true, month: true } })) {
+      const [y, m] = accrual.month.split("-").map(Number);
+      await prisma.notification.updateMany({
+        where: { relatedEntityType: "LeaveBalance", relatedEntityId: accrual.id },
+        data: { createdAt: new Date(Date.UTC(y!, m!, 2, 8, 0)), isRead: true },
+      });
+    }
+    console.log(`Congés acquis démo prêts : ${toValidate.length} relevés validés, ceux de ${lastMonth} à valider.`);
+  }
+
+  // Plus de vie dans la démo (retour explicite du client) : discussions
+  // privées et de groupe étalées sur plusieurs jours, et des notifications de
+  // toutes sortes (planning modifié, consigne, annulation, heures validées ou
+  // à corriger, absence refusée, congé annulé, actualité, congés à valider).
+  // Toutes créées par les vrais services de l'application : chacune mène à
+  // l'écran concerné quand on appuie dessus.
+  if (!(await prisma.conversation.findFirst({ where: { title: "Direction & RH" } }))) {
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
+    // Envoie les messages d'un fil puis les date dans le passé (le plus
+    // ancien d'abord), notifications comprises ; `readBy` : participants qui
+    // ont déjà tout lu (les autres voient le fil en non lu).
+    const chat = async (conversationId: string, lines: Array<[{ id: string; role: Role }, string, number]>, readBy: Array<{ id: string }> = []) => {
+      // Création du fil (et « a créé le groupe ») juste avant le premier message.
+      const opened = minutesAgo(Math.max(...lines.map((l) => l[2])) + 5);
+      await prisma.message.updateMany({ where: { conversationId, systemEvent: { not: null } }, data: { createdAt: opened } });
+      await prisma.conversation.update({ where: { id: conversationId }, data: { createdAt: opened } });
+      await prisma.conversationParticipant.updateMany({ where: { conversationId }, data: { joinedAt: opened } });
+      await prisma.notification.updateMany({ where: { relatedEntityType: "Conversation", relatedEntityId: conversationId }, data: { createdAt: opened } });
+      for (const [author, body, ago] of lines) {
+        const before = new Date();
+        const message = await messagesService.sendMessage(actor(author), { conversationId, body });
+        const at = minutesAgo(ago);
+        await prisma.message.update({ where: { id: message.id }, data: { createdAt: at } });
+        await prisma.notification.updateMany({
+          where: { relatedEntityType: "Conversation", relatedEntityId: conversationId, createdAt: { gte: before } },
+          data: { createdAt: at },
+        });
+        await prisma.conversationParticipant.update({
+          where: { conversationId_userId: { conversationId, userId: author.id } },
+          data: { lastReadAt: at },
+        });
+      }
+      const last = minutesAgo(Math.min(...lines.map((l) => l[2])));
+      await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: last } });
+      for (const reader of readBy) {
+        await prisma.conversationParticipant.updateMany({ where: { conversationId, userId: reader.id }, data: { lastReadAt: last } });
+        await prisma.notification.updateMany({
+          where: { userId: reader.id, relatedEntityType: "Conversation", relatedEntityId: conversationId },
+          data: { isRead: true, readAt: last },
+        });
+      }
+    };
+    const direct = async (a: { id: string; role: Role }, b: { id: string }) => (await messagesService.getOrCreateDirectConversation(actor(a), b.id)).id;
+    const group = async (owner: { id: string; role: Role }, title: string, members: Array<{ id: string }>) =>
+      (await messagesService.createGroupConversation(actor(owner), { title, participantIds: members.map((m) => m.id) })).id;
+    const H = 60;
+    const D = 24 * H;
+
+    // Discussions privées.
+    await chat(await direct(emma, karim), [
+      [emma, "Bonjour Karim, je n'ai pas le badge du parking de la Clinique, je fais comment demain ?", 2 * D + 5 * H],
+      [karim, "Je te le laisse à l'accueil, demande Mme Garnier 👍", 2 * D + 4 * H],
+      [emma, "Super, merci !", 2 * D + 4 * H - 10],
+    ], [emma, karim]);
+    await chat(await direct(nathan, superviseur), [
+      [nathan, "Bonjour Yasmine, je suis malade, le médecin m'arrête jeudi et vendredi. J'envoie l'arrêt à la RH.", 26 * H],
+      [superviseur, "Merci de prévenir Nathan, repose-toi. Je confie ta mission TechCorp à quelqu'un d'autre.", 25 * H],
+      [nathan, "Merci beaucoup, désolé pour le dérangement.", 25 * H - 20],
+    ], [superviseur]);
+    await chat(await direct(ines, superviseur), [
+      [ines, "Bonjour, est-ce que je peux finir à 12 h le mercredi ? C'est le jour où je récupère ma fille.", 5 * H],
+      [superviseur, "Oui pas de souci, je décale ta mission des Tilleuls à 8 h – 12 h.", 4 * H],
+      [ines, "Merci beaucoup 🙏", 3 * H],
+    ]);
+    await chat(await direct(chloe, rh), [
+      [chloe, "Bonjour Marie, je n'ai pas reçu mon attestation employeur pour la CAF.", 3 * D],
+      [rh, "Bonjour Chloé, je vous l'envoie aujourd'hui par email.", 3 * D - 2 * H],
+      [rh, "C'est envoyé, dites-moi si vous l'avez bien reçue.", 2 * D + 6 * H],
+      [chloe, "Bien reçue, merci !", 2 * D + 3 * H],
+    ], [chloe, rh]);
+    await chat(await direct(directeur, rh), [
+      [directeur, "Marie, il nous faut deux agents de plus pour la Clinique à partir de novembre.", 30 * H],
+      [rh, "J'ai trois candidatures, entretiens jeudi matin. Je vous mets en copie.", 28 * H],
+      [directeur, "Parfait. Pensez à leur créer un compte dès la signature.", 27 * H],
+    ], [directeur]);
+    await chat(await direct(thomas, sophie), [
+      [thomas, "Sophie, il manque du produit vitres au local des Tilleuls.", 50],
+      [sophie, "Je passe en déposer ce soir, merci de m'avoir prévenue.", 35],
+    ]);
+    await chat(await direct(lucas, karim), [
+      [karim, "Lucas, super boulot hier au Phare, le client a appelé pour féliciter l'équipe 👏", 20 * H],
+      [lucas, "Merci chef, ça fait plaisir !", 19 * H],
+    ], [lucas, karim]);
+
+    // Discussions de groupe.
+    await chat(await group(rh, "Direction & RH", [directeur, superviseur]), [
+      [rh, "Rappel : les relevés de congés de septembre sont à valider avant vendredi.", 2 * D],
+      [directeur, "Je m'en occupe demain matin.", 2 * D - 3 * H],
+      [superviseur, "Pour info, Nathan est en arrêt jeudi et vendredi, ses missions sont réaffectées.", 24 * H],
+      [directeur, "Merci Yasmine. On fait un point planning lundi 9 h ?", 6 * H],
+      [rh, "Ça marche pour moi 👍", 5 * H],
+    ], [directeur]);
+    await chat(await group(superviseur, "Équipe Résidence Les Tilleuls", [sophie, thomas, ines, chloe]), [
+      [superviseur, "Bonjour l'équipe ! Nouveau standard de nettoyage des parties communes disponible dans l'app (fiche chantier).", 3 * D],
+      [sophie, "Merci, je le présente à tout le monde mardi.", 3 * D - H],
+      [thomas, "L'ascenseur B est en panne, on passe par l'escalier pour le 4e.", 9 * H],
+      [ines, "Bien noté !", 8 * H],
+      [chloe, "J'ai signalé la fuite du local poubelles avec une photo dans l'app.", 2 * H],
+    ], [superviseur, sophie]);
+    await chat(await group(superviseur, "Équipe du soir · TechCorp", [karim, nathan, chloe, emma]), [
+      [superviseur, "Ce soir 18 h : grand ménage de l'open space avant l'audit du client.", 7 * H],
+      [karim, "On sera trois, j'emmène l'autolaveuse.", 6 * H],
+      [emma, "J'arrive à 18 h 15, je sors de la Clinique.", 4 * H],
+      [karim, "Pas de souci Emma, on commence par les salles de réunion.", 3 * H + 40],
+    ], [superviseur]);
+    await chat(await group(rh, "Infos Deep Clean · tout le monde", [directeur, superviseur, karim, sophie, lucas, emma, nathan, chloe, ines, thomas]), [
+      [rh, "Bonjour à tous ! Les fiches de paie de septembre sont disponibles dans vos documents.", 4 * D],
+      [directeur, "Merci à toutes et à tous pour ce mois record : 120 prestations réalisées 👏", 3 * D + 2 * H],
+      [rh, "Rappel : la tenue Deep Clean et le badge sont obligatoires sur chaque chantier.", 90],
+    ], [directeur]);
+    console.log("Messagerie démo enrichie (7 discussions privées, 4 groupes).");
+
+    // Actualité publiée par la direction (notifie tout le monde).
+    await announcementsService.createAnnouncement(actor(directeur), {
+      title: "Formation sécurité incendie",
+      body: "Une formation sécurité incendie aura lieu le mois prochain pour toutes les équipes. Les dates par groupe seront communiquées par votre superviseur. Merci de vous rendre disponibles.",
+    });
+
+    // Planning modifié : horaire, consigne et annulation sur des missions à venir.
+    const upcoming = await prisma.mission.findMany({
+      where: { status: MissionStatus.SCHEDULED, date: { gt: calendarDay(isoDate(addDays(today, 1))) }, assignments: { some: {} } },
+      orderBy: { date: "asc" },
+      select: { id: true, startTime: true, endTime: true, assignments: { select: { userId: true } } },
+      take: 8,
+    });
+    const tryStep = async (label: string, step: () => Promise<unknown>) => {
+      try {
+        await step();
+      } catch (err) {
+        console.warn(`Démo : ${label} ignoré (${err instanceof Error ? err.message : String(err)})`);
+      }
+    };
+    if (upcoming[0]) {
+      const m = upcoming[0];
+      // Fin avancée de 30 min : jamais de chevauchement avec une autre mission.
+      const end = new Date(m.endTime.getTime() - 30 * 60_000);
+      if (end > m.startTime) {
+        await tryStep("changement d'horaire", () =>
+          missionsService.updateMission(actor(superviseur), m.id, { endTime: new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(end) })
+        );
+      }
+    }
+    if (upcoming[1]) {
+      await tryStep("nouvelle consigne", () =>
+        missionsService.updateMission(actor(superviseur), upcoming[1]!.id, {
+          instructions: "Le client sera présent : commencer par son bureau, puis les sanitaires. Badge à récupérer à l'accueil.",
+        })
+      );
+    }
+    // Annulation : jamais la mission de Nathan, gardée pour « Missions à réaffecter ».
+    const toCancel = upcoming.slice(2).reverse().find((m) => !m.assignments.some((a) => a.userId === nathan.id));
+    if (toCancel) await tryStep("annulation", () => missionsService.cancelMission(actor(superviseur), toCancel.id));
+
+    // Pointages : un validé, un à corriger.
+    const at = (daysAgo: number, time: string) => combineDateTime(isoDate(addDays(today, -daysAgo)), time).toISOString();
+    await tryStep("pointage validé", async () => {
+      const entry = await timesheetsService.createRetroactiveTimeEntry(actor(thomas), { clockIn: at(1, "06:00"), clockOut: at(1, "06:55"), comment: "Oubli de pointer en arrivant" });
+      await timesheetsService.validateTimeEntry(actor(superviseur), entry.id, "Vu avec Sophie, c'est bon.");
+    });
+    await tryStep("pointage à corriger", async () => {
+      const entry = await timesheetsService.createRetroactiveTimeEntry(actor(ines), { clockIn: at(1, "05:00"), clockOut: at(1, "05:50"), comment: "Pointage oublié" });
+      await timesheetsService.rejectTimeEntry(actor(superviseur), entry.id, "Aucune mission prévue à cette heure-là : merci de vérifier l'horaire.");
+    });
+
+    // Absences : une demande refusée, un congé annulé.
+    await tryStep("absence refusée", async () => {
+      const req = await absencesService.createAbsence(actor(chloe), {
+        type: "PAID_LEAVE", startDate: isoDate(addDays(today, 40)), endDate: isoDate(addDays(today, 41)), reason: "Week-end prolongé",
+      });
+      await absencesService.decideAbsence(actor(rh), req.id, { status: "REJECTED", decisionNote: "Inventaire de la Clinique ces jours-là, merci de proposer d'autres dates." });
+    });
+    await tryStep("congé annulé", async () => {
+      const leave = await absencesService.createAbsence(actor(rh), {
+        userId: ines.id, type: "PAID_LEAVE", startDate: isoDate(addDays(today, 45)), endDate: isoDate(addDays(today, 46)), reason: "Pont",
+      });
+      await absencesService.cancelAbsence(actor(rh), leave.id);
+    });
+
+    // Congés acquis du mois dernier à valider (RH, direction).
+    await leaveService.notifyAccrualsToValidate(isoDate(new Date(today.getFullYear(), today.getMonth() - 1, 1)).slice(0, 7));
+    console.log("Notifications démo variées prêtes.");
   }
 
   console.log("\nTerminé. Comptes de démo (mot de passe commun : " + DEMO_PASSWORD + ") :");

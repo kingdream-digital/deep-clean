@@ -32,11 +32,24 @@ function daysUntilPhotoDeletion(createdAt: Date): number {
   return Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / MS_PER_DAY));
 }
 
-function withPhotoRetention<T extends { photos: { createdAt: Date }[] }>(
-  problem: T
-): T & { photos: (T["photos"][number] & { daysUntilDeletion: number })[] } {
+// La clé de stockage d'une photo de profil ne quitte jamais le serveur :
+// l'app reçoit seulement `hasAvatar` et passe par la route protégée de la
+// photo (même règle que pour les comptes, chantiers et pointages).
+function withAvatarFlag<U extends { avatarKey?: string | null }>({ avatarKey, ...user }: U) {
+  return { ...user, hasAvatar: Boolean(avatarKey) };
+}
+
+function withPhotoRetention<
+  T extends {
+    photos: { createdAt: Date }[];
+    reportedBy: { avatarKey?: string | null };
+    comments: { author: { avatarKey?: string | null } }[];
+  },
+>(problem: T) {
   return {
     ...problem,
+    reportedBy: withAvatarFlag(problem.reportedBy),
+    comments: problem.comments.map((c) => ({ ...c, author: withAvatarFlag(c.author) })),
     photos: problem.photos.map((photo) => ({ ...photo, daysUntilDeletion: daysUntilPhotoDeletion(photo.createdAt) })),
   };
 }
@@ -57,7 +70,7 @@ const problemSelect = {
   updatedAt: true,
   site: { select: { id: true, name: true, managerId: true } },
   mission: { select: { id: true, title: true, date: true } },
-  reportedBy: { select: { id: true, firstName: true, lastName: true, role: true } },
+  reportedBy: { select: { id: true, firstName: true, lastName: true, role: true, avatarKey: true } },
   photos: {
     where: { isDeleted: false },
     select: { id: true, mimeType: true, sizeBytes: true, createdAt: true, uploadedById: true },
@@ -68,7 +81,7 @@ const problemSelect = {
       id: true,
       comment: true,
       createdAt: true,
-      author: { select: { id: true, firstName: true, lastName: true } },
+      author: { select: { id: true, firstName: true, lastName: true, avatarKey: true } },
     },
     orderBy: { createdAt: "asc" as const },
   },
@@ -115,6 +128,39 @@ async function findProblemOrThrow(id: string) {
   const problem = await prisma.problem.findUnique({ where: { id }, select: problemSelect });
   if (!problem) throw ApiError.notFound("Signalement introuvable.");
   return problem;
+}
+
+/**
+ * Personnes qui suivent un signalement : son auteur, le chef d'équipe du
+ * chantier et les superviseurs (ceux prévenus à sa création) — chacun est
+ * informé de chaque évolution faite par un autre (retour d'audit).
+ */
+async function notifyProblemFollowers(
+  problem: Awaited<ReturnType<typeof findProblemOrThrow>>,
+  actorId: string,
+  title: string,
+  body: (isReporter: boolean) => string
+): Promise<void> {
+  const supervisors = await prisma.user.findMany({ where: { role: Role.SUPERVISOR, isActive: true }, select: { id: true } });
+  const ids = new Set<string>([problem.reportedBy.id, ...(problem.site.managerId ? [problem.site.managerId] : []), ...supervisors.map((s) => s.id)]);
+  ids.delete(actorId);
+  await Promise.all(
+    [...ids].map((userId) =>
+      createNotification({
+        userId,
+        type: NotificationType.PROBLEM_UPDATE,
+        title,
+        body: body(userId === problem.reportedBy.id),
+        relatedEntityType: "Problem",
+        relatedEntityId: problem.id,
+      })
+    )
+  );
+}
+
+async function actorName(actorId: string): Promise<string> {
+  const u = await prisma.user.findUnique({ where: { id: actorId }, select: { firstName: true, lastName: true } });
+  return u ? `${u.firstName} ${u.lastName}` : "Un responsable";
 }
 
 async function canViewProblem(actor: Actor, problem: Awaited<ReturnType<typeof findProblemOrThrow>>): Promise<boolean> {
@@ -276,8 +322,9 @@ export async function setProblemStatus(actor: Actor, id: string, status: Problem
   const currentIndex = STATUS_ORDER.indexOf(problem.status);
   const nextIndex = STATUS_ORDER.indexOf(status);
   if (nextIndex <= currentIndex) {
+    // Deux responsables ont pu agir en même temps : message clair, en français.
     throw ApiError.conflict(
-      `Impossible de repasser un signalement de "${problem.status}" à "${status}" : le suivi ne peut qu'avancer.`
+      `Ce signalement est déjà « ${STATUS_LABELS[problem.status]} » : le suivi ne peut qu'avancer. L'écran va se mettre à jour.`
     );
   }
 
@@ -291,16 +338,10 @@ export async function setProblemStatus(actor: Actor, id: string, status: Problem
     metadata: { from: problem.status, to: status },
   });
 
-  if (problem.reportedBy.id !== actor.userId) {
-    await createNotification({
-      userId: problem.reportedBy.id,
-      type: NotificationType.PROBLEM_UPDATE,
-      title: "Signalement mis à jour",
-      body: `Le signalement que vous avez transmis a été mis à jour : ${STATUS_LABELS[status]}.`,
-      relatedEntityType: "Problem",
-      relatedEntityId: id,
-    });
-  }
+  const who = await actorName(actor.userId);
+  await notifyProblemFollowers(problem, actor.userId, "Signalement mis à jour", (isReporter) =>
+    `${who} a passé ${isReporter ? "votre signalement" : "le signalement"} sur « ${problem.mission?.title ?? problem.site.name} » (${problem.site.name}) à : ${STATUS_LABELS[status]}.`
+  );
 
   return withPhotoRetention(updated);
 }
@@ -322,7 +363,7 @@ export async function addComment(actor: Actor, problemId: string, comment: strin
       id: true,
       comment: true,
       createdAt: true,
-      author: { select: { id: true, firstName: true, lastName: true } },
+      author: { select: { id: true, firstName: true, lastName: true, avatarKey: true } },
     },
   });
 
@@ -334,18 +375,13 @@ export async function addComment(actor: Actor, problemId: string, comment: strin
   // On réutilise PROBLEM_UPDATE (pas de type dédié dans NotificationType) pour
   // rester cohérent avec `setProblemStatus`, qui notifie déjà `reportedById`
   // avec ce même type pour les mises à jour de son signalement.
-  if (problem.reportedBy.id !== actor.userId) {
-    await createNotification({
-      userId: problem.reportedBy.id,
-      type: NotificationType.PROBLEM_UPDATE,
-      title: "Nouveau commentaire",
-      body: "Un commentaire a été ajouté à votre signalement.",
-      relatedEntityType: "Problem",
-      relatedEntityId: problemId,
-    });
-  }
+  const author = await actorName(actor.userId);
+  const preview = comment.length > 80 ? `${comment.slice(0, 80)}…` : comment;
+  await notifyProblemFollowers(problem, actor.userId, "Nouveau commentaire", (isReporter) =>
+    `${author} sur ${isReporter ? "votre signalement" : "le signalement"} « ${problem.mission?.title ?? problem.site.name} » : ${preview}`
+  );
 
-  return created;
+  return { ...created, author: withAvatarFlag(created.author) };
 }
 
 export async function addPhoto(actor: Actor, problemId: string, fileBuffer: Buffer) {

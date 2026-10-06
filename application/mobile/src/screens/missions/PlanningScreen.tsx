@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import NetInfo from "@react-native-community/netinfo";
 import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
@@ -11,13 +11,16 @@ import { StateView } from "../../components/StateView";
 import { MissionCard } from "../../components/MissionCard";
 import { OfflineBanner } from "../../components/OfflineBanner";
 import { PressableScale } from "../../components/PressableScale";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { AssigneeAvatar } from "../../components/AssigneeAvatar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { fontFamily } from "../../theme/typography";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useAuth } from "../../auth/AuthContext";
-import { listMissions } from "../../api/missions.api";
+import { listMissions, listMissionsToReassign } from "../../api/missions.api";
 import type { Mission, MissionAssignee } from "../../api/missions.api";
+import { listUsers } from "../../api/users.api";
+import { ABSENCE_TYPE_LABELS, listAbsences } from "../../api/absences.api";
 import type { PlanningStackParamList } from "../../navigation/PlanningStack";
 
 type Route = RouteProp<PlanningStackParamList, "PlanningHome">;
@@ -28,12 +31,14 @@ import {
   formatMissionDay,
   formatMissionTimeRange,
   formatWeekRange,
+  isMissionOverdue,
   isSameLocalDay,
   mondayOf,
   toLocalDateKey,
 } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 // Créer une mission est réservé aux rôles qui gèrent le planning — même
 // règle que dans MissionsListScreen (le chef d'équipe n'en fait plus partie,
@@ -60,7 +65,12 @@ export function PlanningScreen() {
   // par chantier — demande explicite du client (voir TeamWeekGrid ci-dessous).
   // Le chef d'équipe garde la grille par jour : il ne suit que ses propres
   // chantiers, l'organisation par personnel n'y ajoute rien.
-  const showTeamGrid = isDesktopWeb && !!user && ["SUPERVISOR", "HR", "DIRECTOR"].includes(user.role);
+  const managesTeam = !!user && ["SUPERVISOR", "HR", "DIRECTOR", "ADMIN"].includes(user.role);
+  const showTeamGrid = isDesktopWeb && managesTeam;
+  // Sur téléphone, même logique « par personne » que la grille ordinateur,
+  // pour le jour sélectionné (retour explicite du client : ajouter une
+  // mission à quelqu'un d'un geste, aussi depuis le téléphone).
+  const [phoneView, setPhoneView] = useState<"missions" | "team">("missions");
   const canManagePlanning = !!user && CAN_MANAGE_ROLES.includes(user.role);
 
   const today = useMemo(() => new Date(), []);
@@ -127,9 +137,75 @@ export function PlanningScreen() {
 
   const cacheKey = `planning.week.${toLocalDateKey(weekStart)}`;
 
+  // Grille par personne : TOUTE l'équipe active (pas seulement ceux qui ont
+  // déjà une mission cette semaine), pour pouvoir cliquer sur une case vide
+  // et lui ajouter une mission — retour explicite du client. Les absences
+  // approuvées de la semaine sont affichées dans les cases concernées.
+  const [staff, setStaff] = useState<MissionAssignee["user"][]>([]);
+  // Clé « userId|AAAA-MM-JJ » → motif affiché (« En congé », « Arrêt maladie »…).
+  const [absentKeys, setAbsentKeys] = useState<Map<string, string>>(new Map());
+  const loadTeam = useCallback(async () => {
+    const from = toLocalDateKey(weekStart);
+    const to = toLocalDateKey(weekEnd);
+    if (!managesTeam) {
+      // Employé / chef d'équipe : ses propres absences approuvées, affichées
+      // sur son planning (retour d'audit : un congé approuvé n'y figurait pas).
+      const mine = await listAbsences({ status: "APPROVED", from, to }).catch(() => null);
+      const own = new Map<string, string>();
+      for (const absence of mine?.items ?? []) {
+        if (absence.userId !== user?.id) continue;
+        const cursor = new Date(absence.startDate);
+        const end = new Date(absence.endDate);
+        while (cursor.getTime() <= end.getTime()) {
+          own.set(`${absence.userId}|${cursor.toISOString().slice(0, 10)}`, ABSENCE_TYPE_LABELS[absence.type] ?? "Absence");
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+      }
+      setAbsentKeys(own);
+      return;
+    }
+    const [employees, leads, absences] = await Promise.all([
+      listUsers({ role: "EMPLOYEE", isActive: true }).catch(() => null),
+      listUsers({ role: "SITE_MANAGER", isActive: true }).catch(() => null),
+      listAbsences({ status: "APPROVED", from, to }).catch(() => null),
+    ]);
+    setStaff(
+      [...(employees?.items ?? []), ...(leads?.items ?? [])].map((u) => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        role: u.role,
+        hasAvatar: u.hasAvatar,
+        isActive: u.isActive,
+        weeklyHours: u.weeklyHours ?? null,
+      }))
+    );
+    const keys = new Map<string, string>();
+    const ABSENCE_LABELS: Record<string, string> = {
+      PAID_LEAVE: "En congé",
+      SICK_LEAVE: "Arrêt maladie",
+      UNPAID_LEAVE: "Congé sans solde",
+      WORK_ACCIDENT: "Accident du travail",
+      PARENTAL_LEAVE: "Congé maternité / paternité",
+      OTHER: "Absent",
+    };
+    for (const absence of absences?.items ?? []) {
+      // Jours calendaires stockés à minuit UTC : lus en UTC, comme partout.
+      const cursor = new Date(absence.startDate);
+      const end = new Date(absence.endDate);
+      while (cursor.getTime() <= end.getTime()) {
+        keys.set(`${absence.userId}|${cursor.toISOString().slice(0, 10)}`, ABSENCE_LABELS[absence.type] ?? "Absent");
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+    setAbsentKeys(keys);
+  }, [managesTeam, weekStart, weekEnd, user?.id]);
+
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listMissions({ from: toLocalDateKey(weekStart), to: toLocalDateKey(weekEnd) });
       setMissions(res.items);
       setOfflineCachedAt(null);
@@ -143,16 +219,53 @@ export function PlanningScreen() {
         setOfflineCachedAt(cached.cachedAt);
         setState("ready");
       } else {
-        setState("error");
+        if (!silent) setState("error");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey]);
 
-  useFocusEffect(
+  // Missions prévues avec une personne qui sera absente : bandeau d'alerte
+  // vers l'écran de réaffectation (superviseur, RH, direction, admin).
+  const [toReassignCount, setToReassignCount] = useState(0);
+  const loadToReassign = useCallback(async () => {
+    if (!managesTeam) return;
+    try {
+      setToReassignCount((await listMissionsToReassign()).length);
+    } catch {
+      setToReassignCount(0);
+    }
+  }, [managesTeam]);
+
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
-    }, [load])
+      void loadTeam();
+      void loadToReassign();
+    }, [load, loadTeam, loadToReassign])
+  );
+
+  const reassignBanner = toReassignCount > 0 && (
+    <PressableScale onPress={() => navigation.navigate("ReassignMissions")} accessibilityRole="button">
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: colors.dangerSoft,
+          borderRadius: radius.md,
+          paddingVertical: spacing.sm,
+          paddingHorizontal: spacing.md,
+          marginBottom: spacing.md,
+        }}
+      >
+        <Ionicons name="medkit-outline" size={18} color={colors.danger} />
+        <Text style={[type.callout, { color: colors.danger, fontWeight: "700", marginLeft: 8, flex: 1 }]}>
+          {toReassignCount} mission{toReassignCount > 1 ? "s" : ""} à réaffecter (absences)
+        </Text>
+        <Text style={[type.footnote, { color: colors.danger }]}>Voir</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.danger} />
+      </View>
+    </PressableScale>
   );
 
   async function handleRefresh() {
@@ -177,6 +290,7 @@ export function PlanningScreen() {
   // Dérivé de `missions` déjà chargé : aucun appel réseau supplémentaire.
   const teamMembers = useMemo(() => {
     const map = new Map<string, MissionAssignee["user"]>();
+    for (const member of staff) map.set(member.id, member);
     for (const mission of missions) {
       for (const assignment of mission.assignments) {
         if (!map.has(assignment.userId)) map.set(assignment.userId, assignment.user);
@@ -185,7 +299,30 @@ export function PlanningScreen() {
     return Array.from(map.values()).sort((a, b) =>
       `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)
     );
+  }, [missions, staff]);
+
+  // Heures planifiées sur la semaine affichée, par personne (missions non
+  // annulées) : comparées aux heures du contrat pour savoir ce qu'il reste.
+  const weeklyMinutesByUser = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const mission of missions) {
+      if (mission.status === "CANCELLED") continue;
+      const minutes = Math.max(0, (new Date(mission.endTime).getTime() - new Date(mission.startTime).getTime()) / 60000);
+      for (const assignment of mission.assignments) {
+        map.set(assignment.userId, (map.get(assignment.userId) ?? 0) + minutes);
+      }
+    }
+    return map;
   }, [missions]);
+  // RH, direction, superviseur, admin : enregistrent une absence pour
+  // quelqu'un directement depuis le planning (ex. arrêt maladie par téléphone).
+  const canDeclareAbsence = managesTeam;
+  const declareAbsence = (member: MissionAssignee["user"], day: Date) =>
+    navigation.navigate("AbsenceForm", {
+      userId: member.id,
+      fullName: `${member.firstName} ${member.lastName}`,
+      initialDate: toLocalDateKey(day),
+    });
 
   const missionsByUserAndDay = useMemo(() => {
     const map = new Map<string, Map<string, Mission[]>>();
@@ -249,13 +386,12 @@ export function PlanningScreen() {
     // ScreenContainer (pensé pour du texte/formulaire) la rendait cramée,
     // avec une grosse bande vide à droite sur un écran large.
     <ScreenContainer fullBleed>
-      <View style={[styles.heroBleed, { marginHorizontal: -spacing.lg }]}>
-        <LinearGradient
-          colors={isDark ? [colors.background, colors.surfaceAlt] : [colors.background, colors.surface]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+      {/* Même fond que l'en-tête de navigation juste au-dessus : la bande
+          prolonge l'en-tête en un seul bloc, arrondi des deux côtés. L'ancien
+          dégradé partait de la couleur du fond de page en haut à gauche — le
+          coin gauche se fondait dans la page et seul le coin droit restait
+          visible, comme une carte mal coupée. */}
+      <View style={[styles.heroBleed, { marginHorizontal: -spacing.lg, backgroundColor: colors.backgroundElevated }]}>
         <OnboardingTarget
           id="planning.week"
           style={{ paddingTop: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}
@@ -282,14 +418,16 @@ export function PlanningScreen() {
               propre FAB flottant plus bas (cohérent avec MissionsListScreen). */}
           {isDesktopWeb && canManagePlanning && (
             <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: spacing.md }}>
+              <OnboardingTarget id="planning.create">
               <PressableScale onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}>
-                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accent, borderRadius: radius.md }]}>
+                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: radius.md }]}>
                   <Ionicons name="add" size={18} color={colors.onAccent} />
                   <Text style={{ color: colors.onAccent, fontWeight: "600", marginLeft: 6, fontSize: 15 }}>
                     Nouvelle mission
                   </Text>
                 </View>
               </PressableScale>
+              </OnboardingTarget>
             </View>
           )}
 
@@ -395,14 +533,24 @@ export function PlanningScreen() {
               gain de largeur (fullBleed sur ScreenContainer ci-dessus) sans
               s'étirer jusqu'à devenir illisible sur un très grand écran. */}
           <View style={{ maxWidth: 1680, width: "100%", alignSelf: "center" }}>
-            {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+            {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+            {reassignBanner}
             {showTeamGrid ? (
               <TeamWeekGrid
                 days={days}
                 teamMembers={teamMembers}
                 missionsByUserAndDay={missionsByUserAndDay}
+                absentKeys={absentKeys}
+                weeklyMinutesByUser={weeklyMinutesByUser}
+                onDeclareAbsence={canDeclareAbsence ? (member) => declareAbsence(member, isCurrentWeek ? today : days[0]!) : undefined}
                 today={today}
                 onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
+                onAddMission={
+                  canManagePlanning
+                    ? (member, day) =>
+                        navigation.navigate("MissionForm", { initialDate: toLocalDateKey(day), initialAssigneeId: member.id })
+                    : undefined
+                }
               />
             ) : (
               <DesktopWeekGrid
@@ -422,7 +570,21 @@ export function PlanningScreen() {
           contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: spacing.xxxl }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
         >
-          {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {reassignBanner}
+
+          {managesTeam && (
+            <View style={{ marginBottom: spacing.md }}>
+              <SegmentedControl
+                value={phoneView}
+                onChange={setPhoneView}
+                options={[
+                  { label: "Missions du jour", value: "missions" },
+                  { label: "Par personne", value: "team" },
+                ]}
+              />
+            </View>
+          )}
 
           <Text
             style={[
@@ -433,7 +595,30 @@ export function PlanningScreen() {
             {formatMissionDay(selectedDay.toISOString())}
           </Text>
 
-          {selectedDayMissions.length === 0 ? (
+          {managesTeam && phoneView === "team" ? (
+            <TeamDayList
+              day={selectedDay}
+              today={today}
+              teamMembers={teamMembers}
+              missionsByUserAndDay={missionsByUserAndDay}
+              absentKeys={absentKeys}
+              weeklyMinutesByUser={weeklyMinutesByUser}
+              onDeclareAbsence={canDeclareAbsence ? (member) => declareAbsence(member, selectedDay) : undefined}
+              onPressMission={(mission) => navigation.navigate("MissionDetail", { missionId: mission.id })}
+              onAddMission={
+                canManagePlanning
+                  ? (member) =>
+                      navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay), initialAssigneeId: member.id })
+                  : undefined
+              }
+            />
+          ) : !managesTeam && user && absentKeys.has(`${user.id}|${toLocalDateKey(selectedDay)}`) ? (
+            <StateView
+              kind="empty"
+              icon="sunny-outline"
+              message={`${absentKeys.get(`${user.id}|${toLocalDateKey(selectedDay)}`)} ce jour-là.${selectedDayMissions.length ? " Une mission y est encore prévue : votre responsable va la réaffecter." : ""}`}
+            />
+          ) : selectedDayMissions.length === 0 ? (
             <StateView kind="empty" icon="calendar-outline" message="Aucune mission ce jour-là." />
           ) : (
             <View style={{ gap: spacing.sm }}>
@@ -452,15 +637,17 @@ export function PlanningScreen() {
 
       {!isDesktopWeb && canManagePlanning && (
         <Animated.View entering={FadeInUp.duration(280)} style={styles.fab}>
+          <OnboardingTarget id="planning.create">
           <PressableScale
             pressedScale={0.9}
             onPress={() => navigation.navigate("MissionForm", { initialDate: toLocalDateKey(selectedDay) })}
             accessibilityRole="button"
             accessibilityLabel="Nouvelle mission"
-            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+            style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>
+          </OnboardingTarget>
         </Animated.View>
       )}
     </ScreenContainer>
@@ -484,7 +671,7 @@ const MISSION_SOFT_BG: Record<Mission["status"], (c: ReturnType<typeof useTheme>
   CANCELLED: (c) => c.dangerSoft,
 };
 const MISSION_SOFT_TEXT: Record<Mission["status"], (c: ReturnType<typeof useTheme>["colors"]) => string> = {
-  SCHEDULED: (c) => c.accentDeep,
+  SCHEDULED: (c) => c.accentText,
   IN_PROGRESS: (c) => c.warning,
   COMPLETED: (c) => c.success,
   CANCELLED: (c) => c.danger,
@@ -526,10 +713,10 @@ function DesktopWeekGrid({
                 backgroundColor: isToday ? colors.accentSoft : "transparent",
               }}
             >
-              <Text style={[type.caption, { color: isToday ? colors.accentDeep : colors.inkTertiary, fontWeight: "700" }]}>
+              <Text style={[type.caption, { color: isToday ? colors.accentText : colors.inkTertiary, fontWeight: "700" }]}>
                 {WEEKDAY_LABELS[index]}
               </Text>
-              <Text style={[type.headline, { color: isToday ? colors.accentDeep : colors.ink, marginTop: 1 }]}>
+              <Text style={[type.headline, { color: isToday ? colors.accentText : colors.ink, marginTop: 1 }]}>
                 {day.getDate()}
               </Text>
             </View>
@@ -547,15 +734,22 @@ function DesktopWeekGrid({
                     }}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <View
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 3,
-                          marginRight: 5,
-                          backgroundColor: MISSION_DOT_COLOR[mission.status](colors),
-                        }}
-                      />
+                      {/* Même signal que sur téléphone : une mission dont
+                          l'horaire est passé sans démarrage n'a pas la couleur
+                          d'une mission « planifiée ». */}
+                      {isMissionOverdue(mission) ? (
+                        <Ionicons name="alert-circle" size={12} color={colors.warning} style={{ marginRight: 4 }} />
+                      ) : (
+                        <View
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            marginRight: 5,
+                            backgroundColor: MISSION_DOT_COLOR[mission.status](colors),
+                          }}
+                        />
+                      )}
                       <Text style={[type.caption, { color: colors.ink, fontWeight: "700", flex: 1 }]} numberOfLines={1}>
                         {mission.site.name}
                       </Text>
@@ -579,24 +773,72 @@ function DesktopWeekGrid({
 // de l'équipe (photo, nom, statut) avec ses missions de la semaine alignées
 // en face des jours correspondants — le chef d'équipe garde DesktopWeekGrid
 // ci-dessus, organisée par jour, puisqu'il ne suit que ses propres chantiers.
+// « 28 h / 35 h · reste 7 h » : heures planifiées cette semaine face aux
+// heures du contrat (si la RH les a renseignées).
+function WeekHoursLine({ member, plannedMinutes, absentDays = 0 }: { member: MissionAssignee["user"]; plannedMinutes: number; absentDays?: number }) {
+  const { colors, type } = useTheme();
+  const planned = formatHoursShort(plannedMinutes);
+  if (member.weeklyHours == null) {
+    return <Text style={[type.caption, { color: colors.inkTertiary }]}>{planned} planifiées cette semaine</Text>;
+  }
+  // Capacité réduite des jours d'absence (base 5 jours travaillés par semaine).
+  const capacityMinutes = Math.max(0, member.weeklyHours * 60 * (1 - Math.min(absentDays, 5) / 5));
+  const remaining = capacityMinutes - plannedMinutes;
+  const tone = remaining < 0 ? colors.danger : remaining === 0 ? colors.success : colors.accentText;
+  return (
+    <Text style={[type.caption, { color: colors.inkTertiary }]}>
+      {planned} / {formatHoursShort(capacityMinutes)}
+      {absentDays > 0 ? ` (absent ${absentDays} j)` : ""}
+      <Text style={{ color: tone, fontWeight: "700" }}>
+        {remaining > 0 ? ` · reste ${formatHoursShort(remaining)}` : remaining === 0 ? " · complet" : ` · +${formatHoursShort(-remaining)}`}
+      </Text>
+    </Text>
+  );
+}
+
+/** Jours du lundi au vendredi de la semaine où la personne est absente. */
+function weekOf(day: Date): Date[] {
+  const monday = mondayOf(day);
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}
+
+function countAbsentWeekdays(absentKeys: Map<string, string>, userId: string, weekDays: Date[]): number {
+  return weekDays.filter((d) => d.getDay() >= 1 && d.getDay() <= 5 && absentKeys.has(`${userId}|${toLocalDateKey(d)}`)).length;
+}
+
+function formatHoursShort(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+}
+
 function TeamWeekGrid({
   days,
   teamMembers,
   missionsByUserAndDay,
+  absentKeys,
+  weeklyMinutesByUser,
+  onDeclareAbsence,
   today,
   onPressMission,
+  onAddMission,
 }: {
   days: Date[];
   teamMembers: MissionAssignee["user"][];
   missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
+  absentKeys: Map<string, string>;
+  weeklyMinutesByUser: Map<string, number>;
+  onDeclareAbsence?: (member: MissionAssignee["user"]) => void;
   today: Date;
   onPressMission: (mission: Mission) => void;
+  // Clic sur une case : nouvelle mission ce jour-là, pour cette personne.
+  onAddMission?: (member: MissionAssignee["user"], day: Date) => void;
 }) {
   const { colors, spacing, radius, type, isDark } = useTheme();
   const NAME_COL_WIDTH = 210;
 
   if (teamMembers.length === 0) {
-    return <StateView kind="empty" icon="people-outline" message="Aucune mission cette semaine." />;
+    return <StateView kind="empty" icon="people-outline" message="Aucun membre de l'équipe à afficher." />;
   }
 
   return (
@@ -672,20 +914,23 @@ function TeamWeekGrid({
                   <Text style={[type.callout, { color: colors.ink, fontWeight: "600" }]} numberOfLines={1}>
                     {member.firstName} {member.lastName}
                   </Text>
-                  <View
-                    style={{
-                      alignSelf: "flex-start",
-                      marginTop: 3,
-                      paddingVertical: 2,
-                      paddingHorizontal: 6,
-                      borderRadius: 6,
-                      backgroundColor: isActive ? colors.successSoft : colors.neutralSoft,
-                    }}
-                  >
-                    <Text style={[type.caption, { color: isActive ? colors.success : colors.neutral }]}>
-                      {isActive ? "Actif" : "Désactivé"}
-                    </Text>
-                  </View>
+                  {isActive ? (
+                    <View style={{ marginTop: 2 }}>
+                      <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} absentDays={countAbsentWeekdays(absentKeys, member.id, days)} />
+                    </View>
+                  ) : (
+                    <Text style={[type.caption, { color: colors.neutral, marginTop: 2 }]}>Compte désactivé</Text>
+                  )}
+                  {!!onDeclareAbsence && isActive && (
+                    <PressableScale
+                      onPress={() => onDeclareAbsence(member)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Enregistrer une absence pour ${member.firstName} ${member.lastName}`}
+                      style={{ marginTop: 3, alignSelf: "flex-start" }}
+                    >
+                      <Text style={[type.caption, { color: colors.accentText, fontWeight: "600" }]}>+ Absence</Text>
+                    </PressableScale>
+                  )}
                 </View>
               </View>
 
@@ -693,6 +938,10 @@ function TeamWeekGrid({
                 const key = toLocalDateKey(day);
                 const dayMissions = userMissions?.get(key) ?? [];
                 const isToday = isSameLocalDay(day, today);
+                const absenceLabel = absentKeys.get(`${member.id}|${key}`);
+                const isAbsent = !!absenceLabel;
+                const isPast = key < toLocalDateKey(today);
+                const canAdd = !!onAddMission && isActive && !isAbsent && !isPast;
                 return (
                   <View
                     key={key}
@@ -716,28 +965,61 @@ function TeamWeekGrid({
                       backgroundColor: isToday ? colors.accentSoft : "transparent",
                     }}
                   >
-                    {dayMissions.map((mission) => (
-                      <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
+                    {dayMissions.map((mission) => {
+                      const overdue = isMissionOverdue(mission);
+                      const fg = overdue ? colors.warning : MISSION_SOFT_TEXT[mission.status](colors);
+                      return (
+                        <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
+                          <View
+                            accessibilityLabel={overdue ? `${mission.site.name}, non démarrée` : undefined}
+                            style={{
+                              backgroundColor: overdue ? colors.warningSoft : MISSION_SOFT_BG[mission.status](colors),
+                              borderRadius: radius.sm,
+                              paddingVertical: 5,
+                              paddingHorizontal: 7,
+                            }}
+                          >
+                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                              {!!overdue && <Ionicons name="alert-circle" size={12} color={fg} style={{ marginRight: 3 }} />}
+                              <Text style={[type.caption, { color: fg, fontWeight: "700", flex: 1 }]} numberOfLines={1}>
+                                {mission.site.name}
+                              </Text>
+                            </View>
+                            <Text style={[type.caption, { color: fg, opacity: 0.8, marginTop: 1 }]} numberOfLines={1}>
+                              {formatMissionTimeRange(mission.startTime, mission.endTime)}
+                            </Text>
+                          </View>
+                        </PressableScale>
+                      );
+                    })}
+                    {!!isAbsent && (
+                      <View style={{ backgroundColor: colors.neutralSoft, borderRadius: radius.sm, paddingVertical: 5, paddingHorizontal: 7 }}>
+                        <Text style={[type.caption, { color: colors.neutral, fontWeight: "700" }]} numberOfLines={1}>
+                          {absenceLabel}
+                        </Text>
+                      </View>
+                    )}
+                    {!!canAdd && (
+                      <PressableScale
+                        onPress={() => onAddMission!(member, day)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ajouter une mission à ${member.firstName} ${member.lastName} le ${day.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`}
+                      >
                         <View
                           style={{
-                            backgroundColor: MISSION_SOFT_BG[mission.status](colors),
+                            alignItems: "center",
+                            justifyContent: "center",
+                            minHeight: dayMissions.length === 0 ? 40 : 24,
                             borderRadius: radius.sm,
-                            paddingVertical: 5,
-                            paddingHorizontal: 7,
+                            borderWidth: 1,
+                            borderStyle: "dashed",
+                            borderColor: colors.border,
                           }}
                         >
-                          <Text style={[type.caption, { color: MISSION_SOFT_TEXT[mission.status](colors), fontWeight: "700" }]} numberOfLines={1}>
-                            {mission.site.name}
-                          </Text>
-                          <Text
-                            style={[type.caption, { color: MISSION_SOFT_TEXT[mission.status](colors), opacity: 0.8, marginTop: 1 }]}
-                            numberOfLines={1}
-                          >
-                            {formatMissionTimeRange(mission.startTime, mission.endTime)}
-                          </Text>
+                          <Ionicons name="add" size={16} color={colors.inkTertiary} />
                         </View>
                       </PressableScale>
-                    ))}
+                    )}
                   </View>
                 );
               })}
@@ -745,6 +1027,153 @@ function TeamWeekGrid({
           );
         })}
       </View>
+    </View>
+  );
+}
+
+// Version téléphone de la grille par personne : l'équipe pour le jour
+// sélectionné, les missions de chacun, son absence éventuelle, et un « + »
+// qui ouvre une nouvelle mission avec la personne et le jour déjà remplis.
+function TeamDayList({
+  day,
+  today,
+  teamMembers,
+  missionsByUserAndDay,
+  absentKeys,
+  weeklyMinutesByUser,
+  onDeclareAbsence,
+  onPressMission,
+  onAddMission,
+}: {
+  day: Date;
+  today: Date;
+  teamMembers: MissionAssignee["user"][];
+  missionsByUserAndDay: Map<string, Map<string, Mission[]>>;
+  absentKeys: Map<string, string>;
+  weeklyMinutesByUser: Map<string, number>;
+  onDeclareAbsence?: (member: MissionAssignee["user"]) => void;
+  onPressMission: (mission: Mission) => void;
+  onAddMission?: (member: MissionAssignee["user"]) => void;
+}) {
+  const { colors, spacing, radius, type } = useTheme();
+  const key = toLocalDateKey(day);
+  const isPast = key < toLocalDateKey(today);
+
+  if (teamMembers.length === 0) {
+    return <StateView kind="empty" icon="people-outline" message="Aucun membre de l'équipe à afficher." />;
+  }
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {teamMembers.map((member) => {
+        const dayMissions = missionsByUserAndDay.get(member.id)?.get(key) ?? [];
+        const absenceLabel = absentKeys.get(`${member.id}|${key}`);
+        const isAbsent = !!absenceLabel;
+        const isActive = member.isActive !== false;
+        const canAdd = !!onAddMission && isActive && !isAbsent && !isPast;
+        return (
+          <View
+            key={member.id}
+            style={{
+              backgroundColor: colors.backgroundElevated,
+              borderRadius: radius.lg,
+              padding: spacing.md,
+              shadowColor: colors.shadow,
+              shadowOpacity: 0.5,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 1,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <AssigneeAvatar assignee={{ userId: member.id, isLead: false, user: member }} size={36} />
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                  {member.firstName} {member.lastName}
+                </Text>
+                <Text style={[type.caption, { color: isAbsent ? colors.neutral : colors.inkTertiary, marginTop: 1 }]}>
+                  {isAbsent
+                    ? `${absenceLabel} ce jour-là`
+                    : dayMissions.length === 0
+                      ? "Disponible"
+                      : `${dayMissions.length} mission${dayMissions.length > 1 ? "s" : ""}`}
+                </Text>
+                {isActive && <WeekHoursLine member={member} plannedMinutes={weeklyMinutesByUser.get(member.id) ?? 0} absentDays={countAbsentWeekdays(absentKeys, member.id, weekOf(day))} />}
+              </View>
+              {!!onDeclareAbsence && isActive && !isAbsent && (
+                <PressableScale
+                  onPress={() => onDeclareAbsence(member)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Enregistrer une absence pour ${member.firstName} ${member.lastName}`}
+                  style={{ marginRight: spacing.xs }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.neutralSoft,
+                    }}
+                  >
+                    <Ionicons name="medkit-outline" size={18} color={colors.neutral} />
+                  </View>
+                </PressableScale>
+              )}
+              {!!canAdd && (
+                <PressableScale
+                  onPress={() => onAddMission!(member)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ajouter une mission à ${member.firstName} ${member.lastName}`}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.accentSoft,
+                    }}
+                  >
+                    <Ionicons name="add" size={20} color={colors.accent} />
+                  </View>
+                </PressableScale>
+              )}
+            </View>
+            {dayMissions.length > 0 && (
+              <View style={{ marginTop: spacing.sm, gap: spacing.xxs }}>
+                {dayMissions.map((mission) => {
+                  const overdue = isMissionOverdue(mission);
+                  const fg = overdue ? colors.warning : MISSION_SOFT_TEXT[mission.status](colors);
+                  return (
+                    <PressableScale key={mission.id} onPress={() => onPressMission(mission)}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: overdue ? colors.warningSoft : MISSION_SOFT_BG[mission.status](colors),
+                          borderRadius: radius.sm,
+                          paddingVertical: 6,
+                          paddingHorizontal: 8,
+                        }}
+                      >
+                        <Text style={[type.caption, { color: fg, fontWeight: "700" }]}>
+                          {formatMissionTimeRange(mission.startTime, mission.endTime)}
+                        </Text>
+                        <Text style={[type.caption, { color: fg, marginLeft: 6, flex: 1 }]} numberOfLines={1}>
+                          {mission.site.name}
+                        </Text>
+                      </View>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 }

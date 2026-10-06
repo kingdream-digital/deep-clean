@@ -1,25 +1,30 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { useTheme } from "../theme/ThemeProvider";
+import { useStackScreenOptions } from "./stackScreenOptions";
 import { useResponsive } from "../hooks/useResponsive";
 import { MissionsListScreen } from "../screens/missions/MissionsListScreen";
+import type { MissionsTab } from "../screens/missions/MissionsListScreen";
 import { MissionDetailScreen } from "../screens/missions/MissionDetailScreen";
 import { MissionFormScreen } from "../screens/missions/MissionFormScreen";
 import { JobSheetFormScreen } from "../screens/missions/JobSheetFormScreen";
 import { ReportProblemScreen } from "../screens/missions/ReportProblemScreen";
 import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
 import { StandardDetailScreen } from "../screens/sites/StandardDetailScreen";
+import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
 import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 import { TimeEntryDetailScreen } from "../screens/timesheets/TimeEntryDetailScreen";
 
 export type MissionsStackParamList = {
-  MissionsList: undefined;
+  // `initialTab` : ouvrir directement un onglet (ex. « À valider » depuis
+  // les statistiques).
+  MissionsList: { initialTab?: MissionsTab } | undefined;
   MissionDetail: { missionId: string };
   MissionForm: { missionId?: string } | undefined;
   JobSheetForm: { missionId: string };
   ReportProblem: { missionId: string };
   ProblemDetail: { problemId: string };
   StandardDetail: { standardId: string };
+  StandardForm: { siteId: string; standardId?: string };
   ContactProfile: { userId: string };
   TimeEntryDetail: { entryId: string };
 };
@@ -27,18 +32,12 @@ export type MissionsStackParamList = {
 const Stack = createNativeStackNavigator<MissionsStackParamList>();
 
 export function MissionsStack() {
-  const { colors } = useTheme();
+  const screenOptions = useStackScreenOptions();
   const { isDesktopWeb } = useResponsive();
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundElevated },
-        headerTintColor: colors.ink,
-        headerShadowVisible: false,
-        headerTitleStyle: { color: colors.ink },
-        headerBackButtonDisplayMode: "minimal",
-      }}
+      screenOptions={screenOptions}
     >
       <Stack.Screen name="MissionsList" component={MissionsListScreen} options={{ title: isDesktopWeb ? "" : "Missions" }} />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />
@@ -62,6 +61,14 @@ export function MissionsStack() {
       />
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />
       <Stack.Screen name="StandardDetail" component={StandardDetailScreen} options={{ title: "Standard" }} />
+      <Stack.Screen
+        name="StandardForm"
+        component={StandardFormScreen}
+        options={({ route }) => ({
+          title: route.params.standardId ? "Modifier le standard" : "Nouveau standard",
+          presentation: "modal",
+        })}
+      />
       <Stack.Screen name="ContactProfile" component={ContactProfileScreen} options={{ title: "Profil" }} />
       <Stack.Screen name="TimeEntryDetail" component={TimeEntryDetailScreen} options={{ title: "Pointage" }} />
     </Stack.Navigator>

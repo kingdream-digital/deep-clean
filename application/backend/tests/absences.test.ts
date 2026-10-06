@@ -2,7 +2,15 @@ import request from "supertest";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
-import { createTestSite, createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+import { createTestSite, createTestUser as createUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+
+// Chaque salarié de test dispose d'un solde de congés (reprise de 30 jours) :
+// une demande de congé payé au-delà du solde est désormais refusée.
+async function createTestUser(...args: Parameters<typeof createUser>) {
+  const user = await createUser(...args);
+  await prisma.leaveTransaction.create({ data: { userId: user.id, type: "ADJUSTMENT", days: 30, createdById: user.id, note: "Reprise de solde (test)" } });
+  return user;
+}
 
 const app = createApp();
 
@@ -26,6 +34,22 @@ function futureRange(startInDays: number, endInDays: number): { startDate: strin
   end.setDate(end.getDate() + endInDays);
   return { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
 }
+
+describe("Congés — contrôles à la demande de l'employé", () => {
+  it("refuse un congé payé au-delà du solde, et une demande dans le passé", async () => {
+    const employee = await createUser({ role: Role.EMPLOYEE, email: "abs-solde@deepclean.test" });
+    const token = await loginAs(employee);
+    const { startDate, endDate } = futureRange(10, 12);
+    const tooMuch = await request(app).post("/api/v1/absences").set("Authorization", `Bearer ${token}`).send({ type: "PAID_LEAVE", startDate, endDate });
+    expect(tooMuch.status).toBe(400);
+    expect(tooMuch.body.error.message).toContain("Solde insuffisant");
+    const past = await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ type: "UNPAID_LEAVE", startDate: "2026-01-05", endDate: "2026-01-06" });
+    expect(past.status).toBe(400);
+  });
+});
 
 describe("Congés — le chef d'équipe n'en décide jamais (simple référent de chantier)", () => {
   it("refuse à un chef d'équipe de valider le congé d'un membre de sa propre équipe (retour explicite du client, correction)", async () => {
@@ -215,5 +239,82 @@ describe("Congés — déduction et recrédit automatiques du solde", () => {
       .post(`/api/v1/absences/${created.body.absence.id}/cancel`)
       .set("Authorization", `Bearer ${outsiderToken}`);
     expect(cancelled.status).toBe(403);
+  });
+});
+
+describe("Congés — photo de la personne qui demande", () => {
+  it("expose `hasAvatar`, jamais la clé de stockage de la photo", async () => {
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "abs-photo@deepclean.test", leaveAccrualRate: 10 });
+    const hr = await createTestUser({ role: Role.HR, email: "hr-abs-photo@deepclean.test" });
+    await prisma.user.update({ where: { id: employee.id }, data: { avatarKey: "avatars/employe.webp" } });
+
+    const employeeToken = await loginAs(employee);
+    const { startDate, endDate } = futureRange(20, 21);
+    const created = await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${employeeToken}`)
+      .send({ type: "UNPAID_LEAVE", startDate, endDate });
+    expect(created.status).toBe(201);
+    expect(created.body.absence.user.hasAvatar).toBe(true);
+
+    const hrToken = await loginAs(hr);
+    const list = await request(app).get("/api/v1/absences").set("Authorization", `Bearer ${hrToken}`);
+    expect(list.status).toBe(200);
+    const mine = list.body.items.find((a: { userId: string }) => a.userId === employee.id);
+    expect(mine.user.hasAvatar).toBe(true);
+    expect(JSON.stringify(list.body)).not.toContain("avatarKey");
+    expect(JSON.stringify(list.body)).not.toContain("avatars/employe.webp");
+  });
+});
+
+describe("Liste des absences — le superviseur voit celles de l'équipe", () => {
+  it("le superviseur voit les absences de tous (planning, validation des congés), l'employé seulement les siennes", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-abs-list@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-abs-list@deepclean.test" });
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "oth-abs-list@deepclean.test" });
+    const day = new Date("2030-03-04T00:00:00.000Z");
+    await prisma.absence.createMany({
+      data: [
+        { userId: employee.id, type: "PAID_LEAVE", startDate: day, endDate: day, status: "PENDING" },
+        { userId: other.id, type: "SICK_LEAVE", startDate: day, endDate: day, status: "APPROVED" },
+      ],
+    });
+    const login = async (u: { username: string }) =>
+      (await request(app).post("/api/v1/auth/login").send({ username: u.username, password: TEST_PASSWORD })).body.accessToken as string;
+
+    const sup = await request(app).get("/api/v1/absences").set("Authorization", `Bearer ${await login(supervisor)}`);
+    expect(sup.status).toBe(200);
+    expect(sup.body.items.map((a: { userId: string }) => a.userId).sort()).toEqual([employee.id, other.id].sort());
+
+    const emp = await request(app).get("/api/v1/absences").set("Authorization", `Bearer ${await login(employee)}`);
+    expect(emp.body.items.map((a: { userId: string }) => a.userId)).toEqual([employee.id]);
+  });
+});
+
+describe("Absence enregistrée par un responsable pour quelqu'un", () => {
+  const login = async (u: { username: string }) =>
+    (await request(app).post("/api/v1/auth/login").send({ username: u.username, password: TEST_PASSWORD })).body.accessToken as string;
+
+  it("est approuvée d'office et la personne est prévenue, avec les bonnes dates", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-declare@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-declare@deepclean.test" });
+    const res = await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${await login(hr)}`)
+      .send({ userId: employee.id, type: "SICK_LEAVE", startDate: "2030-03-04", endDate: "2030-03-08" });
+    expect(res.status).toBe(201);
+    expect(res.body.absence.status).toBe("APPROVED");
+    const notif = await prisma.notification.findFirst({ where: { userId: employee.id, title: "Absence enregistrée" } });
+    expect(notif?.body).toContain("arrêt maladie du 04/03/2030 au 08/03/2030");
+  });
+
+  it("un responsable ne s'approuve jamais sa propre absence", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-self@deepclean.test" });
+    const res = await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${await login(supervisor)}`)
+      .send({ type: "PAID_LEAVE", startDate: "2030-03-04", endDate: "2030-03-05" });
+    expect(res.status).toBe(201);
+    expect(res.body.absence.status).toBe("PENDING");
   });
 });

@@ -5,6 +5,8 @@ export interface ActivityLogEntry {
   action: string;
   entityType: string | null;
   entityId: string | null;
+  /** Nom de l'élément concerné (compte, chantier, devis…) quand il existe encore. */
+  entityLabel: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
   user: { id: string; firstName: string; lastName: string; email: string | null; role: string } | null;
@@ -27,7 +29,7 @@ export interface ListActivityLogsParams {
   pageSize?: number;
 }
 
-// Réservé RH / Direction / Admin — voir backend/src/modules/activity/activity.routes.ts.
+// Réservé à l'admin technique — voir backend/src/modules/activity/activity.routes.ts.
 export async function listActivityLogs(params: ListActivityLogsParams = {}): Promise<ListActivityLogsResponse> {
   const { data } = await apiClient.get<ListActivityLogsResponse>("/activity-logs", { params: { pageSize: 50, ...params } });
   return data;

@@ -142,7 +142,7 @@ export function JobSheetFormScreen() {
           multiline
         />
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label="Enregistrer la fiche de poste" onPress={handleSave} loading={saving} />
       </ScrollView>

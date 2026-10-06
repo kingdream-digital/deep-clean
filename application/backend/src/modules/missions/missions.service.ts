@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
+import { calendarDay, calendarDayEnd, calendarDayKey, companyDateKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
 import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
-import { createNotification } from "../notifications/notifications.service";
+import { createNotification, markRelatedNotificationsRead } from "../notifications/notifications.service";
 import { findApprovedAbsencesInRange } from "../absences/absences.service";
 import { deleteStoredFile, storePdfDocument } from "../../utils/storage";
 
@@ -32,6 +33,7 @@ const MISSION_MANAGE_ROLES: Role[] = [Role.SUPERVISOR, Role.HR, Role.DIRECTOR, R
 const VALIDATE_MISSION_ROLES: Role[] = [Role.HR, Role.SUPERVISOR, Role.DIRECTOR];
 
 const missionSelect = {
+  isExceptional: true,
   id: true,
   title: true,
   date: true,
@@ -187,11 +189,11 @@ async function findSiteOrThrow(siteId: string) {
   return site;
 }
 
-// Combine une date calendaire et une heure "HH:mm" en un instant précis.
-// Hypothèse documentée : le serveur et les appareils mobiles partagent le même
-// fuseau horaire (déploiement France) — à revoir si l'entreprise opère multi-fuseaux.
+// Combine une date calendaire et une heure "HH:mm" en un instant précis, en
+// heure de Paris quel que soit le fuseau du serveur (voir utils/companyTime.ts :
+// sur un serveur en heure universelle, une mission de 8 h s'affichait à 10 h).
 function combineDateTime(date: string, time: string): Date {
-  return new Date(`${date}T${time}:00`);
+  return companyDateTime(date, time);
 }
 
 // Extraction inverse (Date -> "AAAA-MM-JJ" / "HH:mm") à partir des composants
@@ -199,15 +201,14 @@ function combineDateTime(date: string, time: string): Date {
 // affichés de la valeur de l'offset du fuseau horaire local (bug constaté lors
 // de la relecture : une modification ne touchant pas la date/l'heure recalculait
 // par erreur ces champs via toISOString, corrompant silencieusement la mission).
+// `Mission.date` est un jour calendaire stocké à minuit UTC ; les heures sont
+// relues en heure de Paris.
 function toLocalDateString(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return calendarDayKey(d);
 }
 
 function toLocalTimeString(d: Date): string {
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return companyTimeKey(d);
 }
 
 // Nombre maximum d'occurrences (mission "source" incluse) pour une mission
@@ -225,14 +226,14 @@ export const MAX_RECURRING_OCCURRENCES = 60;
 function generateRecurringDates(startDateStr: string, daysOfWeek: number[], untilStr: string): string[] {
   const daysSet = new Set(daysOfWeek);
   const dates: string[] = [];
-  const cursor = new Date(`${startDateStr}T00:00:00`);
-  const until = new Date(`${untilStr}T00:00:00`);
-  cursor.setDate(cursor.getDate() + 1);
+  const cursor = calendarDay(startDateStr);
+  const until = calendarDay(untilStr);
+  cursor.setUTCDate(cursor.getUTCDate() + 1);
   while (cursor <= until) {
-    if (daysSet.has(cursor.getDay())) {
-      dates.push(toLocalDateString(cursor));
+    if (daysSet.has(cursor.getUTCDay())) {
+      dates.push(calendarDayKey(cursor));
     }
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dates;
 }
@@ -248,6 +249,14 @@ async function assertAssigneesValid(assigneeIds: string[]): Promise<void> {
   }
 }
 
+// « « Remise en état salle de réunion », mercredi 7 octobre de 08:00 à 10:30 » :
+// une notification doit dire DE QUELLE mission il s'agit et quand, sans avoir
+// à l'ouvrir (retour terrain : « Une nouvelle mission vous a été attribuée »
+// seul ne permettait pas de savoir laquelle, ni pour quand).
+function describeMission(m: { title: string; startTime: Date; endTime: Date }): string {
+  return `« ${m.title} », ${companyLongDayLabel(m.startTime)} de ${companyTimeKey(m.startTime)} à ${companyTimeKey(m.endTime)}`;
+}
+
 async function notifyAssignees(
   userIds: string[],
   type: NotificationType,
@@ -259,6 +268,38 @@ async function notifyAssignees(
     userIds.map((userId) =>
       createNotification({ userId, type, title, body, relatedEntityType: "Mission", relatedEntityId: missionId })
     )
+  );
+}
+
+// Une même personne ne peut jamais être sur deux missions (non annulées) qui
+// se recouvrent : retour explicite du client, le chevauchement n'est plus un
+// simple avertissement. Vérifié à la création (série récurrente comprise), au
+// changement d'horaire et à l'ajout de personnes sur une mission.
+async function assertNoScheduleOverlap(
+  userIds: string[],
+  slots: Array<{ start: Date; end: Date }>,
+  excludeMissionId?: string
+): Promise<void> {
+  if (userIds.length === 0 || slots.length === 0) return;
+  const conflict = await prisma.missionAssignment.findFirst({
+    where: {
+      userId: { in: userIds },
+      mission: {
+        status: { not: MissionStatus.CANCELLED },
+        ...(excludeMissionId ? { id: { not: excludeMissionId } } : {}),
+        OR: slots.map((slot) => ({ startTime: { lt: slot.end }, endTime: { gt: slot.start } })),
+      },
+    },
+    orderBy: { mission: { startTime: "asc" } },
+    select: {
+      user: { select: { firstName: true, lastName: true } },
+      mission: { select: { title: true, startTime: true, endTime: true, site: { select: { name: true } } } },
+    },
+  });
+  if (!conflict) return;
+  const { user, mission } = conflict;
+  throw ApiError.conflict(
+    `${user.firstName} ${user.lastName} est déjà sur la mission « ${mission.title} » (${mission.site.name}) le ${companyLongDayLabel(mission.startTime)}, de ${companyTimeKey(mission.startTime)} à ${companyTimeKey(mission.endTime)}. Une personne ne peut pas être sur deux missions en même temps.`
   );
 }
 
@@ -282,7 +323,7 @@ export async function getAssignmentConflicts(actor: Actor, input: ConflictCheckI
 
   const startTime = combineDateTime(input.date, input.startTime);
   const endTime = combineDateTime(input.date, input.endTime);
-  const dayStart = new Date(`${input.date}T00:00:00`);
+  const dayStart = calendarDay(input.date);
 
   const overlapping = await prisma.missionAssignment.findMany({
     where: {
@@ -317,7 +358,7 @@ export async function getAssignmentConflicts(actor: Actor, input: ConflictCheckI
     where: { id: { in: input.assigneeIds } },
     select: { id: true, firstName: true, lastName: true },
   });
-  const absences = await findApprovedAbsencesInRange(input.assigneeIds, dayStart, new Date(`${input.date}T23:59:59.999`));
+  const absences = await findApprovedAbsencesInRange(input.assigneeIds, dayStart, calendarDayEnd(input.date));
   const absenceConflicts = absences.map((a) => {
     const user = assignees.find((u) => u.id === a.userId)!;
     return { kind: "ABSENCE" as const, user, absence: { type: a.type, startDate: a.startDate, endDate: a.endDate } };
@@ -339,6 +380,7 @@ interface CreateMissionInput {
   startTime: string;
   endTime: string;
   instructions?: string;
+  isExceptional?: boolean;
   assigneeIds: string[];
   leadId?: string;
   standardId?: string;
@@ -385,14 +427,20 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     if (recurringDates.length > 0) recurrenceGroupId = crypto.randomUUID();
   }
 
+  await assertNoScheduleOverlap(input.assigneeIds, [
+    { start: startTime, end: endTime },
+    ...recurringDates.map((d) => ({ start: combineDateTime(d, input.startTime), end: combineDateTime(d, input.endTime) })),
+  ]);
+
   const mission = await prisma.mission.create({
     data: {
       siteId: input.siteId,
       title: input.title,
-      date: new Date(`${input.date}T00:00:00`),
+      date: calendarDay(input.date),
       startTime,
       endTime,
       instructions: input.instructions,
+      isExceptional: input.isExceptional ?? false,
       createdById: actor.userId,
       standardId: input.standardId,
       recurrenceGroupId,
@@ -428,10 +476,11 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
       data: recurringDates.map((d) => ({
         siteId: input.siteId,
         title: input.title,
-        date: new Date(`${d}T00:00:00`),
+        date: calendarDay(d),
         startTime: combineDateTime(d, input.startTime),
         endTime: combineDateTime(d, input.endTime),
         instructions: input.instructions,
+        isExceptional: input.isExceptional ?? false,
         createdById: actor.userId,
         standardId: input.standardId,
         recurrenceGroupId,
@@ -478,7 +527,7 @@ export async function createMission(actor: Actor, input: CreateMissionInput) {
     "Nouvelle mission",
     recurrenceGroupId
       ? `Une mission récurrente vous a été attribuée (${recurrenceCount} occurrences jusqu'au ${input.recurrence!.until}).`
-      : "Une nouvelle mission vous a été attribuée.",
+      : `Une nouvelle mission vous a été attribuée : ${describeMission(mission)}.`,
     mission.id
   );
 
@@ -489,6 +538,8 @@ interface ListMissionsFilters {
   siteId?: string;
   mine?: boolean;
   status?: MissionStatus;
+  validated?: boolean;
+  sort?: "asc" | "desc";
   from?: string;
   to?: string;
   page: number;
@@ -528,21 +579,24 @@ export async function listMissions(actor: Actor, filters: ListMissionsFilters) {
   // exposer des données hors de la période filtrée. Un seul objet `date`
   // fusionnant les deux bornes, jamais deux spreads sur la même clé.
   const dateFilter: { gte?: Date; lte?: Date } = {};
-  if (filters.from) dateFilter.gte = new Date(`${filters.from}T00:00:00`);
-  if (filters.to) dateFilter.lte = new Date(`${filters.to}T23:59:59`);
+  if (filters.from) dateFilter.gte = calendarDay(filters.from);
+  if (filters.to) dateFilter.lte = calendarDayEnd(filters.to);
 
   const where = {
     ...scope,
     ...siteFilter,
     ...(filters.status ? { status: filters.status } : {}),
     ...(Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {}),
+    ...(filters.validated === true ? { validations: { some: { type: ValidationType.MISSION_COMPLETION } } } : {}),
+    ...(filters.validated === false ? { validations: { none: { type: ValidationType.MISSION_COMPLETION } } } : {}),
   };
+  const direction = filters.sort === "desc" ? "desc" : "asc";
 
   const [items, total] = await Promise.all([
     prisma.mission.findMany({
       where,
       select: missionSelect,
-      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      orderBy: [{ date: direction }, { startTime: direction }],
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
@@ -571,6 +625,7 @@ interface UpdateMissionInput {
   startTime?: string;
   endTime?: string;
   instructions?: string | null;
+  isExceptional?: boolean;
 }
 
 export async function updateMission(actor: Actor, id: string, input: UpdateMissionInput) {
@@ -611,7 +666,17 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
     throw ApiError.badRequest("L'heure de fin doit être postérieure à l'heure de début.");
   }
 
-  const timeChanged = Boolean(input.date || input.startTime || input.endTime);
+  // Changement RÉEL d'horaire (retour d'audit : le formulaire renvoie toujours
+  // date et heures, et une simple consigne déclenchait « Horaire modifié »).
+  const timeChanged =
+    startTime.getTime() !== mission.startTime.getTime() || endTime.getTime() !== mission.endTime.getTime();
+  if (timeChanged) {
+    await assertNoScheduleOverlap(
+      mission.assignments.map((a) => a.userId),
+      [{ start: startTime, end: endTime }],
+      id
+    );
+  }
   const siteChanged = Boolean(input.siteId && input.siteId !== mission.site.id);
   const instructionsChanged =
     input.instructions !== undefined && input.instructions !== mission.instructions && !!input.instructions;
@@ -621,8 +686,10 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
     data: {
       ...(input.title ? { title: input.title } : {}),
       ...(input.siteId ? { siteId: input.siteId } : {}),
-      ...(timeChanged ? { date: new Date(`${date}T00:00:00`), startTime, endTime } : {}),
+      ...(timeChanged ? { date: calendarDay(date), startTime, endTime } : {}),
       ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
+      // Réservé à ceux qui gèrent le planning (le chef d'équipe ne touche qu'à la consigne).
+      ...(input.isExceptional !== undefined && managesPlanning ? { isExceptional: input.isExceptional } : {}),
     },
     select: missionSelect,
   });
@@ -641,7 +708,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_SITE_CHANGED,
       "Chantier modifié",
-      "Le lieu de votre mission a été modifié.",
+      `Le lieu de votre mission a été modifié : ${describeMission(updated)}, ${updated.site.name}.`,
       id
     );
   }
@@ -650,7 +717,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_TIME_CHANGED,
       "Horaire modifié",
-      "L'horaire de votre mission a été modifié.",
+      `L'horaire de votre mission a été modifié : ${describeMission(updated)}.`,
       id
     );
   }
@@ -664,7 +731,7 @@ export async function updateMission(actor: Actor, id: string, input: UpdateMissi
       assigneeIds,
       NotificationType.MISSION_INSTRUCTION_ADDED,
       "Nouvelle consigne",
-      `Une nouvelle consigne a été ajoutée à votre mission par ${authorName}.`,
+      `Une nouvelle consigne a été ajoutée à votre mission « ${updated.title} » par ${authorName}.`,
       id
     );
   }
@@ -698,7 +765,7 @@ export async function cancelMission(actor: Actor, id: string, scope: "one" | "se
     mission.assignments.map((a) => a.userId),
     NotificationType.MISSION_CANCELLED,
     "Mission annulée",
-    "Votre mission a été annulée.",
+    `Votre mission a été annulée : ${describeMission(mission)}.`,
     id
   );
 
@@ -750,6 +817,8 @@ export async function cancelMission(actor: Actor, id: string, scope: "one" | "se
   return { ...presentMission(updated), seriesCancelledCount };
 }
 
+const EARLY_START_MS = 2 * 60 * 60 * 1000;
+
 export async function setMissionStatus(actor: Actor, id: string, status: "IN_PROGRESS" | "COMPLETED") {
   const mission = await findMissionOrThrow(id);
   assertCanSeeMission(actor, mission);
@@ -774,6 +843,17 @@ export async function setMissionStatus(actor: Actor, id: string, status: "IN_PRO
   }
   if (status === MissionStatus.COMPLETED && mission.status === MissionStatus.SCHEDULED) {
     throw ApiError.conflict("La mission doit être en cours avant de pouvoir être terminée.");
+  }
+  // Suivi terrain cohérent avec le planning (retour d'audit : une mission du
+  // mardi suivant pouvait être démarrée, terminée et validée le samedi).
+  const now = Date.now();
+  if (status === MissionStatus.IN_PROGRESS && now < mission.startTime.getTime() - EARLY_START_MS) {
+    throw ApiError.conflict(
+      `Cette mission est prévue le ${companyLongDayLabel(mission.startTime)} à ${companyTimeKey(mission.startTime)} : elle ne peut être démarrée qu'à partir de 2 h avant.`
+    );
+  }
+  if (status === MissionStatus.COMPLETED && now < mission.startTime.getTime()) {
+    throw ApiError.conflict("Cette mission n'a pas encore commencé : elle ne peut pas être terminée.");
   }
 
   const updated = await prisma.mission.update({ where: { id }, data: { status }, select: missionSelect });
@@ -830,6 +910,7 @@ export async function updateAssignments(actor: Actor, id: string, input: UpdateA
   const currentIds = mission.assignments.map((a) => a.userId);
   const newlyAdded = input.assigneeIds.filter((uid) => !currentIds.includes(uid));
   const removed = currentIds.filter((uid) => !input.assigneeIds.includes(uid));
+  await assertNoScheduleOverlap(newlyAdded, [{ start: mission.startTime, end: mission.endTime }], id);
 
   await prisma.$transaction([
     prisma.missionAssignment.deleteMany({ where: { missionId: id } }),
@@ -853,7 +934,7 @@ export async function updateAssignments(actor: Actor, id: string, input: UpdateA
       newlyAdded,
       NotificationType.MISSION_ASSIGNED,
       "Nouvelle mission",
-      "Une nouvelle mission vous a été attribuée.",
+      `Une nouvelle mission vous a été attribuée : ${describeMission(mission)}.`,
       id
     );
   }
@@ -935,6 +1016,13 @@ export async function validateMission(actor: Actor, id: string, comment?: string
     `Votre mission « ${mission.title} » a été validée par ${validatorName}.`,
     id
   );
+  // Chef d'équipe du chantier prévenu quand un autre valide (retour d'audit),
+  // et la demande « Mission à valider » ne reste en attente chez personne.
+  const siteManagerId = mission.site.managerId;
+  if (siteManagerId && siteManagerId !== actor.userId && !mission.assignments.some((a) => a.userId === siteManagerId)) {
+    await notifyAssignees([siteManagerId], NotificationType.GENERAL, "Mission validée", `La mission « ${mission.title} » a été validée par ${validatorName}.`, id);
+  }
+  await markRelatedNotificationsRead("Mission", id, NotificationType.VALIDATION_REQUESTED);
 
   return presentMission(await findMissionOrThrow(id));
 }
@@ -1147,5 +1235,105 @@ export async function removeStandardDocument(actor: Actor, missionId: string) {
     entityId: missionId,
   });
 
+  return presentMission(updated);
+}
+
+
+// ---------------------------------------------------------------------------
+// Missions à réaffecter (absence approuvée d'une personne affectée)
+// ---------------------------------------------------------------------------
+//
+// Retour explicite du client : quand un arrêt maladie (ou toute absence
+// approuvée) tombe sur des missions déjà prévues, le superviseur, la RH et la
+// direction — pas seulement le créateur de la mission — doivent pouvoir
+// refaire le planning et confier ces missions à d'autres employés.
+
+export async function listMissionsToReassign(actor: Actor) {
+  if (!canManagePlanning(actor)) throw ApiError.forbidden();
+  // Aujourd'hui en heure de Paris (entre 0 h et 2 h, l'UTC donnait la veille).
+  const today = calendarDay(companyDateKey(new Date()));
+  const absences = await prisma.absence.findMany({
+    where: { status: "APPROVED", endDate: { gte: today } },
+    select: { id: true, userId: true, type: true, startDate: true, endDate: true },
+  });
+  if (absences.length === 0) return [];
+
+  const missions = await prisma.mission.findMany({
+    where: {
+      status: { in: [MissionStatus.SCHEDULED, MissionStatus.IN_PROGRESS] },
+      date: { gte: today },
+      assignments: { some: { userId: { in: [...new Set(absences.map((a) => a.userId))] } } },
+    },
+    select: missionSelect,
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+  });
+
+  return missions
+    .map((mission) => {
+      const absentees = mission.assignments
+        .map((assignment) => {
+          const absence = absences.find(
+            (a) => a.userId === assignment.userId && mission.date >= a.startDate && mission.date <= a.endDate
+          );
+          return absence
+            ? { user: { id: assignment.user.id, firstName: assignment.user.firstName, lastName: assignment.user.lastName }, isLead: assignment.isLead, absence: { type: absence.type, startDate: absence.startDate, endDate: absence.endDate } }
+            : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      return { mission: presentMission(mission), absentees };
+    })
+    .filter((item) => item.absentees.length > 0);
+}
+
+/**
+ * Remplace une personne par une autre sur une mission (superviseur, RH,
+ * direction, admin). Mêmes garde-fous qu'à la création : le remplaçant ne
+ * doit être ni absent ce jour-là, ni déjà sur une mission qui se recouvre.
+ * Les deux personnes sont prévenues.
+ */
+export async function replaceAssignee(actor: Actor, missionId: string, input: { fromUserId: string; toUserId: string }) {
+  if (!canManagePlanning(actor)) throw ApiError.forbidden();
+  const mission = await findMissionOrThrow(missionId);
+  if (mission.status === MissionStatus.CANCELLED || mission.status === MissionStatus.COMPLETED) {
+    throw ApiError.conflict("Cette mission est annulée ou terminée : plus de remplacement possible.");
+  }
+  const current = mission.assignments.find((a) => a.userId === input.fromUserId);
+  if (!current) throw ApiError.badRequest("Cette personne n'est pas affectée à la mission.");
+  if (mission.assignments.some((a) => a.userId === input.toUserId)) {
+    throw ApiError.conflict("Le remplaçant est déjà affecté à cette mission.");
+  }
+  await assertAssigneesValid([input.toUserId]);
+
+  const absent = await findApprovedAbsencesInRange([input.toUserId], mission.date, calendarDayEnd(calendarDayKey(mission.date)));
+  if (absent.length > 0) throw ApiError.conflict("Le remplaçant est absent ce jour-là.");
+  await assertNoScheduleOverlap([input.toUserId], [{ start: mission.startTime, end: mission.endTime }], missionId);
+
+  await prisma.$transaction([
+    prisma.missionAssignment.deleteMany({ where: { missionId, userId: input.fromUserId } }),
+    prisma.missionAssignment.create({ data: { missionId, userId: input.toUserId, isLead: current.isLead } }),
+  ]);
+  const updated = await findMissionOrThrow(missionId);
+
+  await logActivity({
+    userId: actor.userId,
+    action: "MISSION_REASSIGNED",
+    entityType: "Mission",
+    entityId: missionId,
+    metadata: { fromUserId: input.fromUserId, toUserId: input.toUserId },
+  });
+  await notifyAssignees(
+    [input.toUserId],
+    NotificationType.MISSION_ASSIGNED,
+    "Nouvelle mission",
+    `Une nouvelle mission vous a été attribuée en remplacement : ${describeMission(mission)}.`,
+    missionId
+  );
+  await notifyAssignees(
+    [input.fromUserId],
+    NotificationType.MISSION_UNASSIGNED,
+    "Mission confiée à un collègue",
+    `Pendant votre absence, la mission ${describeMission(mission)} a été confiée à un collègue.`,
+    missionId
+  );
   return presentMission(updated);
 }

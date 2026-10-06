@@ -1,0 +1,84 @@
+import type { AppNotification } from "../api/notifications.api";
+import { getAbsence } from "../api/absences.api";
+import type { InboxStackParamList } from "../navigation/InboxStack";
+
+// Écran ouvert par l'appui sur une notification — une seule table pour le
+// centre de notifications ET l'activité récente de l'accueil (retour explicite
+// du client : chaque notification doit mener à ce qu'elle annonce). Toutes les
+// cibles existent sur la pile Messagerie (InboxStack).
+export type NotificationTarget =
+  | {
+      [K in keyof InboxStackParamList]: { screen: K; params: InboxStackParamList[K]; tab?: undefined };
+    }[keyof InboxStackParamList]
+  // Devis et factures : écrans de l'onglet Menu (circuit commercial complet :
+  // créer le chantier, la facture… depuis la fiche).
+  | { tab: "Menu"; screen: "QuoteDetail"; params: { quoteId: string } }
+  | { tab: "Menu"; screen: "InvoiceDetail"; params: { invoiceId: string } }
+  // Rappels automatiques qui renvoient vers une liste à traiter.
+  | { tab: "Menu"; screen: "TimesheetValidation" | "AbsencesManagement" | "InvoicesList"; params: undefined };
+
+// Notifications créées avant que chaque notification ait une cible côté
+// serveur : retrouvées par leur titre.
+const LEGACY_TITLES: Record<string, NotificationTarget> = {
+  "Congés acquis à valider": { screen: "LeaveAccruals", params: undefined },
+  "Congés acquis": { screen: "MyAbsences", params: undefined },
+  "Correction de votre solde de congés": { screen: "MyAbsences", params: undefined },
+};
+
+/** Cible connue sans appel réseau (sert aussi à afficher le chevron). */
+export function hasNotificationTarget(n: Pick<AppNotification, "relatedEntityType" | "relatedEntityId" | "title" | "type">): boolean {
+  if (opensPlanningTab(n)) return true;
+  return n.relatedEntityType ? !!n.relatedEntityId : n.title in LEGACY_TITLES;
+}
+
+/**
+ * Mission retirée à la personne (confiée à un collègue) : elle n'y a plus
+ * accès — on ouvre son planning, à jour, plutôt qu'une fiche introuvable.
+ */
+export function opensPlanningTab(n: Pick<AppNotification, "type">): boolean {
+  return n.type === "MISSION_UNASSIGNED";
+}
+
+export async function resolveNotificationTarget(n: AppNotification): Promise<NotificationTarget | null> {
+  const id = n.relatedEntityId;
+  if (opensPlanningTab(n)) return null;
+  if (!n.relatedEntityType) return LEGACY_TITLES[n.title] ?? null;
+  if (!id) return null;
+  switch (n.relatedEntityType) {
+    case "Mission":
+      return { screen: "MissionDetail", params: { missionId: id } };
+    case "TimeEntry":
+      return { screen: "TimeEntryDetail", params: { entryId: id } };
+    case "Problem":
+      return { screen: "ProblemDetail", params: { problemId: id } };
+    case "Absence":
+      // Demande à décider, ou annulation faite par le salarié lui-même :
+      // fiche de la personne concernée (pas « Mes absences » du responsable).
+      if (n.type === "ABSENCE_REQUESTED" || n.title === "Demande d'absence annulée" || n.title === "Congé annulé par le salarié") {
+        // Demande à valider : fiche de l'employé concerné, pour décider.
+        const absence = await getAbsence(id);
+        return { screen: "UserDetail", params: { userId: absence.userId } };
+      }
+      return { screen: "MyAbsences", params: undefined };
+    case "MissionsToReassign":
+      return { screen: "ReassignMissions", params: undefined };
+    case "Announcement":
+      return { screen: "AnnouncementDetail", params: { announcementId: id } };
+    case "Conversation":
+      return { screen: "ConversationThread", params: { conversationId: id } };
+    case "LeaveBalance":
+      return { screen: "MyAbsences", params: undefined };
+    case "Quote":
+      return { tab: "Menu", screen: "QuoteDetail", params: { quoteId: id } };
+    case "Invoice":
+      return { tab: "Menu", screen: "InvoiceDetail", params: { invoiceId: id } };
+    case "TimesheetValidation":
+    case "AbsencesManagement":
+    case "InvoicesList":
+      return { tab: "Menu", screen: n.relatedEntityType, params: undefined };
+    case "LeaveAccruals":
+      return { screen: "LeaveAccruals", params: /^\d{4}-\d{2}$/.test(id) ? { month: id } : undefined };
+    default:
+      return null;
+  }
+}

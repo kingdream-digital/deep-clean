@@ -9,9 +9,29 @@ interface CreateNotificationInput {
   type: NotificationType;
   title: string;
   body: string;
-  relatedEntityType?: string;
-  relatedEntityId?: string;
+  // Obligatoires : chaque notification mène quelque part dans l'application
+  // (retour explicite du client — aucune notification ne doit être inerte).
+  // Voir mobile/src/utils/notificationTarget.ts pour l'écran ouvert.
+  relatedEntityType: NotificationEntityType;
+  relatedEntityId: string;
 }
+
+export type NotificationEntityType =
+  | "Mission"
+  | "TimeEntry"
+  | "Problem"
+  | "Absence"
+  | "MissionsToReassign"
+  | "Announcement"
+  | "Conversation"
+  | "LeaveBalance"
+  | "LeaveAccruals"
+  | "Quote"
+  | "Invoice"
+  // Listes à traiter (rappels automatiques).
+  | "TimesheetValidation"
+  | "AbsencesManagement"
+  | "InvoicesList";
 
 /**
  * Crée la notification interne (persistée, visible dans le centre de notifications)
@@ -39,7 +59,7 @@ export async function createNotification(input: CreateNotificationInput) {
         to: t.token,
         title: input.title,
         body: input.body,
-        data: { type: input.type, relatedEntityType: input.relatedEntityType, relatedEntityId: input.relatedEntityId },
+        data: { notificationId: notification.id, type: input.type, relatedEntityType: input.relatedEntityType, relatedEntityId: input.relatedEntityId },
       }))
     );
     if (invalidTokens.length > 0) {
@@ -50,19 +70,52 @@ export async function createNotification(input: CreateNotificationInput) {
   return notification;
 }
 
-export async function listNotifications(userId: string, page: number, pageSize: number) {
-  const [items, total, unreadCount] = await Promise.all([
+/**
+ * Marque comme lues, chez tout le monde, les notifications d'une demande
+ * déjà traitée (ex. « Demande d'absence » une fois décidée, « Mission à
+ * valider » une fois validée) : elles ne restent pas en attente chez les
+ * autres responsables.
+ */
+export async function markRelatedNotificationsRead(relatedEntityType: NotificationEntityType, relatedEntityId: string, type: NotificationType) {
+  await prisma.notification.updateMany({
+    where: { relatedEntityType, relatedEntityId, type, isRead: false },
+    data: { isRead: true, readAt: new Date() },
+  });
+}
+
+export async function listNotifications(
+  userId: string,
+  page: number,
+  pageSize: number,
+  options: { excludeMessages?: boolean } = {}
+) {
+  // Le filtre ne porte que sur la LISTE renvoyée : les compteurs ci-dessous
+  // restent ceux de tout le centre de notifications, sans quoi le badge de
+  // l'onglet dépendrait de l'écran qui l'interroge.
+  const listWhere = options.excludeMessages
+    ? { userId, type: { not: NotificationType.MESSAGE_RECEIVED } }
+    : { userId };
+
+  const [items, total, unreadCount, unreadCountExcludingMessages] = await Promise.all([
     prisma.notification.findMany({
-      where: { userId },
+      where: listWhere,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.notification.count({ where: { userId } }),
+    prisma.notification.count({ where: listWhere }),
     prisma.notification.count({ where: { userId, isRead: false } }),
+    // Un nouveau message crée à la fois une notification (la cloche, demandée
+    // explicitement par le client) ET un message non lu dans son fil. Le badge
+    // de l'onglet Messagerie, qui additionne les deux compteurs, comptait donc
+    // chaque message deux fois — 10 affiché pour 5 messages réellement reçus.
+    // Ce second total permet de n'en compter qu'un.
+    prisma.notification.count({
+      where: { userId, isRead: false, type: { not: NotificationType.MESSAGE_RECEIVED } },
+    }),
   ]);
 
-  return { items, total, page, pageSize, unreadCount };
+  return { items, total, page, pageSize, unreadCount, unreadCountExcludingMessages };
 }
 
 export async function markAsRead(userId: string, notificationId: string) {

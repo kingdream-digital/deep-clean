@@ -1,3 +1,4 @@
+import "./utils/zodFr";
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -27,6 +28,8 @@ import { clientsRouter } from "./modules/clients/clients.routes";
 import { quotesRouter } from "./modules/quotes/quotes.routes";
 import { invoicesRouter } from "./modules/invoices/invoices.routes";
 import { commercialDashboardRouter } from "./modules/commercial/dashboard.routes";
+import { authenticate } from "./middleware/auth.middleware";
+import { bumpChangeVersion, currentChangeVersion, isTrackedMutation } from "./utils/changeVersion";
 
 export function createApp() {
   const app = express();
@@ -50,7 +53,24 @@ export function createApp() {
     app.use(pinoHttp({ logger }));
   }
 
+  // Synchronisation entre appareils (voir utils/changeVersion.ts) : consultée
+  // toutes les quelques secondes par chaque application ouverte, donc placée
+  // avant la limite générale de requêtes — elle ne renvoie qu'un numéro.
+  app.get("/api/v1/sync/version", authenticate({ allowPasswordChangePending: true }), (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json({ version: currentChangeVersion() });
+  });
+
   app.use(generalRateLimiter);
+
+  app.use((req, res, next) => {
+    if (isTrackedMutation(req.method, req.originalUrl.split("?")[0] ?? "")) {
+      res.on("finish", () => {
+        if (res.statusCode < 400) bumpChangeVersion();
+      });
+    }
+    next();
+  });
 
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });

@@ -15,7 +15,24 @@ const LABELS: Record<MissionStatus, string> = {
 // statut terminal, pour que le mouvement signale vraiment quelque chose.
 const ACTIVE_STATUSES: MissionStatus[] = ["IN_PROGRESS"];
 
-export function StatusBadge({ status }: { status: MissionStatus }) {
+// Une mission terminée passe par deux états bien distincts pour le terrain :
+// « À valider » (travail fini, en attente du contrôle d'un responsable) puis
+// « Validée ». Le simple « Terminée » prêtait à confusion avec « Validée »
+// (retour explicite du client) : il n'est plus affiché.
+//
+// `overdue` : mission planifiée dont l'horaire est passé sans démarrage (voir
+// isMissionOverdue) — affichée « Non démarrée », pas « Planifiée ». Même teinte
+// d'alerte que l'en-tête « MISSION NON DÉMARRÉE » de l'accueil ; la pastille
+// reste fixe, ce qui la distingue de « En cours ».
+export function StatusBadge({
+  status,
+  overdue = false,
+  validated = false,
+}: {
+  status: MissionStatus;
+  overdue?: boolean;
+  validated?: boolean;
+}) {
   const { colors, radius, spacing, type } = useTheme();
 
   const tone: Record<MissionStatus, { bg: string; fg: string }> = {
@@ -24,7 +41,9 @@ export function StatusBadge({ status }: { status: MissionStatus }) {
     COMPLETED: { bg: colors.successSoft, fg: colors.success },
     CANCELLED: { bg: colors.dangerSoft, fg: colors.danger },
   };
-  const t = tone[status];
+  const awaitingValidation = status === "COMPLETED" && !validated;
+  const t = overdue || awaitingValidation ? { bg: colors.warningSoft, fg: colors.warning } : tone[status];
+  const label = overdue ? "Non démarrée" : status === "COMPLETED" ? (validated ? "Validée" : "À valider") : LABELS[status];
 
   return (
     <View
@@ -39,7 +58,7 @@ export function StatusBadge({ status }: { status: MissionStatus }) {
         <View style={[styles.staticDot, { backgroundColor: t.fg }]} />
       )}
       <Text style={[type.caption, { color: t.fg, textTransform: "uppercase", letterSpacing: 0.4 }]}>
-        {LABELS[status]}
+        {label}
       </Text>
     </View>
   );

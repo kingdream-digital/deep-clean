@@ -1,7 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useEffect, useCallback, useMemo, useState } from "react";
+import { toLocalDateKey } from "../../utils/missionFormat";
 import { RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import NetInfo from "@react-native-community/netinfo";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -24,12 +26,19 @@ import {
   formatMissionDay,
   formatMissionTimeRange,
   groupMissionsByDate,
+  isMissionOverdue,
   relativeDayLabel,
+  isMissionValidated,
 } from "../../utils/missionFormat";
 import { readCache, writeCache } from "../../offline/cache";
 import { OnboardingTarget } from "../../onboarding/OnboardingTarget";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
-type Tab = "upcoming" | "completed" | "cancelled";
+// « Terminées » est scindé en deux (retour explicite du client : terminée et
+// validée prêtaient à confusion) : « À valider » = travail fini en attente du
+// contrôle d'un responsable, « Validées » = contrôlées.
+export type MissionsTab = "upcoming" | "toValidate" | "validated" | "cancelled";
+type Tab = MissionsTab;
 
 // Créer une mission est réservé aux rôles qui gèrent le planning — le chef
 // d'équipe n'en fait plus partie (retour explicite du client).
@@ -60,7 +69,7 @@ const TABLE_COLUMNS: DataTableColumn<Mission>[] = [
   {
     key: "status",
     label: "Statut",
-    render: (item) => <StatusBadge status={item.status} />,
+    render: (item) => <StatusBadge status={item.status} overdue={isMissionOverdue(item)} validated={isMissionValidated(item)} />,
   },
 ];
 
@@ -70,7 +79,17 @@ export function MissionsListScreen() {
   const { isDesktopWeb } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<MissionsStackParamList>>();
 
-  const [tab, setTab] = useState<Tab>("upcoming");
+  const route = useRoute<RouteProp<MissionsStackParamList, "MissionsList">>();
+  const requestedTab = route.params?.initialTab;
+  const [tab, setTab] = useState<Tab>(requestedTab ?? "upcoming");
+  // Raccourci reçu alors que l'écran était déjà monté (onglet Missions déjà
+  // ouvert) : on bascule, puis on efface le paramètre pour ne pas y revenir
+  // de force à chaque retour sur l'écran.
+  useEffect(() => {
+    if (!requestedTab) return;
+    setTab(requestedTab);
+    navigation.setParams({ initialTab: undefined });
+  }, [requestedTab, navigation]);
   const [items, setItems] = useState<Mission[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [refreshing, setRefreshing] = useState(false);
@@ -90,19 +109,28 @@ export function MissionsListScreen() {
   }, [items, tab]);
 
   const load = useCallback(async (activeTab: Tab) => {
+    const silent = isBackgroundRefresh();
     const cacheKey = `missions.${activeTab}`;
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       let fetched: Mission[];
       if (activeTab === "upcoming") {
-        const res = await listMissions({ from: todayKey() });
+        // Depuis la veille : après minuit, une mission de la veille encore en
+        // cours ou jamais démarrée doit rester visible pour être clôturée
+        // (retour d'audit — travail de nuit).
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const res = await listMissions({ from: toLocalDateKey(yesterday) });
         fetched = res.items.filter((m) => m.status === "SCHEDULED" || m.status === "IN_PROGRESS");
-      } else if (activeTab === "completed") {
-        const res = await listMissions({ status: "COMPLETED" });
-        fetched = res.items.slice().reverse();
+      } else if (activeTab === "toValidate" || activeTab === "validated") {
+        // Plus récentes d'abord, côté serveur : avec un tri croissant puis
+        // `reverse()`, au-delà d'une page les missions les plus récentes
+        // n'apparaissaient jamais.
+        const res = await listMissions({ status: "COMPLETED", validated: activeTab === "validated", sort: "desc", pageSize: 100 });
+        fetched = res.items;
       } else {
-        const res = await listMissions({ status: "CANCELLED" });
-        fetched = res.items.slice().reverse();
+        const res = await listMissions({ status: "CANCELLED", sort: "desc", pageSize: 100 });
+        fetched = res.items;
       }
       setItems(fetched);
       setOfflineCachedAt(null);
@@ -116,12 +144,12 @@ export function MissionsListScreen() {
         setOfflineCachedAt(cached.cachedAt);
         setState("ready");
       } else {
-        setState("error");
+        if (!silent) setState("error");
       }
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load(tab);
     }, [tab, load])
@@ -135,7 +163,7 @@ export function MissionsListScreen() {
 
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
-      {isDesktopWeb && (
+      {!!isDesktopWeb && (
         <View style={[styles.desktopHeader, { marginBottom: spacing.md }]}>
           <View>
             <Text style={{ fontSize: 28, fontWeight: "700", color: colors.ink }}>Missions</Text>
@@ -143,10 +171,10 @@ export function MissionsListScreen() {
               {items.length} {items.length > 1 ? "missions" : "mission"}
             </Text>
           </View>
-          {canManage && (
+          {!!canManage && (
             <View style={{ width: 200 }}>
               <PressableScale onPress={() => navigation.navigate("MissionForm", undefined)}>
-                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accent, borderRadius: 12 }]}>
+                <View style={[styles.desktopCreateBtn, { backgroundColor: colors.accentFill, borderRadius: 12 }]}>
                   <Ionicons name="add" size={18} color={colors.onAccent} />
                   <Text style={{ color: colors.onAccent, fontWeight: "600", marginLeft: 6, fontSize: 15 }}>
                     Nouvelle mission
@@ -164,7 +192,8 @@ export function MissionsListScreen() {
           onChange={setTab}
           options={[
             { label: "À venir", value: "upcoming" },
-            { label: "Terminées", value: "completed" },
+            { label: "À valider", value: "toValidate" },
+            { label: "Validées", value: "validated" },
             { label: "Annulées", value: "cancelled" },
           ]}
         />
@@ -178,13 +207,19 @@ export function MissionsListScreen() {
         <StateView
           kind="empty"
           icon="briefcase-outline"
-          message={tab === "upcoming" ? "Aucune mission à venir." : "Aucune mission ici pour le moment."}
+          message={
+            tab === "upcoming"
+              ? "Aucune mission à venir."
+              : tab === "toValidate"
+                ? "Aucune mission en attente de validation."
+                : "Aucune mission ici pour le moment."
+          }
         />
       )}
 
       {state === "ready" && items.length > 0 && (
         <>
-          {offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
+          {!!offlineCachedAt && <OfflineBanner cachedAt={offlineCachedAt} />}
 
           {isDesktopWeb ? (
             <DataTable
@@ -222,7 +257,7 @@ export function MissionsListScreen() {
             onPress={() => navigation.navigate("MissionForm", undefined)}
             accessibilityRole="button"
             accessibilityLabel="Nouvelle mission"
-            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+            style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>

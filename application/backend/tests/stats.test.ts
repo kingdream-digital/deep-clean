@@ -57,6 +57,7 @@ describe("GET /api/v1/stats/overview", () => {
   it("compte une mission planifiée plus tard aujourd'hui dans les missions à venir sous 7 jours", async () => {
     const site = await createTestSite();
     const token = await loginAs(Role.DIRECTOR, "stats-upcoming@deepclean.test");
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "stats-upcoming-emp@deepclean.test" });
 
     const now = new Date();
     const start = new Date(now.getTime() + 2 * 60000);
@@ -71,7 +72,7 @@ describe("GET /api/v1/stats/overview", () => {
         date: localDateString(start),
         startTime: localTimeString(start),
         endTime: localTimeString(end),
-        assigneeIds: [],
+        assigneeIds: [employee.id],
       });
     expect(created.status).toBe(201);
 

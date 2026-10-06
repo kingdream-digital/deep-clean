@@ -1,9 +1,11 @@
 import React from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View, ViewProps } from "react-native";
+import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../theme/ThemeProvider";
 import { useResponsive } from "../hooks/useResponsive";
+import { useWebKeyboardInset } from "../hooks/useWebKeyboardInset";
 
 interface ScreenContainerProps extends ViewProps {
   scroll?: boolean;
@@ -56,6 +58,12 @@ export function ScreenContainer({
   const { colors, spacing, isDark } = useTheme();
   const { isDesktopWeb } = useResponsive();
   const capWidth = isDesktopWeb && !fullBleed;
+  // Web sur téléphone : le clavier recouvre l'écran au lieu de le réduire
+  // (voir useWebKeyboardInset). On remonte le contenu de la hauteur cachée,
+  // moins la barre d'onglets, déjà sous le clavier elle aussi.
+  const webKeyboardInset = useWebKeyboardInset();
+  const tabBarHeight = React.useContext(BottomTabBarHeightContext) ?? 0;
+  const webKeyboardPadding = avoidKeyboard ? Math.max(0, webKeyboardInset - tabBarHeight) : 0;
 
   const content = (
     <View
@@ -64,6 +72,7 @@ export function ScreenContainer({
         { paddingHorizontal: spacing.lg },
         capWidth && { maxWidth: WEB_CONTENT_MAX_WIDTH, width: "100%", alignSelf: "center", paddingHorizontal: spacing.xxl },
         style,
+        webKeyboardPadding > 0 && { paddingBottom: webKeyboardPadding },
       ]}
       {...rest}
     >
@@ -76,7 +85,7 @@ export function ScreenContainer({
       style={[styles.flex, { backgroundColor: colors.background }]}
       edges={noHeader ? ["top", "bottom"] : ["bottom"]}
     >
-      {gradient && (
+      {!!gradient && (
         <LinearGradient
           colors={isDark ? [colors.background, colors.surfaceAlt] : [colors.background, colors.surface]}
           start={{ x: 0, y: 0 }}

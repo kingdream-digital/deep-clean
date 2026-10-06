@@ -1,8 +1,10 @@
 import { MissionStatus, Prisma, Role, TimeEntryStatus } from "@prisma/client";
+import { addDaysToKey, calendarDay, calendarDayEnd, companyDateKey, companyDateLabel, companyDayEnd, companyDayMonthLabel, companyDayStart, companyTimeKey } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
+import { computePayBreakdown } from "../payroll/workHours";
 import { MISSION_TIME_ENTRY_BUFFER_MS } from "../missions/missions.service";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
 
@@ -63,7 +65,7 @@ async function canValidate(actor: Actor, targetUserId: string): Promise<boolean>
 export const timeEntrySelect = {
   id: true,
   userId: true,
-  user: { select: { id: true, firstName: true, lastName: true, role: true } },
+  user: { select: { id: true, firstName: true, lastName: true, role: true, avatarKey: true } },
   clockIn: true,
   clockOut: true,
   status: true,
@@ -118,11 +120,14 @@ async function lockTimeEntryRow(tx: Prisma.TransactionClient, id: string): Promi
 // profit d'un simple booléen : le client récupère le fichier via la route
 // authentifiée dédiée (GET /:id/clock-in-photo ou /clock-out-photo), jamais
 // par la clé elle-même.
-function presentEntry<T extends { clockInPhotoKey?: string | null; clockOutPhotoKey?: string | null }>(
-  entry: T
-): Omit<T, "clockInPhotoKey" | "clockOutPhotoKey"> & { hasClockInPhoto: boolean; hasClockOutPhoto: boolean } {
+// Même principe pour la photo de profil de la personne (`hasAvatar`), affichée
+// sur l'écran de validation des heures.
+function presentEntry<
+  T extends { clockInPhotoKey?: string | null; clockOutPhotoKey?: string | null; user?: { avatarKey?: string | null } }
+>(entry: T) {
   const { clockInPhotoKey, clockOutPhotoKey, ...rest } = entry;
-  return { ...rest, hasClockInPhoto: Boolean(clockInPhotoKey), hasClockOutPhoto: Boolean(clockOutPhotoKey) };
+  const user = rest.user ? (({ avatarKey, ...u }) => ({ ...u, hasAvatar: Boolean(avatarKey) }))(rest.user) : rest.user;
+  return { ...rest, user, hasClockInPhoto: Boolean(clockInPhotoKey), hasClockOutPhoto: Boolean(clockOutPhotoKey) };
 }
 
 export async function clockIn(actor: Actor, position: ClockPosition, photoBuffer: Buffer) {
@@ -234,6 +239,9 @@ export async function createRetroactiveTimeEntry(
     const overlapping = await tx.timeEntry.findFirst({
       where: {
         userId: actor.userId,
+        // Un pointage refusé ne bloque jamais sa correction (retour d'audit :
+        // l'employé à qui l'on demande de corriger ne pouvait plus re-saisir).
+        status: { not: TimeEntryStatus.REJECTED },
         OR: [{ clockOut: null }, { clockOut: { gt: clockInDate } }],
         clockIn: { lt: clockOutDate },
       },
@@ -260,6 +268,130 @@ export async function createRetroactiveTimeEntry(
     entityId: entry.id,
   });
   return presentEntry(entry);
+}
+
+// Saisie par un responsable (superviseur, RH, direction, admin, ou chef
+// d'équipe pour son équipe) d'un pointage oublié, rattaché à une mission du
+// collaborateur, après l'avoir contacté. Mêmes droits que la validation : on ne
+// saisit jamais ses propres heures par ce biais. Le pointage est enregistré
+// comme différé et directement validé par son auteur (c'est lui qui a vérifié),
+// avec le motif obligatoire, et le collaborateur est prévenu.
+const MAX_MANAGER_ENTRY_DAYS = 62;
+
+export async function createTimeEntryForUser(
+  actor: Actor,
+  targetUserId: string,
+  input: { missionId: string; clockIn: string; clockOut: string; comment: string }
+) {
+  if (actor.userId === targetUserId) {
+    throw ApiError.forbidden("Pour vos propres heures, utilisez le pointage différé.");
+  }
+  if (!(await canValidate(actor, targetUserId))) throw ApiError.notFound("Utilisateur introuvable.");
+
+  const clockInDate = new Date(input.clockIn);
+  const clockOutDate = new Date(input.clockOut);
+  const now = new Date();
+  if (clockOutDate <= clockInDate) {
+    throw ApiError.badRequest("L'heure de fin doit être postérieure à l'heure de début.");
+  }
+  if (clockOutDate > now) {
+    throw ApiError.badRequest("On ne peut pas saisir un pointage pour une période qui n'est pas encore terminée.");
+  }
+  if (clockOutDate.getTime() - clockInDate.getTime() > 16 * 60 * 60 * 1000) {
+    throw ApiError.badRequest("Un pointage ne peut pas dépasser 16 heures.");
+  }
+  if (clockInDate.getTime() < now.getTime() - MAX_MANAGER_ENTRY_DAYS * 24 * 60 * 60 * 1000) {
+    throw ApiError.badRequest(`La saisie ne peut pas remonter à plus de ${MAX_MANAGER_ENTRY_DAYS} jours.`);
+  }
+
+  const assignment = await prisma.missionAssignment.findFirst({
+    where: { userId: targetUserId, missionId: input.missionId, mission: { status: { not: MissionStatus.CANCELLED } } },
+    select: { mission: { select: { title: true } } },
+  });
+  if (!assignment) throw ApiError.badRequest("Cette personne n'est pas affectée à cette mission.");
+
+  const entry = await prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, targetUserId);
+    const overlapping = await tx.timeEntry.findFirst({
+      where: {
+        userId: targetUserId,
+        // Un pointage refusé ne bloque jamais sa correction (retour d'audit :
+        // l'employé à qui l'on demande de corriger ne pouvait plus re-saisir).
+        status: { not: TimeEntryStatus.REJECTED },
+        OR: [{ clockOut: null }, { clockOut: { gt: clockInDate } }],
+        clockIn: { lt: clockOutDate },
+      },
+    });
+    if (overlapping) throw ApiError.conflict("Cette période chevauche un pointage déjà enregistré pour cette personne.");
+
+    return tx.timeEntry.create({
+      data: {
+        userId: targetUserId,
+        clockIn: clockInDate,
+        clockOut: clockOutDate,
+        isRetroactive: true,
+        comment: input.comment,
+        status: TimeEntryStatus.VALIDATED,
+        validatedById: actor.userId,
+        validatedAt: now,
+      },
+      select: timeEntrySelect,
+    });
+  });
+
+  await logActivity({
+    userId: actor.userId,
+    action: "TIME_ENTRY_CREATED_FOR_USER",
+    entityType: "TimeEntry",
+    entityId: entry.id,
+    metadata: { targetUserId, missionId: input.missionId },
+  });
+  const author = await prisma.user.findUnique({ where: { id: actor.userId }, select: { firstName: true, lastName: true } });
+  const authorName = author ? `${author.firstName} ${author.lastName}` : "votre responsable";
+  await createNotification({
+    userId: targetUserId,
+    type: "TIMESHEET_VALIDATED",
+    title: "Pointage ajouté",
+    body: `${authorName} a enregistré vos heures du ${formatEntryWindow(clockInDate, clockOutDate)} pour la mission « ${assignment.mission.title} ».`,
+    relatedEntityType: "TimeEntry",
+    relatedEntityId: entry.id,
+  });
+  return presentEntry(entry);
+}
+
+// Mes heures, mois par mois (heure de Paris) : un « dossier » par mois, du
+// mois en cours aux `months - 1` précédents. Le compteur du mois repart donc
+// de zéro le 1er à minuit. Seules les sessions clôturées et non refusées
+// comptent, comme le compteur de la semaine.
+export async function getMyMonthlySummary(actor: Actor, months = 12) {
+  const currentMonth = companyDateKey(new Date()).slice(0, 7);
+  const keys: string[] = [];
+  let cursor = `${currentMonth}-01`;
+  for (let i = 0; i < months; i++) {
+    keys.push(cursor.slice(0, 7));
+    cursor = addDaysToKey(cursor, -1).slice(0, 7) + "-01";
+  }
+  const oldest = keys[keys.length - 1]!;
+  const entries = await prisma.timeEntry.findMany({
+    where: {
+      userId: actor.userId,
+      clockOut: { not: null },
+      status: { not: TimeEntryStatus.REJECTED },
+      clockIn: { gte: companyDayStart(`${oldest}-01`) },
+    },
+    select: { clockIn: true, clockOut: true, status: true },
+  });
+  const byMonth = new Map(keys.map((k) => [k, { month: k, totalMinutes: 0, validatedMinutes: 0, pendingMinutes: 0, entryCount: 0 }]));
+  for (const entry of entries) {
+    const bucket = byMonth.get(companyDateKey(entry.clockIn).slice(0, 7));
+    if (!bucket || !entry.clockOut) continue;
+    const minutes = Math.max(0, Math.round((entry.clockOut.getTime() - entry.clockIn.getTime()) / 60000));
+    bucket.totalMinutes += minutes;
+    if (entry.status === TimeEntryStatus.VALIDATED) bucket.validatedMinutes += minutes;
+    else bucket.pendingMinutes += minutes;
+    bucket.entryCount += 1;
+  }
+  return keys.map((k) => byMonth.get(k)!);
 }
 
 export async function getMyStatus(actor: Actor) {
@@ -328,8 +460,9 @@ export async function buildTimeEntriesWhere(actor: Actor, filters: ListFilters) 
   // pour tous. On construit maintenant un seul objet `clockIn` combinant les
   // deux bornes quand les deux sont fournies.
   const clockInFilter: Record<string, Date> = {};
-  if (filters.from) clockInFilter.gte = new Date(`${filters.from}T00:00:00`);
-  if (filters.to) clockInFilter.lte = new Date(`${filters.to}T23:59:59`);
+  // Journées de Paris, quel que soit le fuseau du serveur.
+  if (filters.from) clockInFilter.gte = companyDayStart(filters.from);
+  if (filters.to) clockInFilter.lte = companyDayEnd(filters.to);
 
   return {
     ...userIdFilter,
@@ -553,9 +686,9 @@ function csvEscape(value: string): string {
   return neutralized;
 }
 
-const csvDateFmt = (d: Date) =>
-  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-const csvTimeFmt = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+// Dates et heures de Paris dans l'export, quel que soit le fuseau du serveur.
+const csvDateFmt = (d: Date) => companyDateLabel(d);
+const csvTimeFmt = (d: Date) => companyTimeKey(d);
 const STATUS_LABEL_FR: Record<TimeEntryStatus, string> = {
   PENDING: "En attente",
   VALIDATED: "Validé",
@@ -566,6 +699,29 @@ const STATUS_LABEL_FR: Record<TimeEntryStatus, string> = {
 // peut exporter que les siens, un chef d'équipe que son équipe,
 // superviseur/RH/direction/admin n'importe qui) : le dossier RH "par
 // personne" pour la paie réutilise cette même règle, jamais un contournement.
+/**
+ * Pointages rattachés à une intervention exceptionnelle (hors planning
+ * habituel) : majorations à 100 % (voir payroll/payRules.ts).
+ */
+export async function exceptionalEntryIds(entries: Array<{ id: string; userId: string; clockIn: Date; clockOut: Date | null }>): Promise<Set<string>> {
+  const closed = entries.filter((e) => e.clockOut);
+  if (closed.length === 0) return new Set();
+  const from = new Date(Math.min(...closed.map((e) => e.clockIn.getTime())) - 86_400_000);
+  const to = new Date(Math.max(...closed.map((e) => e.clockOut!.getTime())) + 86_400_000);
+  const missions = await prisma.missionAssignment.findMany({
+    where: {
+      userId: { in: [...new Set(closed.map((e) => e.userId))] },
+      mission: { isExceptional: true, status: { not: MissionStatus.CANCELLED }, startTime: { lt: to }, endTime: { gt: from } },
+    },
+    select: { userId: true, mission: { select: { startTime: true, endTime: true } } },
+  });
+  const ids = new Set<string>();
+  for (const e of closed) {
+    if (missions.some((m) => m.userId === e.userId && e.clockIn < m.mission.endTime && e.clockOut! > m.mission.startTime)) ids.add(e.id);
+  }
+  return ids;
+}
+
 export async function exportTimeEntriesCsv(actor: Actor, filters: ListFilters): Promise<string> {
   const where = await buildTimeEntriesWhere(actor, filters);
 
@@ -575,22 +731,44 @@ export async function exportTimeEntriesCsv(actor: Actor, filters: ListFilters): 
     orderBy: { clockIn: "asc" },
   });
 
-  const header = ["Employé", "Date", "Arrivée", "Départ", "Durée (h)", "Statut", "Différé", "Commentaire"];
+  // Format français (retour d'audit) : virgule décimale pour qu'Excel lise
+  // des nombres, une colonne « heures comptées » (0 pour un pointage refusé),
+  // la ventilation des majorations (nuit, dimanche, férié) et une ligne de total.
+  const dec = (minutes: number) => (minutes / 60).toFixed(2).replace(".", ",");
+  const header = [
+    "Employé", "Date", "Arrivée", "Départ", "Durée (h)", "Heures comptées (h)",
+    "Dont nuit (h)", "Dont dimanche (h)", "Dont férié (h)", "Majoration (h)", "Statut", "Différé", "Commentaire",
+  ];
+  const exceptionalIds = await exceptionalEntryIds(items);
+  const totals = { counted: 0, night: 0, sunday: 0, holiday: 0, premium: 0 };
   const rows = items.map((entry) => {
-    const durationHours = entry.clockOut
-      ? ((entry.clockOut.getTime() - entry.clockIn.getTime()) / 3_600_000).toFixed(2)
-      : "";
+    const minutes = entry.clockOut ? (entry.clockOut.getTime() - entry.clockIn.getTime()) / 60_000 : 0;
+    const counted = entry.clockOut && entry.status !== TimeEntryStatus.REJECTED;
+    const b = counted ? computePayBreakdown([{ clockIn: entry.clockIn, clockOut: entry.clockOut!, exceptional: exceptionalIds.has(entry.id) }]) : null;
+    if (b) {
+      totals.counted += b.totalMinutes;
+      totals.night += b.minutesByCategory.night;
+      totals.sunday += b.minutesByCategory.sunday;
+      totals.holiday += b.minutesByCategory.holiday;
+      totals.premium += b.premiumMinutes;
+    }
     return [
       `${entry.user.firstName} ${entry.user.lastName}`,
       csvDateFmt(entry.clockIn),
       csvTimeFmt(entry.clockIn),
       entry.clockOut ? csvTimeFmt(entry.clockOut) : "",
-      durationHours,
+      entry.clockOut ? dec(minutes) : "",
+      b ? dec(b.totalMinutes) : "0,00",
+      b ? dec(b.minutesByCategory.night) : "",
+      b ? dec(b.minutesByCategory.sunday) : "",
+      b ? dec(b.minutesByCategory.holiday) : "",
+      b ? dec(b.premiumMinutes) : "",
       STATUS_LABEL_FR[entry.status],
       entry.isRetroactive ? "Oui" : "",
       entry.comment ?? "",
     ];
   });
+  rows.push(["TOTAL", "", "", "", "", dec(totals.counted), dec(totals.night), dec(totals.sunday), dec(totals.holiday), dec(totals.premium), "", "", ""]);
 
   // Export de données nominatives d'heures (potentiellement toute l'équipe
   // pour un rôle habilité) destinées à la paie — journalisé comme toute autre
@@ -626,6 +804,11 @@ async function assertCanViewEntry(actor: Actor, entry: { userId: string }): Prom
   );
 }
 
+/** Même règle que pour un pointage : soi-même, l'encadrement, ou le chef d'équipe de la personne. */
+export async function canViewUserHours(actor: Actor, userId: string): Promise<boolean> {
+  return assertCanViewEntry(actor, { userId });
+}
+
 // 404 (jamais 403) hors périmètre, pour ne pas révéler l'existence du pointage.
 export async function getTimeEntryById(actor: Actor, id: string) {
   const entry = await findEntryOrThrow(id);
@@ -653,11 +836,7 @@ export async function getTimeEntryPhoto(actor: Actor, id: string, moment: "in" |
 // Fenêtre lisible "20/09 09:00–17:00" pour les messages de notification —
 // jamais toISOString() (voir la même remarque dans missions.service.ts).
 function formatEntryWindow(clockIn: Date, clockOut: Date): string {
-  const day = String(clockIn.getDate()).padStart(2, "0");
-  const month = String(clockIn.getMonth() + 1).padStart(2, "0");
-  const startTime = `${String(clockIn.getHours()).padStart(2, "0")}:${String(clockIn.getMinutes()).padStart(2, "0")}`;
-  const endTime = `${String(clockOut.getHours()).padStart(2, "0")}:${String(clockOut.getMinutes()).padStart(2, "0")}`;
-  return `${day}/${month} ${startTime}–${endTime}`;
+  return `${companyDayMonthLabel(clockIn)} ${companyTimeKey(clockIn)}–${companyTimeKey(clockOut)}`;
 }
 
 export async function validateTimeEntry(actor: Actor, id: string, comment?: string) {
@@ -734,7 +913,7 @@ export async function rejectTimeEntry(actor: Actor, id: string, comment: string)
   const validatorName = validator ? `${validator.firstName} ${validator.lastName}` : "un validateur";
   await createNotification({
     userId: entry.userId,
-    type: "TIMESHEET_VALIDATED",
+    type: "TIMESHEET_REJECTED",
     title: "Pointage à corriger",
     body: `Vos heures du ${formatEntryWindow(entry.clockIn, entry.clockOut)} ont été refusées par ${validatorName} : ${comment}`,
     relatedEntityType: "TimeEntry",
@@ -800,8 +979,12 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
   const userIds = await resolveReconciliationUserIds(actor);
   if (userIds.length === 0) return [];
 
-  const dayStart = new Date(`${filters.from}T00:00:00`);
-  const dayEnd = new Date(`${filters.to}T23:59:59`);
+  // Missions : jours calendaires (minuit UTC). Pointages : instants, bornés
+  // aux journées de Paris.
+  const dayStart = calendarDay(filters.from);
+  const dayEnd = calendarDayEnd(filters.to);
+  const entryStart = companyDayStart(filters.from);
+  const entryEnd = companyDayEnd(filters.to);
 
   const [assignments, entries, users] = await Promise.all([
     prisma.missionAssignment.findMany({
@@ -812,7 +995,7 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
       select: { userId: true, mission: { select: { startTime: true, endTime: true } } },
     }),
     prisma.timeEntry.findMany({
-      where: { userId: { in: userIds }, clockIn: { gte: dayStart, lte: dayEnd } },
+      where: { userId: { in: userIds }, clockIn: { gte: entryStart, lte: entryEnd } },
       select: { userId: true, clockIn: true, clockOut: true, status: true },
     }),
     prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, firstName: true, lastName: true } }),
@@ -823,9 +1006,13 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
     rows.set(u.id, { user: u, scheduledMinutes: 0, workedMinutes: 0, missionsCount: 0, pendingCount: 0, rejectedCount: 0, status: "OK" });
   }
 
+  const nowMs = Date.now();
   for (const a of assignments) {
     const row = rows.get(a.userId);
     if (!row) continue;
+    // Seules les missions déjà terminées sont comparées aux pointages (retour
+    // d'audit : les missions à venir de la semaine comptaient en « manquant »).
+    if (a.mission.endTime.getTime() > nowMs) continue;
     row.scheduledMinutes += (a.mission.endTime.getTime() - a.mission.startTime.getTime()) / 60000;
     row.missionsCount += 1;
   }
@@ -858,12 +1045,21 @@ export async function getReconciliation(actor: Actor, filters: ReconciliationFil
 
   return Array.from(rows.values())
     .filter((r) => r.missionsCount > 0 || r.workedMinutes > 0)
-    .sort((a, b) => (a.status === b.status ? 0 : a.status === "ANOMALY" ? -1 : 1));
+    // Anomalies d'abord, puis ordre alphabétique stable (la liste ne « saute »
+    // plus à chaque rechargement automatique).
+    .sort(
+      (a, b) =>
+        (a.status === b.status ? 0 : a.status === "ANOMALY" ? -1 : 1) ||
+        a.user.lastName.localeCompare(b.user.lastName, "fr") ||
+        a.user.firstName.localeCompare(b.user.firstName, "fr")
+    );
 }
 
 export interface ReconciliationMissionEntry {
   mission: { id: string; title: string; date: Date; startTime: Date; endTime: Date; site: { name: string } };
   scheduledMinutes: number;
+  /** Mission pas encore terminée : jamais comptée comme « heures manquantes ». */
+  upcoming: boolean;
   matchedEntries: Array<{
     id: string;
     clockIn: Date;
@@ -888,11 +1084,15 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
     (actor.role === Role.SITE_MANAGER && (await isTeamMemberOf(actor.userId, targetUserId)));
   if (!allowed) throw ApiError.notFound("Utilisateur introuvable.");
 
-  const user = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, firstName: true, lastName: true } });
+  const user = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, firstName: true, lastName: true, phone: true } });
   if (!user) throw ApiError.notFound("Utilisateur introuvable.");
 
-  const dayStart = new Date(`${filters.from}T00:00:00`);
-  const dayEnd = new Date(`${filters.to}T23:59:59`);
+  // Missions : jours calendaires (minuit UTC). Pointages : instants, bornés
+  // aux journées de Paris.
+  const dayStart = calendarDay(filters.from);
+  const dayEnd = calendarDayEnd(filters.to);
+  const entryStart = companyDayStart(filters.from);
+  const entryEnd = companyDayEnd(filters.to);
 
   const [assignments, entries] = await Promise.all([
     prisma.missionAssignment.findMany({
@@ -903,7 +1103,7 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
       orderBy: { mission: { startTime: "asc" } },
     }),
     prisma.timeEntry.findMany({
-      where: { userId: targetUserId, clockIn: { gte: dayStart, lte: dayEnd } },
+      where: { userId: targetUserId, clockIn: { gte: entryStart, lte: entryEnd } },
       select: {
         id: true,
         clockIn: true,
@@ -1003,9 +1203,10 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
     return {
       mission,
       scheduledMinutes: Math.round(scheduledMinutes),
+      upcoming: mission.endTime.getTime() > Date.now(),
       matchedEntries: matched,
       workedMinutes: Math.round(workedMinutes),
-      gapMinutes: Math.round(workedMinutes - scheduledMinutes),
+      gapMinutes: mission.endTime.getTime() > Date.now() ? 0 : Math.round(workedMinutes - scheduledMinutes),
     };
   });
 
@@ -1016,7 +1217,7 @@ export async function getReconciliationDetail(actor: Actor, targetUserId: string
     missions,
     unmatchedEntries,
     totals: {
-      scheduledMinutes: Math.round(missions.reduce((s, m) => s + m.scheduledMinutes, 0)),
+      scheduledMinutes: Math.round(missions.filter((m) => !m.upcoming).reduce((s, m) => s + m.scheduledMinutes, 0)),
       workedMinutes: Math.round(
         entries.reduce(
           (s, e) => s + (e.clockOut && e.status !== TimeEntryStatus.REJECTED ? (e.clockOut.getTime() - e.clockIn.getTime()) / 60000 : 0),

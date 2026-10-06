@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -14,9 +15,10 @@ import { extractErrorMessage } from "../../api/client";
 import { markQuoteAccepted, markQuoteRejected, recordQuoteFollowUp, sendQuote, QUOTE_FOLLOW_UP_METHOD_LABELS } from "../../api/quotes.api";
 import type { QuoteFollowUpMethod } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "QuoteAction">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 function tomorrow(): Date {
   const d = new Date();
@@ -72,11 +74,11 @@ export function QuoteActionScreen() {
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
-        {config.needsMethod && (
+        {!!config.needsMethod && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Moyen de contact</Text>
             <Card padded={false}>
-              <Picker selectedValue={method} onValueChange={(v) => setMethod(v as QuoteFollowUpMethod)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={method} onValueChange={(v) => setMethod(v as QuoteFollowUpMethod)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 {Object.entries(QUOTE_FOLLOW_UP_METHOD_LABELS).map(([value, label]) => (
                   <Picker.Item key={value} label={label} value={value} />
                 ))}
@@ -90,7 +92,7 @@ export function QuoteActionScreen() {
         {action === "followUp" && (
           <View style={{ marginBottom: spacing.md }}>
             <Checkbox label="Programmer la prochaine relance" checked={hasNextFollowUp} onChange={setHasNextFollowUp} />
-            {hasNextFollowUp && (
+            {!!hasNextFollowUp && (
               <View style={{ marginTop: spacing.sm }}>
                 <DateTimeField label="Prochaine relance" mode="date" value={nextFollowUpAt} onChange={setNextFollowUpAt} minimumDate={new Date()} formatValue={(d) => dateFmt.format(d)} />
               </View>
@@ -98,7 +100,7 @@ export function QuoteActionScreen() {
           </View>
         )}
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={config.cta} onPress={handleSubmit} loading={saving} />
       </ScrollView>

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandler";
 import * as invoicesService from "./invoices.service";
+import * as einvoicingService from "../einvoicing/einvoicing.service";
 
 function actorOf(req: Request) {
   return { userId: req.auth!.userId, role: req.auth!.role };
@@ -50,5 +51,23 @@ export const markInvoicePaidHandler = asyncHandler(async (req: Request, res: Res
 
 export const cancelInvoiceHandler = asyncHandler(async (req: Request, res: Response) => {
   const invoice = await invoicesService.cancelInvoice(actorOf(req), req.params.id as string, req.body.comment);
+  res.status(200).json({ invoice });
+});
+
+// Facture électronique (Super PDP) : état, envoi et mise à jour du statut.
+export const getEinvoiceHandler = asyncHandler(async (req: Request, res: Response) => {
+  const readiness = await einvoicingService.getEinvoiceReadiness(req.params.id as string);
+  res.status(200).json(readiness);
+});
+
+export const sendEinvoiceHandler = asyncHandler(async (req: Request, res: Response) => {
+  await einvoicingService.sendInvoiceElectronically(actorOf(req), req.params.id as string);
+  const invoice = await invoicesService.getInvoiceById(actorOf(req), req.params.id as string);
+  res.status(200).json({ invoice });
+});
+
+export const refreshEinvoiceHandler = asyncHandler(async (req: Request, res: Response) => {
+  await einvoicingService.refreshEinvoiceStatus(req.params.id as string);
+  const invoice = await invoicesService.getInvoiceById(actorOf(req), req.params.id as string);
   res.status(200).json({ invoice });
 });

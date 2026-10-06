@@ -112,10 +112,20 @@ export function OnboardingOverlay() {
                 ? TOP_SAFE_MARGIN + (safeZoneHeight - measured.height) / 2
                 : TOP_SAFE_MARGIN;
             scrollBy(step.screen, measured.y - desiredY);
-            await new Promise((resolve) => setTimeout(resolve, 380));
-            if (cancelled) return;
-            const corrected = await measure(step.targetId);
-            if (corrected) target = corrected;
+            // Attendre la FIN du défilement : mesurer pendant l'animation
+            // (bug constaté sur l'étape « Accès rapide », tout en bas de
+            // l'accueil) plaçait la surbrillance à mi-chemin, hors de l'écran,
+            // et la carte recouvrait l'élément qu'elle était censée montrer.
+            let previousY: number | null = null;
+            for (let settle = 0; settle < 12; settle++) {
+              await new Promise((resolve) => setTimeout(resolve, 120));
+              if (cancelled) return;
+              const corrected = await measure(step.targetId);
+              if (!corrected) break;
+              target = corrected;
+              if (previousY !== null && Math.abs(corrected.y - previousY) < 1) break;
+              previousY = corrected.y;
+            }
           }
           if (!cancelled) {
             setRect(target);
@@ -199,6 +209,14 @@ export function OnboardingOverlay() {
     cardTop = Math.max(spacing.lg, Math.min(idealTop, winH - CARD_SAFE_HEIGHT - spacing.lg));
     arrowDirection = placeBelow ? "up" : "down";
   }
+  // La flèche pointe le centre de la cible, pas le milieu de la carte : pour
+  // un petit bouton dans un coin (le « + » du Planning), une flèche centrée
+  // désignait le vide.
+  const ARROW_SIZE = 22;
+  const arrowAreaWidth = winW - spacing.lg * 2;
+  const arrowLeft = rect
+    ? Math.max(radius.xl, Math.min(rect.x + rect.width / 2 - spacing.lg - ARROW_SIZE / 2, arrowAreaWidth - radius.xl - ARROW_SIZE))
+    : 0;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
@@ -209,15 +227,15 @@ export function OnboardingOverlay() {
         <Svg width={winW} height={winH} style={{ position: "absolute", top: 0, left: 0 }}>
           <Mask id="onboarding-spotlight">
             <Rect x={0} y={0} width={winW} height={winH} fill="white" />
-            {rect && <AnimatedRect animatedProps={holeProps} rx={HOLE_RADIUS} fill="black" />}
+            {!!rect && <AnimatedRect animatedProps={holeProps} rx={HOLE_RADIUS} fill="black" />}
           </Mask>
           <Rect x={0} y={0} width={winW} height={winH} fill="rgba(10,14,26,0.78)" mask="url(#onboarding-spotlight)" />
-          {rect && (
+          {!!rect && (
             <AnimatedRect animatedProps={holeProps} rx={HOLE_RADIUS} fill="none" stroke={colors.accent} strokeWidth={2.5} />
           )}
         </Svg>
 
-        {settled && (
+        {!!settled && (
           <Animated.View
             style={[
               rect
@@ -227,8 +245,8 @@ export function OnboardingOverlay() {
             ]}
           >
             {rect && arrowDirection === "up" && (
-              <View style={{ alignItems: "center", marginBottom: -1 }}>
-                <Ionicons name="caret-up" size={22} color={colors.backgroundElevated} />
+              <View style={{ paddingLeft: arrowLeft, marginBottom: -1 }}>
+                <Ionicons name="caret-up" size={ARROW_SIZE} color={colors.backgroundElevated} />
               </View>
             )}
 
@@ -300,8 +318,8 @@ export function OnboardingOverlay() {
             </View>
 
             {rect && arrowDirection === "down" && (
-              <View style={{ alignItems: "center", marginTop: -1 }}>
-                <Ionicons name="caret-down" size={22} color={colors.backgroundElevated} />
+              <View style={{ paddingLeft: arrowLeft, marginTop: -1 }}>
+                <Ionicons name="caret-down" size={ARROW_SIZE} color={colors.backgroundElevated} />
               </View>
             )}
           </Animated.View>

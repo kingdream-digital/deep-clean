@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -10,10 +10,11 @@ import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { InvoiceStatusBadge } from "../../components/InvoiceStatusBadge";
+import { EinvoiceCard } from "../../components/EinvoiceCard";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
 import { shareFile } from "../../utils/shareFile";
-import { QUOTE_ITEM_UNIT_LABELS } from "../../api/quotes.api";
+import { formatQuantityWithUnit } from "../../api/quotes.api";
 import {
   cancelInvoice,
   downloadInvoicePdf,
@@ -24,9 +25,12 @@ import {
 } from "../../api/invoices.api";
 import type { Invoice } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { billingPeriodLabel } from "../../utils/invoiceFromQuote";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<MenuStackParamList, "InvoiceDetail">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
@@ -53,16 +57,17 @@ export function InvoiceDetailScreen() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setInvoice(await getInvoice(invoiceId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [invoiceId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -133,21 +138,29 @@ export function InvoiceDetailScreen() {
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={[type.footnote, { color: colors.inkTertiary }]}>{invoice.invoiceNumber}</Text>
-              <Text style={[type.title2, { color: colors.ink, marginTop: 1 }]}>{invoice.client.companyName}</Text>
-            </View>
+          {/* Numéro et statut sur une ligne, le nom du client sur toute la
+              largeur dessous : à côté du nom, le badge le réduisait à une
+              colonne étroite (« Syndic / Résidence / Les Tilleuls »). */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[type.footnote, { color: colors.inkTertiary }]}>{invoice.invoiceNumber}</Text>
             <InvoiceStatusBadge status={invoice.status} />
           </View>
+          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{invoice.client.companyName}</Text>
 
           <InfoRow icon="calendar-outline" label="Émise le" value={dateFmt.format(new Date(invoice.issueDate))} />
-          {invoice.dueDate && <InfoRow icon="hourglass-outline" label="Échéance" value={dateFmt.format(new Date(invoice.dueDate))} />}
-          {invoice.quote && <InfoRow icon="document-text-outline" label="Devis associé" value={invoice.quote.quoteNumber} />}
-          {invoice.site && <InfoRow icon="business-outline" label="Chantier" value={invoice.site.name} />}
-          {invoice.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={invoice.contactEmail} />}
-          {invoice.paidAt && <InfoRow icon="checkmark-circle-outline" label="Payée le" value={dateFmt.format(new Date(invoice.paidAt))} />}
-          {invoice.cancelledComment && <InfoRow icon="close-circle-outline" label="Motif d'annulation" value={invoice.cancelledComment} />}
+          {!!invoice.dueDate && <InfoRow icon="hourglass-outline" label="Échéance" value={dateFmt.format(new Date(invoice.dueDate))} />}
+          {!!invoice.period && (
+            <InfoRow
+              icon="calendar-number-outline"
+              label={invoice.billingMode === "FLAT_RATE" ? "Mois facturé (forfait mensuel)" : "Mois facturé (à la prestation)"}
+              value={billingPeriodLabel(invoice.period)}
+            />
+          )}
+          {!!invoice.quote && <InfoRow icon="document-text-outline" label="Devis associé" value={invoice.quote.quoteNumber} />}
+          {!!invoice.site && <InfoRow icon="business-outline" label="Chantier" value={invoice.site.name} />}
+          {!!invoice.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={invoice.contactEmail} />}
+          {!!invoice.paidAt && <InfoRow icon="checkmark-circle-outline" label="Payée le" value={dateFmt.format(new Date(invoice.paidAt))} />}
+          {!!invoice.cancelledComment && <InfoRow icon="close-circle-outline" label="Motif d'annulation" value={invoice.cancelledComment} />}
         </Card>
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>LIGNES</Text>
@@ -160,7 +173,7 @@ export function InvoiceDetailScreen() {
               <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalHt)}</Text>
             </View>
             <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>
-              {item.quantity} {QUOTE_ITEM_UNIT_LABELS[item.unit]} · {currencyFmt.format(item.unitPriceHt)}
+              {formatQuantityWithUnit(item.quantity, item.unit)} × {currencyFmt.format(item.unitPriceHt)}
             </Text>
           </Card>
         ))}
@@ -179,6 +192,8 @@ export function InvoiceDetailScreen() {
             <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(invoice.totalTtc)}</Text>
           </View>
         </Card>
+
+        <EinvoiceCard invoice={invoice} onChanged={load} />
 
         <View style={{ gap: spacing.sm }}>
           <Button label="Voir / partager le PDF" variant="secondary" onPress={handleSharePdf} loading={actionLoading} />

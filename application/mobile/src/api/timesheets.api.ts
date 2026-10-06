@@ -7,7 +7,7 @@ export type TimeEntryStatus = "PENDING" | "VALIDATED" | "REJECTED";
 export interface TimeEntry {
   id: string;
   userId: string;
-  user: { id: string; firstName: string; lastName: string; role: Role };
+  user: { id: string; firstName: string; lastName: string; role: Role; hasAvatar?: boolean };
   clockIn: string;
   clockOut: string | null;
   status: TimeEntryStatus;
@@ -223,10 +223,12 @@ export interface ReconciliationMissionEntry {
   }>;
   workedMinutes: number;
   gapMinutes: number;
+  // Mission pas encore terminée : jamais « heures manquantes ».
+  upcoming?: boolean;
 }
 
 export interface ReconciliationDetail {
-  user: { id: string; firstName: string; lastName: string };
+  user: { id: string; firstName: string; lastName: string; phone?: string | null };
   missions: ReconciliationMissionEntry[];
   unmatchedEntries: Array<{
     id: string;
@@ -244,4 +246,59 @@ export async function getReconciliationDetail(userId: string, from: string, to: 
     params: { from, to },
   });
   return data;
+}
+
+// Pointage saisi par un responsable pour un collaborateur, sur une de ses
+// missions (oubli de pointer, vérifié par téléphone). Enregistré validé.
+export async function createTimeEntryForUser(
+  userId: string,
+  input: { missionId: string; clockIn: string; clockOut: string; comment: string }
+): Promise<TimeEntry> {
+  const { data } = await apiClient.post<{ entry: TimeEntry }>(`/time-entries/for-user/${userId}`, input);
+  return data.entry;
+}
+
+export interface MonthlyHours {
+  month: string; // "AAAA-MM"
+  totalMinutes: number;
+  validatedMinutes: number;
+  pendingMinutes: number;
+  entryCount: number;
+}
+
+// Mes heures mois par mois (12 derniers mois, mois en cours en premier).
+export async function getMyMonthlyHours(): Promise<MonthlyHours[]> {
+  const { data } = await apiClient.get<{ months: MonthlyHours[] }>("/time-entries/me/monthly");
+  return data.months;
+}
+
+export type NightWorkerStatus = "AUTO" | "YES" | "NO";
+
+// Heures majorées du mois (nuit 21 h–6 h, dimanche, jour férié) et repos
+// compensateur des travailleurs de nuit — tout est calculé par le serveur à
+// partir des pointages (voir backend payroll/paySummary.service.ts).
+export interface PaySummary {
+  month: string;
+  user: { id: string; firstName: string; lastName: string; nightWorkerStatus: NightWorkerStatus };
+  totals: {
+    countedMinutes: number;
+    pendingMinutes: number;
+    minutesByCategory: { normal: number; night: number; sunday: number; holiday: number };
+    premiumMinutes: number;
+    nightMinutes: number;
+    byRate: { rate: number; minutes: number }[];
+  };
+  nightWorker: { isNightWorker: boolean; source: NightWorkerStatus; reason: string };
+  compensatoryRest: {
+    monthAcquiredMinutes: number;
+    yearAcquiredMinutes: number;
+    yearTakenMinutes: number;
+    balanceMinutes: number;
+    restDayMinutes: number;
+  };
+}
+
+export async function getPaySummary(month: string, userId?: string): Promise<PaySummary> {
+  const { data } = await apiClient.get<{ summary: PaySummary }>("/time-entries/pay-summary", { params: { month, userId } });
+  return data.summary;
 }

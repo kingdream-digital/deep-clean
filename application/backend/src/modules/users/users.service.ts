@@ -1,10 +1,12 @@
-import { Prisma, Role } from "@prisma/client";
+import { NightWorkerStatus, Prisma, Role } from "@prisma/client";
+import { calendarDay } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { generateTemporaryPassword, hashPassword } from "../../utils/password";
 import { generateUsername } from "../../utils/username";
 import { logActivity } from "../../utils/activityLog";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
+import { countWorkableDays } from "../../utils/frenchCalendar";
 
 // Peut consulter le dossier complet d'un employé (pointages, absences,
 // missions, journal) : la RH au premier chef, mais aussi direction/admin
@@ -28,6 +30,11 @@ const publicSelect = {
   phone: true,
   role: true,
   isActive: true,
+  hireDate: true,
+  weeklyHours: true,
+  nightWorkerStatus: true,
+  leaveAccrualRate: true,
+  leaveAccrualCap: true,
   mustChangePassword: true,
   lastLoginAt: true,
   avatarKey: true,
@@ -52,8 +59,13 @@ const contactSelect = {
 
 const ACCOUNT_MANAGEMENT_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN];
 
+// Le superviseur fait le planning : il voit en plus les heures par semaine
+// prévues au contrat (compteur « reste à planifier »), jamais le reste.
+const plannerSelect = { ...contactSelect, weeklyHours: true } as const;
+
 function selectForViewer(viewerRole: Role) {
-  return ACCOUNT_MANAGEMENT_ROLES.includes(viewerRole) ? publicSelect : contactSelect;
+  if (ACCOUNT_MANAGEMENT_ROLES.includes(viewerRole)) return publicSelect;
+  return viewerRole === Role.SUPERVISOR ? plannerSelect : contactSelect;
 }
 
 function presentUser<T extends { avatarKey?: string | null }>(user: T): Omit<T, "avatarKey"> & { hasAvatar: boolean } {
@@ -67,6 +79,10 @@ interface CreateUserInput {
   lastName: string;
   phone?: string;
   role: Role;
+  hireDate?: string;
+  weeklyHours?: number;
+  leaveAccrualRate?: number;
+  leaveAccrualCap?: number;
 }
 
 // Rôles qu'un compte RH ne peut PAS attribuer, ni à la création ni à la
@@ -140,6 +156,10 @@ export async function createUser(actorId: string, actorRole: Role, input: Create
       lastName: input.lastName,
       phone: input.phone,
       role: input.role,
+      ...(input.hireDate ? { hireDate: calendarDay(input.hireDate) } : {}),
+      ...(input.weeklyHours ? { weeklyHours: input.weeklyHours } : {}),
+      ...(input.leaveAccrualRate ? { leaveAccrualRate: input.leaveAccrualRate } : {}),
+      ...(input.leaveAccrualCap ? { leaveAccrualCap: input.leaveAccrualCap } : {}),
       passwordHash,
       mustChangePassword: true,
       createdById: actorId,
@@ -166,8 +186,21 @@ interface ListUsersFilters {
   pageSize: number;
 }
 
-export async function listUsers(viewerRole: Role, filters: ListUsersFilters) {
+export async function listUsers(viewerRole: Role, filters: ListUsersFilters, viewerId?: string) {
+  // Chef d'équipe : son équipe (membres de ses chantiers) et l'encadrement,
+  // jamais l'annuaire complet avec les coordonnées de tous (retour d'audit).
+  let scope: Record<string, unknown> = {};
+  if (viewerRole === Role.SITE_MANAGER && viewerId) {
+    const members = await prisma.siteMember.findMany({ where: { site: { managerId: viewerId } }, select: { userId: true } });
+    scope = {
+      OR: [
+        { id: { in: [viewerId, ...members.map((m) => m.userId)] } },
+        { role: { in: [Role.SUPERVISOR, Role.HR, Role.DIRECTOR] } },
+      ],
+    };
+  }
   const where = {
+    AND: [scope],
     ...(filters.role ? { role: filters.role } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search
@@ -231,6 +264,11 @@ interface UpdateUserInput {
   // défaut de l'entreprise (voir leave.service.ts::computeAccrual).
   leaveAccrualRate?: number | null;
   leaveAccrualCap?: number | null;
+  hireDate?: string;
+  weeklyHours?: number | null;
+  // Travailleur de nuit : AUTO (calculé d'après les pointages), YES / NO
+  // (décision de la RH, ex. contrat de nuit). Voir payroll/paySummary.service.ts.
+  nightWorkerStatus?: NightWorkerStatus;
 }
 
 // Détache un utilisateur de tous les chantiers dont il est responsable —
@@ -262,7 +300,12 @@ export async function updateUser(actorId: string, actorRole: Role, targetId: str
   const losesManagerRole = input.role !== undefined && input.role !== Role.SITE_MANAGER && target.role === Role.SITE_MANAGER;
 
   const user = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({ where: { id: targetId }, data: input, select: publicSelect });
+    const { hireDate, ...rest } = input;
+    const updated = await tx.user.update({
+      where: { id: targetId },
+      data: { ...rest, ...(hireDate ? { hireDate: calendarDay(hireDate) } : {}) },
+      select: publicSelect,
+    });
     if (losesManagerRole) {
       await detachAsSiteManager(tx, targetId);
     }
@@ -440,7 +483,7 @@ export async function getEmployeeDossier(actorRole: Role, targetId: string) {
         orderBy: { mission: { date: "desc" } },
         take: RECENT_ITEMS_LIMIT,
         select: {
-          mission: { select: { id: true, title: true, date: true, status: true, site: { select: { id: true, name: true } } } },
+          mission: { select: { id: true, title: true, date: true, endTime: true, status: true, site: { select: { id: true, name: true } }, validations: { select: { type: true } } } },
         },
       }),
       prisma.missionAssignment
@@ -471,7 +514,9 @@ export async function getEmployeeDossier(actorRole: Role, targetId: string) {
 
   const absenceDaysByType: Record<string, number> = {};
   for (const absence of absencesThisYear) {
-    const days = Math.round((absence.endDate.getTime() - absence.startDate.getTime()) / MS_PER_DAY);
+    // Jours ouvrables (lundi → samedi hors fériés), même unité que le
+    // décompte des congés — et non des jours calendaires (retour d'audit).
+    const days = countWorkableDays(absence.startDate, absence.endDate);
     absenceDaysByType[absence.type] = (absenceDaysByType[absence.type] ?? 0) + days;
   }
 

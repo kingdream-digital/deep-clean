@@ -1,11 +1,14 @@
 import React, { useCallback, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { pickWebImages } from "../../utils/webImagePicker";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
+import { useRoute, RouteProp } from "@react-navigation/native";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/TextField";
 import { PressableScale } from "../../components/PressableScale";
@@ -15,9 +18,10 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { fontFamily } from "../../theme/typography";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
-import { addProblemComment, getProblem, problemPhotoUrl, setProblemStatus } from "../../api/problems.api";
+import { addProblemComment, getProblem, problemPhotoUrl, setProblemStatus, uploadProblemPhoto } from "../../api/problems.api";
 import type { Problem, ProblemStatus } from "../../api/problems.api";
 import { downloadAndSharePhoto } from "../../utils/downloadPhoto";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ ProblemDetail: { problemId: string } }, "ProblemDetail">;
 
@@ -56,17 +60,18 @@ export function ProblemDetailScreen() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const data = await getProblem(problemId);
       setProblem(data);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [problemId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -104,8 +109,38 @@ export function ProblemDetailScreen() {
       setProblem(updated);
     } catch (err) {
       setError(extractErrorMessage(err));
+      // Un autre responsable a pu agir entre-temps : état réel rechargé.
+      void load();
     } finally {
       setStatusLoading(false);
+    }
+  }
+
+  // Ajouter une photo après la création (retour d'audit : impossible jusque-là).
+  const [addingPhoto, setAddingPhoto] = useState(false);
+  async function handleAddPhoto() {
+    try {
+      let assets: { uri: string; fileName?: string | null; mimeType?: string | null; file?: File }[] = [];
+      if (Platform.OS === "web") {
+        assets = await pickWebImages({ multiple: true });
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert("Accès refusé", "Autorisez l'accès aux photos dans les réglages pour en ajouter.");
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8, allowsMultipleSelection: true, selectionLimit: 5 });
+        if (result.canceled) return;
+        assets = result.assets;
+      }
+      if (assets.length === 0) return;
+      setAddingPhoto(true);
+      for (const asset of assets) await uploadProblemPhoto(problemId, asset);
+      await load();
+    } catch (err) {
+      Alert.alert("Ajout impossible", extractErrorMessage(err));
+    } finally {
+      setAddingPhoto(false);
     }
   }
 
@@ -243,6 +278,12 @@ export function ProblemDetailScreen() {
           </>
         )}
 
+        {problem.status !== "VALIDATED" && (
+          <View style={{ marginTop: spacing.sm }}>
+            <Button label="Ajouter une photo" variant="secondary" size="md" icon="camera-outline" loading={addingPhoto} onPress={handleAddPhoto} />
+          </View>
+        )}
+
         {canManage && nextStep && (
           <View style={{ marginTop: spacing.xl }}>
             <Button label={nextStep.label} onPress={handleAdvanceStatus} loading={statusLoading} />
@@ -254,7 +295,7 @@ export function ProblemDetailScreen() {
           </Text>
         )}
 
-        {error && <Text style={[typeScale.footnote, { color: colors.danger, marginTop: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[typeScale.footnote, { color: colors.danger, marginTop: spacing.md }]}>{error}</Text>}
 
         <Text style={[typeScale.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
           SUIVI ({problem.comments.length})
@@ -268,20 +309,26 @@ export function ProblemDetailScreen() {
               <View
                 key={comment.id}
                 style={{
+                  flexDirection: "row",
+                  gap: spacing.md,
                   padding: spacing.lg,
-                  borderTopWidth: index === 0 ? 0 : 1,
+                  borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
                   borderTopColor: colors.border,
                 }}
               >
-                <Text
-                  style={[typeScale.subhead, { color: colors.ink, fontFamily: fontFamily.semibold, fontWeight: "600" }]}
-                >
-                  {comment.author.firstName} {comment.author.lastName}
-                </Text>
-                <Text style={[typeScale.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{comment.comment}</Text>
-                <Text style={[typeScale.caption, { color: colors.inkTertiary, marginTop: spacing.xs }]}>
-                  {timeAgo(comment.createdAt)}
-                </Text>
+                <Avatar user={comment.author} size={36} />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: spacing.sm }}>
+                    <Text
+                      numberOfLines={1}
+                      style={[typeScale.subhead, { flexShrink: 1, color: colors.ink, fontFamily: fontFamily.semibold, fontWeight: "600" }]}
+                    >
+                      {comment.author.firstName} {comment.author.lastName}
+                    </Text>
+                    <Text style={[typeScale.caption, { color: colors.inkTertiary }]}>{timeAgo(comment.createdAt)}</Text>
+                  </View>
+                  <Text style={[typeScale.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{comment.comment}</Text>
+                </View>
               </View>
             ))}
           </Card>

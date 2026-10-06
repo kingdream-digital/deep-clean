@@ -181,6 +181,29 @@ describe("Devis — cycle de statuts", () => {
     expect(events.body.items.some((e: { action: string }) => e.action === "SENT")).toBe(true);
   });
 
+  it("prévient la direction et la RH d'un devis à valider, puis le commercial une fois validé", async () => {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-quote-notif@deepclean.test" });
+    const hr = await createTestUser({ role: Role.HR, email: "hr-quote-notif@deepclean.test" });
+    const director = await createTestUser({ role: Role.DIRECTOR, email: "dir-quote-notif@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-quote-notif@deepclean.test" });
+    const supToken = (await request(app).post("/api/v1/auth/login").send({ username: supervisor.username, password: TEST_PASSWORD })).body.accessToken as string;
+    const hrToken = (await request(app).post("/api/v1/auth/login").send({ username: hr.username, password: TEST_PASSWORD })).body.accessToken as string;
+
+    const client = await createTestClient(hrToken);
+    const quote = await createDraftQuote(supToken, client.id);
+    expect((await request(app).post(`/api/v1/quotes/${quote.id}/submit`).set("Authorization", `Bearer ${supToken}`)).status).toBe(200);
+
+    const toValidate = await prisma.notification.findMany({ where: { relatedEntityType: "Quote", relatedEntityId: quote.id, title: "Devis à valider" } });
+    expect(toValidate.map((n) => n.userId).sort()).toEqual([hr.id, director.id].sort());
+    expect(await prisma.notification.count({ where: { userId: { in: [employee.id, supervisor.id] } } })).toBe(0);
+
+    expect((await request(app).post(`/api/v1/quotes/${quote.id}/validate`).set("Authorization", `Bearer ${hrToken}`)).status).toBe(200);
+    const validated = await prisma.notification.findMany({ where: { relatedEntityId: quote.id, title: "Devis validé" } });
+    expect(validated.map((n) => n.userId)).toEqual([supervisor.id]);
+    // La demande de validation est close pour tout le monde.
+    expect(await prisma.notification.count({ where: { relatedEntityId: quote.id, title: "Devis à valider", isRead: false } })).toBe(0);
+  });
+
   it("refuse d'envoyer un devis qui n'a pas été validé", async () => {
     const { accessToken } = await loginAs(Role.HR, "hr-quote6@deepclean.test");
     const client = await createTestClient(accessToken);

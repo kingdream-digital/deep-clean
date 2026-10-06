@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -23,14 +23,16 @@ import {
   submitQuoteForValidation,
   validateQuote,
   QUOTE_ITEM_FREQUENCY_LABELS,
-  QUOTE_ITEM_UNIT_LABELS,
+  formatQuantityWithUnit,
 } from "../../api/quotes.api";
 import type { Quote, QuoteEvent } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<MenuStackParamList, "QuoteDetail">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-const dateTimeFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
+const dateTimeFmt = frenchDateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const FULL_ACCESS_ROLES = ["HR", "DIRECTOR", "ADMIN"];
 
@@ -74,18 +76,19 @@ export function QuoteDetailScreen() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [q, ev] = await Promise.all([getQuote(quoteId), listQuoteEvents(quoteId)]);
       setQuote(q);
       setEvents(ev);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [quoteId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -160,22 +163,25 @@ export function QuoteDetailScreen() {
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={[type.footnote, { color: colors.inkTertiary }]}>{quote.quoteNumber}</Text>
-              <Text style={[type.title2, { color: colors.ink, marginTop: 1 }]}>{quote.client.companyName}</Text>
-              {quote.subject && <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{quote.subject}</Text>}
-            </View>
+          {/* Numéro et statut sur une ligne, le nom du client sur toute la
+              largeur dessous : à côté du nom, le badge le réduisait à une
+              colonne étroite (« Syndic / Résidence / Les Tilleuls »). */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[type.footnote, { color: colors.inkTertiary }]}>{quote.quoteNumber}</Text>
             <QuoteStatusBadge status={quote.status} />
           </View>
+          <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xs }]}>{quote.client.companyName}</Text>
+          {!!quote.subject && <Text style={[type.callout, { color: colors.inkSecondary, marginTop: 2 }]}>{quote.subject}</Text>}
 
           <InfoRow icon="calendar-outline" label="Émis le" value={dateFmt.format(new Date(quote.issueDate))} />
-          {quote.validUntil && <InfoRow icon="hourglass-outline" label="Valable jusqu'au" value={dateFmt.format(new Date(quote.validUntil))} />}
-          {quote.siteAddress && <InfoRow icon="location-outline" label="Chantier" value={quote.siteAddress} />}
-          {quote.contactEmail && <InfoRow icon="mail-outline" label="Contact" value={quote.contactEmail} />}
-          {quote.assignedUser && <InfoRow icon="person-outline" label="Commercial" value={`${quote.assignedUser.firstName} ${quote.assignedUser.lastName}`} />}
-          {quote.nextVersion && <InfoRow icon="git-branch-outline" label="Nouvelle version" value={quote.nextVersion.quoteNumber} />}
-          {quote.previousVersionId && <InfoRow icon="git-commit-outline" label="Version précédente" value="Voir l'historique" />}
+          {!!quote.validUntil && <InfoRow icon="hourglass-outline" label="Valable jusqu'au" value={dateFmt.format(new Date(quote.validUntil))} />}
+          {!!quote.siteAddress && <InfoRow icon="location-outline" label="Chantier" value={quote.siteAddress} />}
+          {!!quote.contactName && <InfoRow icon="person-circle-outline" label="Contact" value={quote.contactName} />}
+          {!!quote.contactPhone && <InfoRow icon="call-outline" label="Téléphone" value={quote.contactPhone} />}
+          {!!quote.contactEmail && <InfoRow icon="mail-outline" label="E-mail" value={quote.contactEmail} />}
+          {!!quote.assignedUser && <InfoRow icon="person-outline" label="Commercial" value={`${quote.assignedUser.firstName} ${quote.assignedUser.lastName}`} />}
+          {!!quote.nextVersion && <InfoRow icon="git-branch-outline" label="Nouvelle version" value={quote.nextVersion.quoteNumber} />}
+          {!!quote.previousVersionId && <InfoRow icon="git-commit-outline" label="Version précédente" value="Voir l'historique" />}
         </Card>
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>PRESTATIONS</Text>
@@ -188,7 +194,7 @@ export function QuoteDetailScreen() {
               <Text style={[type.callout, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(item.totalHt)}</Text>
             </View>
             <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>
-              {item.quantity} {QUOTE_ITEM_UNIT_LABELS[item.unit]} · {currencyFmt.format(item.unitPriceHt)}
+              {formatQuantityWithUnit(item.quantity, item.unit)} × {currencyFmt.format(item.unitPriceHt)}
               {item.discount > 0 ? ` · -${item.discount}%` : ""}
             </Text>
             {item.frequency !== "ONE_TIME" && (
@@ -216,13 +222,28 @@ export function QuoteDetailScreen() {
             <Text style={[type.footnote, { color: colors.ink }]}>{currencyFmt.format(quote.vatAmount)}</Text>
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <Text style={[type.headline, { color: colors.ink }]}>Total TTC</Text>
-            <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(quote.totalTtc)}</Text>
+            <Text style={[quote.monthlyAmountHt > 0 ? type.callout : type.headline, { color: colors.ink }]}>
+              {quote.monthlyAmountHt > 0 ? "Base TTC (1 passage par ligne)" : "Total TTC"}
+            </Text>
+            <Text style={[quote.monthlyAmountHt > 0 ? type.callout : type.headline, { color: quote.monthlyAmountHt > 0 ? colors.ink : colors.accent }]}>
+              {currencyFmt.format(quote.totalTtc)}
+            </Text>
           </View>
           {quote.monthlyAmountHt > 0 && (
-            <Text style={[type.footnote, { color: colors.accentDeep, marginTop: 6 }]}>
-              Prévisionnel : {currencyFmt.format(quote.monthlyAmountHt)} HT / mois
-            </Text>
+            // Retour d'audit : pour un contrat récurrent, le « Total TTC »
+            // d'un seul passage ne correspond à rien de ce que le client
+            // paiera — le montant mensuel est donc mis en avant.
+            <View style={{ marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={[type.headline, { color: colors.ink }]}>Par mois</Text>
+                <Text style={[type.headline, { color: colors.accent }]}>
+                  {currencyFmt.format(Math.round(quote.monthlyAmountHt * (1 + quote.vatRate / 100) * 100) / 100)} TTC
+                </Text>
+              </View>
+              <Text style={[type.footnote, { color: colors.accentText, marginTop: 2 }]}>
+                soit {currencyFmt.format(quote.monthlyAmountHt)} HT / mois
+              </Text>
+            </View>
           )}
         </Card>
 
@@ -295,7 +316,7 @@ export function QuoteDetailScreen() {
               )}
               {/* Facturation réservée à RH/Direction/Admin (§1-3) — le
                   Superviseur ne voit pas ce bouton. */}
-              {canValidate && (
+              {!!canValidate && (
                 <Button
                   label="Créer une facture"
                   variant="secondary"
@@ -323,7 +344,7 @@ export function QuoteDetailScreen() {
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>
                     {event.user.firstName} {event.user.lastName}
                   </Text>
-                  {event.comment && <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>{event.comment}</Text>}
+                  {!!event.comment && <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>{event.comment}</Text>}
                 </View>
               ))}
             </Card>

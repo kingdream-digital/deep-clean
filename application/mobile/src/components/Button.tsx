@@ -108,7 +108,7 @@ export function Button({
         style,
       ]}
     >
-      {isPrimary && (
+      {!!isPrimary && (
         <>
           <LinearGradient
             colors={colors.accentGradient}
@@ -129,7 +129,7 @@ export function Button({
       ) : (
         <Animated.View key="label" entering={FadeIn.duration(150)} exiting={FadeOut.duration(120)}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {icon && <Ionicons name={icon} size={18} color={p.fg} style={{ marginRight: 7 }} />}
+            {!!icon && <Ionicons name={icon} size={18} color={p.fg} style={{ marginRight: 7 }} />}
             <Text style={[type.headline, { color: p.fg }]} numberOfLines={1}>
               {label}
             </Text>

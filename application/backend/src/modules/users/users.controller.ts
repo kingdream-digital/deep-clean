@@ -12,7 +12,7 @@ export const createUserHandler = asyncHandler(async (req: Request, res: Response
 });
 
 export const listUsersHandler = asyncHandler(async (req: Request, res: Response) => {
-  const result = await usersService.listUsers(req.auth!.role, req.query as never);
+  const result = await usersService.listUsers(req.auth!.role, req.query as never, req.auth!.userId);
   res.status(200).json(result);
 });
 

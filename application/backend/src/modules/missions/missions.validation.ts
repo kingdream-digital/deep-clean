@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stringList } from "../../utils/validation";
 import { MissionStatus } from "@prisma/client";
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (format attendu : AAAA-MM-JJ).");
@@ -19,6 +20,7 @@ export const createMissionSchema = {
       startTime: timeString,
       endTime: timeString,
       instructions: z.string().trim().max(4000).optional(),
+      isExceptional: z.boolean().optional(),
       assigneeIds: z.array(z.string().uuid()).min(1, "Au moins un employé doit être affecté."),
       leadId: z.string().uuid().optional(),
       standardId: z.string().uuid().optional(),
@@ -44,6 +46,7 @@ export const updateMissionSchema = {
       startTime: timeString.optional(),
       endTime: timeString.optional(),
       instructions: z.string().trim().max(4000).nullable().optional(),
+      isExceptional: z.boolean().optional(),
     })
     .refine((data) => Object.keys(data).length > 0, { message: "Aucune donnée à mettre à jour." }),
 };
@@ -79,6 +82,12 @@ export const listMissionsQuerySchema = {
       .optional()
       .transform((v) => (v === undefined ? undefined : v === "true")),
     status: z.nativeEnum(MissionStatus).optional(),
+    // Missions terminées : « true » = déjà validées, « false » = encore à valider.
+    validated: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : v === "true")),
+    sort: z.enum(["asc", "desc"]).optional().default("asc"),
     from: dateString.optional(),
     to: dateString.optional(),
     page: z.coerce.number().int().positive().optional().default(1),
@@ -116,9 +125,14 @@ export const validateMissionSchema = {
 export const upsertJobSheetSchema = {
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
-    tasks: z.array(z.string().trim().min(1).max(300)).max(50).default([]),
-    equipment: z.array(z.string().trim().min(1).max(150)).max(50).default([]),
+    tasks: stringList(300).default([]),
+    equipment: stringList(150).default([]),
     safetyInstructions: z.string().trim().max(2000).nullable().optional(),
     notes: z.string().trim().max(2000).nullable().optional(),
   }),
+};
+
+export const replaceAssigneeSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({ fromUserId: z.string().uuid(), toUserId: z.string().uuid() }),
 };

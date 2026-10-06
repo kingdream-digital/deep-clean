@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
@@ -17,21 +19,24 @@ import { extractErrorMessage } from "../../api/client";
 import { listClients } from "../../api/clients.api";
 import type { Client } from "../../api/clients.api";
 import { getQuote } from "../../api/quotes.api";
+import type { Quote } from "../../api/quotes.api";
 import { QUOTE_ITEM_UNIT_LABELS } from "../../api/quotes.api";
 import type { QuoteItemUnit } from "../../api/quotes.api";
-import { getSite, currentPeriod } from "../../api/sites.api";
+import { getSite, getSiteProgress, currentPeriod } from "../../api/sites.api";
 import type { SiteBillingMode } from "../../api/sites.api";
-import { createInvoice, getInvoice, updateInvoice } from "../../api/invoices.api";
+import { createInvoice, getInvoice, listInvoices, updateInvoice } from "../../api/invoices.api";
+import { billingPeriodLabel, buildInvoiceLinesFromQuote } from "../../utils/invoiceFromQuote";
 import type { InvoiceItemInput } from "../../api/invoices.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "InvoiceForm">;
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = {
-  FLAT_RATE: "Forfait (montant prévu au devis)",
-  PER_SERVICE: "À la prestation (nombre réel × tarif)",
+  FLAT_RATE: "Forfait mensuel (le mois entier, montant du devis)",
+  PER_SERVICE: "À la prestation (prestations réalisées × tarif)",
 };
 
 interface EditableItem extends InvoiceItemInput {
@@ -46,8 +51,25 @@ function itemTotal(item: EditableItem): number {
   return Math.round(item.quantity * item.unitPriceHt * 100) / 100;
 }
 
+// Mois facturé choisi dans une liste (« octobre 2026 ») plutôt que tapé au
+// format technique AAAA-MM : les 12 mois passés, le mois en cours et les 2
+// suivants couvrent tous les cas réels (rattrapage, facture à l'avance).
+function billingPeriodOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+  const options: { value: string; label: string }[] = [];
+  for (let offset = 2; offset >= -12; offset--) {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = fmt.format(d);
+    options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+  }
+  return options;
+}
+
 export function InvoiceFormScreen() {
   const { colors, spacing, type } = useTheme();
+  const { isDesktopWeb } = useResponsive();
   const route = useRoute<Route>();
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
   const invoiceId = route.params?.invoiceId;
@@ -76,6 +98,11 @@ export function InvoiceFormScreen() {
   const [internalNotes, setInternalNotes] = useState("");
   const [vatRate, setVatRate] = useState("20");
   const [items, setItems] = useState<EditableItem[]>([blankItem()]);
+  // Devis accepté servant de base (création uniquement) : les lignes sont
+  // recalculées selon le mode de facturation et le mois choisis.
+  const [sourceQuote, setSourceQuote] = useState<Quote | null>(null);
+  const [firstInvoiceOfQuote, setFirstInvoiceOfQuote] = useState(true);
+  const [completedVisits, setCompletedVisits] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -110,8 +137,18 @@ export function InvoiceFormScreen() {
       } else {
         // Pré-remplissage depuis un devis accepté ou un chantier (§32) —
         // l'utilisateur vérifie et peut tout modifier avant d'enregistrer.
-        if (route.params?.quoteId) {
-          const quote = await getQuote(route.params.quoteId);
+        let site: Awaited<ReturnType<typeof getSite>> | null = null;
+        if (route.params?.siteId) {
+          site = await getSite(route.params.siteId);
+          setSiteLabel(site.name);
+          if (!route.params?.clientId && site.clientId) setClientId(site.clientId);
+        }
+        // Devis de référence : celui demandé, sinon celui dont est issu le chantier.
+        const baseQuoteId = route.params?.quoteId ?? site?.quoteId ?? undefined;
+        const [quote, previous] = baseQuoteId ? await Promise.all([getQuote(baseQuoteId), listInvoices({ quoteId: baseQuoteId })]) : [null, null];
+        // Seul un devis accepté peut servir de base à une facture.
+        if (quote && previous && quote.status === "ACCEPTED") {
+          setQuoteId(quote.id);
           setClientId(quote.clientId);
           setQuoteLabel(quote.quoteNumber);
           setContactName(quote.contactName ?? "");
@@ -120,25 +157,8 @@ export function InvoiceFormScreen() {
           setBillingAddress(quote.billingAddress ?? "");
           setSiret(quote.siret ?? "");
           setVatRate(String(quote.vatRate));
-          setItems(
-            quote.items.map((i) => ({
-              key: i.id,
-              description: i.description,
-              quantity: i.quantity,
-              unit: i.unit,
-              unitPriceHt: i.unitPriceHt,
-              sourceQuoteItemId: i.id,
-            }))
-          );
-        }
-        if (route.params?.siteId) {
-          const site = await getSite(route.params.siteId);
-          setSiteLabel(site.name);
-          if (!route.params?.clientId && site.clientId) setClientId(site.clientId);
-          if (!route.params?.quoteId && site.quoteId) {
-            setQuoteId(site.quoteId);
-            setQuoteLabel(site.quote?.quoteNumber ?? null);
-          }
+          setFirstInvoiceOfQuote(!previous.items.some((i) => i.status !== "CANCELLED"));
+          setSourceQuote(quote);
         }
       }
       setLoadState("ready");
@@ -152,6 +172,28 @@ export function InvoiceFormScreen() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
+
+  // Prestations réalisées sur le mois (mode « à la prestation », chantier connu).
+  useEffect(() => {
+    if (isEdit || billingMode !== "PER_SERVICE" || !siteId || !period) {
+      setCompletedVisits(null);
+      return;
+    }
+    let cancelled = false;
+    getSiteProgress(siteId, period)
+      .then((p) => !cancelled && setCompletedVisits(p.completedVisits))
+      .catch(() => !cancelled && setCompletedVisits(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, billingMode, siteId, period]);
+
+  // Lignes recalculées depuis le devis à chaque changement de mode ou de mois.
+  useEffect(() => {
+    if (isEdit || !sourceQuote) return;
+    const lines = buildInvoiceLinesFromQuote(sourceQuote.items, { mode: billingMode, period, includeOneTime: firstInvoiceOfQuote, completedVisits });
+    setItems(lines.length > 0 ? lines.map((l, i) => ({ ...l, key: `${l.sourceQuoteItemId ?? "l"}-${i}` })) : [blankItem()]);
+  }, [isEdit, sourceQuote, billingMode, period, firstInvoiceOfQuote, completedVisits]);
 
   function handlePickClient(id: string) {
     setClientId(id);
@@ -185,8 +227,16 @@ export function InvoiceFormScreen() {
       setError("Sélectionnez un client.");
       return;
     }
-    if (items.some((it) => !it.description.trim() || it.unitPriceHt < 0 || it.quantity <= 0)) {
-      setError("Vérifiez les lignes (description, quantité et prix requis).");
+    const badIndex = items.findIndex((it) => !it.description.trim() || it.unitPriceHt < 0 || it.quantity <= 0);
+    if (badIndex >= 0) {
+      const bad = items[badIndex]!;
+      setError(
+        !bad.description.trim()
+          ? `Ligne ${badIndex + 1} : la description est obligatoire.`
+          : bad.quantity <= 0
+            ? `Ligne ${badIndex + 1} : la quantité est à 0. Corrigez-la ou supprimez la ligne.`
+            : `Ligne ${badIndex + 1} : le prix ne peut pas être négatif.`
+      );
       return;
     }
 
@@ -236,7 +286,7 @@ export function InvoiceFormScreen() {
 
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
         {(quoteLabel || siteLabel) && (
           <Card style={{ marginBottom: spacing.md, flexDirection: "row", alignItems: "center" }}>
             <Ionicons name="link-outline" size={16} color={colors.accent} />
@@ -249,7 +299,7 @@ export function InvoiceFormScreen() {
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Client</Text>
           <Card padded={false}>
-            <Picker enabled={!isEdit && !quoteId} selectedValue={clientId} onValueChange={handlePickClient} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker enabled={!isEdit && !quoteId} selectedValue={clientId} onValueChange={handlePickClient} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               <Picker.Item label="Sélectionner un client" value="" />
               {clients.map((c) => (
                 <Picker.Item key={c.id} label={c.companyName} value={c.id} />
@@ -263,20 +313,33 @@ export function InvoiceFormScreen() {
             <View style={{ marginBottom: spacing.md }}>
               <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mode de facturation</Text>
               <Card padded={false}>
-                <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+                <Picker selectedValue={billingMode} onValueChange={(v) => setBillingMode(v as SiteBillingMode)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                   {Object.entries(BILLING_MODE_LABELS).map(([value, label]) => (
                     <Picker.Item key={value} label={label} value={value} />
                   ))}
                 </Picker>
               </Card>
-              {billingMode === "PER_SERVICE" && (
-                <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
-                  Consultez le suivi du chantier ("Objectifs & suivi") pour connaître le nombre de prestations réalisées sur la
-                  période, puis indiquez-le manuellement en quantité ci-dessous.
-                </Text>
-              )}
+              <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
+                {billingMode === "FLAT_RATE"
+                  ? sourceQuote
+                    ? "Le client paie le mois entier : chaque prestation régulière du devis est facturée « 1 mois » à son montant mensuel."
+                    : "Le client paie le mois entier : indiquez le montant du mois sur une ligne « 1 mois »."
+                  : completedVisits != null
+                    ? `${completedVisits} prestation${completedVisits > 1 ? "s" : ""} réalisée${completedVisits > 1 ? "s" : ""} sur ce chantier en ${billingPeriodLabel(period)} : quantité reprise ci-dessous, à vérifier.`
+                    : "Indiquez en quantité le nombre de prestations réalisées sur le mois (voir « Objectifs & suivi » du chantier)."}
+              </Text>
             </View>
-            <TextField label="Mois facturé (AAAA-MM, optionnel)" placeholder={currentPeriod()} value={period} onChangeText={setPeriod} />
+            <View style={{ marginBottom: spacing.md }}>
+              <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Mois facturé</Text>
+              <Card padded={false}>
+                <Picker selectedValue={period} onValueChange={(v) => setPeriod(String(v))} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
+                  <Picker.Item label="Aucun mois précis" value="" />
+                  {billingPeriodOptions().map(({ value, label }) => (
+                    <Picker.Item key={value} label={label} value={value} />
+                  ))}
+                </Picker>
+              </Card>
+            </View>
           </>
         )}
 
@@ -322,7 +385,7 @@ export function InvoiceFormScreen() {
             <View style={{ marginBottom: spacing.sm }}>
               <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Unité</Text>
               <Card padded={false}>
-                <Picker selectedValue={item.unit} onValueChange={(v) => updateItem(item.key, { unit: v as QuoteItemUnit })} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+                <Picker selectedValue={item.unit} onValueChange={(v) => updateItem(item.key, { unit: v as QuoteItemUnit })} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                   {Object.entries(QUOTE_ITEM_UNIT_LABELS).map(([value, label]) => (
                     <Picker.Item key={value} label={label} value={value} />
                   ))}
@@ -345,7 +408,7 @@ export function InvoiceFormScreen() {
 
         <View style={{ marginBottom: spacing.md }}>
           <Checkbox label="Date d'échéance" checked={hasDueDate} onChange={setHasDueDate} />
-          {hasDueDate && (
+          {!!hasDueDate && (
             <View style={{ marginTop: spacing.sm }}>
               <DateTimeField label="Échéance" mode="date" value={dueDate} onChange={setDueDate} minimumDate={new Date()} formatValue={(d) => dateFmt.format(d)} />
             </View>
@@ -370,7 +433,7 @@ export function InvoiceFormScreen() {
           </View>
         </Card>
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer la facture"} onPress={handleSave} loading={saving} />
       </ScrollView>

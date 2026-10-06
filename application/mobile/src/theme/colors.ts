@@ -29,7 +29,23 @@ interface PaletteShape {
   inkTertiary: string;
   inkInverted: string;
   accent: string;
+  /**
+   * Fond PLEIN portant du texte ou une icône `onAccent` (bouton flottant,
+   * bulle de message, pastille de compteur, case cochée). Distinct de
+   * `accent`, qui est la teinte d'un texte ou d'une icône accent sur fond
+   * neutre : en sombre, `accent` vaut la valeur la plus vive de la rampe, et
+   * du texte clair posé dessus tombe à ~1.8:1 — illisible. `accentFill` reste
+   * donc la même teinte soutenue dans les deux thèmes.
+   */
+  accentFill: string;
   accentDeep: string;
+  /**
+   * Texte ou icône accentué posé sur un fond teinté (`accentSoft`) ou neutre.
+   * Bleu profond en clair ; en sombre, `accentDeep` (même valeur) devenait
+   * illisible sur l'anthracite — cette teinte reste lisible dans les deux modes.
+   * `accentDeep` reste réservé aux aplats et aux bordures.
+   */
+  accentText: string;
   accentBright: string;
   accentGradient: [string, string];
   accentPressed: string;
@@ -68,7 +84,9 @@ const light: PaletteShape = {
   inkTertiary: "#94A0AF",
   inkInverted: "#FFFFFF",
   accent: accent.base,
+  accentFill: accent.base,
   accentDeep: accent.deep,
+  accentText: accent.deep,
   accentBright: accent.bright,
   accentGradient: [accent.deep, accent.base],
   accentPressed: accent.deep,
@@ -113,7 +131,11 @@ const dark: PaletteShape = {
   // les remplissages (boutons, pastille sélectionnée, case cochée) utilisent
   // le dégradé deep→base, plus sombre, avec onAccent clair par-dessus.
   accent: accent.bright,
+  // Jamais `accent.bright` ici : voir le commentaire de `accentFill` plus haut
+  // (contraste ~1.8:1 avec `onAccent`, contre ~7:1 avec cette valeur).
+  accentFill: accent.base,
   accentDeep: accent.deep,
+  accentText: "#67D4E6",
   accentBright: accent.bright,
   accentGradient: [accent.deep, accent.base],
   accentPressed: accent.deep,

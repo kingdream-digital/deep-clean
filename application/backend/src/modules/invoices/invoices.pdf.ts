@@ -1,6 +1,9 @@
 import PDFDocument from "pdfkit";
-import { env } from "../../config/env";
-import { BRAND, CONTENT_WIDTH, PAGE_LEFT, PAGE_RIGHT, drawHeader, ensureSpace, finalizePagination } from "../../utils/pdfBrand";
+import { companyDateLabel } from "../../utils/companyTime";
+import { companyFooterLine, getCompanyProfile, sellerBlockLines, sirenOf } from "../einvoicing/companyProfile";
+import { LATE_FEE_NOTE, NO_DISCOUNT_NOTE, VAT_ON_DEBITS_NOTE, effectiveDueDate, latePenaltyNote } from "../einvoicing/enInvoice";
+import { BRAND, CONTENT_WIDTH, PAGE_LEFT, PAGE_RIGHT, ensureSpace, finalizePagination, formatEuroPdf } from "../../utils/pdfBrand";
+import { drawCommercialHeader, drawInfoStrip, drawNoteBox, drawPaidStamp, drawParties, drawTableHeader, drawTotals } from "../../utils/pdfCommercial";
 import type { QuoteItemUnit } from "@prisma/client";
 
 interface InvoicePdfItem {
@@ -21,20 +24,25 @@ interface InvoicePdfData {
   contactPhone: string | null;
   billingAddress: string | null;
   siret: string | null;
+  // Mois facturé (« AAAA-MM ») — facture mensuelle.
+  period: string | null;
   subtotalHt: number;
   vatRate: number;
   vatAmount: number;
   totalTtc: number;
-  client: { companyName: string };
+  client: { companyName: string; siren?: string | null; siret?: string | null };
   quote: { quoteNumber: string } | null;
-  site: { name: string } | null;
+  site: { name: string; address?: string } | null;
+  paidAt?: Date | null;
   items: InvoicePdfItem[];
   // `internalNotes` n'est volontairement pas dans cette interface — jamais lu
   // ici, même règle que quotes.pdf.ts.
 }
 
-const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
-const dateFmt = (d: Date) => d.toLocaleDateString("fr-FR");
+// Date d'émission : instant, lu en heure de Paris.
+const dateFmt = (d: Date) => companyDateLabel(d);
+// Échéance / validité : le moment choisi dans l'app, lu en heure de Paris.
+const calendarDateFmt = (d: Date) => companyDateLabel(d);
 
 const UNIT_LABELS: Record<QuoteItemUnit, string> = {
   HOUR: "heure",
@@ -46,20 +54,22 @@ const UNIT_LABELS: Record<QuoteItemUnit, string> = {
   OTHER: "autre",
 };
 
-const COL = { desc: PAGE_LEFT, unit: PAGE_LEFT + 240, qty: PAGE_LEFT + 305, price: PAGE_LEFT + 360, total: PAGE_LEFT + 450 };
-const COL_W = { desc: 235, unit: 60, qty: 50, price: 85, total: 65 };
+const COL = { desc: PAGE_LEFT + 12, unit: PAGE_LEFT + 245, qty: PAGE_LEFT + 310, price: PAGE_LEFT + 360, total: PAGE_LEFT + 440 };
+const COL_W = { desc: 225, unit: 60, qty: 45, price: 75, total: 63 };
+const HEADER_COLUMNS = [
+  { label: "PRESTATION", x: COL.desc, width: COL_W.desc },
+  { label: "UNITÉ", x: COL.unit, width: COL_W.unit, align: "right" as const },
+  { label: "QTÉ", x: COL.qty, width: COL_W.qty, align: "right" as const },
+  { label: "PU HT", x: COL.price, width: COL_W.price, align: "right" as const },
+  { label: "TOTAL HT", x: COL.total, width: COL_W.total, align: "right" as const },
+];
 
-function drawItemsHeaderRow(doc: PDFKit.PDFDocument, y: number): void {
-  doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 20).fill(BRAND.accentDeep);
-  doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(8.5);
-  doc.text("PRESTATION", COL.desc + 8, y + 6, { width: COL_W.desc });
-  doc.text("UNITÉ", COL.unit, y + 6, { width: COL_W.unit, align: "right" });
-  doc.text("QTÉ", COL.qty, y + 6, { width: COL_W.qty, align: "right" });
-  doc.text("PU HT", COL.price, y + 6, { width: COL_W.price, align: "right" });
-  doc.text("TOTAL HT", COL.total, y + 6, { width: COL_W.total - 8, align: "right" });
+function periodLabel(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y!, m! - 1, 1)));
 }
 
-/** PDF de la facture envoyée au client final (même identité visuelle que le devis). */
+/** PDF de la facture envoyée au client final, aux couleurs du logo. */
 export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> {
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const chunks: Buffer[] = [];
@@ -68,93 +78,91 @@ export async function buildInvoicePdf(invoice: InvoicePdfData): Promise<Buffer> 
     doc.on("end", () => resolve(Buffer.concat(chunks)));
   });
 
-  const title = `Facture ${invoice.invoiceNumber}`;
-  const subtitle = invoice.client.companyName;
-  doc.on("pageAdded", () => drawHeader(doc, title, subtitle));
-  drawHeader(doc, title, subtitle);
+  const company = getCompanyProfile();
+  const dueDate = effectiveDueDate(invoice, company);
+  doc.on("pageAdded", () => drawCommercialHeader(doc, "FACTURE", invoice.invoiceNumber, invoice.client.companyName));
+  drawCommercialHeader(doc, "FACTURE", invoice.invoiceNumber, `Émise le ${dateFmt(invoice.issueDate)}`);
 
-  const metaY = doc.y;
-  doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9);
-  doc.text(`Date d'émission : ${dateFmt(invoice.issueDate)}`, PAGE_LEFT, metaY, { width: 250 });
-  if (invoice.dueDate) doc.text(`Échéance : ${dateFmt(invoice.dueDate)}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  if (invoice.quote) doc.text(`Devis associé : ${invoice.quote.quoteNumber}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-  if (invoice.site) doc.text(`Chantier : ${invoice.site.name}`, PAGE_LEFT, doc.y + 2, { width: 250 });
-
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10).text("CLIENT", PAGE_LEFT + 300, metaY, { width: 215 });
-  doc.font("Helvetica").fontSize(9).fillColor(BRAND.inkSecondary);
-  doc.text(invoice.client.companyName, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (invoice.contactName) doc.text(invoice.contactName, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (invoice.billingAddress) doc.text(invoice.billingAddress, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (invoice.contactEmail) doc.text(invoice.contactEmail, PAGE_LEFT + 300, doc.y, { width: 215 });
-  if (invoice.siret) doc.text(`SIRET : ${invoice.siret}`, PAGE_LEFT + 300, doc.y, { width: 215 });
-
-  doc.y = Math.max(doc.y, metaY + 90) + 10;
-
-  let headerY = doc.y;
-  drawItemsHeaderRow(doc, headerY);
-  doc.y = headerY + 22;
-
-  invoice.items.forEach((item, index) => {
-    ensureSpace(doc, 20, () => {
-      headerY = doc.y;
-      drawItemsHeaderRow(doc, headerY);
-      doc.y = headerY + 22;
-    });
-
-    const y = doc.y;
-    if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 20).fill(BRAND.rowAlt);
-    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9);
-    doc.text(item.description, COL.desc + 8, y + 5, { width: COL_W.desc - 8 });
-    doc.fillColor(BRAND.inkSecondary);
-    doc.text(UNIT_LABELS[item.unit], COL.unit, y + 5, { width: COL_W.unit, align: "right" });
-    doc.text(String(item.quantity), COL.qty, y + 5, { width: COL_W.qty, align: "right" });
-    doc.text(currencyFmt.format(item.unitPriceHt), COL.price, y + 5, { width: COL_W.price, align: "right" });
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").text(currencyFmt.format(item.totalHt), COL.total, y + 5, { width: COL_W.total - 8, align: "right" });
-    doc.y = y + 20;
+  const clientSiren = sirenOf({ siren: invoice.client.siren, siret: invoice.siret ?? invoice.client.siret });
+  drawParties(doc, sellerBlockLines(company), {
+    name: invoice.client.companyName,
+    lines: [
+      invoice.contactName ? `À l'attention de ${invoice.contactName}` : undefined,
+      invoice.billingAddress ?? undefined,
+      invoice.contactEmail ?? undefined,
+      invoice.siret ? `SIRET ${invoice.siret}` : clientSiren ? `SIREN ${clientSiren}` : undefined,
+    ].filter(Boolean) as string[],
   });
 
-  ensureSpace(doc, 90, () => undefined);
-  doc.moveTo(PAGE_LEFT, doc.y + 4).lineTo(PAGE_RIGHT, doc.y + 4).strokeColor(BRAND.border).lineWidth(1).stroke();
-  let totalsY = doc.y + 14;
-  const totalsX = PAGE_RIGHT - 220;
-
-  function totalLine(label: string, value: string, bold = false) {
-    doc
-      .font(bold ? "Helvetica-Bold" : "Helvetica")
-      .fontSize(bold ? 11 : 9.5)
-      .fillColor(bold ? BRAND.ink : BRAND.inkSecondary)
-      .text(label, totalsX, totalsY, { width: 130 })
-      .text(value, totalsX + 130, totalsY, { width: 90, align: "right" });
-    totalsY += bold ? 18 : 14;
+  drawInfoStrip(doc, [
+    { label: "Date d'émission", value: dateFmt(invoice.issueDate) },
+    { label: "Échéance", value: calendarDateFmt(dueDate) },
+    ...(invoice.period ? [{ label: "Mois facturé", value: periodLabel(invoice.period) }] : []),
+    { label: "Nature", value: "Prestations de services" },
+    ...(invoice.quote ? [{ label: "Devis", value: invoice.quote.quoteNumber }] : []),
+  ]);
+  if (invoice.site) {
+    doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(8.5)
+      .text(`Lieu d'intervention : ${invoice.site.name}${invoice.site.address ? ` — ${invoice.site.address}` : ""}`, PAGE_LEFT, doc.y - 6, { width: CONTENT_WIDTH });
+    doc.y += 10;
   }
 
-  totalLine("Sous-total HT", currencyFmt.format(invoice.subtotalHt));
-  totalLine(`TVA (${invoice.vatRate}%)`, currencyFmt.format(invoice.vatAmount));
-  totalLine("Total TTC", currencyFmt.format(invoice.totalTtc), true);
-  doc.y = totalsY + 10;
+  let headerY = doc.y;
+  drawTableHeader(doc, headerY, HEADER_COLUMNS);
+  doc.y = headerY + 24;
 
-  if (invoice.paymentTerms) {
-    ensureSpace(doc, 40, () => undefined);
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text("Conditions de paiement", PAGE_LEFT, doc.y, { width: CONTENT_WIDTH });
-    doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(9).text(invoice.paymentTerms, PAGE_LEFT, doc.y + 2, { width: CONTENT_WIDTH });
-  }
+  invoice.items.forEach((item, index) => {
+    // Hauteur mesurée : un libellé long passe sur plusieurs lignes sans
+    // chevaucher la ligne suivante.
+    const descHeight = doc.font("Helvetica").fontSize(9).heightOfString(item.description, { width: COL_W.desc });
+    const rowHeight = Math.max(24, 8 + descHeight + 8);
+    ensureSpace(doc, rowHeight, () => {
+      headerY = doc.y;
+      drawTableHeader(doc, headerY, HEADER_COLUMNS);
+      doc.y = headerY + 24;
+    });
+    const y = doc.y;
+    if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, rowHeight).fill(BRAND.rowAlt);
+    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9).text(item.description, COL.desc, y + 8, { width: COL_W.desc });
+    doc.fillColor(BRAND.inkSecondary);
+    doc.text(UNIT_LABELS[item.unit], COL.unit, y + 8, { width: COL_W.unit, align: "right" });
+    doc.text(String(item.quantity).replace(".", ","), COL.qty, y + 8, { width: COL_W.qty, align: "right" });
+    doc.text(formatEuroPdf(item.unitPriceHt), COL.price, y + 8, { width: COL_W.price, align: "right" });
+    doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").text(formatEuroPdf(item.totalHt), COL.total, y + 8, { width: COL_W.total, align: "right" });
+    doc.y = y + rowHeight;
+  });
+  doc.moveTo(PAGE_LEFT, doc.y).lineTo(PAGE_RIGHT, doc.y).strokeColor(BRAND.border).lineWidth(1).stroke();
 
-  ensureSpace(doc, 40, () => undefined);
-  const legalParts = [
-    env.COMPANY_LEGAL_NAME,
-    env.COMPANY_ADDRESS,
-    env.COMPANY_SIRET ? `SIRET ${env.COMPANY_SIRET}` : undefined,
-    env.COMPANY_VAT_NUMBER ? `TVA ${env.COMPANY_VAT_NUMBER}` : undefined,
-    env.COMPANY_PHONE,
-    env.COMPANY_EMAIL,
-  ].filter(Boolean);
-  doc
-    .fillColor(BRAND.inkTertiary)
-    .font("Helvetica")
-    .fontSize(7.5)
-    .text(legalParts.join(" · "), PAGE_LEFT, doc.y + 10, { width: CONTENT_WIDTH });
+  ensureSpace(doc, 110, () => undefined);
+  drawTotals(
+    doc,
+    [
+      { label: "Total HT", value: formatEuroPdf(invoice.subtotalHt) },
+      { label: `TVA ${String(invoice.vatRate).replace(".", ",")} %`, value: formatEuroPdf(invoice.vatAmount) },
+    ],
+    { label: "Total TTC", value: formatEuroPdf(invoice.totalTtc) }
+  );
 
-  finalizePagination(doc);
+  if (invoice.paidAt) drawPaidStamp(doc, `Facture acquittée le ${calendarDateFmt(invoice.paidAt)}`);
+
+  // Conditions de paiement et mentions obligatoires (Code de commerce
+  // L441-9 et L441-10, CGI art. 242 nonies A).
+  drawNoteBox(
+    doc,
+    "Conditions de paiement",
+    [
+      `Échéance : ${calendarDateFmt(dueDate)}. ${invoice.paymentTerms?.trim() || `Paiement à ${company.paymentDays} jours par virement.`}`,
+      company.iban ? `Virement : IBAN ${company.iban}${company.bic ? ` · BIC ${company.bic}` : ""} · référence ${invoice.invoiceNumber}` : undefined,
+      latePenaltyNote(company),
+      LATE_FEE_NOTE,
+      NO_DISCOUNT_NOTE,
+      company.vatOnDebits ? VAT_ON_DEBITS_NOTE : undefined,
+    ].filter(Boolean) as string[]
+  );
+
+  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.5).text("Merci pour votre confiance.", PAGE_LEFT, doc.y + 2, { width: CONTENT_WIDTH, align: "center" });
+
+  finalizePagination(doc, companyFooterLine(company));
   doc.end();
   return done;
 }

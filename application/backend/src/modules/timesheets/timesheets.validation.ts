@@ -26,6 +26,13 @@ export const exportTimeEntriesQuerySchema = {
   }),
 };
 
+export const paySummaryQuerySchema = {
+  query: z.object({
+    userId: z.string().uuid().optional(),
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mois invalide (format AAAA-MM)."),
+  }),
+};
+
 export const timeEntryIdParamSchema = {
   params: z.object({ id: z.string().uuid() }),
 };
@@ -76,5 +83,17 @@ export const retroactiveTimeEntrySchema = {
     clockIn: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)),
     clockOut: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)),
     comment: z.string().trim().max(2000).optional(),
+  }),
+};
+
+// Pointage saisi par un responsable pour un collaborateur, rattaché à une
+// mission (oubli de pointer, confirmé par téléphone).
+export const managerTimeEntrySchema = {
+  params: z.object({ userId: z.string().uuid() }),
+  body: z.object({
+    missionId: z.string().uuid(),
+    clockIn: z.string().datetime({ offset: true }),
+    clockOut: z.string().datetime({ offset: true }),
+    comment: z.string().trim().min(1, "Indiquez le motif, par exemple « Confirmé par téléphone, oubli de pointer ».").max(2000),
   }),
 };

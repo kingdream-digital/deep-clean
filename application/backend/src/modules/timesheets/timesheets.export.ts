@@ -1,8 +1,11 @@
 import ExcelJS from "exceljs";
+import { companyDateLabel, companyDayStart, companyTimeKey } from "../../utils/companyTime";
 import PDFDocument from "pdfkit";
 import { prisma } from "../../db/prisma";
 import { logActivity } from "../../utils/activityLog";
-import { buildTimeEntriesWhere, timeEntrySelect, type Actor, type ListFilters } from "./timesheets.service";
+import { buildTimeEntriesWhere, exceptionalEntryIds, timeEntrySelect, type Actor, type ListFilters } from "./timesheets.service";
+import { computePayBreakdown } from "../payroll/workHours";
+import type { PayBreakdown } from "../payroll/workHours";
 import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawHeader, finalizePagination } from "../../utils/pdfBrand";
 
 const STATUS_LABEL_FR: Record<string, string> = {
@@ -11,9 +14,9 @@ const STATUS_LABEL_FR: Record<string, string> = {
   REJECTED: "Refusé",
 };
 
-const dateFmt = (d: Date) =>
-  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-const timeFmt = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+// Heures de Paris, quel que soit le fuseau du serveur.
+const dateFmt = (d: Date) => companyDateLabel(d);
+const timeFmt = (d: Date) => companyTimeKey(d);
 
 function durationHours(clockIn: Date, clockOut: Date | null): number {
   if (!clockOut) return 0;
@@ -36,6 +39,24 @@ async function fetchExportEntries(actor: Actor, filters: ListFilters) {
   });
 }
 
+type ExportEntry = Awaited<ReturnType<typeof fetchExportEntries>>[number];
+
+/**
+ * Majorations de chaque pointage compté (clôturé, non refusé) : nuit,
+ * dimanche, jour férié — voir payroll/payRules.ts pour les taux.
+ */
+async function payBreakdowns(entries: ExportEntry[]): Promise<Map<string, PayBreakdown>> {
+  const exceptional = await exceptionalEntryIds(entries);
+  const result = new Map<string, PayBreakdown>();
+  for (const entry of entries) {
+    if (!entry.clockOut || entry.status === "REJECTED") continue;
+    result.set(entry.id, computePayBreakdown([{ clockIn: entry.clockIn, clockOut: entry.clockOut, exceptional: exceptional.has(entry.id) }]));
+  }
+  return result;
+}
+
+const toHours = (minutes: number) => Number((minutes / 60).toFixed(2));
+
 /**
  * Export Excel (.xlsx) des pointages — même portée d'accès que l'export CSV
  * existant (voir `exportTimeEntriesCsv`), mais un vrai classeur mis en forme
@@ -57,16 +78,26 @@ export async function exportTimeEntriesExcel(actor: Actor, filters: ListFilters)
     { header: "Arrivée", key: "clockIn", width: 10 },
     { header: "Départ", key: "clockOut", width: 10 },
     { header: "Durée (h)", key: "duration", width: 10 },
+    { header: "Dont nuit (h)", key: "night", width: 13 },
+    { header: "Dont dimanche (h)", key: "sunday", width: 17 },
+    { header: "Dont férié (h)", key: "holiday", width: 14 },
+    { header: "Majoration (h)", key: "premium", width: 14 },
     { header: "Statut", key: "status", width: 12 },
     { header: "Différé", key: "retroactive", width: 10 },
     { header: "Commentaire", key: "comment", width: 30 },
   ];
   detail.getRow(1).font = { bold: true };
-  detail.autoFilter = { from: "A1", to: "H1" };
+  detail.autoFilter = { from: "A1", to: "L1" };
+  const breakdowns = await payBreakdowns(entries);
 
   for (const entry of entries) {
     const hours = durationHours(entry.clockIn, entry.clockOut);
+    const b = breakdowns.get(entry.id);
     detail.addRow({
+      night: b ? toHours(b.minutesByCategory.night) : "",
+      sunday: b ? toHours(b.minutesByCategory.sunday) : "",
+      holiday: b ? toHours(b.minutesByCategory.holiday) : "",
+      premium: b ? toHours(b.premiumMinutes) : "",
       employee: `${entry.user.firstName} ${entry.user.lastName}`,
       date: dateFmt(entry.clockIn),
       clockIn: timeFmt(entry.clockIn),
@@ -81,14 +112,21 @@ export async function exportTimeEntriesExcel(actor: Actor, filters: ListFilters)
     });
   }
 
-  const byEmployee = new Map<string, { name: string; validated: number; pending: number }>();
+  const byEmployee = new Map<string, { name: string; validated: number; pending: number; night: number; sunday: number; holiday: number; premium: number }>();
   for (const entry of entries) {
     if (!entry.clockOut) continue;
     const hours = durationHours(entry.clockIn, entry.clockOut);
     const key = entry.userId;
-    const bucket = byEmployee.get(key) ?? { name: `${entry.user.firstName} ${entry.user.lastName}`, validated: 0, pending: 0 };
+    const bucket = byEmployee.get(key) ?? { name: `${entry.user.firstName} ${entry.user.lastName}`, validated: 0, pending: 0, night: 0, sunday: 0, holiday: 0, premium: 0 };
     if (entry.status === "VALIDATED") bucket.validated += hours;
     else if (entry.status === "PENDING") bucket.pending += hours;
+    const b = breakdowns.get(entry.id);
+    if (b) {
+      bucket.night += b.minutesByCategory.night;
+      bucket.sunday += b.minutesByCategory.sunday;
+      bucket.holiday += b.minutesByCategory.holiday;
+      bucket.premium += b.premiumMinutes;
+    }
     byEmployee.set(key, bucket);
   }
 
@@ -98,6 +136,10 @@ export async function exportTimeEntriesExcel(actor: Actor, filters: ListFilters)
     { header: "Heures validées", key: "validated", width: 16 },
     { header: "Heures en attente", key: "pending", width: 18 },
     { header: "Total", key: "total", width: 12 },
+    { header: "Dont nuit (h)", key: "night", width: 13 },
+    { header: "Dont dimanche (h)", key: "sunday", width: 17 },
+    { header: "Dont férié (h)", key: "holiday", width: 14 },
+    { header: "Majoration (h)", key: "premium", width: 14 },
   ];
   summary.getRow(1).font = { bold: true };
   for (const [, v] of [...byEmployee.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name))) {
@@ -105,7 +147,11 @@ export async function exportTimeEntriesExcel(actor: Actor, filters: ListFilters)
       employee: v.name,
       validated: Number(v.validated.toFixed(2)),
       pending: Number(v.pending.toFixed(2)),
-      total: Number((v.validated + v.pending).toFixed(2)),
+      total: Number(v.validated.toFixed(2)) + Number(v.pending.toFixed(2)),
+      night: toHours(v.night),
+      sunday: toHours(v.sunday),
+      holiday: toHours(v.holiday),
+      premium: toHours(v.premium),
     });
   }
 
@@ -125,6 +171,7 @@ export async function exportTimeEntriesExcel(actor: Actor, filters: ListFilters)
 // du tableau avec un bord droit calé exactement sur PAGE_RIGHT.
 const COL = { name: PAGE_LEFT, validated: 290, pending: 385, rejected: 475 };
 const COL_WIDTHS = { name: 230, num: 70 };
+const PCOL = { name: PAGE_LEFT, night: 230, sunday: 305, holiday: 380, premium: 475 };
 
 function drawTableHeaderRow(doc: PDFKit.PDFDocument, y: number): void {
   doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 22).fill(BRAND.accentDeep);
@@ -147,23 +194,31 @@ function drawTableHeaderRow(doc: PDFKit.PDFDocument, y: number): void {
 export async function exportTimeEntriesPdf(actor: Actor, filters: ListFilters): Promise<Buffer> {
   const entries = await fetchExportEntries(actor, filters);
 
-  const byEmployee = new Map<string, { name: string; validated: number; pending: number; rejected: number }>();
+  const breakdowns = await payBreakdowns(entries);
+  const byEmployee = new Map<string, { name: string; validated: number; pending: number; rejected: number; night: number; sunday: number; holiday: number; premium: number }>();
   for (const entry of entries) {
     if (!entry.clockOut) continue;
     const hours = durationHours(entry.clockIn, entry.clockOut);
     const key = entry.userId;
-    const bucket = byEmployee.get(key) ?? { name: `${entry.user.firstName} ${entry.user.lastName}`, validated: 0, pending: 0, rejected: 0 };
+    const bucket = byEmployee.get(key) ?? { name: `${entry.user.firstName} ${entry.user.lastName}`, validated: 0, pending: 0, rejected: 0, night: 0, sunday: 0, holiday: 0, premium: 0 };
     if (entry.status === "VALIDATED") bucket.validated += hours;
     else if (entry.status === "PENDING") bucket.pending += hours;
     else bucket.rejected += hours;
+    const b = breakdowns.get(entry.id);
+    if (b) {
+      bucket.night += b.minutesByCategory.night / 60;
+      bucket.sunday += b.minutesByCategory.sunday / 60;
+      bucket.holiday += b.minutesByCategory.holiday / 60;
+      bucket.premium += b.premiumMinutes / 60;
+    }
     byEmployee.set(key, bucket);
   }
   const rows = [...byEmployee.values()].sort((a, b) => a.name.localeCompare(b.name));
 
   const periodLabel =
     filters.from || filters.to
-      ? `Récapitulatif des heures · ${filters.from ? new Date(`${filters.from}T00:00:00`).toLocaleDateString("fr-FR") : "…"} au ${
-          filters.to ? new Date(`${filters.to}T00:00:00`).toLocaleDateString("fr-FR") : "…"
+      ? `Récapitulatif des heures · ${filters.from ? companyDateLabel(companyDayStart(filters.from)) : "…"} au ${
+          filters.to ? companyDateLabel(companyDayStart(filters.to)) : "…"
         }`
       : "Récapitulatif des heures · toutes dates confondues";
 
@@ -233,6 +288,46 @@ export async function exportTimeEntriesPdf(actor: Actor, filters: ListFilters): 
     doc.fillColor(totalRejected > 0 ? "#B42318" : BRAND.inkTertiary).text(formatHours(totalRejected), COL.rejected, totalY, {
       width: COL_WIDTHS.num,
       align: "right",
+    });
+  }
+
+  // Second tableau : heures majorées (nuit, dimanche, férié) et majoration
+  // totale, pour la fiche de paie (heures validées et en attente).
+  if (rows.some((r) => r.night + r.sunday + r.holiday > 0)) {
+    doc.y += 40;
+    if (doc.y + 60 > FOOTER_Y) doc.addPage();
+    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11).text("Heures majorées", PAGE_LEFT, doc.y);
+    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(8.5)
+      .text("Nuit 21 h – 6 h, dimanche, jour férié : la majoration la plus favorable s'applique, sans cumul (convention collective de la propreté).", PAGE_LEFT, doc.y + 2, { width: CONTENT_WIDTH });
+    doc.y += 8;
+    const drawPremiumHeader = (y: number) => {
+      doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 22).fill(BRAND.accentDeep);
+      doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(9.5);
+      doc.text("EMPLOYÉ", PCOL.name + 10, y + 7, { width: 170 });
+      doc.text("NUIT", PCOL.night, y + 7, { width: 66, align: "right" });
+      doc.text("DIMANCHE", PCOL.sunday, y + 7, { width: 66, align: "right" });
+      doc.text("FÉRIÉ", PCOL.holiday, y + 7, { width: 66, align: "right" });
+      doc.text("MAJORATION", PCOL.premium, y + 7, { width: 70, align: "right" });
+    };
+    let py = doc.y;
+    drawPremiumHeader(py);
+    doc.y = py + 22;
+    rows.forEach((row, index) => {
+      if (doc.y + 20 > FOOTER_Y) {
+        doc.addPage();
+        py = doc.y;
+        drawPremiumHeader(py);
+        doc.y = py + 22;
+      }
+      const y = doc.y;
+      if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 20).fill(BRAND.rowAlt);
+      doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.5);
+      doc.text(row.name, PCOL.name + 10, y + 5, { width: 170 });
+      doc.text(formatHours(row.night), PCOL.night, y + 5, { width: 66, align: "right" });
+      doc.text(formatHours(row.sunday), PCOL.sunday, y + 5, { width: 66, align: "right" });
+      doc.text(formatHours(row.holiday), PCOL.holiday, y + 5, { width: 66, align: "right" });
+      doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").text(`+ ${formatHours(row.premium)}`, PCOL.premium, y + 5, { width: 70, align: "right" });
+      doc.y = y + 20;
     });
   }
 

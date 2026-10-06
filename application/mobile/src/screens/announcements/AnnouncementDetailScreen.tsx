@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
@@ -10,12 +10,15 @@ import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PhotoViewerModal } from "../../components/PhotoViewerModal";
 import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
+import { Avatar } from "../../components/Avatar";
 import { useAuth } from "../../auth/AuthContext";
 import { announcementCoverPhotoUrl, deleteAnnouncement, getAnnouncement } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import type { Role } from "../../api/auth.api";
 import { Alert } from "../../utils/alert";
 import { extractErrorMessage } from "../../api/client";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ AnnouncementDetail: { announcementId: string } }, "AnnouncementDetail">;
 type Nav = NativeStackNavigationProp<Record<string, object | undefined>>;
@@ -35,7 +38,7 @@ const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administration",
 };
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+const dateFmt = frenchDateFormat({ weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
 export function AnnouncementDetailScreen() {
   const { colors, spacing, radius, type } = useTheme();
@@ -49,17 +52,18 @@ export function AnnouncementDetailScreen() {
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const data = await getAnnouncement(announcementId);
       setAnnouncement(data);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [announcementId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -103,13 +107,12 @@ export function AnnouncementDetailScreen() {
   if (state === "loading") return <ScreenContainer><StateView kind="loading" /></ScreenContainer>;
   if (state === "error" || !announcement) return <ScreenContainer><StateView kind="error" onRetry={load} /></ScreenContainer>;
 
-  const initials = `${announcement.author.firstName[0] ?? ""}${announcement.author.lastName[0] ?? ""}`.toUpperCase();
 
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxl }}>
         <Card glow padded={false}>
-          {announcement.hasCoverPhoto && (
+          {!!announcement.hasCoverPhoto && (
             <PressableScale onPress={() => setViewerOpen(true)}>
               <AuthenticatedImage
                 uri={announcementCoverPhotoUrl(announcement.id)}
@@ -118,38 +121,17 @@ export function AnnouncementDetailScreen() {
             </PressableScale>
           )}
           <View style={{ padding: spacing.lg }}>
+          {/* L'auteur comme dans le reste de l'app : sa photo, son nom sur
+              toute la largeur, puis son rôle et la date — le badge de rôle
+              collé au nom le coupait en deux (« Marie / Dupont »). */}
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <View
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: radius.pill,
-                backgroundColor: colors.purpleSoft,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={[type.callout, { color: colors.purple, fontWeight: "700" }]}>{initials}</Text>
-            </View>
+            <Avatar user={announcement.author} size={42} />
             <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text style={[type.headline, { color: colors.ink }]}>
-                  {announcement.author.firstName} {announcement.author.lastName}
-                </Text>
-                <View
-                  style={{
-                    marginLeft: spacing.xs,
-                    backgroundColor: colors.purpleSoft,
-                    borderRadius: 999,
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                  }}
-                >
-                  <Text style={[type.caption, { color: colors.purple }]}>{ROLE_LABELS[announcement.author.role]}</Text>
-                </View>
-              </View>
+              <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                {announcement.author.firstName} {announcement.author.lastName}
+              </Text>
               <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 1 }]}>
-                {dateFmt.format(new Date(announcement.createdAt))} · toute l'entreprise
+                {ROLE_LABELS[announcement.author.role]} · {dateFmt.format(new Date(announcement.createdAt))}
               </Text>
             </View>
           </View>
@@ -161,7 +143,7 @@ export function AnnouncementDetailScreen() {
           </View>
         </Card>
       </ScrollView>
-      {announcement.hasCoverPhoto && (
+      {!!announcement.hasCoverPhoto && (
         <PhotoViewerModal
           visible={viewerOpen}
           uri={announcementCoverPhotoUrl(announcement.id)}

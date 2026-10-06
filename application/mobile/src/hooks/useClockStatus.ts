@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
 import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
 import { useSharedValue, withSpring } from "react-native-reanimated";
@@ -9,6 +8,8 @@ import type { ClockPhotoAsset, TimeEntry } from "../api/timesheets.api";
 import { extractErrorMessage } from "../api/client";
 import { pickWebImages } from "../utils/webImagePicker";
 import { capturePosition } from "../utils/geolocation";
+import { useLiveFocusEffect } from "../sync/liveSync";
+import { Alert } from "../utils/alert";
 
 // Le pointage exige toujours une position GPS + une photo prise sur l'instant
 // (justificatif anti-fraude, retour explicite du client — voir
@@ -58,6 +59,8 @@ export const REFERENCE_WORKDAY_MINUTES = 8 * 60;
 // Logique de pointage (entrée/sortie, y compris hors ligne) partagée entre le
 // widget du tableau de bord et l'écran Pointage dédié — une seule source de
 // vérité pour cet état, plutôt que deux copies qui pourraient diverger.
+const LONG_SESSION_MINUTES = 12 * 60;
+
 export function useClockStatus() {
   const [openEntry, setOpenEntry] = useState<TimeEntry | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -82,7 +85,7 @@ export function useClockStatus() {
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -107,7 +110,25 @@ export function useClockStatus() {
     return () => clearInterval(id);
   }, [effectiveClockedIn]);
 
-  async function handlePress(onClockOutSuccess?: () => void) {
+  // Retour d'audit : une sortie pointée après un oubli (16 h « en poste »)
+  // partait sans avertissement. Au-delà de 12 h, on demande confirmation.
+  function handlePress(onClockOutSuccess?: () => void) {
+    const minutes = effectiveClockInTime ? elapsedMinutes(effectiveClockInTime) : 0;
+    if (effectiveClockedIn && minutes > LONG_SESSION_MINUTES) {
+      Alert.alert(
+        "Pointage très long",
+        `Vous êtes en poste depuis ${elapsedLabel(minutes)}. Si vous avez oublié de pointer votre sortie, pointez-la maintenant et prévenez votre responsable : il vous demandera de corriger l'heure réelle.`,
+        [
+          { text: "Annuler", style: "cancel" },
+          { text: "Pointer ma sortie", onPress: () => void doPress(onClockOutSuccess) },
+        ]
+      );
+      return;
+    }
+    void doPress(onClockOutSuccess);
+  }
+
+  async function doPress(onClockOutSuccess?: () => void) {
     setError(null);
     setActing(true);
     const wasClockingOut = effectiveClockedIn;

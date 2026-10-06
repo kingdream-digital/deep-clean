@@ -3,11 +3,13 @@ import { Platform, ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { StatusBadge } from "../../components/StatusBadge";
+import { Avatar } from "../../components/Avatar";
+import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
@@ -31,19 +33,21 @@ import type { Problem } from "../../api/problems.api";
 import { ProblemStatusBadge } from "../../components/ProblemStatusBadge";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { extractErrorMessage } from "../../api/client";
-import { formatMissionDay, formatMissionTimeRange } from "../../utils/missionFormat";
+import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, isMissionValidated } from "../../utils/missionFormat";
 import { formatDuration } from "../../utils/duration";
 import { formatFileSize } from "../../utils/fileSize";
 import { openDirectionsTo } from "../../utils/openMaps";
 import { pickWebFile } from "../../utils/webImagePicker";
 import { shareFile } from "../../utils/shareFile";
 import type { MissionsStackParamList } from "../../navigation/MissionsStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ MissionDetail: { missionId: string } }, "MissionDetail">;
 
 const entryTimeFormatter = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-const validatedAtFormatter = new Intl.DateTimeFormat("fr-FR", {
+const validatedAtFormatter = frenchDateFormat({
   day: "numeric",
   month: "long",
   hour: "2-digit",
@@ -77,8 +81,9 @@ export function MissionDetailScreen() {
   const [savingInstructions, setSavingInstructions] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [missionData, problemsData] = await Promise.all([getMission(missionId), listProblems({ missionId })]);
       setMission(missionData);
       setProblems(problemsData.items);
@@ -95,11 +100,11 @@ export function MissionDetailScreen() {
       }
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [missionId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -190,6 +195,7 @@ export function MissionDetailScreen() {
     try {
       const updated = await updateMission(missionId, { instructions: instructionsDraft.trim() || null });
       setMission(updated);
+      Alert.alert("Consigne enregistrée", "L'équipe affectée à cette mission a été prévenue.");
     } catch (err) {
       Alert.alert("Enregistrement impossible", extractErrorMessage(err));
     } finally {
@@ -289,10 +295,10 @@ export function MissionDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>{mission.title}</Text>
-          <StatusBadge status={mission.status} />
-        </View>
+        {/* Statut au-dessus du titre : placé à côté, il réduisait le titre à
+            une colonne étroite (« Entretien / quotidien / espace / coworking »). */}
+        <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} validated={isMissionValidated(mission)} />
+        <Text style={[type.title1, { color: colors.ink, marginTop: spacing.sm }]}>{mission.title}</Text>
 
         <Card style={{ marginTop: spacing.lg }}>
           <InfoRow icon="calendar-outline" label={formatMissionDay(mission.date)} />
@@ -348,7 +354,7 @@ export function MissionDetailScreen() {
               }}
             >
               <Text style={[type.overline, { color: colors.inkTertiary }]}>STANDARD DE NETTOYAGE (PDF)</Text>
-              {canManagePlanning && (
+              {!!canManagePlanning && (
                 <PressableScale onPress={handleAttachDocument}>
                   <Text style={[type.footnote, { color: colors.accent, fontWeight: "600" }]}>
                     {mission.standardDocumentFileName ? "Remplacer" : "Déposer un PDF"}
@@ -387,7 +393,7 @@ export function MissionDetailScreen() {
                 >
                   <Ionicons name="download-outline" size={20} color={colors.accent} />
                 </PressableScale>
-                {canManagePlanning && (
+                {!!canManagePlanning && (
                   <PressableScale
                     onPress={handleRemoveDocument}
                     accessibilityRole="button"
@@ -404,7 +410,7 @@ export function MissionDetailScreen() {
           </View>
         )}
 
-        {mission.standard && (
+        {!!mission.standard && (
           <PressableScale onPress={() => navigation.navigate("StandardDetail", { standardId: mission.standard!.id })}>
             <View
               style={{
@@ -428,7 +434,7 @@ export function MissionDetailScreen() {
         <View style={{ marginTop: spacing.xl }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm }}>
             <Text style={[type.overline, { color: colors.inkTertiary }]}>FICHE DE POSTE</Text>
-            {canManagePlanning && (
+            {!!canManagePlanning && (
               <PressableScale onPress={() => navigation.navigate("JobSheetForm", { missionId })}>
                 <Text style={[type.footnote, { color: colors.accent, fontWeight: "600" }]}>
                   {mission.jobSheet ? "Modifier" : "Créer"}
@@ -456,13 +462,13 @@ export function MissionDetailScreen() {
                   <Text style={[type.callout, { color: colors.ink }]}>{mission.jobSheet.equipment.join(" · ")}</Text>
                 </View>
               )}
-              {mission.jobSheet.safetyInstructions && (
+              {!!mission.jobSheet.safetyInstructions && (
                 <View style={{ marginBottom: mission.jobSheet.notes ? spacing.md : 0 }}>
                   <Text style={[type.footnote, { color: colors.warning, marginBottom: spacing.xxs }]}>Sécurité</Text>
                   <Text style={[type.callout, { color: colors.ink }]}>{mission.jobSheet.safetyInstructions}</Text>
                 </View>
               )}
-              {mission.jobSheet.notes && (
+              {!!mission.jobSheet.notes && (
                 <View>
                   <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.xxs }]}>Notes</Text>
                   <Text style={[type.callout, { color: colors.ink }]}>{mission.jobSheet.notes}</Text>
@@ -476,91 +482,41 @@ export function MissionDetailScreen() {
           )}
         </View>
 
+        {/* Mêmes lignes que les autres listes de personnes : la photo de
+            profil (des initiales jusqu'ici, alors que la photo existait). */}
         {mission.assignments.some((a) => a.isLead) && (
-          <>
-            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-              CHEF D'ÉQUIPE
-            </Text>
-            <Card padded={false}>
-              {mission.assignments
-                .filter((a) => a.isLead)
-                .map((a) => (
-                  <PressableScale key={a.userId} onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: spacing.md,
-                        paddingHorizontal: spacing.lg,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: radius.pill,
-                          backgroundColor: colors.warningSoft,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text style={[type.caption, { color: colors.warning }]}>
-                          {a.user.firstName[0]}
-                          {a.user.lastName[0]}
-                        </Text>
-                      </View>
-                      <Text style={[type.body, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>
-                        {a.user.firstName} {a.user.lastName}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
-                    </View>
-                  </PressableScale>
-                ))}
-            </Card>
-          </>
+          <ListGroup title="Chef d'équipe" style={{ marginTop: spacing.xl, marginBottom: 0 }}>
+            {mission.assignments
+              .filter((a) => a.isLead)
+              .map((a) => (
+                <ListRow
+                  key={a.userId}
+                  title={`${a.user.firstName} ${a.user.lastName}`}
+                  leading={<Avatar user={a.user} size={40} />}
+                  onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}
+                />
+              ))}
+          </ListGroup>
         )}
 
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
-          ÉQUIPE ({mission.assignments.filter((a) => !a.isLead).length})
-        </Text>
-        <Card padded={false}>
-          {mission.assignments
-            .filter((a) => !a.isLead)
-            .map((a, index) => (
-              <PressableScale key={a.userId} onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: spacing.md,
-                    paddingHorizontal: spacing.lg,
-                    borderTopWidth: index === 0 ? 0 : 1,
-                    borderTopColor: colors.border,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: radius.pill,
-                      backgroundColor: colors.accentSoft,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={[type.caption, { color: colors.accent }]}>
-                      {a.user.firstName[0]}
-                      {a.user.lastName[0]}
-                    </Text>
-                  </View>
-                  <Text style={[type.body, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>
-                    {a.user.firstName} {a.user.lastName}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
-                </View>
-              </PressableScale>
-            ))}
-        </Card>
+        {mission.assignments.some((a) => !a.isLead) && (
+          <ListGroup
+            title="Équipe"
+            count={mission.assignments.filter((a) => !a.isLead).length}
+            style={{ marginTop: spacing.xl, marginBottom: 0 }}
+          >
+            {mission.assignments
+              .filter((a) => !a.isLead)
+              .map((a) => (
+                <ListRow
+                  key={a.userId}
+                  title={`${a.user.firstName} ${a.user.lastName}`}
+                  leading={<Avatar user={a.user} size={40} />}
+                  onPress={() => navigation.navigate("ContactProfile", { userId: a.userId })}
+                />
+              ))}
+          </ListGroup>
+        )}
 
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.md }]}>
           Créée par {mission.createdBy.firstName} {mission.createdBy.lastName}
@@ -578,7 +534,7 @@ export function MissionDetailScreen() {
 
             {(mission.site.manager || mission.site.supervisor) && (
               <Card padded={false} style={{ marginBottom: spacing.sm }}>
-                {mission.site.manager && (
+                {!!mission.site.manager && (
                   <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: mission.site.manager!.id })}>
                     <View
                       style={{
@@ -599,7 +555,7 @@ export function MissionDetailScreen() {
                     </View>
                   </PressableScale>
                 )}
-                {mission.site.supervisor && (
+                {!!mission.site.supervisor && (
                   <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: mission.site.supervisor!.id })}>
                     <View
                       style={{
@@ -763,7 +719,7 @@ export function MissionDetailScreen() {
 
         {mission.status !== "CANCELLED" && mission.status !== "COMPLETED" && (canManagePlanning || canOperateMission) && (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
-            {canManagePlanning && (
+            {!!canManagePlanning && (
               <Button
                 label="Modifier la mission"
                 variant="secondary"
@@ -784,7 +740,7 @@ export function MissionDetailScreen() {
                 onPress={() => runAction("complete", () => setMissionStatus(missionId, "COMPLETED"))}
               />
             )}
-            {canManagePlanning && (
+            {!!canManagePlanning && (
               <Button
                 label="Annuler la mission"
                 variant="destructive"

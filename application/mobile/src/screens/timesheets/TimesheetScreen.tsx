@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -13,8 +13,9 @@ import { PulsingDot } from "../../components/PulsingDot";
 import { ProgressRing } from "../../components/ProgressRing";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { useTheme } from "../../theme/ThemeProvider";
-import { listTimeEntries } from "../../api/timesheets.api";
-import type { TimeEntry } from "../../api/timesheets.api";
+import { getMyMonthlyHours, listTimeEntries } from "../../api/timesheets.api";
+import type { MonthlyHours, TimeEntry } from "../../api/timesheets.api";
+import { useAuth } from "../../auth/AuthContext";
 import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { formatDuration } from "../../utils/duration";
@@ -23,9 +24,29 @@ import { useWeeklyTimesheetSummary } from "../../hooks/useWeeklyTimesheetSummary
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { useClockStatus, elapsedLabel, REFERENCE_WORKDAY_MINUTES } from "../../hooks/useClockStatus";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const dayFmt = frenchDateFormat({ weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+const PAGE_SIZE = 30;
+
+// « +1 j » quand la sortie tombe un autre jour que l'arrivée (travail de nuit, oubli).
+function dayShiftLabel(clockIn: string, clockOut: string | null): string {
+  if (!clockOut) return "";
+  const a = new Date(clockIn);
+  const b = new Date(clockOut);
+  const days = Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime() - new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime()) / 86_400_000);
+  return days > 0 ? ` (+${days} j)` : "";
+}
+const monthLabelFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+
+// « 2026-10 » → « Octobre 2026 ».
+function monthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  const label = monthLabelFmt.format(new Date(y ?? 1970, (m ?? 1) - 1, 1));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 // Écran "Pointage" dédié — reprend l'anneau/bouton du widget d'accueil (même
 // logique, voir useClockStatus) mais y ajoute le chantier en cours (mission
@@ -40,18 +61,52 @@ export function TimesheetScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [currentMission, setCurrentMission] = useState<Mission | null>(null);
   const { summary, reload: reloadSummary } = useWeeklyTimesheetSummary();
+  const { user } = useAuth();
+  // Compteur du mois et dossiers mensuels (retour explicite du client) :
+  // calculés côté serveur en heure de Paris, le mois repart de zéro le 1er.
+  const [months, setMonths] = useState<MonthlyHours[]>([]);
+  const loadMonths = useCallback(async () => {
+    try {
+      setMonths(await getMyMonthlyHours());
+    } catch {
+      setMonths([]);
+    }
+  }, []);
   const clock = useClockStatus();
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
-      const res = await listTimeEntries();
+      if (!silent) setState("loading");
+      const res = await listTimeEntries({ page: 1, pageSize: PAGE_SIZE });
       setItems(res.items);
+      setTotal(res.total);
+      setPage(1);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
+
+  // Historique complet, page par page (retour d'audit : il s'arrêtait
+  // silencieusement aux 50 derniers pointages).
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  async function loadMore() {
+    if (loadingMore || items.length >= total) return;
+    setLoadingMore(true);
+    try {
+      const res = await listTimeEntries({ page: page + 1, pageSize: PAGE_SIZE });
+      setItems((prev) => [...prev, ...res.items.filter((e) => !prev.some((p) => p.id === e.id))]);
+      setTotal(res.total);
+      setPage(page + 1);
+    } catch {
+      // Nouvel essai au prochain défilement.
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const loadCurrentMission = useCallback(async () => {
     try {
@@ -62,22 +117,27 @@ export function TimesheetScreen() {
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
       void loadCurrentMission();
-    }, [load, loadCurrentMission])
+      void loadMonths();
+    }, [load, loadCurrentMission, loadMonths])
   );
 
   async function handleRefresh() {
     setRefreshing(true);
     await load();
     await loadCurrentMission();
+    await loadMonths();
     setRefreshing(false);
   }
 
   function handleClockPress() {
-    void clock.handlePress(() => void reloadSummary());
+    void clock.handlePress(() => {
+      void reloadSummary();
+      void loadMonths();
+    });
   }
 
   const statusCard = clock.state !== "error" && (
@@ -117,11 +177,11 @@ export function TimesheetScreen() {
       ) : (
         <View style={{ alignItems: "center" }}>
           <Ionicons name="time-outline" size={40} color={colors.inkTertiary} />
-          <Text style={[type.headline, { color: colors.ink, marginTop: spacing.sm }]}>Vous n'êtes pas pointé</Text>
+          <Text style={[type.headline, { color: colors.ink, marginTop: spacing.sm }]}>Vous n'êtes pas en poste</Text>
         </View>
       )}
 
-      {clock.error && (
+      {!!clock.error && (
         <Text style={[type.footnote, { color: colors.danger, marginTop: spacing.sm, textAlign: "center" }]}>{clock.error}</Text>
       )}
 
@@ -202,9 +262,12 @@ export function TimesheetScreen() {
 
   const weekSummaryCard = (
     <Card style={{ marginBottom: spacing.lg }}>
-      <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
-        CETTE SEMAINE (remis à 0 chaque lundi)
-      </Text>
+      {/* Un petit titre en capitales, la précision à côté en clair : la
+          parenthèse en minuscules au milieu des capitales se lisait mal. */}
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm }}>
+        <Text style={[type.overline, { color: colors.inkTertiary }]}>CETTE SEMAINE</Text>
+        <Text style={[type.caption, { color: colors.inkTertiary }]}>Remis à zéro chaque lundi</Text>
+      </View>
       <View style={{ flexDirection: "row" }}>
         <View style={{ flex: 1 }}>
           <Text style={[type.caption, { color: colors.inkTertiary }]}>Total travaillé</Text>
@@ -222,6 +285,87 @@ export function TimesheetScreen() {
     </Card>
   );
 
+  const currentMonth = months[0];
+  const monthSummaryCard = !!currentMonth && (
+    <Card style={{ marginBottom: spacing.lg }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm }}>
+        <Text style={[type.overline, { color: colors.inkTertiary }]}>CE MOIS-CI</Text>
+        <Text style={[type.caption, { color: colors.inkTertiary }]}>Remis à zéro le 1er de chaque mois</Text>
+      </View>
+      <View style={{ flexDirection: "row" }}>
+        <View style={{ flex: 1 }}>
+          <Text style={[type.caption, { color: colors.inkTertiary }]}>Total travaillé</Text>
+          <Text style={[type.title2, { color: colors.ink, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.totalMinutes)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[type.caption, { color: colors.inkTertiary }]}>Validées</Text>
+          <Text style={[type.title2, { color: colors.success, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.validatedMinutes)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[type.caption, { color: colors.inkTertiary }]}>En attente</Text>
+          <Text style={[type.title2, { color: colors.warning, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.pendingMinutes)}</Text>
+        </View>
+      </View>
+    </Card>
+  );
+
+  // Un dossier par mois : le mois en cours, puis chaque mois où il y a eu des
+  // pointages. Ouvre le détail du mois, avec le téléchargement du fichier.
+  const monthFolders = months.filter((m, i) => i === 0 || m.entryCount > 0);
+  const monthFoldersCard = !!user && monthFolders.length > 0 && (
+    <>
+      <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>MES HEURES PAR MOIS</Text>
+      <Card padded={false} style={{ marginBottom: spacing.lg }}>
+        {monthFolders.map((m, index) => (
+          <PressableScale
+            key={m.month}
+            onPress={() =>
+              navigation.navigate("EmployeeHours", {
+                userId: user.id,
+                fullName: `${user.firstName} ${user.lastName}`,
+                title: "Mes heures",
+                initialMonth: m.month,
+              })
+            }
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: spacing.md,
+                paddingHorizontal: spacing.lg,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+              }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: radius.md,
+                  backgroundColor: colors.accentSoft,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="folder-outline" size={20} color={colors.accent} />
+              </View>
+              <View style={{ marginLeft: spacing.md, flex: 1 }}>
+                <Text style={[type.headline, { color: colors.ink }]}>{monthLabel(m.month)}</Text>
+                <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]}>
+                  {m.entryCount} pointage{m.entryCount > 1 ? "s" : ""}
+                  {index === 0 ? " · en cours" : ""}
+                </Text>
+              </View>
+              <Text style={[type.headline, { color: colors.ink, marginRight: spacing.sm }]}>{formatHoursMinutes(m.totalMinutes)}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
+            </View>
+          </PressableScale>
+        ))}
+      </Card>
+    </>
+  );
+
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       {state === "loading" && <StateView kind="loading" />}
@@ -231,6 +375,8 @@ export function TimesheetScreen() {
           {statusCard}
           {currentSiteCard}
           {weekSummaryCard}
+          {monthSummaryCard}
+          {monthFoldersCard}
           <StateView kind="empty" icon="time-outline" message="Aucun pointage pour le moment." />
         </>
       )}
@@ -247,11 +393,23 @@ export function TimesheetScreen() {
               {statusCard}
               {currentSiteCard}
               {weekSummaryCard}
+              {monthSummaryCard}
+              {monthFoldersCard}
               <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>HISTORIQUE</Text>
             </>
           }
+          onEndReached={() => void loadMore()}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            items.length < total ? (
+              <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center", marginTop: spacing.md }]}>
+                {loadingMore ? "Chargement…" : `${items.length} pointages sur ${total} — faites défiler pour voir la suite`}
+              </Text>
+            ) : null
+          }
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
+              <PressableScale onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} accessibilityLabel="Voir le détail du pointage">
               <Card>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                   <View style={{ flex: 1, marginRight: spacing.sm }}>
@@ -263,11 +421,12 @@ export function TimesheetScreen() {
                       <Text style={[type.footnote, { color: colors.inkSecondary, marginLeft: 4 }]}>
                         {timeFmt.format(new Date(item.clockIn))} –{" "}
                         {item.clockOut ? timeFmt.format(new Date(item.clockOut)) : "en cours"}
+                        {dayShiftLabel(item.clockIn, item.clockOut)}
                         {"  ·  "}
                         {formatDuration(item.clockIn, item.clockOut)}
                       </Text>
                     </View>
-                    {item.isRetroactive && (
+                    {!!item.isRetroactive && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="time-outline" size={12} color={colors.purple} />
                         <Text style={[type.caption, { color: colors.purple, marginLeft: 3 }]}>Pointage différé</Text>
@@ -281,7 +440,7 @@ export function TimesheetScreen() {
                         </Text>
                       </View>
                     )}
-                    {item.comment && (
+                    {!!item.comment && (
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]} numberOfLines={2}>
                         {item.comment}
                       </Text>
@@ -290,6 +449,7 @@ export function TimesheetScreen() {
                   <TimeEntryStatusBadge status={item.status} />
                 </View>
               </Card>
+              </PressableScale>
             </Animated.View>
           )}
         />

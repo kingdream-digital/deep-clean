@@ -86,10 +86,68 @@ GitHub (`Settings > Deploy keys`). Les deux applications Coolify
    ```
    npx prisma db push
    ```
+   **Messagerie de groupe** : cette mise à jour ajoute les tables
+   `conversations` et `conversation_participants` — le `npx prisma db push`
+   ci-dessus est donc obligatoire avant que la messagerie refonctionne. La
+   reprise des conversations existantes, elle, est automatique : le backend la
+   lance seul **à son démarrage** (voir
+   `application/backend/src/db/migrateMessagesToConversations.ts`), sans perte
+   des messages ni de leur état lu/non lu. Comme le redéploiement a démarré le
+   backend **avant** le `db push`, cette reprise n'a pas encore pu se faire :
+   **après le `db push`, redémarrer le backend (Restart)**, ou la lancer à la
+   main depuis le même terminal avec
+   `npx tsx src/db/migrateMessagesToConversations.ts`. Elle est idempotente et
+   sans effet une fois faite. Redéployer le web seulement ensuite.
 4. Si `CORS_ORIGINS` doit changer (nouvelle URL web, nouveau domaine) :
    Environment Variables du backend → éditer la variable → **attention à ne
    coller QUE la valeur dans le champ Value, jamais `CORS_ORIGINS=` en plus**
    (bug rencontré une fois, voir §5) → sauvegarder → Redeploy.
+
+## 3 bis. Charger la démo complète (présentation au client)
+
+Script : `application/backend/prisma/seedPresentationDemo.ts`. Il remplit une
+base **vide** avec une entreprise fictive complète : 11 comptes avec photo
+(RH, direction, superviseur, chefs d'équipe, employés), 4 chantiers, une
+semaine de planning datée autour du jour de la démo (une mission en cours ce
+jour-là), signalements avec photo et fil de suivi, messagerie (fils à deux et
+groupe avec PDF), pointages à valider, congés à approuver, standards de
+nettoyage, fiche de poste, actualités, et tout le module commercial
+(prospects, clients, devis, factures).
+
+Dans Coolify, backend → **Terminal** :
+
+```
+DEMO_MODE=1 DEMO_DATE=2026-10-02 npx tsx prisma/seedPresentationDemo.ts
+```
+
+- `DEMO_DATE` = le jour où la démo sera montrée (format AAAA-MM-JJ). Sans
+  lui, le jour de lancement est pris.
+- Si le schéma de la base a changé depuis le dernier déploiement (nouveau
+  champ, ex. heures par semaine), lancer d'abord `npx prisma db push` dans
+  le Terminal du backend, puis la commande de démo.
+- `DEMO_RESET=1` = efface TOUT avant de charger la démo (comptes, chantiers,
+  missions, pointages, devis, messages...), sauf les comptes administrateur
+  technique. À utiliser pour repartir d'une démo propre. Commande complète :
+  `DEMO_MODE=1 DEMO_RESET=1 DEMO_HEURE=18:00 npx tsx prisma/seedPresentationDemo.ts`
+- `DEMO_HEURE` = l'heure de la présentation (format HH:mm, ex. `18:00`).
+  Les missions du jour sont placées autour : une terminée avant, une en
+  cours, les suivantes après. Sans lui, horaires du matin.
+- Mot de passe de tous les comptes : `DemoClean2026!` (identifiants affichés
+  à la fin du script : `lpetit` employé, `kbenali` chef d'équipe, `ytraore`
+  superviseur, `mdupont` RH, `jlefevre` direction).
+- **Garde-fous** : sans `DEMO_MODE=1`, le script refuse de tourner sur un
+  serveur en production. Et il s'arrête sans rien modifier dès que la base
+  contient un seul compte qui n'est pas un compte de démo (hors admin
+  technique) : impossible de mélanger la démo avec de vraies données.
+- Aucun e-mail n'est envoyé pendant le chargement, même si le SMTP est
+  configuré (les adresses de la démo sont inventées).
+- Relancer le script ne crée pas de doublons.
+- Les heures sont calculées en heure de Paris, quel que soit le fuseau du
+  serveur.
+
+**Avant la vraie mise en service**, la base de démo doit être vidée (les
+comptes de démo ont un mot de passe public). À faire ensemble, ce n'est pas
+une commande à lancer seul.
 
 ## 4. Pare-feu / accès réseau
 
@@ -170,3 +228,44 @@ active. Pour une version installée de façon autonome (surtout nécessaire
 pour iOS, qui interdit toute installation hors App Store/TestFlight sans
 compte Apple Developer à 99$/an), voir `application/README.md` section
 "Build de production" (EAS Build).
+
+## Congés payés : calcul et validation mensuelle
+
+- Unité : jours **ouvrables** (lundi → samedi, hors jours fériés légaux,
+  calculés automatiquement, Pâques comprise — voir `utils/frenchCalendar.ts`).
+- Acquisition : 2,5 jours par mois de travail (taux réglable par salarié),
+  plafond 30 jours par période de référence (1er juin → 31 mai, réglable).
+  Congé payé, accident du travail, maternité/paternité, autre absence :
+  assimilés à du travail effectif. Arrêt maladie ordinaire : 2 jours par
+  mois (loi du 22 avril 2024). Congé sans solde : aucun droit. Premier mois
+  au prorata.
+- Le 1er de chaque mois à 2 h (et au démarrage du serveur), les relevés du
+  mois écoulé sont calculés pour chaque salarié actif et la RH / la
+  direction sont prévenues. Menu → **Compteurs de congés** : la RH vérifie,
+  corrige si besoin (motif obligatoire) et valide. Seuls les relevés
+  validés comptent dans le solde ; personne ne valide le sien.
+- Le compteur d'un nouveau salarié part de 0 à la création de son compte.
+  Pour un salarié déjà présent, reporter son solde actuel depuis sa fiche
+  (« Ajuster le solde »).
+- Deux compteurs, comme sur une fiche de paie :
+  **« Reste de l'an dernier »** (congés N-1, acquis pendant la période
+  précédente, à prendre avant le 31 mai) et **« Cette année »** (congés N,
+  en cours d'acquisition). Un congé pris est décompté d'abord sur l'an
+  dernier, puis sur l'année en cours (anticipation). Une reprise de solde ou
+  un report accordé par la RH (« Ajuster le solde », montant positif) est
+  rangé avec l'an dernier. Ce qui reste de l'an dernier au 31 mai est perdu
+  et affiché comme tel ; la RH peut accorder un report par un ajustement.
+- Le 1er mars, avril et mai, chaque salarié à qui il reste des congés de
+  l'an dernier reçoit un rappel (une seule fois par mois).
+
+## Synchronisation entre appareils
+
+Chaque modification réussie (mission, pointage, absence, devis…) fait avancer
+un numéro de version côté serveur (`GET /api/v1/sync/version`). Les
+applications ouvertes le consultent toutes les 8 secondes et rechargent
+discrètement l'écran affiché dès qu'il change ; les autres écrans se
+rechargent quand on y revient. Aucun réglage n'est nécessaire.
+
+Ces rechargements comptent dans la limite de requêtes par personne :
+prévoir `RATE_LIMIT_MAX_REQUESTS=1200` (par fenêtre de 15 minutes) dans les
+variables d'environnement du Backend.

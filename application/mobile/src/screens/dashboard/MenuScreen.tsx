@@ -14,6 +14,7 @@ import { useOnboardingScrollProps } from "../../onboarding/useOnboardingScrollPr
 import type { Role } from "../../api/auth.api";
 import type { DashboardSectionTone } from "./dashboardSections";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { ABSENCES_MANAGEMENT_TITLE, MY_ABSENCES_TITLE, sitesListTitle, usersListTitle } from "../../navigation/screenTitles";
 
 export interface MenuEntry {
   icon: keyof typeof Ionicons.glyphMap;
@@ -38,13 +39,13 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   EMPLOYEE: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
-    { icon: "warning-outline", label: "Mes signalements", message: "Suivi de vos signalements", tone: "danger", screen: "ProblemsList" },
+    { icon: "warning-outline", label: "Signalements", message: "Ceux de vos missions et leur suivi", tone: "danger", screen: "ProblemsList" },
   ],
   SITE_MANAGER: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
-    { icon: "business-outline", label: "Mes chantiers", message: "Chantiers dont vous êtes responsable", tone: "warning", screen: "SitesList" },
-    { icon: "people-outline", label: "Mon équipe", message: "Employés de l'entreprise", tone: "info", screen: "UsersList" },
+    { icon: "business-outline", label: sitesListTitle("SITE_MANAGER"), message: "Chantiers dont vous êtes responsable", tone: "warning", screen: "SitesList" },
+    { icon: "people-outline", label: usersListTitle("SITE_MANAGER"), message: "Annuaire de l'entreprise", tone: "info", screen: "UsersList" },
     { icon: "warning-outline", label: "Problèmes", message: "Signalements sur vos chantiers", tone: "danger", screen: "ProblemsList" },
     { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages de votre équipe", tone: "success", screen: "TimesheetValidation" },
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Repérer les écarts sur votre équipe", tone: "neutral", screen: "Reconciliation" },
@@ -53,25 +54,26 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Mes prospects, mes clients", tone: "accent", screen: "CommercialHome" },
-    { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages de toute l'entreprise, avant transmission à la RH", tone: "success", screen: "TimesheetValidation" },
-    { icon: "business-outline", label: "Chantiers", message: "Vue de tous les chantiers pour organiser le planning", tone: "warning", screen: "SitesList" },
-    { icon: "people-outline", label: "Équipes", message: "Annuaire de l'entreprise", tone: "info", screen: "UsersList" },
+    { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages à valider avant la RH", tone: "success", screen: "TimesheetValidation" },
+    { icon: "business-outline", label: "Chantiers", message: "Tous les chantiers de l'entreprise", tone: "warning", screen: "SitesList" },
+    { icon: "people-outline", label: usersListTitle("SUPERVISOR"), message: "Annuaire de l'entreprise", tone: "info", screen: "UsersList" },
     { icon: "warning-outline", label: "Problèmes", message: "Tous les signalements en cours", tone: "danger", screen: "ProblemsList" },
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Repérer qui a un écart à examiner", tone: "neutral", screen: "Reconciliation" },
-    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export pour la paie", tone: "accent", screen: "StaffHoursList" },
-    { icon: "calendar-outline", label: "Congés & absences", message: "Demandes à approuver ou refuser", tone: "info", screen: "AbsencesManagement" },
+    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export paie", tone: "accent", screen: "StaffHoursList" },
+    { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Demandes à approuver ou refuser", tone: "info", screen: "AbsencesManagement" },
   ],
   HR: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Prospects, clients, devis", tone: "accent", screen: "CommercialHome" },
-    { icon: "person-add-outline", label: "Comptes utilisateurs", message: "Créer, activer, désactiver, réinitialiser l'accès", tone: "success", screen: "UsersList" },
+    { icon: "person-add-outline", label: "Comptes utilisateurs", message: "Créer et gérer les accès", tone: "success", screen: "UsersList" },
     { icon: "business-outline", label: "Chantiers", message: "Créer et gérer les fiches chantier", tone: "warning", screen: "SitesList" },
     { icon: "warning-outline", label: "Problèmes", message: "Tous les signalements en cours", tone: "danger", screen: "ProblemsList" },
     { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages de toute l'entreprise", tone: "success", screen: "TimesheetValidation" },
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Vert si tout concorde, rouge à vérifier", tone: "neutral", screen: "Reconciliation" },
-    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export pour la fiche de paye", tone: "accent", screen: "StaffHoursList" },
-    { icon: "calendar-outline", label: "Validation des congés", message: "Demandes à approuver ou refuser", tone: "info", screen: "AbsencesManagement" },
+    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export paie", tone: "accent", screen: "StaffHoursList" },
+    { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Demandes à approuver ou refuser", tone: "info", screen: "AbsencesManagement" },
+    { icon: "calendar-number-outline", label: "Compteurs de congés", message: "Congés acquis à valider chaque mois", tone: "success", screen: "LeaveAccruals" },
   ],
   DIRECTOR: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
@@ -81,7 +83,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     {
       icon: "people-outline",
       label: "Comptes utilisateurs",
-      message: "Modifier, activer, désactiver, réinitialiser l'accès (la création reste réservée à la RH)",
+      message: "Gérer les accès existants",
       tone: "info",
       screen: "UsersList",
     },
@@ -89,8 +91,9 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "stats-chart-outline", label: "Statistiques", message: "Activité globale de l'entreprise", tone: "info", screen: "StatsOverview" },
     { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages de toute l'entreprise", tone: "success", screen: "TimesheetValidation" },
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Repérer qui a un écart à examiner", tone: "neutral", screen: "Reconciliation" },
-    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export pour la paie", tone: "accent", screen: "StaffHoursList" },
-    { icon: "calendar-outline", label: "Congés & absences", message: "Vue d'ensemble des absences", tone: "info", screen: "AbsencesManagement" },
+    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export paie", tone: "accent", screen: "StaffHoursList" },
+    { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Vue d'ensemble des absences", tone: "info", screen: "AbsencesManagement" },
+    { icon: "calendar-number-outline", label: "Compteurs de congés", message: "Congés acquis à valider chaque mois", tone: "success", screen: "LeaveAccruals" },
   ],
   ADMIN: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
@@ -100,8 +103,9 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "business-outline", label: "Chantiers", message: "Gestion technique des chantiers", tone: "warning", screen: "SitesList" },
     { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages de toute l'entreprise", tone: "success", screen: "TimesheetValidation" },
     { icon: "swap-horizontal-outline", label: "Pointage vs mission", message: "Repérer qui a un écart à examiner", tone: "neutral", screen: "Reconciliation" },
-    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export pour la paie", tone: "accent", screen: "StaffHoursList" },
-    { icon: "calendar-outline", label: "Congés & absences", message: "Vue d'ensemble des absences", tone: "info", screen: "AbsencesManagement" },
+    { icon: "folder-outline", label: "Dossiers d'heures", message: "Heures par personne, export paie", tone: "accent", screen: "StaffHoursList" },
+    { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Vue d'ensemble des absences", tone: "info", screen: "AbsencesManagement" },
+    { icon: "calendar-number-outline", label: "Compteurs de congés", message: "Congés acquis à valider chaque mois", tone: "success", screen: "LeaveAccruals" },
     { icon: "time-outline", label: "Journal d'activité", message: "Qui a fait quoi, et quand", tone: "neutral", screen: "ActivityLog" },
   ],
 };
@@ -173,7 +177,7 @@ export function MenuScreen() {
   }
 
   return (
-    <ScreenContainer>
+    <ScreenContainer noHeader>
       <ScrollView
         {...onboardingScrollProps}
         showsVerticalScrollIndicator={false}
@@ -192,17 +196,17 @@ export function MenuScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
             </View>
           </PressableScale>
-          <View style={{ borderTopWidth: 1, borderTopColor: colors.border }}>
+          <OnboardingTarget id="menu.MyAbsences" style={{ borderTopWidth: 1, borderTopColor: colors.border }}>
             <PressableScale onPress={() => navigation.navigate("MyAbsences")}>
               <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.lg }}>
                 <View style={{ width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" }}>
                   <Ionicons name="calendar-outline" size={20} color={colors.accent} />
                 </View>
-                <Text style={[type.headline, { color: colors.ink, marginLeft: spacing.md, flex: 1 }]}>Congés & absences</Text>
+                <Text style={[type.headline, { color: colors.ink, marginLeft: spacing.md, flex: 1 }]}>{MY_ABSENCES_TITLE}</Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
               </View>
             </PressableScale>
-          </View>
+          </OnboardingTarget>
         </Card>
 
         {tools.length > 0 && (

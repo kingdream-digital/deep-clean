@@ -4,5 +4,5 @@
 export const DISTANCE_ALERT_METERS = 300;
 
 export function formatDistance(meters: number): string {
-  return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
+  return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1).replace(".", ",")} km`;
 }

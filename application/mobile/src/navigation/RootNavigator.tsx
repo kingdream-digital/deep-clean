@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "../auth/AuthContext";
@@ -9,6 +9,8 @@ import { ChangePasswordScreen } from "../screens/profile/ChangePasswordScreen";
 import { AppTabs } from "./AppTabs";
 import { SplashGate } from "../components/SplashGate";
 import { navigationRef } from "./navigationRef";
+import { listenToPushTaps } from "../notifications/push";
+import { startLiveSync } from "../sync/liveSync";
 
 export type RootStackParamList = {
   AppTabs: undefined;
@@ -32,6 +34,12 @@ export function RootNavigator() {
       primary: colors.accent,
     },
   };
+
+  // Appui sur une notification push : ouvre l'écran concerné, une fois connecté.
+  const signedIn = status !== "booting" && status !== "unauthenticated" && !!user && !user.mustChangePassword;
+  useEffect(() => (signedIn ? listenToPushTaps() : undefined), [signedIn]);
+  // Synchronisation entre appareils : écrans rechargés dès qu'une donnée change.
+  useEffect(() => (signedIn ? startLiveSync() : undefined), [signedIn]);
 
   if (status === "booting") {
     return <SplashGate />;

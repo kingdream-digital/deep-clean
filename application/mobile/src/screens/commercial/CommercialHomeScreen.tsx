@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Card } from "../../components/Card";
@@ -15,6 +15,7 @@ import { getCommercialDashboard } from "../../api/commercialDashboard.api";
 import type { CommercialDashboard } from "../../api/commercialDashboard.api";
 import type { KpiTile } from "../dashboard/useDashboardData";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 interface CommercialEntry {
   icon: keyof typeof Ionicons.glyphMap;
@@ -120,16 +121,17 @@ export function CommercialHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setDashboard(await getCommercialDashboard());
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -160,9 +162,10 @@ export function CommercialHomeScreen() {
           tone: "neutral",
           icon: "business-outline",
         },
-        { key: "planned", label: "Prestations prévues", value: String(dashboard.sites.plannedVisits), tone: "neutral", icon: "calendar-outline" },
+        { key: "planned", label: "Objectif du mois", value: String(dashboard.sites.plannedVisits), tone: "neutral", icon: "flag-outline" },
+        { key: "scheduled", label: "Programmées", value: String(dashboard.sites.scheduledVisits), tone: "info", icon: "calendar-outline" },
         { key: "completed", label: "Réalisées", value: String(dashboard.sites.completedVisits), tone: "success", icon: "checkmark-circle-outline" },
-        { key: "remaining", label: "Restantes", value: String(dashboard.sites.remainingVisits), tone: "warning", icon: "time-outline" },
+        { key: "toSchedule", label: "À programmer", value: String(dashboard.sites.toScheduleVisits), tone: "warning", icon: "time-outline" },
       ]
     : null;
 
@@ -187,7 +190,7 @@ export function CommercialHomeScreen() {
       >
         <Text style={[type.largeTitle, { color: colors.ink, marginBottom: spacing.xs }]}>Commercial</Text>
         <Text style={[type.footnote, { color: colors.inkSecondary, marginBottom: spacing.lg }]}>
-          Le client final ne reçoit que des devis/factures par email — il n'a jamais accès à DeepClean.
+          Le client final ne reçoit que des devis/factures par email — il n'a jamais accès à Deep Clean.
         </Text>
 
         {state === "loading" && !dashboard && <StateView kind="loading" />}
@@ -245,7 +248,7 @@ export function CommercialHomeScreen() {
                       <Text style={[type.footnote, { color: colors.ink, flex: 1, fontWeight: "600" }]} numberOfLines={1}>
                         {site.siteName}
                       </Text>
-                      <Text style={[type.footnote, { color: colors.warning, fontWeight: "700" }]}>{site.remainingVisits} restantes</Text>
+                      <Text style={[type.footnote, { color: colors.warning, fontWeight: "700" }]}>{site.toScheduleVisits} à programmer</Text>
                       <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: 6 }} />
                     </View>
                   </PressableScale>

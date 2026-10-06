@@ -1,10 +1,12 @@
 import { InvoiceStatus, Prisma, QuoteItemUnit, QuoteStatus, Role } from "@prisma/client";
+import { companyDateLabel } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { escapeLikePattern } from "../../utils/likePattern";
 import { sendMail } from "../../utils/mailer";
 import { buildInvoicePdf } from "./invoices.pdf";
+import { effectiveDueDate } from "../einvoicing/enInvoice";
 
 interface Actor {
   userId: string;
@@ -28,11 +30,11 @@ const invoiceSelect = {
   id: true,
   invoiceNumber: true,
   clientId: true,
-  client: { select: { id: true, companyName: true, email: true } },
+  client: { select: { id: true, companyName: true, email: true, siret: true, siren: true } },
   quoteId: true,
   quote: { select: { id: true, quoteNumber: true } },
   siteId: true,
-  site: { select: { id: true, name: true } },
+  site: { select: { id: true, name: true, address: true } },
   createdById: true,
   createdBy: { select: userSummarySelect },
   status: true,
@@ -55,6 +57,13 @@ const invoiceSelect = {
   paidAt: true,
   cancelledAt: true,
   cancelledComment: true,
+  // Facture électronique (Super PDP).
+  pdpInvoiceId: true,
+  pdpStatus: true,
+  pdpStatusLabel: true,
+  pdpSentAt: true,
+  pdpUpdatedAt: true,
+  pdpError: true,
   createdAt: true,
   updatedAt: true,
   items: { select: invoiceItemSelect, orderBy: { sortOrder: "asc" } },
@@ -116,6 +125,18 @@ async function generateInvoiceNumber(tx: Prisma.TransactionClient): Promise<stri
   return `${prefix}${String(count + 1).padStart(4, "0")}`;
 }
 
+const MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+/** « 2026-10 » → « octobre 2026 ». */
+function periodLabel(period: string): string {
+  const [year, month] = period.split("-").map(Number);
+  return month && month >= 1 && month <= 12 ? `${MONTHS_FR[month - 1]} ${year}` : period;
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 interface CreateInvoiceInput {
   clientId: string;
   quoteId?: string;
@@ -153,6 +174,25 @@ export async function createInvoice(actor: Actor, input: CreateInvoiceInput) {
     const site = await prisma.site.findUnique({ where: { id: input.siteId } });
     if (!site) throw ApiError.badRequest("Chantier introuvable.");
     if (site.clientId && site.clientId !== input.clientId) throw ApiError.badRequest("Le chantier indiqué ne correspond pas au client.");
+  }
+
+  // Retour d'audit : rien n'empêchait de facturer deux fois le même mois
+  // pour le même chantier (ou le même devis). Une facture annulée ne compte
+  // pas : on peut refaire une facture après l'avoir annulée.
+  if (input.period && (input.siteId || input.quoteId)) {
+    const duplicate = await prisma.invoice.findFirst({
+      where: {
+        period: input.period,
+        status: { not: InvoiceStatus.CANCELLED },
+        ...(input.siteId ? { siteId: input.siteId } : { quoteId: input.quoteId }),
+      },
+      select: { invoiceNumber: true },
+    });
+    if (duplicate) {
+      throw ApiError.conflict(
+        `${capitalize(periodLabel(input.period))} est déjà facturé pour ce ${input.siteId ? "chantier" : "devis"} (facture ${duplicate.invoiceNumber}). Annulez-la d'abord si elle doit être refaite.`
+      );
+    }
   }
 
   const itemsData = buildItemsData(input.items);
@@ -278,7 +318,10 @@ export async function validateInvoice(actor: Actor, id: string) {
   if (existing.status !== InvoiceStatus.DRAFT) {
     throw ApiError.conflict("Seule une facture à préparer peut être validée.");
   }
-  const invoice = await prisma.invoice.update({ where: { id }, data: { status: InvoiceStatus.VALIDATED }, select: invoiceSelect });
+  // Échéance obligatoire sur une facture : à défaut, délai de paiement de
+  // l'entreprise (INVOICE_PAYMENT_DAYS) à compter de l'émission.
+  const dueDate = existing.dueDate ?? effectiveDueDate(existing);
+  const invoice = await prisma.invoice.update({ where: { id }, data: { status: InvoiceStatus.VALIDATED, dueDate }, select: invoiceSelect });
   await logActivity({ userId: actor.userId, action: "INVOICE_VALIDATED", entityType: "Invoice", entityId: id });
   return presentInvoice(invoice);
 }
@@ -299,7 +342,7 @@ export async function sendInvoice(actor: Actor, id: string, message?: string) {
     greeting,
     "",
     message?.trim() || `Veuillez trouver ci-joint notre facture ${invoice.invoiceNumber}.`,
-    invoice.dueDate ? `Échéance de paiement : ${invoice.dueDate.toLocaleDateString("fr-FR")}.` : "",
+    invoice.dueDate ? `Échéance de paiement : ${companyDateLabel(invoice.dueDate)}.` : "",
     "",
     "Cordialement,",
   ]

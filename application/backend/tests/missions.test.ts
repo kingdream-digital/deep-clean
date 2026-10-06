@@ -1,4 +1,5 @@
 import request from "supertest";
+import { addDaysToKey, companyDateKey } from "../src/utils/companyTime";
 import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
@@ -10,6 +11,16 @@ beforeEach(async () => {
   await resetDatabase();
 });
 
+// Mission « en cours de journée » : le suivi terrain refuse de démarrer une
+// mission plus de 2 h avant son début (missions.service.ts::setMissionStatus).
+async function makeOngoing(missionId: string) {
+  const now = Date.now();
+  await prisma.mission.update({
+    where: { id: missionId },
+    data: { startTime: new Date(now - 30 * 60_000), endTime: new Date(now + 60 * 60_000) },
+  });
+}
+
 afterAll(async () => {
   await prisma.$disconnect();
 });
@@ -19,16 +30,14 @@ async function loginAs(user: { username: string }) {
   return login.body.accessToken as string;
 }
 
+// Dates calculées sans dépendre du fuseau de la machine qui lance les tests :
+// « demain » au sens de Paris, jours ajoutés en UTC.
 function tomorrowDateString(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return addDaysToKey(companyDateKey(new Date()), 1);
 }
 
 function addDays(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addDaysToKey(dateStr, days);
 }
 
 const basePayload = () => ({
@@ -57,7 +66,7 @@ describe("Création de mission — réservée aux rôles de gestion du planning"
     const notifications = await prisma.notification.findMany({ where: { userId: employee.id } });
     expect(notifications).toHaveLength(1);
     expect(notifications[0]!.type).toBe("MISSION_ASSIGNED");
-    expect(notifications[0]!.body).toBe("Une nouvelle mission vous a été attribuée.");
+    expect(notifications[0]!.body).toMatch(/^Une nouvelle mission vous a été attribuée : « .+ », .+ de \d{2}:\d{2} à \d{2}:\d{2}\.$/);
   });
 
   it("refuse au chef d'équipe de créer une mission, même sur son propre chantier (retour explicite du client)", async () => {
@@ -120,10 +129,12 @@ describe("Création de mission — réservée aux rôles de gestion du planning"
 
     // Le chef d'équipe garde le suivi terrain (démarrer/terminer), même
     // sans droit de gestion du planning.
+    await makeOngoing(missionId);
     await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
       .send({ status: "IN_PROGRESS" });
+    await makeOngoing(missionId);
     await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
@@ -140,18 +151,22 @@ describe("Création de mission — réservée aux rôles de gestion du planning"
 describe("Statut de suivi terrain d'une mission — une mission terminée est un état final", () => {
   it("refuse de repasser une mission terminée en cours", async () => {
     const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-status1@deepclean.test" });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-status1@deepclean.test" });
     const site = await createTestSite();
     const token = await loginAs(supervisor);
 
     const created = await request(app)
       .post("/api/v1/missions")
       .set("Authorization", `Bearer ${token}`)
-      .send({ ...basePayload(), siteId: site.id, assigneeIds: [] });
+      .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
     const missionId = created.body.mission.id as string;
 
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "IN_PROGRESS" });
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "COMPLETED" });
 
+    await makeOngoing(missionId);
     const regress = await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${token}`)
@@ -234,7 +249,7 @@ describe("Modification et annulation d'une mission — notifications", () => {
       where: { userId: employee.id, type: "MISSION_TIME_CHANGED" },
     });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.body).toBe("L'horaire de votre mission a été modifié.");
+    expect(notifications[0]!.body).toMatch(/^L'horaire de votre mission a été modifié : « .+ », .+ de \d{2}:\d{2} à \d{2}:\d{2}\.$/);
   });
 
   it("modifier uniquement le titre ne doit ni changer la date/l'heure ni déclencher de notification d'horaire", async () => {
@@ -325,7 +340,7 @@ describe("Chef d'équipe — droits limités à la consigne et au suivi terrain"
       where: { userId: employee.id, type: "MISSION_INSTRUCTION_ADDED" },
     });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.body).toBe(`Une nouvelle consigne a été ajoutée à votre mission par ${manager.firstName} ${manager.lastName}.`);
+    expect(notifications[0]!.body).toMatch(new RegExp(`^Une nouvelle consigne a été ajoutée à votre mission « .+ » par ${manager.firstName} ${manager.lastName}\\.$`));
   });
 
   it("refuse au chef d'équipe de modifier autre chose que la consigne (titre, horaire, chantier)", async () => {
@@ -396,12 +411,14 @@ describe("Chef d'équipe — droits limités à la consigne et au suivi terrain"
       .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
     const missionId = created.body.mission.id as string;
 
+    await makeOngoing(missionId);
     const start = await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
       .send({ status: "IN_PROGRESS" });
     expect(start.status).toBe(200);
 
+    await makeOngoing(missionId);
     const complete = await request(app)
       .post(`/api/v1/missions/${missionId}/status`)
       .set("Authorization", `Bearer ${managerToken}`)
@@ -425,7 +442,9 @@ describe("Validation d'une mission terminée — chef d'équipe propriétaire, R
       .send({ ...basePayload(), siteId: site.id, assigneeIds: [employee.id] });
     const missionId = created.body.mission.id as string;
 
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "IN_PROGRESS" });
+    await makeOngoing(missionId);
     await request(app).post(`/api/v1/missions/${missionId}/status`).set("Authorization", `Bearer ${token}`).send({ status: "COMPLETED" });
 
     return { manager, managerToken: token, hr, hrToken, missionId, site };
@@ -472,7 +491,10 @@ describe("Validation d'une mission terminée — chef d'équipe propriétaire, R
       .post(`/api/v1/missions/${missionId}/validate`)
       .set("Authorization", `Bearer ${intruderToken}`);
 
-    expect(res.status).toBe(403);
+    // 404 et non 403 : ce chef d'équipe ne peut pas voir cette mission (autre
+    // chantier, il n'y est pas affecté), et la réponse ne doit pas lui
+    // apprendre qu'elle existe — même principe que la messagerie.
+    expect(res.status).toBe(404);
   });
 
   it("refuse de valider une mission qui n'est pas terminée", async () => {
@@ -550,11 +572,14 @@ describe("Modification des affectations — notifie aussi bien l'ajout que le re
     const addedNotifs = await prisma.notification.findMany({ where: { userId: added.id, type: "MISSION_ASSIGNED" } });
     expect(addedNotifs).toHaveLength(1);
 
-    // Celui qui reste affecté ne reçoit aucune de ces deux notifications.
+    // Celui qui reste affecté n'est pas renotifié par la modification : il
+    // garde la seule notification reçue à la création de la mission, et
+    // surtout aucun MISSION_UNASSIGNED.
     const stayingNotifs = await prisma.notification.findMany({
       where: { userId: staying.id, type: { in: ["MISSION_ASSIGNED", "MISSION_UNASSIGNED"] } },
     });
-    expect(stayingNotifs).toHaveLength(0);
+    expect(stayingNotifs).toHaveLength(1);
+    expect(stayingNotifs[0]!.type).toBe("MISSION_ASSIGNED");
   });
 });
 
@@ -785,7 +810,7 @@ describe("Missions récurrentes — retour explicite du client, pas besoin de re
     const site = await createTestSite();
     const token = await loginAs(supervisor);
     const date = tomorrowDateString();
-    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const until = addDays(date, 21); // date, +7, +14, +21 -> 4 occurrences
 
     const res = await request(app)
@@ -841,7 +866,7 @@ describe("Missions récurrentes — retour explicite du client, pas besoin de re
     const site = await createTestSite();
     const token = await loginAs(supervisor);
     const date = tomorrowDateString();
-    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const until = addDays(date, 14); // date, +7, +14 -> 3 occurrences
 
     const created = await request(app)
@@ -894,5 +919,164 @@ describe("Mission — chef d'équipe et superviseur du chantier exposés (diagno
       firstName: supervisorAccount.firstName,
       lastName: supervisorAccount.lastName,
     });
+  });
+});
+
+describe("Chevauchement interdit — une personne ne peut pas être sur deux missions en même temps", () => {
+  async function setup(n: string) {
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: `sup-overlap${n}@deepclean.test` });
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: `emp-overlap${n}@deepclean.test` });
+    const site = await createTestSite();
+    const token = await loginAs(supervisor);
+    const date = tomorrowDateString();
+    const post = (body: Record<string, unknown>) =>
+      request(app).post("/api/v1/missions").set("Authorization", `Bearer ${token}`).send({ siteId: site.id, date, ...body });
+    return { employee, token, date, post };
+  }
+
+  it("refuse de créer une mission qui chevauche une autre mission de la même personne, avec un message clair", async () => {
+    const { employee, post } = await setup("1");
+    expect((await post({ title: "Mission A", startTime: "08:00", endTime: "12:00", assigneeIds: [employee.id] })).status).toBe(201);
+
+    const res = await post({ title: "Mission B", startTime: "11:00", endTime: "14:00", assigneeIds: [employee.id] });
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toContain("Mission A");
+    expect(res.body.error.message).toContain("08:00");
+    expect(await prisma.mission.count()).toBe(1);
+  });
+
+  it("accepte deux missions qui se suivent sans se recouvrir, et ignore les missions annulées", async () => {
+    const { employee, token, post } = await setup("2");
+    const a = await post({ title: "Matin", startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] });
+    expect((await post({ title: "Suite", startTime: "10:00", endTime: "12:00", assigneeIds: [employee.id] })).status).toBe(201);
+
+    await request(app).post(`/api/v1/missions/${a.body.mission.id}/cancel`).set("Authorization", `Bearer ${token}`);
+    expect((await post({ title: "Remplace le matin", startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] })).status).toBe(201);
+  });
+
+  it("refuse d'ajouter la personne à une mission qui chevauche, et de décaler un horaire sur une autre mission", async () => {
+    const { employee, token, post } = await setup("3");
+    await post({ title: "Mission A", startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] });
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "other-overlap3@deepclean.test" });
+    const b = await post({ title: "Mission B", startTime: "09:00", endTime: "11:00", assigneeIds: [other.id] });
+    const c = await post({ title: "Mission C", startTime: "13:00", endTime: "15:00", assigneeIds: [employee.id] });
+
+    const add = await request(app)
+      .put(`/api/v1/missions/${b.body.mission.id}/assignments`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ assigneeIds: [other.id, employee.id] });
+    expect(add.status).toBe(409);
+
+    const move = await request(app)
+      .patch(`/api/v1/missions/${c.body.mission.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ startTime: "09:30", endTime: "11:00" });
+    expect(move.status).toBe(409);
+
+    const ok = await request(app)
+      .patch(`/api/v1/missions/${c.body.mission.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ startTime: "12:00", endTime: "14:00" });
+    expect(ok.status).toBe(200);
+  });
+
+  it("refuse une série récurrente dont une occurrence chevauche une mission existante", async () => {
+    const { employee, date, post } = await setup("4");
+    const later = addDays(date, 7);
+
+    await post({ title: "Existante", date: later, startTime: "08:00", endTime: "10:00", assigneeIds: [employee.id] });
+
+    const until = addDays(date, 14);
+    const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const res = await post({ title: "Série", startTime: "09:00", endTime: "11:00", assigneeIds: [employee.id], recurrence: { daysOfWeek: [dayOfWeek], until } });
+    expect(res.status).toBe(409);
+    expect(await prisma.mission.count()).toBe(1);
+  });
+});
+
+describe("Liste des missions — à valider / validées", () => {
+  it("filtre les missions terminées selon qu'elles sont validées ou non", async () => {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-tovalidate@deepclean.test" });
+    const site = await createTestSite();
+    const token = await loginAs(hr);
+    const day = new Date();
+    const make = (title: string) =>
+      prisma.mission.create({
+        data: { siteId: site.id, title, date: day, startTime: day, endTime: day, status: "COMPLETED", createdById: hr.id },
+      });
+    const done = await make("Validée");
+    await make("À valider");
+    await prisma.validation.create({ data: { type: "MISSION_COMPLETION", missionId: done.id, validatedById: hr.id } });
+
+    const toValidate = await request(app).get("/api/v1/missions").set("Authorization", `Bearer ${token}`).query({ status: "COMPLETED", validated: "false" });
+    expect(toValidate.body.items.map((m: { title: string }) => m.title)).toEqual(["À valider"]);
+    const validated = await request(app).get("/api/v1/missions").set("Authorization", `Bearer ${token}`).query({ status: "COMPLETED", validated: "true" });
+    expect(validated.body.items.map((m: { title: string }) => m.title)).toEqual(["Validée"]);
+  });
+});
+
+describe("Absence sur des missions prévues — réaffectation par le superviseur, la RH ou la direction", () => {
+  async function setup() {
+    const hr = await createTestUser({ role: Role.HR, email: "hr-reassign@deepclean.test" });
+    const supervisor = await createTestUser({ role: Role.SUPERVISOR, email: "sup-reassign@deepclean.test" });
+    const director = await createTestUser({ role: Role.DIRECTOR, email: "dir-reassign@deepclean.test" });
+    const sick = await createTestUser({ role: Role.EMPLOYEE, email: "sick-reassign@deepclean.test" });
+    const spare = await createTestUser({ role: Role.EMPLOYEE, email: "spare-reassign@deepclean.test" });
+    const site = await createTestSite();
+    const date = tomorrowDateString();
+    const hrToken = await loginAs(hr);
+    const created = await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ siteId: site.id, title: "Mission du malade", date, startTime: "08:00", endTime: "10:00", assigneeIds: [sick.id] });
+    // La RH enregistre l'arrêt maladie (appel téléphonique).
+    await request(app)
+      .post("/api/v1/absences")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ userId: sick.id, type: "SICK_LEAVE", startDate: date, endDate: date });
+    return { hr, supervisor, director, sick, spare, site, date, missionId: created.body.mission.id as string };
+  }
+
+  it("prévient le superviseur et la direction, qui voient la mission à réaffecter et la confient à un autre employé", async () => {
+    const { supervisor, director, sick, spare, missionId } = await setup();
+    expect(await prisma.notification.count({ where: { userId: supervisor.id, type: "ABSENCE_CONFLICT" } })).toBe(1);
+    expect(await prisma.notification.count({ where: { userId: director.id, type: "ABSENCE_CONFLICT" } })).toBe(1);
+
+    const supToken = await loginAs(supervisor);
+    const list = await request(app).get("/api/v1/missions/to-reassign").set("Authorization", `Bearer ${supToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body.items).toHaveLength(1);
+    expect(list.body.items[0].absentees[0].user.id).toBe(sick.id);
+
+    const replaced = await request(app)
+      .post(`/api/v1/missions/${missionId}/replace`)
+      .set("Authorization", `Bearer ${supToken}`)
+      .send({ fromUserId: sick.id, toUserId: spare.id });
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.mission.assignments.map((a: { userId: string }) => a.userId)).toEqual([spare.id]);
+    expect(await prisma.notification.count({ where: { userId: spare.id, type: "MISSION_ASSIGNED" } })).toBe(1);
+
+    const after = await request(app).get("/api/v1/missions/to-reassign").set("Authorization", `Bearer ${supToken}`);
+    expect(after.body.items).toHaveLength(0);
+  });
+
+  it("refuse un remplaçant absent ou déjà pris, et refuse à un employé", async () => {
+    const { hr, sick, spare, site, date, missionId } = await setup();
+    const hrToken = await loginAs(hr);
+    // Le remplaçant a déjà une mission qui se recouvre.
+    await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ siteId: site.id, title: "Autre", date, startTime: "09:00", endTime: "11:00", assigneeIds: [spare.id] });
+    const busy = await request(app).post(`/api/v1/missions/${missionId}/replace`).set("Authorization", `Bearer ${hrToken}`).send({ fromUserId: sick.id, toUserId: spare.id });
+    expect(busy.status).toBe(409);
+
+    const other = await createTestUser({ role: Role.EMPLOYEE, email: "other-reassign@deepclean.test" });
+    await request(app).post("/api/v1/absences").set("Authorization", `Bearer ${hrToken}`).send({ userId: other.id, type: "PAID_LEAVE", startDate: date, endDate: date });
+    const absent = await request(app).post(`/api/v1/missions/${missionId}/replace`).set("Authorization", `Bearer ${hrToken}`).send({ fromUserId: sick.id, toUserId: other.id });
+    expect(absent.status).toBe(409);
+
+    const empToken = await loginAs(spare);
+    expect((await request(app).get("/api/v1/missions/to-reassign").set("Authorization", `Bearer ${empToken}`)).status).toBe(403);
   });
 });

@@ -2,13 +2,14 @@ import React, { useCallback, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
@@ -22,15 +23,80 @@ import { formatDuration } from "../../utils/duration";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { DISTANCE_ALERT_METERS, formatDistance } from "../../utils/distance";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Tab = "pending" | "done";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const dayFmt = frenchDateFormat({ day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 // Vue de validation pour l'encadrement (chef d'équipe : son équipe ; RH/
 // direction/admin : tout le monde) — la portée exacte est appliquée côté
 // serveur, jamais dupliquée ici.
+// Écart entre l'heure pointée et la mission prévue, au-delà duquel on alerte
+// (même tolérance que l'écran « Pointage vs mission »).
+const GAP_ALERT_MINUTES = 15;
+
+type HoursGap = { kind: "more" | "less"; minutes: number } | { kind: "noMission" } | null;
+
+function hoursGap(entry: TimeEntry): HoursGap {
+  if (!entry.clockOut) return null;
+  const worked = Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+  if (!entry.matchedMission) return { kind: "noMission" };
+  const planned = Math.round(
+    (new Date(entry.matchedMission.endTime).getTime() - new Date(entry.matchedMission.startTime).getTime()) / 60000
+  );
+  const diff = worked - planned;
+  if (diff > GAP_ALERT_MINUTES) return { kind: "more", minutes: diff };
+  if (diff < -GAP_ALERT_MINUTES) return { kind: "less", minutes: -diff };
+  return null;
+}
+
+// Bandeau d'alerte bien visible (retour explicite du client : un pointage
+// trop long ou trop court doit sauter aux yeux), cliquable vers le détail du
+// pointage, qui met côte à côte heure prévue et heure pointée.
+function HoursGapAlert({ entry, onPress, compact = false }: { entry: TimeEntry; onPress: () => void; compact?: boolean }) {
+  const { colors, spacing, radius, type } = useTheme();
+  const gap = hoursGap(entry);
+  if (!gap) return null;
+  const tone = gap.kind === "more" ? colors.warning : colors.danger;
+  const bg = gap.kind === "more" ? colors.warningSoft : colors.dangerSoft;
+  const label =
+    gap.kind === "more"
+      ? `${formatHoursMinutes(gap.minutes)} de plus que prévu`
+      : gap.kind === "less"
+        ? `${formatHoursMinutes(gap.minutes)} de moins que prévu`
+        : "Aucune mission prévue sur ce créneau";
+  return (
+    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, voir le détail`}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: bg,
+          borderRadius: radius.md,
+          paddingVertical: compact ? 4 : spacing.sm,
+          paddingHorizontal: compact ? spacing.sm : spacing.md,
+          marginBottom: compact ? 0 : spacing.md,
+          alignSelf: compact ? "flex-start" : "stretch",
+        }}
+      >
+        <Ionicons name="alert-circle" size={compact ? 14 : 18} color={tone} />
+        <Text style={[compact ? type.caption : type.callout, { color: tone, fontWeight: "700", marginLeft: 6, flexShrink: 1 }]}>
+          {label}
+        </Text>
+        {!compact && (
+          <>
+            <Text style={[type.footnote, { color: tone, marginLeft: "auto", paddingLeft: spacing.sm }]}>Voir le détail</Text>
+            <Ionicons name="chevron-forward" size={14} color={tone} />
+          </>
+        )}
+      </View>
+    </PressableScale>
+  );
+}
+
 export function TimesheetValidationScreen() {
   const { colors, spacing, type } = useTheme();
   const { isDesktopWeb } = useResponsive();
@@ -43,17 +109,18 @@ export function TimesheetValidationScreen() {
   const [actingId, setActingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listTimeEntries({ pageSize: 100 });
       setItems(res.items.filter((e) => e.clockOut !== null));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -105,7 +172,7 @@ export function TimesheetValidationScreen() {
           <Text style={[type.footnote, { color: colors.inkSecondary }]}>
             {timeFmt.format(new Date(item.clockIn))} – {item.clockOut ? timeFmt.format(new Date(item.clockOut)) : "en cours"}
           </Text>
-          {item.matchedMission && (
+          {!!item.matchedMission && (
             <Text style={[type.caption, { color: colors.inkTertiary, marginTop: 2 }]}>
               Prévu {timeFmt.format(new Date(item.matchedMission.startTime))}–
               {timeFmt.format(new Date(item.matchedMission.endTime))} · {item.matchedMission.site.name}
@@ -117,8 +184,12 @@ export function TimesheetValidationScreen() {
     {
       key: "duration",
       label: "Durée",
+      flex: 1.6,
       render: (item) => (
-        <Text style={[type.footnote, { color: colors.inkSecondary }]}>{formatDuration(item.clockIn, item.clockOut)}</Text>
+        <View style={{ gap: 4 }}>
+          <Text style={[type.footnote, { color: colors.inkSecondary }]}>{formatDuration(item.clockIn, item.clockOut)}</Text>
+          <HoursGapAlert entry={item} compact onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} />
+        </View>
       ),
     },
     {
@@ -184,7 +255,12 @@ export function TimesheetValidationScreen() {
       {state === "loading" && <StateView kind="loading" />}
       {state === "error" && <StateView kind="error" onRetry={load} />}
       {state === "ready" && filtered.length === 0 && (
-        <StateView kind="empty" icon="time-outline" message="Rien à afficher ici pour le moment." />
+        <StateView
+          kind="empty"
+          icon={tab === "pending" ? "checkmark-done-outline" : "time-outline"}
+          title={tab === "pending" ? "Aucun pointage à valider" : "Aucun pointage traité"}
+          message={tab === "pending" ? "Les pointages de l'équipe à vérifier apparaîtront ici." : "Les pointages validés ou refusés apparaîtront ici."}
+        />
       )}
 
       {state === "ready" && filtered.length > 0 && isDesktopWeb && (
@@ -200,10 +276,17 @@ export function TimesheetValidationScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
+              {/* Photo et nom sur toute la largeur ; le statut seulement dans
+                  « Traités » — dans « En attente », il répétait le nom de
+                  l'onglet et coupait chaque ligne en deux (« (4 / h 15) »). */}
               <Card>
-                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                  <View style={{ flex: 1, marginRight: spacing.sm }}>
-                    <Text style={[type.headline, { color: colors.ink }]}>
+                <HoursGapAlert entry={item} onPress={() => navigation.navigate("TimeEntryDetail", { entryId: item.id })} />
+                <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                  <View style={{ marginRight: spacing.sm }}>
+                    <Avatar user={item.user} size={40} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
                       {item.user.firstName} {item.user.lastName}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
@@ -214,7 +297,7 @@ export function TimesheetValidationScreen() {
                         {formatDuration(item.clockIn, item.clockOut)})
                       </Text>
                     </View>
-                    {item.matchedMission && (
+                    {!!item.matchedMission && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="business-outline" size={12} color={colors.inkTertiary} />
                         <Text style={[type.caption, { color: colors.inkTertiary, marginLeft: 3 }]}>
@@ -224,22 +307,30 @@ export function TimesheetValidationScreen() {
                       </View>
                     )}
                     {(() => {
-                      const farDistance = [item.clockInDistanceMeters, item.clockOutDistanceMeters]
-                        .filter((d): d is number => d != null && d > DISTANCE_ALERT_METERS)
-                        .sort((a, b) => b - a)[0];
-                      return farDistance != null ? (
+                      // Précise le moment concerné (retour d'audit : l'arrivée
+                      // pouvait être sur place et seule la sortie éloignée).
+                      const far = (d: number | null | undefined) => d != null && d > DISTANCE_ALERT_METERS;
+                      const inFar = far(item.clockInDistanceMeters);
+                      const outFar = far(item.clockOutDistanceMeters);
+                      const label =
+                        inFar && outFar
+                          ? `Arrivée et sortie pointées à ${formatDistance(item.clockInDistanceMeters!)} et ${formatDistance(item.clockOutDistanceMeters!)} du chantier`
+                          : inFar
+                            ? `Arrivée pointée à ${formatDistance(item.clockInDistanceMeters!)} du chantier prévu`
+                            : outFar
+                              ? `Sortie pointée à ${formatDistance(item.clockOutDistanceMeters!)} du chantier prévu`
+                              : null;
+                      return label ? (
                         <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                           <Ionicons name="warning-outline" size={12} color={colors.warning} />
-                          <Text style={[type.caption, { color: colors.warning, marginLeft: 3 }]}>
-                            Pointé à {formatDistance(farDistance)} du chantier prévu
-                          </Text>
+                          <Text style={[type.caption, { color: colors.warning, marginLeft: 3, flex: 1 }]}>{label}</Text>
                         </View>
                       ) : null;
                     })()}
-                    {item.isRetroactive && (
+                    {!!item.isRetroactive && (
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Ionicons name="time-outline" size={12} color={colors.purple} />
-                        <Text style={[type.caption, { color: colors.purple, marginLeft: 3 }]}>Pointage différé (saisi après coup)</Text>
+                        <Text style={[type.caption, { color: colors.purple, marginLeft: 3 }]}>Pointage différé</Text>
                       </View>
                     )}
                     {item.overtimeMinutes != null && (
@@ -250,7 +341,7 @@ export function TimesheetValidationScreen() {
                         </Text>
                       </View>
                     )}
-                    {item.comment && (
+                    {!!item.comment && (
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]} numberOfLines={2}>
                         {item.comment}
                       </Text>
@@ -266,8 +357,12 @@ export function TimesheetValidationScreen() {
                         </Text>
                       </PressableScale>
                     )}
+                    {tab !== "pending" && (
+                      <View style={{ marginTop: spacing.xs }}>
+                        <TimeEntryStatusBadge status={item.status} />
+                      </View>
+                    )}
                   </View>
-                  <TimeEntryStatusBadge status={item.status} />
                 </View>
 
                 {tab === "pending" && (

@@ -31,7 +31,7 @@ export function InboxHomeScreen() {
             {segment === "notifications" ? "Notifications" : "Messagerie"}
           </Text>
           {segment === "messages" && (
-            <PressableScale onPress={() => navigation.navigate("NewMessage")} hitSlop={10}>
+            <PressableScale onPress={() => navigation.navigate("NewMessage")} hitSlop={10} accessibilityRole="button" accessibilityLabel="Nouveau message">
               <Ionicons name="create-outline" size={26} color={colors.accent} />
             </PressableScale>
           )}

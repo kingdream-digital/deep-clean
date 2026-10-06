@@ -1,17 +1,19 @@
 import React, { useCallback, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Share, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
+import { LeaveBalanceCard } from "../../components/LeaveBalanceCard";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { TimeEntryStatusBadge } from "../../components/TimeEntryStatusBadge";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
 import { StatusBadge } from "../../components/StatusBadge";
+import { Avatar } from "../../components/Avatar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
@@ -27,8 +29,12 @@ import type { DirectoryUser, EmployeeDossier } from "../../api/users.api";
 import { decideAbsence } from "../../api/absences.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { formatMinutes } from "../../utils/duration";
-import { toLocalDateKey } from "../../utils/missionFormat";
+import { isMissionOverdue, toLocalDateKey, isMissionValidated } from "../../utils/missionFormat";
+import { formatAbsencePeriod, frenchDateFormat } from "../../utils/frenchDate";
+import { formatAction } from "../../utils/activityLogLabels";
 import { shareFile } from "../../utils/shareFile";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
+import { ReasonPromptModal } from "../../components/ReasonPromptModal";
 
 type Route = RouteProp<{ UserDetail: { userId: string; temporaryPassword?: string } }, "UserDetail">;
 
@@ -43,17 +49,22 @@ const MANAGE_ROLES = ["HR", "DIRECTOR", "ADMIN"];
 const DOSSIER_VIEW_ROLES = ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"];
 // Qui peut valider/refuser une absence depuis cette fiche — même liste que
 // backend/src/modules/absences/absences.service.ts::MANAGE_ABSENCES_ROLES
-// (le superviseur consulte le dossier mais ne décide pas des absences).
-const ABSENCE_DECISION_ROLES = ["HR", "DIRECTOR", "ADMIN"];
+// (le superviseur en décide aussi : il reçoit les demandes — retour d'audit).
+const ABSENCE_DECISION_ROLES = ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"];
 
 const ABSENCE_TYPE_LABELS: Record<string, string> = {
   PAID_LEAVE: "Congé payé",
   SICK_LEAVE: "Arrêt maladie",
   UNPAID_LEAVE: "Congé sans solde",
+  WORK_ACCIDENT: "Accident du travail",
+  PARENTAL_LEAVE: "Maternité / paternité",
+  COMPENSATORY_REST: "Repos compensateur",
   OTHER: "Autre",
 };
 
 const shortDateFormatter = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+// Date et heure : huit connexions le même jour se distinguent enfin.
+const activityDateFormatter = frenchDateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 type ExportPeriod = "week" | "month";
 
@@ -111,6 +122,30 @@ function InfoRow({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label:
   );
 }
 
+// Envoie les identifiants par le moyen choisi (SMS, WhatsApp, e-mail…) sur
+// téléphone ; sur ordinateur, les copie pour les coller où l'on veut.
+async function shareCredentials(firstName: string, username: string, password: string) {
+  const message =
+    `Bonjour ${firstName}, voici vos accès à l'application Deep Clean.\n` +
+    `Identifiant : ${username}\nMot de passe provisoire : ${password}\n` +
+    `Vous choisirez votre propre mot de passe à la première connexion.`;
+  if (Platform.OS === "web") {
+    const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { share?: (d: { text: string }) => Promise<void> }) : null;
+    try {
+      if (nav?.share) {
+        await nav.share({ text: message });
+        return;
+      }
+      await nav?.clipboard?.writeText(message);
+      Alert.alert("Identifiants copiés", "Collez-les dans le message de votre choix.");
+    } catch {
+      /* partage annulé par l'utilisateur */
+    }
+    return;
+  }
+  await Share.share({ message }).catch(() => undefined);
+}
+
 export function UserDetailScreen() {
   const { colors, spacing, type } = useTheme();
   const { user: me } = useAuth();
@@ -147,8 +182,9 @@ export function UserDetailScreen() {
   }
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const [accountData, dossierData] = await Promise.all([
         getUser(userId),
         // Le dossier est une synthèse réservée à la gestion (RH/direction/
@@ -161,11 +197,11 @@ export function UserDetailScreen() {
       setDossier(dossierData);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [userId, canViewDossier]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -232,10 +268,13 @@ export function UserDetailScreen() {
     }
   }
 
-  async function handleDecideAbsence(absenceId: string, status: "APPROVED" | "REJECTED") {
+  const [rejectingAbsence, setRejectingAbsence] = useState<{ id: string; type: string; startDate: string; endDate: string } | null>(null);
+
+  async function handleDecideAbsence(absenceId: string, status: "APPROVED" | "REJECTED", note?: string) {
     setDecidingAbsenceId(absenceId);
     try {
-      await decideAbsence(absenceId, status);
+      await decideAbsence(absenceId, status, note || undefined);
+      setRejectingAbsence(null);
       await load();
     } catch (err) {
       Alert.alert("Action impossible", extractErrorMessage(err));
@@ -245,41 +284,81 @@ export function UserDetailScreen() {
   }
 
   function confirmRejectAbsence(absence: { id: string; type: string; startDate: string; endDate: string }) {
-    const start = shortDateFormatter.format(new Date(absence.startDate));
-    const end = shortDateFormatter.format(new Date(absence.endDate));
-    Alert.alert(
-      "Refuser cette demande ?",
-      `${ABSENCE_TYPE_LABELS[absence.type] ?? absence.type} · ${start === end ? start : `${start} → ${end}`}`,
-      [
-        { text: "Annuler", style: "cancel" },
-        { text: "Refuser", style: "destructive", onPress: () => void handleDecideAbsence(absence.id, "REJECTED") },
-      ]
-    );
+    setRejectingAbsence(absence);
   }
 
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxxl }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <Text style={[type.title1, { color: colors.ink, flex: 1, marginRight: spacing.sm }]}>
-            {account.firstName} {account.lastName}
-          </Text>
-          {account.isActive !== undefined && (
-            <View
-              style={{
-                paddingHorizontal: spacing.sm,
-                paddingVertical: 4,
-                borderRadius: 999,
-                backgroundColor: account.isActive ? colors.successSoft : colors.neutralSoft,
-              }}
-            >
-              <Text style={[type.caption, { color: account.isActive ? colors.success : colors.neutral }]}>
-                {account.isActive ? "Actif" : "Désactivé"}
-              </Text>
-            </View>
-          )}
+        {/* La personne d'abord, comme une fiche de contact : sa photo (elle
+            n'apparaissait nulle part sur sa propre fiche), son nom sur toute
+            la largeur, puis son statut — le badge n'écrase plus le nom. */}
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ opacity: account.isActive === false ? 0.45 : 1 }}>
+            <Avatar user={account} size={64} />
+          </View>
+          <View style={{ flex: 1, marginLeft: spacing.md }}>
+            <Text style={[type.title2, { color: colors.ink }]}>
+              {account.firstName} {account.lastName}
+            </Text>
+            {account.isActive !== undefined && (
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  marginTop: spacing.xxs,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 3,
+                  borderRadius: 999,
+                  backgroundColor: account.isActive ? colors.successSoft : colors.neutralSoft,
+                }}
+              >
+                <Text style={[type.caption, { color: account.isActive ? colors.success : colors.neutral }]}>
+                  {account.isActive ? "Actif" : "Désactivé"}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
+        {/* Juste après la création ou une réinitialisation : les identifiants
+            en premier, impossibles à manquer. Ils ne s'affichent qu'une fois ;
+            placés en bas de la fiche, sous le dossier, ils passaient inaperçus. */}
+        {!!temporaryPassword && (
+          <Card style={{ marginTop: spacing.lg, borderWidth: 1.5, borderColor: colors.accentDeep }}>
+            <Text style={[type.headline, { color: colors.ink }]}>Identifiants de connexion</Text>
+            <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
+              À transmettre à {account.firstName} : ce mot de passe devra être changé à la prochaine connexion. Il
+              ne sera plus jamais affiché.
+            </Text>
+            <View
+              style={{
+                marginTop: spacing.sm,
+                padding: spacing.sm,
+                borderRadius: 10,
+                backgroundColor: colors.surface,
+              }}
+            >
+              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Identifiant</Text>
+              <Text style={[type.title3, { color: colors.ink, textAlign: "center" }]} selectable>
+                {account.username}
+              </Text>
+              <View style={{ height: spacing.sm }} />
+              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Mot de passe</Text>
+              <Text style={[type.title3, { color: colors.accentText, textAlign: "center" }]} selectable>
+                {temporaryPassword}
+              </Text>
+            </View>
+            <View style={{ marginTop: spacing.sm }}>
+              <Button
+                label="Transmettre les identifiants"
+                icon="share-outline"
+                variant="secondary"
+                size="md"
+                onPress={() => void shareCredentials(account.firstName, account.username, temporaryPassword)}
+              />
+            </View>
+          </Card>
+        )}
         <Card style={{ marginTop: spacing.lg }}>
           <InfoRow icon="person-outline" label={`Identifiant : ${account.username}`} />
           <InfoRow icon="briefcase-outline" label={ROLE_LABELS[account.role]} />
@@ -287,7 +366,7 @@ export function UserDetailScreen() {
           {account.phone ? <InfoRow icon="call-outline" label={account.phone} /> : null}
         </Card>
 
-        {canManage && (
+        {!!canManage && (
           <View style={{ marginTop: spacing.lg }}>
             <Button
               label="Documents (contrat, attestations...)"
@@ -298,7 +377,7 @@ export function UserDetailScreen() {
           </View>
         )}
 
-        {dossier && (
+        {!!dossier && (
           <View style={{ marginTop: spacing.xl }}>
             <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
               DOSSIER EMPLOYÉ
@@ -371,6 +450,12 @@ export function UserDetailScreen() {
               )}
             </Card>
 
+            {/* Congés payés : solde et correction manuelle */}
+            <LeaveBalanceCard
+              userId={account.id}
+              canAdjust={!!me && ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"].includes(me.role)}
+            />
+
             {/* Absences */}
             <Card style={{ marginTop: spacing.sm }}>
               <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
@@ -402,8 +487,8 @@ export function UserDetailScreen() {
                   {dossier.absences.recent.slice(0, 5).map((absence) => (
                     <View key={absence.id} style={{ marginTop: spacing.xs }}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                        <Text style={[type.footnote, { color: colors.inkSecondary }]} numberOfLines={1}>
-                          {ABSENCE_TYPE_LABELS[absence.type]} · {shortDateFormatter.format(new Date(absence.startDate))}
+                        <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1, marginRight: spacing.xs }]} numberOfLines={2}>
+                          {ABSENCE_TYPE_LABELS[absence.type] ?? "Absence"} · {formatAbsencePeriod(absence.startDate, absence.endDate)}
                         </Text>
                         <AbsenceStatusBadge status={absence.status} />
                       </View>
@@ -452,7 +537,7 @@ export function UserDetailScreen() {
                       <Text style={[type.footnote, { color: colors.inkSecondary, flex: 1, marginRight: spacing.xs }]} numberOfLines={1}>
                         {mission.title} · {mission.site.name}
                       </Text>
-                      <StatusBadge status={mission.status} />
+                      <StatusBadge status={mission.status} overdue={isMissionOverdue(mission)} validated={isMissionValidated(mission)} />
                     </View>
                   ))}
                 </View>
@@ -475,11 +560,13 @@ export function UserDetailScreen() {
                       marginTop: index === 0 ? 0 : spacing.xxs,
                     }}
                   >
+                    {/* Libellé en français (« Connexion réussie ») : le code
+                        brut AUTH_LOGIN_SUCCESS s'affichait tel quel. */}
                     <Text style={[type.footnote, { color: colors.ink, flex: 1, marginRight: spacing.xs }]} numberOfLines={1}>
-                      {entry.action}
+                      {formatAction(entry.action)}
                     </Text>
                     <Text style={[type.caption, { color: colors.inkTertiary }]}>
-                      {shortDateFormatter.format(new Date(entry.createdAt))}
+                      {activityDateFormatter.format(new Date(entry.createdAt))}
                     </Text>
                   </View>
                 ))}
@@ -488,33 +575,6 @@ export function UserDetailScreen() {
           </View>
         )}
 
-        {temporaryPassword && (
-          <Card style={{ marginTop: spacing.lg, borderColor: colors.accentDeep }}>
-            <Text style={[type.headline, { color: colors.ink }]}>Identifiants de connexion</Text>
-            <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
-              À transmettre à {account.firstName} — il devra changer ce mot de passe à sa prochaine connexion. Ce
-              mot de passe ne sera plus jamais affiché.
-            </Text>
-            <View
-              style={{
-                marginTop: spacing.sm,
-                padding: spacing.sm,
-                borderRadius: 10,
-                backgroundColor: colors.surface,
-              }}
-            >
-              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Identifiant</Text>
-              <Text style={[type.title3, { color: colors.ink, textAlign: "center" }]} selectable>
-                {account.username}
-              </Text>
-              <View style={{ height: spacing.sm }} />
-              <Text style={[type.caption, { color: colors.inkTertiary, textAlign: "center" }]}>Mot de passe</Text>
-              <Text style={[type.title3, { color: colors.accentDeep, textAlign: "center" }]} selectable>
-                {temporaryPassword}
-              </Text>
-            </View>
-          </Card>
-        )}
 
         {canManage && !isSelf && (
           <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
@@ -527,7 +587,16 @@ export function UserDetailScreen() {
               label="Réinitialiser l'accès"
               variant="secondary"
               loading={actionLoading === "reset"}
-              onPress={handleResetAccess}
+              onPress={() =>
+                Alert.alert(
+                  "Réinitialiser l'accès ?",
+                  "Le mot de passe actuel ne fonctionnera plus et la personne sera déconnectée. Un nouveau mot de passe temporaire s'affichera une seule fois : communiquez-le-lui.",
+                  [
+                    { text: "Annuler", style: "cancel" },
+                    { text: "Réinitialiser", style: "destructive", onPress: () => void handleResetAccess() },
+                  ]
+                )
+              }
             />
             <Button
               label={account.isActive ? "Désactiver le compte" : "Réactiver le compte"}
@@ -538,6 +607,22 @@ export function UserDetailScreen() {
           </View>
         )}
       </ScrollView>
+    <ReasonPromptModal
+        visible={!!rejectingAbsence}
+        title="Refuser cette demande ?"
+        subtitle={
+          rejectingAbsence
+            ? `${ABSENCE_TYPE_LABELS[rejectingAbsence.type] ?? rejectingAbsence.type} · ${formatAbsencePeriod(rejectingAbsence.startDate, rejectingAbsence.endDate)}`
+            : undefined
+        }
+        label="Motif du refus"
+        placeholder="Ex : période de forte activité, proposez d'autres dates."
+        confirmLabel="Refuser"
+        required
+        loading={!!rejectingAbsence && decidingAbsenceId === rejectingAbsence.id}
+        onCancel={() => setRejectingAbsence(null)}
+        onConfirm={(note) => rejectingAbsence && void handleDecideAbsence(rejectingAbsence.id, "REJECTED", note)}
+      />
     </ScreenContainer>
   );
 }

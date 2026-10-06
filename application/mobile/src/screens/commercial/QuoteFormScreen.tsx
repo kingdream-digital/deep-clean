@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
@@ -30,10 +32,11 @@ import {
 } from "../../api/quotes.api";
 import type { QuoteItemFrequency, QuoteItemInput, QuoteItemUnit } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { frenchDateFormat } from "../../utils/frenchDate";
 
 type Route = RouteProp<MenuStackParamList, "QuoteForm">;
 const NONE = "__none__";
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dateFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const CAN_REASSIGN_ROLES = ["HR", "DIRECTOR", "ADMIN"];
 
@@ -53,6 +56,7 @@ function defaultValidUntil(): Date {
 
 export function QuoteFormScreen() {
   const { colors, spacing, radius, type } = useTheme();
+  const { isDesktopWeb } = useResponsive();
   const { user } = useAuth();
   const route = useRoute<Route>();
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
@@ -94,6 +98,18 @@ export function QuoteFormScreen() {
           : []),
       ]);
       setClients(clientsRes.items);
+      // Devis lancé depuis la fiche client : coordonnées préremplies tout de
+      // suite (avant, les champs restaient vides à l'écran).
+      if (!isEdit && route.params?.clientId) {
+        const preset = clientsRes.items.find((c) => c.id === route.params?.clientId);
+        if (preset) {
+          setContactName([preset.contactFirstName, preset.contactLastName].filter(Boolean).join(" "));
+          setContactEmail(preset.email ?? "");
+          setContactPhone(preset.phone ?? "");
+          setBillingAddress(preset.billingAddress ?? "");
+          setSiret(preset.siret ?? "");
+        }
+      }
       if (canReassign) setCommercials(commercialLists.flatMap((r) => r.items));
 
       if (isEdit && quoteId) {
@@ -179,7 +195,7 @@ export function QuoteFormScreen() {
     setSaving(true);
     try {
       const payload = {
-        assignedUserId: canReassign ? (assignedUserId === NONE ? null : assignedUserId) : undefined,
+        assignedUserId: canReassign ? (assignedUserId === NONE ? (user?.id ?? null) : assignedUserId) : undefined,
         validUntil: hasValidUntil ? validUntil.toISOString() : undefined,
         subject: subject.trim() || undefined,
         siteAddress: siteAddress.trim() || undefined,
@@ -227,11 +243,11 @@ export function QuoteFormScreen() {
 
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Client</Text>
           <Card padded={false}>
-            <Picker enabled={!isEdit} selectedValue={clientId} onValueChange={handlePickClient} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker enabled={!isEdit} selectedValue={clientId} onValueChange={handlePickClient} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               <Picker.Item label="Sélectionner un client" value="" />
               {clients.map((c) => (
                 <Picker.Item key={c.id} label={c.companyName} value={c.id} />
@@ -269,7 +285,7 @@ export function QuoteFormScreen() {
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <View style={{ flex: 1 }}>
                   <TextField
-                    label="Quantité"
+                    label={item.frequency === "ONE_TIME" ? "Quantité" : "Quantité par passage"}
                     keyboardType="decimal-pad"
                     value={String(item.quantity)}
                     onChangeText={(v) => updateItem(item.key, { quantity: Number(v.replace(",", ".")) || 0 })}
@@ -287,7 +303,7 @@ export function QuoteFormScreen() {
               <View style={{ marginBottom: spacing.md }}>
                 <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Unité</Text>
                 <Card padded={false}>
-                  <Picker selectedValue={item.unit} onValueChange={(v) => updateItem(item.key, { unit: v as QuoteItemUnit })} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+                  <Picker selectedValue={item.unit} onValueChange={(v) => updateItem(item.key, { unit: v as QuoteItemUnit })} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                     {Object.entries(QUOTE_ITEM_UNIT_LABELS).map(([value, label]) => (
                       <Picker.Item key={value} label={label} value={value} />
                     ))}
@@ -306,7 +322,7 @@ export function QuoteFormScreen() {
                   <Picker
                     selectedValue={item.frequency}
                     onValueChange={(v) => updateItem(item.key, { frequency: v as QuoteItemFrequency })}
-                    style={{ color: colors.ink }}
+                    style={pickerStyle(colors)}
                     itemStyle={{ color: colors.ink }}
                   >
                     {Object.entries(QUOTE_ITEM_FREQUENCY_LABELS).map(([value, label]) => (
@@ -378,7 +394,7 @@ export function QuoteFormScreen() {
 
         <View style={{ marginBottom: spacing.md }}>
           <Checkbox label="Date de validité" checked={hasValidUntil} onChange={setHasValidUntil} />
-          {hasValidUntil && (
+          {!!hasValidUntil && (
             <View style={{ marginTop: spacing.sm }}>
               <DateTimeField label="Valable jusqu'au" mode="date" value={validUntil} onChange={setValidUntil} minimumDate={new Date()} formatValue={(d) => dateFmt.format(d)} />
             </View>
@@ -389,11 +405,11 @@ export function QuoteFormScreen() {
         <TextField label="Conditions de paiement" placeholder="Paiement à 30 jours" value={paymentTerms} onChangeText={setPaymentTerms} multiline numberOfLines={2} />
         <TextField label="Notes internes (jamais visibles par le client)" placeholder="Notes pour l'équipe" value={internalNotes} onChangeText={setInternalNotes} multiline numberOfLines={3} />
 
-        {canReassign && (
+        {!!canReassign && (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Commercial responsable</Text>
             <Card padded={false}>
-              <Picker selectedValue={assignedUserId} onValueChange={setAssignedUserId} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+              <Picker selectedValue={assignedUserId} onValueChange={setAssignedUserId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
                 <Picker.Item label="Moi-même" value={NONE} />
                 {commercials.map((c) => (
                   <Picker.Item key={c.id} label={`${c.firstName} ${c.lastName}`} value={c.id} />
@@ -413,17 +429,29 @@ export function QuoteFormScreen() {
             <Text style={[type.footnote, { color: colors.ink }]}>{currencyFmt.format(quoteTotals.vatAmount)}</Text>
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <Text style={[type.headline, { color: colors.ink }]}>Total TTC</Text>
-            <Text style={[type.headline, { color: colors.accent }]}>{currencyFmt.format(quoteTotals.totalTtc)}</Text>
+            <Text style={[quoteTotals.monthlyAmountHt > 0 ? type.callout : type.headline, { color: colors.ink }]}>
+              {quoteTotals.monthlyAmountHt > 0 ? "Base TTC (1 passage par ligne)" : "Total TTC"}
+            </Text>
+            <Text style={[quoteTotals.monthlyAmountHt > 0 ? type.callout : type.headline, { color: quoteTotals.monthlyAmountHt > 0 ? colors.ink : colors.accent }]}>
+              {currencyFmt.format(quoteTotals.totalTtc)}
+            </Text>
           </View>
           {quoteTotals.monthlyAmountHt > 0 && (
-            <Text style={[type.footnote, { color: colors.accentDeep, marginTop: 6 }]}>
-              Prévisionnel : {currencyFmt.format(quoteTotals.monthlyAmountHt)} HT / mois
-            </Text>
+            <View style={{ marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={[type.headline, { color: colors.ink }]}>Par mois</Text>
+                <Text style={[type.headline, { color: colors.accent }]}>
+                  {currencyFmt.format(Math.round(quoteTotals.monthlyAmountHt * (1 + (Number(vatRate) || 0) / 100) * 100) / 100)} TTC
+                </Text>
+              </View>
+              <Text style={[type.footnote, { color: colors.accentText, marginTop: 2 }]}>
+                soit {currencyFmt.format(quoteTotals.monthlyAmountHt)} HT / mois
+              </Text>
+            </View>
           )}
         </Card>
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le devis"} onPress={handleSave} loading={saving} />
       </ScrollView>

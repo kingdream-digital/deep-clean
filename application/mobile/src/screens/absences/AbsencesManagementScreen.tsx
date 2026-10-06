@@ -1,10 +1,11 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
-import { useFocusEffect } from "@react-navigation/native";
+
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
+import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/Button";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
@@ -14,20 +15,25 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { cancelAbsence, listAbsences, decideAbsence } from "../../api/absences.api";
 import type { Absence, AbsenceStatus } from "../../api/absences.api";
-
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+import { formatAbsencePeriod } from "../../utils/frenchDate";
+import { formatDaysWithUnit } from "../../utils/leaveDays";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
+import { ReasonPromptModal } from "../../components/ReasonPromptModal";
 
 const TYPE_LABELS: Record<Absence["type"], string> = {
   PAID_LEAVE: "Congé payé",
   SICK_LEAVE: "Maladie",
   UNPAID_LEAVE: "Sans solde",
+  WORK_ACCIDENT: "Accident du travail",
+  PARENTAL_LEAVE: "Maternité / paternité",
+  COMPENSATORY_REST: "Repos compensateur",
   OTHER: "Autre",
 };
 
+// « 19 – 23 oct. 2026 », jours calendaires tels qu'enregistrés : voir
+// formatAbsencePeriod (la date de fin s'affichait le lendemain à Paris).
 function formatRange(start: string, end: string): string {
-  const s = dateFmt.format(new Date(start));
-  const e = dateFmt.format(new Date(end));
-  return s === e ? s : `${s} → ${e}`;
+  return formatAbsencePeriod(start, end);
 }
 
 const FILTERS: { label: string; value: AbsenceStatus | "ALL" }[] = [
@@ -49,26 +55,31 @@ export function AbsencesManagementScreen() {
   const [decidingId, setDecidingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listAbsences(filter === "ALL" ? {} : { status: filter });
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [filter]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
   );
 
-  async function handleDecide(id: string, status: "APPROVED" | "REJECTED") {
+  // Refus : saisie du motif, transmis au salarié (retour d'audit).
+  const [rejecting, setRejecting] = useState<Absence | null>(null);
+
+  async function handleDecide(id: string, status: "APPROVED" | "REJECTED", note?: string) {
     setDecidingId(id);
     try {
-      await decideAbsence(id, status);
+      await decideAbsence(id, status, note || undefined);
+      setRejecting(null);
       await load();
     } catch (err) {
       Alert.alert("Action impossible", extractErrorMessage(err));
@@ -78,14 +89,7 @@ export function AbsencesManagementScreen() {
   }
 
   function confirmReject(item: Absence) {
-    Alert.alert(
-      "Refuser cette demande ?",
-      `${item.user.firstName} ${item.user.lastName} — ${formatRange(item.startDate, item.endDate)}`,
-      [
-        { text: "Annuler", style: "cancel" },
-        { text: "Refuser", style: "destructive", onPress: () => void handleDecide(item.id, "REJECTED") },
-      ]
-    );
+    setRejecting(item);
   }
 
   async function handleCancel(item: Absence) {
@@ -213,19 +217,33 @@ export function AbsencesManagementScreen() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderItem={({ item }) => (
             <Card>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                <View style={{ flex: 1, marginRight: spacing.sm }}>
-                  <Text style={[type.headline, { color: colors.ink }]}>
+              {/* Qui demande (photo à l'appui), quoi, quand. Le statut n'est
+                  affiché que dans « Approuvées » et « Toutes » : dans « En
+                  attente », il répétait sur chaque carte le nom de l'onglet et
+                  coupait le nom en deux (« Emma / Rousseau »). */}
+              <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                <View style={{ marginRight: spacing.sm }}>
+                  <Avatar user={item.user} size={40} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
                     {item.user.firstName} {item.user.lastName}
                   </Text>
                   <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
-                    {TYPE_LABELS[item.type]} · {formatRange(item.startDate, item.endDate)} · {item.daysCount} j
+                    {TYPE_LABELS[item.type]} · {formatDaysWithUnit(item.daysCount)}
                   </Text>
-                  {item.reason && (
+                  <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>
+                    {formatRange(item.startDate, item.endDate)}
+                  </Text>
+                  {!!item.reason && (
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 4 }]}>{item.reason}</Text>
                   )}
+                  {filter !== "PENDING" && (
+                    <View style={{ marginTop: spacing.xs }}>
+                      <AbsenceStatusBadge status={item.status} />
+                    </View>
+                  )}
                 </View>
-                <AbsenceStatusBadge status={item.status} />
               </View>
 
               {item.status === "PENDING" && (
@@ -264,6 +282,18 @@ export function AbsencesManagementScreen() {
           )}
         />
       )}
+    <ReasonPromptModal
+        visible={!!rejecting}
+        title="Refuser cette demande ?"
+        subtitle={rejecting ? `${rejecting.user.firstName} ${rejecting.user.lastName} — ${formatRange(rejecting.startDate, rejecting.endDate)}` : undefined}
+        label="Motif du refus"
+        placeholder="Ex : période de forte activité, proposez d'autres dates."
+        confirmLabel="Refuser"
+        required
+        loading={!!rejecting && decidingId === rejecting.id}
+        onCancel={() => setRejecting(null)}
+        onConfirm={(note) => rejecting && void handleDecide(rejecting.id, "REJECTED", note)}
+      />
     </ScreenContainer>
   );
 }

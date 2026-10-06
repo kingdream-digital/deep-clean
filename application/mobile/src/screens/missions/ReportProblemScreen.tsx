@@ -236,7 +236,7 @@ export function ReportProblemScreen() {
           )}
         </View>
 
-        {error && <Text style={[typeScale.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[typeScale.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label="Envoyer le signalement" onPress={handleSubmit} loading={submitting} />
       </ScrollView>

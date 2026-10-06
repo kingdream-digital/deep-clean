@@ -13,12 +13,12 @@ export interface Site {
   // le même principe que Announcement.hasCoverPhoto/User.hasAvatar.
   hasPhoto: boolean;
   managerId: string | null;
-  manager: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  manager: { id: string; firstName: string; lastName: string; email: string | null; hasAvatar?: boolean } | null;
   // Superviseur fixe du chantier — retour explicite du client : distinct du
   // chef d'équipe (manager/managerId), qui peut varier d'un jour à l'autre
   // sur les missions. Le superviseur, lui, ne change pas.
   supervisorId: string | null;
-  supervisor: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  supervisor: { id: string; firstName: string; lastName: string; email: string | null; hasAvatar?: boolean } | null;
   // Position GPS de référence du chantier — calculée automatiquement par le
   // serveur à partir de `address` (géocodage, voir sites.service.ts), jamais
   // envoyée par le client. Absente si l'adresse n'a pas été reconnue ; permet
@@ -139,9 +139,16 @@ export interface SiteProgress {
   scheduledVisits: number;
   completedVisits: number;
   cancelledVisits: number;
+  // Objectif − réalisées.
   remainingVisits: number | null;
+  // Objectif − programmées (une mission programmée est déduite tout de suite).
+  toScheduleVisits: number | null;
+  // Programmées au-delà de l'objectif.
+  extraVisits: number;
   plannedHours: number;
   actualHours: number;
+  // Proposé à partir du devis tant qu'aucun objectif n'est défini ce mois-ci.
+  suggestedTarget?: { plannedVisits: number; plannedHours: number | null; plannedAmount: number | null } | null;
 }
 
 export async function upsertSiteTarget(

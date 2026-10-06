@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StateView } from "../../components/StateView";
 import { Card } from "../../components/Card";
@@ -13,8 +13,10 @@ import { downloadDocument, listMyDocuments } from "../../api/documents.api";
 import type { EmployeeDocument } from "../../api/documents.api";
 import { shareFile } from "../../utils/shareFile";
 import { formatFileSize } from "../../utils/fileSize";
+import { frenchDateFormat } from "../../utils/frenchDate";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const dayFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
 
 // Espace documents personnel (retour explicite du client) : ce que la
 // RH/direction a déposé dans l'espace de la personne connectée — contrat,
@@ -27,16 +29,17 @@ export function MyDocumentsScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setItems(await listMyDocuments());
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])

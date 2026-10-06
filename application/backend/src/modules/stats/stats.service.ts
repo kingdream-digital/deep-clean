@@ -1,4 +1,5 @@
 import { MissionStatus, ProblemStatus, ProblemType, Role, ValidationType } from "@prisma/client";
+import { calendarDayKey, companyToday } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 
 export async function getOverview() {
@@ -7,7 +8,9 @@ export async function getOverview() {
   // dans missions.service.ts) — comparer avec `now` (un instant en cours de
   // journée) excluait à tort les missions du jour même dès que l'heure
   // dépassait minuit. On compare avec le début de la journée locale.
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // `Mission.date` est un jour calendaire (minuit UTC) : « aujourd'hui » est
+  // le jour de Paris, exprimé de la même façon.
+  const todayStart = companyToday(now);
   const in7Days = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const [
@@ -81,10 +84,7 @@ const LOAD_WINDOW_DAYS = 30;
 const TOP_SITES_LIMIT = 5;
 
 function toWeekStartString(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return calendarDayKey(d);
 }
 
 /**
@@ -97,7 +97,9 @@ function toWeekStartString(d: Date): string {
  */
 export async function getTrends() {
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // `Mission.date` est un jour calendaire (minuit UTC) : « aujourd'hui » est
+  // le jour de Paris, exprimé de la même façon.
+  const todayStart = companyToday(now);
   const trendRangeStart = new Date(todayStart.getTime() - (TREND_WEEKS - 1) * MS_PER_WEEK);
   const loadRangeStart = new Date(todayStart.getTime() - LOAD_WINDOW_DAYS * MS_PER_DAY);
 
@@ -115,7 +117,7 @@ export async function getTrends() {
     }),
     prisma.missionAssignment.findMany({
       where: { mission: { status: MissionStatus.COMPLETED, date: { gte: loadRangeStart } } },
-      select: { userId: true, user: { select: { firstName: true, lastName: true } } },
+      select: { userId: true, user: { select: { firstName: true, lastName: true, avatarKey: true } } },
     }),
   ]);
 
@@ -159,14 +161,29 @@ export async function getTrends() {
     .sort((a, b) => b.problemCount - a.problemCount)
     .slice(0, TOP_SITES_LIMIT);
 
-  const loadByEmployee = new Map<string, { name: string; count: number }>();
+  // Prénom/nom séparés et `hasAvatar` (jamais la clé de stockage) : l'app
+  // affiche la photo de chaque personne, comme dans le reste des listes.
+  const loadByEmployee = new Map<string, { name: string; firstName: string; lastName: string; hasAvatar: boolean; count: number }>();
   for (const a of completedAssignmentsInRange) {
-    const entry = loadByEmployee.get(a.userId) ?? { name: `${a.user.firstName} ${a.user.lastName}`, count: 0 };
+    const entry = loadByEmployee.get(a.userId) ?? {
+      name: `${a.user.firstName} ${a.user.lastName}`,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      hasAvatar: Boolean(a.user.avatarKey),
+      count: 0,
+    };
     entry.count += 1;
     loadByEmployee.set(a.userId, entry);
   }
   const employeeLoad = [...loadByEmployee.entries()]
-    .map(([userId, v]) => ({ userId, name: v.name, completedMissions: v.count }))
+    .map(([userId, v]) => ({
+      userId,
+      name: v.name,
+      firstName: v.firstName,
+      lastName: v.lastName,
+      hasAvatar: v.hasAvatar,
+      completedMissions: v.count,
+    }))
     .sort((a, b) => b.completedMissions - a.completedMissions);
 
   return {

@@ -98,5 +98,29 @@ describe("Tableau de bord commercial — suivi des chantiers, purement informati
     expect(dashboard.body.dashboard.sites.remainingVisits).toBe(5);
     expect(dashboard.body.dashboard.sites.sitesNeedingAttention).toHaveLength(1);
     expect(dashboard.body.dashboard.sites.sitesNeedingAttention[0].siteId).toBe(site.body.site.id);
+    expect(dashboard.body.dashboard.sites.sitesNeedingAttention[0].toScheduleVisits).toBe(5);
+    expect(dashboard.body.dashboard.sites.toScheduleVisits).toBe(5);
+  });
+
+  it("une mission programmée sur le chantier est déduite tout de suite des prestations à programmer", async () => {
+    const { accessToken } = await loginAs(Role.HR, "hr-dash3@deepclean.test");
+    const employee = await createTestUser({ role: Role.EMPLOYEE, email: "emp-dash3@deepclean.test" });
+    const site = await request(app).post("/api/v1/sites").set("Authorization", `Bearer ${accessToken}`).send({ name: "Clinique", address: "1 rue Test" });
+    const siteId = site.body.site.id as string;
+    const tomorrow = new Date(Date.now() + 2 * 86_400_000);
+    const period = tomorrow.toISOString().slice(0, 7);
+    await request(app).post(`/api/v1/sites/${siteId}/targets`).set("Authorization", `Bearer ${accessToken}`).send({ period, plannedVisits: 4 });
+
+    const created = await request(app)
+      .post("/api/v1/missions")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ siteId, title: "Nettoyage bureau", date: tomorrow.toISOString().slice(0, 10), startTime: "08:00", endTime: "17:00", assigneeIds: [employee.id] });
+    expect(created.status).toBe(201);
+
+    const progress = (await request(app).get(`/api/v1/sites/${siteId}/progress`).query({ period }).set("Authorization", `Bearer ${accessToken}`)).body.progress;
+    expect(progress.scheduledVisits).toBe(1);
+    expect(progress.toScheduleVisits).toBe(3);
+    expect(progress.remainingVisits).toBe(4);
+    expect(progress.plannedHours).toBe(9);
   });
 });

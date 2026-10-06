@@ -11,6 +11,7 @@ export type NotificationType =
   | "PHOTO_EXPIRING_SOON"
   | "VALIDATION_REQUESTED"
   | "TIMESHEET_VALIDATED"
+  | "TIMESHEET_REJECTED"
   | "ACCOUNT_UPDATE"
   // ABSENCE_DECIDED / ABSENCE_CONFLICT existent côté backend (schema.prisma)
   // depuis l'ajout des congés/absences mais manquaient ici — bug confirmé en
@@ -30,6 +31,8 @@ export type NotificationType =
   // l'identifiant de l'EXPÉDITEUR (pas du message), pour ouvrir directement
   // le bon fil au clic.
   | "MESSAGE_RECEIVED"
+  | "COMMERCIAL_UPDATE"
+  | "REMINDER"
   | "GENERAL";
 
 export interface AppNotification {
@@ -50,11 +53,25 @@ interface ListNotificationsResponse {
   page: number;
   pageSize: number;
   unreadCount: number;
+  /**
+   * Non-lues hors « nouveau message » : un message reçu crée à la fois une
+   * notification et un message non lu dans son fil, qu'il ne faut pas compter
+   * deux fois dans le badge de l'onglet (voir hooks/useUnreadInboxCount.ts).
+   */
+  unreadCountExcludingMessages: number;
 }
 
-export async function listNotifications(page = 1, pageSize = 20): Promise<ListNotificationsResponse> {
+export async function listNotifications(
+  page = 1,
+  pageSize = 20,
+  options: { excludeMessages?: boolean } = {}
+): Promise<ListNotificationsResponse> {
   const { data } = await apiClient.get<ListNotificationsResponse>("/notifications", {
-    params: { page, pageSize },
+    params: {
+      page,
+      pageSize,
+      ...(options.excludeMessages ? { excludeMessages: "true" } : {}),
+    },
   });
   return data;
 }

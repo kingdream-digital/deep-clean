@@ -19,9 +19,9 @@ const siteSelect = {
   description: true,
   isActive: true,
   managerId: true,
-  manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+  manager: { select: { id: true, firstName: true, lastName: true, email: true, avatarKey: true } },
   supervisorId: true,
-  supervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
+  supervisor: { select: { id: true, firstName: true, lastName: true, email: true, avatarKey: true } },
   photoKey: true,
   latitude: true,
   longitude: true,
@@ -34,12 +34,25 @@ const siteSelect = {
   updatedAt: true,
 } as const;
 
+type PersonWithAvatarKey = { id: string; firstName: string; lastName: string; email: string | null; avatarKey: string | null };
+
+// Même principe pour la photo de profil du chef d'équipe et du superviseur
+// (voir users.service.ts::presentUser) : un booléen `hasAvatar`, jamais la
+// clé de stockage — la fiche chantier peut ainsi afficher leur photo.
+function presentPerson(person: PersonWithAvatarKey | null) {
+  if (!person) return null;
+  const { avatarKey, ...rest } = person;
+  return { ...rest, hasAvatar: Boolean(avatarKey) };
+}
+
 // Retire `photoKey` (jamais exposé tel quel, même principe que
 // `Announcement.coverPhotoKey`) au profit d'un simple booléen — le client
 // récupère la photo via la route authentifiée dédiée (GET /:id/photo/file).
-function presentSite<T extends { photoKey: string | null }>(site: T): Omit<T, "photoKey"> & { hasPhoto: boolean } {
-  const { photoKey, ...rest } = site;
-  return { ...rest, hasPhoto: Boolean(photoKey) };
+function presentSite<T extends { photoKey: string | null; manager: PersonWithAvatarKey | null; supervisor: PersonWithAvatarKey | null }>(
+  site: T
+) {
+  const { photoKey, manager, supervisor, ...rest } = site;
+  return { ...rest, manager: presentPerson(manager), supervisor: presentPerson(supervisor), hasPhoto: Boolean(photoKey) };
 }
 
 async function findSiteOrThrow(id: string) {
@@ -401,9 +414,18 @@ export interface SiteProgress {
   scheduledVisits: number;
   completedVisits: number;
   cancelledVisits: number;
+  // Objectif − réalisées : prestations encore à RÉALISER ce mois-ci.
   remainingVisits: number | null;
+  // Objectif − programmées (non annulées) : prestations encore à PROGRAMMER.
+  // Une mission programmée sur le chantier est déduite immédiatement.
+  toScheduleVisits: number | null;
+  // Programmées au-delà de l'objectif (information, jamais bloquant).
+  extraVisits: number;
   plannedHours: number;
   actualHours: number;
+  // Objectif proposé à partir du devis du chantier, tant qu'aucun objectif
+  // n'est défini pour le mois (retour d'audit : ressaisie source d'écarts).
+  suggestedTarget: { plannedVisits: number; plannedHours: number | null; plannedAmount: number | null } | null;
 }
 
 // Suivi mensuel (§23/§34) — tout est recalculé en direct depuis les missions
@@ -447,7 +469,28 @@ export async function getSiteProgress(actor: Actor, siteId: string, period: stri
     }
   }
 
+  let suggestedTarget: SiteProgress["suggestedTarget"] = null;
+  if (!target && site.quoteId) {
+    const quote = await prisma.quote.findUnique({
+      where: { id: site.quoteId },
+      select: { monthlyAmountHt: true, items: { select: { frequency: true, occurrencesPerMonth: true, estimatedHours: true } } },
+    });
+    const recurring = (quote?.items ?? []).filter((i) => i.frequency !== "ONE_TIME" && (i.occurrencesPerMonth ?? 0) > 0);
+    if (quote && recurring.length > 0) {
+      // Plusieurs lignes récurrentes sont en général faites pendant les mêmes
+      // passages : le nombre de passages est celui de la ligne la plus fréquente.
+      const visits = Math.round(Math.max(...recurring.map((i) => i.occurrencesPerMonth ?? 0)));
+      const hours = recurring.reduce((sum, i) => sum + (i.estimatedHours ?? 0) * (i.occurrencesPerMonth ?? 0), 0);
+      suggestedTarget = {
+        plannedVisits: visits,
+        plannedHours: hours > 0 ? round1(hours) : null,
+        plannedAmount: quote.monthlyAmountHt > 0 ? Math.round(quote.monthlyAmountHt * 100) / 100 : null,
+      };
+    }
+  }
+
   return {
+    suggestedTarget,
     period,
     target: target
       ? { plannedVisits: target.plannedVisits, plannedHours: target.plannedHours, plannedAmount: target.plannedAmount, billingMode: target.billingMode }
@@ -456,6 +499,8 @@ export async function getSiteProgress(actor: Actor, siteId: string, period: stri
     completedVisits,
     cancelledVisits,
     remainingVisits: target ? Math.max(0, target.plannedVisits - completedVisits) : null,
+    toScheduleVisits: target ? Math.max(0, target.plannedVisits - active.length) : null,
+    extraVisits: target ? Math.max(0, active.length - target.plannedVisits) : 0,
     plannedHours: round1(plannedHours),
     actualHours: round1(actualHours),
   };

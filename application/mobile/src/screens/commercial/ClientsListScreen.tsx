@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -14,6 +14,7 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { listClients } from "../../api/clients.api";
 import type { Client } from "../../api/clients.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 function contactName(c: Client): string | null {
   const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(" ");
@@ -30,17 +31,18 @@ export function ClientsListScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async (query: string) => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       const res = await listClients(query.trim() ? { search: query.trim() } : {});
       setItems(res.items);
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, []);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load(search);
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,7 +52,7 @@ export function ClientsListScreen() {
   return (
     <ScreenContainer style={{ paddingTop: spacing.md }}>
       <View style={{ marginBottom: spacing.md }}>
-        {isDesktopWeb && <Text style={[type.title1, { color: colors.ink, marginBottom: spacing.md }]}>Clients</Text>}
+        {!!isDesktopWeb && <Text style={[type.title1, { color: colors.ink, marginBottom: spacing.md }]}>Clients</Text>}
         <TextField
           label="Recherche"
           placeholder="Entreprise, contact, email"
@@ -84,7 +86,7 @@ export function ClientsListScreen() {
                       {contactName(item)}
                     </Text>
                   )}
-                  {item.city && (
+                  {!!item.city && (
                     <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.xs }}>
                       <Ionicons name="location-outline" size={13} color={colors.inkTertiary} />
                       <Text style={[type.footnote, { color: colors.inkTertiary, marginLeft: 4 }]}>{item.city}</Text>
@@ -103,7 +105,7 @@ export function ClientsListScreen() {
           onPress={() => navigation.navigate("ClientForm", undefined)}
           accessibilityRole="button"
           accessibilityLabel="Nouveau client"
-          style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+          style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
         >
           <Ionicons name="add" size={26} color={colors.onAccent} />
         </PressableScale>

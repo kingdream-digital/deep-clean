@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 
 // bcryptjs est une implémentation pure JS (pas de binding natif) : le calcul
@@ -54,13 +55,16 @@ export function checkPasswordPolicy(password: string): PasswordPolicyResult {
 // Génère un mot de passe temporaire lisible pour que la RH puisse le communiquer à l'utilisateur.
 const TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
 
-export function generateTemporaryPassword(length = 14): string {
-  let result = "";
-  for (let i = 0; i < length; i += 1) {
-    result += TEMP_PASSWORD_CHARS[Math.floor(Math.random() * TEMP_PASSWORD_CHARS.length)];
+// Tirage cryptographique (retour d'audit : Math.random n'est pas sûr) ; une
+// lettre minuscule, une majuscule, un chiffre et un caractère spécial sont
+// garantis puis mélangés à des positions aléatoires — plus de suffixe fixe.
+export function generateTemporaryPassword(length = 16): string {
+  const pick = (chars: string) => chars[randomInt(chars.length)]!;
+  const required = [pick("abcdefghijkmnpqrstuvwxyz"), pick("ABCDEFGHJKLMNPQRSTUVWXYZ"), pick("23456789"), pick("!@#$%")];
+  const chars = required.concat(Array.from({ length: Math.max(0, length - required.length) }, () => pick(TEMP_PASSWORD_CHARS)));
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
   }
-  // Garantit la conformité à la politique même sur un tirage défavorable
-  // (minuscule/majuscule/chiffre/spécial tous garantis, pas seulement les
-  // trois derniers).
-  return `${result}aA1!`;
+  return chars.join("");
 }

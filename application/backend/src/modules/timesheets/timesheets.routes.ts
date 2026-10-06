@@ -12,6 +12,8 @@ import {
   retroactiveTimeEntrySchema,
   timeEntryIdParamSchema,
   validateTimeEntrySchema,
+  managerTimeEntrySchema,
+  paySummaryQuerySchema,
 } from "./timesheets.validation";
 import * as timesheetsController from "./timesheets.controller";
 
@@ -44,7 +46,13 @@ timesheetsRouter.post(
   validate(retroactiveTimeEntrySchema),
   timesheetsController.retroactiveTimeEntryHandler
 );
+timesheetsRouter.post(
+  "/for-user/:userId",
+  validate(managerTimeEntrySchema),
+  timesheetsController.managerTimeEntryHandler
+);
 timesheetsRouter.get("/me/status", timesheetsController.myStatusHandler);
+timesheetsRouter.get("/me/monthly", timesheetsController.myMonthlySummaryHandler);
 timesheetsRouter.get("/", validate(listTimeEntriesQuerySchema), timesheetsController.listTimeEntriesHandler);
 // AVANT "/:id" : sinon Express interpréterait "export"/"reconciliation" comme un id de pointage.
 timesheetsRouter.get("/export", validate(exportTimeEntriesQuerySchema), timesheetsController.exportTimeEntriesHandler);
@@ -60,6 +68,8 @@ timesheetsRouter.get(
   validate(reconciliationDetailSchema),
   timesheetsController.getReconciliationDetailHandler
 );
+// Heures majorées du mois (nuit, dimanche, férié) et repos compensateur.
+timesheetsRouter.get("/pay-summary", validate(paySummaryQuerySchema), timesheetsController.paySummaryHandler);
 timesheetsRouter.get("/:id", validate(timeEntryIdParamSchema), timesheetsController.getTimeEntryHandler);
 timesheetsRouter.post("/:id/validate", validate(validateTimeEntrySchema), timesheetsController.validateTimeEntryHandler);
 timesheetsRouter.post("/:id/reject", validate(rejectTimeEntrySchema), timesheetsController.rejectTimeEntryHandler);

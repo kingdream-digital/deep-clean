@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -8,6 +9,10 @@ import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { SegmentedControl } from "../../components/SegmentedControl";
+import { DateTimeField } from "../../components/DateTimeField";
+import { calendarDay, frenchDateFormat } from "../../utils/frenchDate";
+import { toLocalDateKey } from "../../utils/missionFormat";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -37,6 +42,8 @@ function assignableRoleOptionsFor(actorRole: Role | undefined): { value: Role; l
   return ROLE_OPTIONS.filter((opt) => !restricted.includes(opt.value));
 }
 
+const hireDateFormat = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
+
 export function UserFormScreen() {
   const { colors, spacing, type } = useTheme();
   const { user: actor } = useAuth();
@@ -55,6 +62,16 @@ export function UserFormScreen() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>("EMPLOYEE");
+  // Date d'entrée : base du calcul des congés acquis (aujourd'hui par défaut,
+  // à corriger pour un salarié déjà présent avant l'application).
+  const [hireDate, setHireDate] = useState<Date>(new Date());
+  // Heures par semaine au contrat : le planning en déduit ce qu'il reste à
+  // planifier pour la personne chaque semaine.
+  const [weeklyHoursText, setWeeklyHoursText] = useState("");
+  const [nightWorkerStatus, setNightWorkerStatus] = useState<"AUTO" | "YES" | "NO">("AUTO");
+  // Congés : vide = règle légale (2,5 jours ouvrables / mois, 30 / an).
+  const [accrualRateText, setAccrualRateText] = useState("");
+  const [accrualCapText, setAccrualCapText] = useState("");
 
   const load = useCallback(async () => {
     if (!isEdit || !userId) return;
@@ -66,6 +83,11 @@ export function UserFormScreen() {
       setLastName(account.lastName);
       setPhone(account.phone ?? "");
       setRole(account.role);
+      if (account.hireDate) setHireDate(calendarDay(account.hireDate));
+      setWeeklyHoursText(account.weeklyHours != null ? String(account.weeklyHours).replace(".", ",") : "");
+      setNightWorkerStatus(account.nightWorkerStatus ?? "AUTO");
+      setAccrualRateText(account.leaveAccrualRate != null ? String(account.leaveAccrualRate).replace(".", ",") : "");
+      setAccrualCapText(account.leaveAccrualCap != null ? String(account.leaveAccrualCap).replace(".", ",") : "");
       setLoadState("ready");
     } catch {
       setLoadState("error");
@@ -84,6 +106,22 @@ export function UserFormScreen() {
       return;
     }
 
+    const weeklyHoursValue = weeklyHoursText.trim() ? Number(weeklyHoursText.replace(",", ".")) : null;
+    if (weeklyHoursValue != null && (Number.isNaN(weeklyHoursValue) || weeklyHoursValue <= 0 || weeklyHoursValue > 60)) {
+      setError("Heures par semaine : indiquez un nombre entre 1 et 60, par exemple 35.");
+      return;
+    }
+    const rateValue = accrualRateText.trim() ? Number(accrualRateText.replace(",", ".")) : null;
+    const capValue = accrualCapText.trim() ? Number(accrualCapText.replace(",", ".")) : null;
+    if (rateValue != null && (Number.isNaN(rateValue) || rateValue <= 0 || rateValue > 5)) {
+      setError("Congés acquis par mois : indiquez un nombre entre 0 et 5, par exemple 2,5.");
+      return;
+    }
+    if (capValue != null && (Number.isNaN(capValue) || capValue <= 0 || capValue > 60)) {
+      setError("Plafond annuel : indiquez un nombre de jours, par exemple 30.");
+      return;
+    }
+
     setSaving(true);
     try {
       if (isEdit && userId) {
@@ -92,6 +130,11 @@ export function UserFormScreen() {
           lastName: lastName.trim(),
           phone: phone.trim() || null,
           role,
+          hireDate: toLocalDateKey(hireDate),
+          weeklyHours: weeklyHoursValue,
+          nightWorkerStatus,
+          leaveAccrualRate: rateValue,
+          leaveAccrualCap: capValue,
         });
         navigation.goBack();
       } else {
@@ -101,6 +144,10 @@ export function UserFormScreen() {
           lastName: lastName.trim(),
           phone: phone.trim() || undefined,
           role,
+          hireDate: toLocalDateKey(hireDate),
+          ...(weeklyHoursValue != null ? { weeklyHours: weeklyHoursValue } : {}),
+          ...(rateValue != null ? { leaveAccrualRate: rateValue } : {}),
+          ...(capValue != null ? { leaveAccrualCap: capValue } : {}),
         });
         navigation.replace("UserDetail", { userId: user.id, temporaryPassword });
       }
@@ -153,13 +200,73 @@ export function UserFormScreen() {
         <View style={{ marginBottom: spacing.md }}>
           <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Rôle</Text>
           <Card padded={false}>
-            <Picker selectedValue={role} onValueChange={(v) => setRole(v as Role)} style={{ color: colors.ink }} itemStyle={{ color: colors.ink }}>
+            <Picker selectedValue={role} onValueChange={(v) => setRole(v as Role)} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
               {assignableRoleOptionsFor(actor?.role).map((opt) => (
                 <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
               ))}
             </Picker>
           </Card>
         </View>
+
+        <DateTimeField
+          label="Début du contrat"
+          mode="date"
+          value={hireDate}
+          onChange={setHireDate}
+          maximumDate={new Date()}
+          formatValue={(d) => hireDateFormat.format(d)}
+        />
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          Le compteur de congés part de 0 et s'incrémente chaque mois à partir de cette date. Pour un salarié déjà présent, reportez son solde actuel depuis sa fiche (« Ajuster le solde »).
+        </Text>
+
+        <TextField
+          label="Heures par semaine (contrat)"
+          placeholder="Ex. 35"
+          keyboardType="decimal-pad"
+          value={weeklyHoursText}
+          onChangeText={setWeeklyHoursText}
+        />
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          Le planning affiche ensuite combien d'heures il reste à planifier pour la personne chaque semaine.
+        </Text>
+
+        {isEdit && (
+          <>
+            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>TRAVAILLEUR DE NUIT</Text>
+            <SegmentedControl
+              value={nightWorkerStatus}
+              onChange={setNightWorkerStatus}
+              options={[
+                { label: "Automatique", value: "AUTO" },
+                { label: "Oui", value: "YES" },
+                { label: "Non", value: "NO" },
+              ]}
+            />
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xs, marginBottom: spacing.md }]}>
+              Automatique : reconnu d'après ses pointages (3 h entre 21 h et 6 h au moins 2 fois par semaine, ou 270 h de nuit sur 12 mois). Il acquiert alors un repos compensateur payé de 2 % de ses heures de nuit. Les heures de nuit restent majorées dans tous les cas.
+            </Text>
+          </>
+        )}
+
+        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>CONGÉS PAYÉS DU CONTRAT</Text>
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <TextField
+              label="Acquis par mois"
+              placeholder="2,5"
+              keyboardType="decimal-pad"
+              value={accrualRateText}
+              onChangeText={setAccrualRateText}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextField label="Plafond par an" placeholder="30" keyboardType="decimal-pad" value={accrualCapText} onChangeText={setAccrualCapText} />
+          </View>
+        </View>
+        <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+          En jours ouvrables. Laissez vide pour la règle légale : 2,5 jours par mois de travail, 30 jours (5 semaines) par période de référence.
+        </Text>
 
         {!isEdit && (
           <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.md }]}>
@@ -168,7 +275,7 @@ export function UserFormScreen() {
           </Text>
         )}
 
-        {error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
+        {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
         <Button label={isEdit ? "Enregistrer les modifications" : "Créer le compte"} onPress={handleSave} loading={saving} />
       </ScrollView>

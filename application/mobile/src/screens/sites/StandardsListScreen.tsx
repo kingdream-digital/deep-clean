@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
@@ -13,6 +13,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { listStandards } from "../../api/standards.api";
 import type { CleaningStandard } from "../../api/standards.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
+import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
 type Route = RouteProp<{ StandardsList: { siteId: string; siteName?: string } }, "StandardsList">;
 
@@ -34,16 +35,17 @@ export function StandardsListScreen() {
   const canManage = user ? MANAGE_ROLES.includes(user.role) : false;
 
   const load = useCallback(async () => {
+    const silent = isBackgroundRefresh();
     try {
-      setState("loading");
+      if (!silent) setState("loading");
       setItems(await listStandards(siteId));
       setState("ready");
     } catch {
-      setState("error");
+      if (!silent) setState("error");
     }
   }, [siteId]);
 
-  useFocusEffect(
+  useLiveFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
@@ -70,7 +72,7 @@ export function StandardsListScreen() {
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(280)}>
               <PressableScale
-                onPress={() => navigation.navigate("StandardForm", { siteId, standardId: item.id })}
+                onPress={() => navigation.navigate("StandardDetail", { standardId: item.id })}
               >
                 <Card style={{ flexDirection: "row", alignItems: "center" }}>
                   <View
@@ -86,7 +88,7 @@ export function StandardsListScreen() {
                     <Ionicons name="document-text-outline" size={18} color={colors.purple} />
                   </View>
                   <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={1}>
+                    <Text style={[type.headline, { color: colors.ink }]} numberOfLines={2}>
                       {item.name}
                     </Text>
                     <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]} numberOfLines={1}>
@@ -101,14 +103,14 @@ export function StandardsListScreen() {
         />
       )}
 
-      {canManage && (
+      {!!canManage && (
         <Animated.View entering={FadeInUp.duration(280)} style={styles.fab}>
           <PressableScale
             pressedScale={0.9}
             onPress={() => navigation.navigate("StandardForm", { siteId })}
             accessibilityRole="button"
             accessibilityLabel="Nouveau standard"
-            style={[styles.fabInner, { backgroundColor: colors.accent, borderRadius: radius.pill, shadowColor: colors.shadow }]}
+            style={[styles.fabInner, { backgroundColor: colors.accentFill, borderRadius: radius.pill, shadowColor: colors.shadow }]}
           >
             <Ionicons name="add" size={26} color={colors.onAccent} />
           </PressableScale>
