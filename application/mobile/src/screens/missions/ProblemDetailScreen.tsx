@@ -58,6 +58,10 @@ export function ProblemDetailScreen() {
   const [commentLoading, setCommentLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  // Déclaré avant les `return` anticipés (chargement, erreur) : appelé
+  // après eux, ce hook faisait planter l'écran à l'ouverture (« Rendered
+  // more hooks than during the previous render »).
+  const [addingPhoto, setAddingPhoto] = useState(false);
 
   const load = useCallback(async () => {
     const silent = isBackgroundRefresh();
@@ -117,7 +121,6 @@ export function ProblemDetailScreen() {
   }
 
   // Ajouter une photo après la création (retour d'audit : impossible jusque-là).
-  const [addingPhoto, setAddingPhoto] = useState(false);
   async function handleAddPhoto() {
     try {
       let assets: { uri: string; fileName?: string | null; mimeType?: string | null; file?: File }[] = [];

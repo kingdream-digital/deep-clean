@@ -157,6 +157,9 @@ export function HomeScreen() {
     neutral: { fg: colors.neutral, bg: colors.neutralSoft },
   };
 
+  // Avant le `return` anticipé : un hook ne doit jamais être sauté.
+  const unread = useUnreadInboxCount();
+
   if (!user) return null;
 
   const sections = DASHBOARD_SECTIONS[user.role];
@@ -206,8 +209,6 @@ export function HomeScreen() {
     // surcharge à la compilation, d'où ce cast ciblé plutôt qu'un `any` large.
     else if (section.screen) navigation.navigate(section.screen as never);
   }
-
-  const unread = useUnreadInboxCount();
 
   return (
     <ScreenContainer noHeader style={{ paddingHorizontal: 0 }}>

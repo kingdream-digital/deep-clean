@@ -161,6 +161,10 @@ export function UserDetailScreen() {
   const [exportPeriod, setExportPeriod] = useState<ExportPeriod>("month");
   const [exporting, setExporting] = useState(false);
   const [decidingAbsenceId, setDecidingAbsenceId] = useState<string | null>(null);
+  // Déclaré avant les `return` anticipés (chargement, erreur) : appelé
+  // après eux, ce hook faisait planter l'écran à l'ouverture (« Rendered
+  // more hooks than during the previous render »).
+  const [rejectingAbsence, setRejectingAbsence] = useState<{ id: string; type: string; startDate: string; endDate: string } | null>(null);
 
   const canViewDossier = me ? DOSSIER_VIEW_ROLES.includes(me.role) : false;
   const canDecideAbsences = me ? ABSENCE_DECISION_ROLES.includes(me.role) : false;
@@ -267,8 +271,6 @@ export function UserDetailScreen() {
       setActionLoading(null);
     }
   }
-
-  const [rejectingAbsence, setRejectingAbsence] = useState<{ id: string; type: string; startDate: string; endDate: string } | null>(null);
 
   async function handleDecideAbsence(absenceId: string, status: "APPROVED" | "REJECTED", note?: string) {
     setDecidingAbsenceId(absenceId);
