@@ -6,21 +6,23 @@ interface SwitchProps {
   value: boolean;
   onValueChange: (value: boolean) => void;
   accessibilityLabel?: string;
+  disabled?: boolean;
 }
 
-export function Switch({ value, onValueChange, accessibilityLabel }: SwitchProps) {
+export function Switch({ value, onValueChange, accessibilityLabel, disabled }: SwitchProps) {
   const { colors } = useTheme();
 
   return (
     <Pressable
-      onPress={() => onValueChange(!value)}
+      onPress={() => !disabled && onValueChange(!value)}
       hitSlop={8}
+      disabled={disabled}
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled }}
       accessibilityLabel={accessibilityLabel}
       style={[
         styles.track,
-        { backgroundColor: value ? colors.accentDeep : colors.border },
+        { backgroundColor: value ? colors.accentDeep : colors.border, opacity: disabled ? 0.5 : 1 },
       ]}
     >
       <View style={[styles.thumb, { backgroundColor: colors.backgroundElevated, alignSelf: value ? "flex-end" : "flex-start" }]} />

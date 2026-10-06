@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import * as ImagePicker from "expo-image-picker";
@@ -16,6 +16,7 @@ import { extractErrorMessage } from "../../api/client";
 import { avatarUrl, removeAvatar, uploadAvatar } from "../../api/users.api";
 import { pickWebImages } from "../../utils/webImagePicker";
 import { useOnboarding } from "../../onboarding/OnboardingContext";
+import { biometricLabel, getAvailableBiometricKind, type BiometricKind } from "../../auth/biometrics";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import type { Role } from "../../api/auth.api";
@@ -31,7 +32,7 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export function ProfileScreen() {
   const { colors, spacing, radius, type, isDark, setDarkMode } = useTheme();
-  const { user, logout, setHasAvatar } = useAuth();
+  const { user, logout, setHasAvatar, rememberMe, biometricEnabled, enableBiometricLogin, disableBiometricLogin } = useAuth();
   // Depuis le basculement vers le Menu (voir navigation/MenuStack.tsx), Profil
   // n'est plus un onglet à part : c'est un écran de MenuStack, lui-même sous
   // l'onglet — d'où les deux niveaux de `getParent()` pour atteindre le
@@ -40,8 +41,36 @@ export function ProfileScreen() {
   const { replay: replayOnboarding } = useOnboarding();
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [biometricKind, setBiometricKind] = useState<BiometricKind | null>(null);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+
+  // Détecte une seule fois si l'appareil propose Face ID/Touch ID/empreinte
+  // (matériel + au moins un visage/une empreinte déjà enrôlé) — n'affiche la
+  // ligne « Sécurité » correspondante que si c'est le cas.
+  useEffect(() => {
+    getAvailableBiometricKind().then(setBiometricKind);
+  }, []);
 
   if (!user) return null;
+
+  async function handleToggleBiometric(next: boolean) {
+    setBiometricBusy(true);
+    try {
+      if (next) {
+        const ok = await enableBiometricLogin();
+        if (!ok) {
+          Alert.alert(
+            "Activation impossible",
+            "La confirmation a échoué ou a été annulée. Réessayez depuis cet écran."
+          );
+        }
+      } else {
+        await disableBiometricLogin();
+      }
+    } finally {
+      setBiometricBusy(false);
+    }
+  }
 
   const initials = `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
 
@@ -207,7 +236,40 @@ export function ProfileScreen() {
               navigation.getParent()?.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate("ChangePassword")
             }
           />
+          {biometricKind && (
+            <>
+              <View style={{ height: 1, backgroundColor: colors.border }} />
+              <View
+                style={[
+                  styles.rowTouchable,
+                  { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, justifyContent: "space-between" },
+                ]}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                  <Ionicons
+                    name={biometricKind === "faceId" ? "scan-outline" : "finger-print-outline"}
+                    size={20}
+                    color={colors.inkSecondary}
+                  />
+                  <Text style={[type.body, { color: colors.ink, marginLeft: spacing.sm }]}>
+                    {biometricLabel(biometricKind)}
+                  </Text>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={handleToggleBiometric}
+                  disabled={!rememberMe || biometricBusy}
+                  accessibilityLabel={`Activer ${biometricLabel(biometricKind)}`}
+                />
+              </View>
+            </>
+          )}
         </Card>
+        {biometricKind && !rememberMe && (
+          <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xs, paddingHorizontal: spacing.xxs }]}>
+            Reconnectez-vous avec « Rester connecté » coché pour activer {biometricLabel(biometricKind)}.
+          </Text>
+        )}
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>
           APPARENCE

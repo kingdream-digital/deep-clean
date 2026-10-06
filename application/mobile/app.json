@@ -32,6 +32,12 @@
     "plugins": [
       "expo-secure-store",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Deep Clean a besoin de Face ID pour vous reconnecter rapidement et en toute sécurité."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
