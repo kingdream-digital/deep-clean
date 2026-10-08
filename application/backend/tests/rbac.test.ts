@@ -131,6 +131,64 @@ describe("Contrôle des permissions — gestion des comptes (réservée à la RH
     expect(res.body.temporaryPassword).toBeDefined();
     expect(res.body.temporaryPassword).not.toBe(TEST_PASSWORD);
   });
+
+  // Régression (faille F-01, audit sécurité) : PATCH /users/:id ne vérifiait
+  // que le droit d'attribuer le nouveau rôle, jamais le droit d'agir sur la
+  // cible — un compte RH ou Directeur pouvait ainsi rétrograder/neutraliser un
+  // compte de rang supérieur (Directeur, Admin technique) en le passant
+  // Employé. La modification doit désormais être refusée, comme l'étaient déjà
+  // la désactivation et la réinitialisation d'accès.
+  it("empêche la RH de rétrograder l'admin technique (compte de rang supérieur)", async () => {
+    const { accessToken: hrToken } = await loginAs(Role.HR);
+    const admin = await createTestUser({ email: "aprotect-admin@deepclean.test", role: Role.ADMIN });
+
+    const res = await request(app)
+      .patch(`/api/v1/users/${admin.id}`)
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ role: Role.EMPLOYEE });
+
+    expect(res.status).toBe(403);
+    const stillAdmin = await prisma.user.findUnique({ where: { id: admin.id } });
+    expect(stillAdmin?.role).toBe(Role.ADMIN);
+  });
+
+  it("empêche la RH de modifier le profil d'un Directeur (compte de rang supérieur)", async () => {
+    const { accessToken: hrToken } = await loginAs(Role.HR);
+    const director = await createTestUser({ email: "aprotect-dir@deepclean.test", role: Role.DIRECTOR });
+
+    const res = await request(app)
+      .patch(`/api/v1/users/${director.id}`)
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ phone: "0600000000" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("empêche un Directeur de rétrograder l'admin technique", async () => {
+    const { accessToken: directorToken } = await loginAs(Role.DIRECTOR);
+    const admin = await createTestUser({ email: "aprotect-admin2@deepclean.test", role: Role.ADMIN });
+
+    const res = await request(app)
+      .patch(`/api/v1/users/${admin.id}`)
+      .set("Authorization", `Bearer ${directorToken}`)
+      .send({ role: Role.EMPLOYEE });
+
+    expect(res.status).toBe(403);
+    const stillAdmin = await prisma.user.findUnique({ where: { id: admin.id } });
+    expect(stillAdmin?.role).toBe(Role.ADMIN);
+  });
+
+  it("permet toujours à la RH de modifier un compte de rang inférieur (contrôle positif)", async () => {
+    const { accessToken: hrToken } = await loginAs(Role.HR);
+    const employee = await createTestUser({ email: "aok-lower@deepclean.test", role: Role.EMPLOYEE });
+
+    const res = await request(app)
+      .patch(`/api/v1/users/${employee.id}`)
+      .set("Authorization", `Bearer ${hrToken}`)
+      .send({ phone: "0611223344" });
+
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("Isolation des données entre utilisateurs — notifications", () => {

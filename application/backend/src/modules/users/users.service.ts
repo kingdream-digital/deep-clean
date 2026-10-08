@@ -293,6 +293,15 @@ export async function updateUser(actorId: string, actorRole: Role, targetId: str
   if (actorId === targetId && input.role !== undefined) {
     throw ApiError.badRequest("Vous ne pouvez pas modifier votre propre rôle.");
   }
+  // Faille corrigée (audit sécurité) : comme setUserActive et resetUserAccess,
+  // modifier un compte doit vérifier le droit d'AGIR SUR LA CIBLE, et pas
+  // seulement le droit d'attribuer le nouveau rôle. Sans ce contrôle, un
+  // compte RH pouvait rétrograder un Directeur ou l'Admin technique (et un
+  // Directeur, l'Admin technique) en changeant simplement leur rôle en
+  // Employé via PATCH /users/:id — neutralisant un compte de rang supérieur
+  // au sien. On réserve donc toute action sur un compte de rang supérieur à
+  // l'admin technique, exactement comme pour la désactivation.
+  assertCanActOnTarget(actorRole, target.role);
   if (input.role !== undefined) {
     assertCanAssignRole(actorRole, input.role);
   }
