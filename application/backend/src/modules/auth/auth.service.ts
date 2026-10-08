@@ -1,6 +1,6 @@
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
-import { checkPasswordPolicy, hashPassword, verifyPassword } from "../../utils/password";
+import { checkPasswordPolicy, hashPassword, verifyPassword, verifyPasswordDummy } from "../../utils/password";
 import {
   generateRefreshToken,
   hashRefreshToken,
@@ -69,6 +69,11 @@ export async function login(
   const user = await prisma.user.findUnique({ where: { username } });
 
   if (!user) {
+    // Comparaison bcrypt factice pour que le temps de réponse d'un identifiant
+    // inexistant soit équivalent à celui d'un identifiant valide avec un
+    // mauvais mot de passe — évite l'énumération de comptes par analyse du
+    // temps de réponse (le message d'erreur, lui, est déjà générique).
+    await verifyPasswordDummy(password);
     throw ApiError.unauthorized(INVALID_CREDENTIALS_MESSAGE);
   }
 
