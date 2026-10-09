@@ -51,7 +51,7 @@ Comme pour Apple : **comptes dédiés à la validation**, créés sur le vrai se
 | Suivi COVID-19 | Non |
 | Identifiant de publicité | **Non utilisé** |
 | Permissions sensibles (SMS, appels, position en arrière-plan, accès à tous les fichiers) | **Aucune** — rien à justifier |
-| Photos et vidéos | Aucune permission d'accès à la galerie : l'app utilise le sélecteur du système |
+| Photos et vidéos | Aucune permission `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` : l'app utilise le sélecteur de photos du système (les anciennes permissions de stockage, limitées à Android 12 et avant, viennent des bibliothèques et ne devraient déclencher aucun formulaire ; la Play Console le dirait avant l'envoi) |
 
 ## 6. Version Android visée
 

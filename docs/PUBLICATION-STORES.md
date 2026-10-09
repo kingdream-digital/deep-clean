@@ -258,3 +258,22 @@ npx eas-cli build --platform ios --profile production        # fichier .ipa (App
 | `tools/audit-visuel/captures-stores.mjs`, `composer-visuels-stores.py` | **Nouveau** — pour refaire les visuels |
 
 Aucun fichier de `mobile/src/` (le code de l'app) n'a été modifié.
+
+## Ce qui a été vérifié (9 octobre 2026)
+
+| Contrôle | Résultat |
+|---|---|
+| Tests de l'app mobile | 64 réussis (les 52 d'avant + 12 pour le contrôle de publication) |
+| Vérification des types (TypeScript) | Aucune erreur |
+| Version web (celle de Coolify) | Se construit toujours ; les 3 pages publiques sont servies |
+| `expo-doctor` | 20 contrôles sur 21 — le seul écart (petites mises à jour de versions « patch ») existait déjà avant ; volontairement non appliqué sans pouvoir tester sur téléphone |
+| Projet **iPhone** généré (`expo prebuild`) | Fichiers valides ; manifeste de confidentialité intégré ; iPhone uniquement ; chiffrement déclaré ; clés inutiles absentes. *Non compilable ici (il faut un Mac) : EAS le construira dans le cloud* |
+| Projet **Android** : compilation réelle du `.aab` | **Réussie** (`BUILD SUCCESSFUL`, 10 min). Manifeste final : identifiant `fr.kingdream.deepclean`, `targetSdk 36` (exigé par Google), sans micro, sans « par-dessus les autres apps », sans position en arrière-plan, sans HTTP non chiffré, sauvegarde cloud coupée, aucune permission sensible. Méthode : `tools/android-build-local/` |
+| Contrôle de publication | Refuse l'adresse provisoire, le `http://`, l'ancien serveur Render, un `google-services.json` d'une autre app ; accepte une adresse `https://` correcte |
+| Backend | Non modifié |
+
+Pas encore fait (impossible depuis ici) : une installation sur un **vrai** téléphone, un build
+signé EAS, et la compilation iPhone. D'où l'étape TestFlight / Test interne avant toute publication.
+
+À faire plus tard, par une session dédiée avec essais sur téléphone : les petites mises à jour
+de versions signalées par `expo-doctor` (`npx expo install --check`).

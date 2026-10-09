@@ -17,7 +17,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
 | **`master`** | **À jour** : la branche y a été fusionnée le 1er octobre 2026 (deux fois : après les fiches, puis en fin de revue), à la demande du client (« je déploie tout quand c'est fini de ton côté »). |
 | **Déployé en ligne ?** | **À faire par le client dans Coolify** (le redéploiement n'est pas automatique) — procédure exacte au §7. |
-| **Tests** | 242 backend + 63 mobile, **tous au vert** (mobile revérifié le 9 octobre 2026 ; le backend n'a pas été modifié depuis) |
+| **Tests** | 242 backend + 64 mobile, **tous au vert** (mobile revérifié le 9 octobre 2026 ; le backend n'a pas été modifié depuis) |
 | **En attente de** | Les retours du client après ses tests sur la version en ligne, puis la suite de la revue (liste au §1, « Reste à passer en revue »). |
 
 ### Journal de bord (mis à jour au fil du travail)
@@ -284,6 +284,9 @@ l'envoyer en format Apple et Android, sans rien casser »). Le guide complet est
   animé (`PulsingDot`, `MissionCard.tsx`) recouvre l'icône à certains instants.
 - Risque de refus à surveiller : suppression de compte *dans* l'app (Apple 5.1.1(v)) —
   voir le guide, tableau « Les risques de refus ».
+- **Compilation Android réelle réussie** (`.aab`, 10 min) : méthode et pièges dans
+  `tools/android-build-local/` (en bac à sable, Maven Central répond 429 : miroir Google
+  nécessaire). iOS non compilable hors Mac (EAS le fera).
 
 ### Mise en ligne
 

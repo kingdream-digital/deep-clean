@@ -1,0 +1,23 @@
+// Réseau restreint uniquement (voir README.md). Place le miroir public de Google de Maven Central
+// EN PREMIER dans chaque liste de dépôts ; si un artefact n'y est pas, Gradle passe au dépôt suivant.
+// Si la liste des plugins était vide (=> portail par défaut), le portail est remis derrière le miroir.
+def miroirUrl = "https://maven-central.storage-download.googleapis.com/maven2/"
+def enPremier = { repos, estPlugins ->
+  try {
+    if (repos.findAll { it.name == "miroirCentral" }.isEmpty()) {
+      def vide = repos.isEmpty()
+      def r = repos.maven { name = "miroirCentral"; url = uri(miroirUrl) }
+      repos.remove(r)
+      repos.addFirst(r)
+      if (vide && estPlugins) { repos.gradlePluginPortal() }
+    }
+  } catch (ignored) {}
+}
+allprojects {
+  enPremier(buildscript.repositories, false)
+  enPremier(repositories, false)
+}
+settingsEvaluated { s ->
+  enPremier(s.pluginManagement.repositories, true)
+  enPremier(s.dependencyResolutionManagement.repositories, false)
+}
