@@ -56,7 +56,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "jest"
+    "test": "jest",
+    "verifier:publication": "node scripts/verifier-publication.js",
+    "eas-build-post-install": "node scripts/verifier-publication.js --eas"
   },
   "private": true,
   "jest": {

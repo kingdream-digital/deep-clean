@@ -15,7 +15,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://deep-clean-app.onrender.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://api.A-CONFIGURER.invalid/api/v1"
       },
       "android": {
         "buildType": "apk"
@@ -26,11 +26,16 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://deep-clean-app.onrender.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://api.A-CONFIGURER.invalid/api/v1"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }

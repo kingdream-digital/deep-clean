@@ -40,3 +40,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Clés de comptes de service (Google Play, Firebase) — secrets, jamais versionnés.
+# (google-services.json, lui, ne contient que des identifiants publics : il peut l'être.)
+*service-account*.json
+*firebase-adminsdk*.json
+play-store-key*.json

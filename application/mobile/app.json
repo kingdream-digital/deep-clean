@@ -3,17 +3,42 @@
     "name": "Deep Clean",
     "slug": "deep-clean",
     "scheme": "deepclean",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#0B0B0F",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.deepclean.app"
+      "supportsTablet": false,
+      "bundleIdentifier": "fr.kingdream.deepclean",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1", "0A2A.1", "3B52.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": ["E174.1", "85F4.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      }
     },
     "android": {
-      "package": "com.deepclean.app",
+      "package": "fr.kingdream.deepclean",
+      "allowBackup": false,
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
@@ -55,13 +80,17 @@
         "expo-image-picker",
         {
           "photosPermission": "Deep Clean a besoin d'accéder à vos photos pour joindre une image à un signalement.",
-          "cameraPermission": "Deep Clean a besoin d'accéder à l'appareil photo pour prendre une photo à joindre à un signalement ou pour justifier un pointage."
+          "cameraPermission": "Deep Clean a besoin d'accéder à l'appareil photo pour prendre une photo à joindre à un signalement ou pour justifier un pointage.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Deep Clean a besoin de votre position au moment où vous pointez, pour justifier que vous étiez bien sur le lieu de la mission."
+          "locationWhenInUsePermission": "Deep Clean a besoin de votre position au moment où vous pointez, pour justifier que vous étiez bien sur le lieu de la mission.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false
         }
       ],
       [
