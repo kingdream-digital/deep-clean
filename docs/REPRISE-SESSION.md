@@ -17,7 +17,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | **Commits** | Voir le journal de bord ci-dessous (et `git log`) |
 | **`master`** | **À jour** : la branche y a été fusionnée le 1er octobre 2026 (deux fois : après les fiches, puis en fin de revue), à la demande du client (« je déploie tout quand c'est fini de ton côté »). |
 | **Déployé en ligne ?** | **À faire par le client dans Coolify** (le redéploiement n'est pas automatique) — procédure exacte au §7. |
-| **Tests** | 242 backend + 46 mobile, **tous au vert** |
+| **Tests** | 242 backend + 63 mobile, **tous au vert** (mobile revérifié le 9 octobre 2026 ; le backend n'a pas été modifié depuis) |
 | **En attente de** | Les retours du client après ses tests sur la version en ligne, puis la suite de la revue (liste au §1, « Reste à passer en revue »). |
 
 ### Journal de bord (mis à jour au fil du travail)
@@ -32,6 +32,7 @@ arrêté, sans rien redécouvrir et sans rien perdre.
 | 2 | Dossier de reprise + captures versionnées | ✅ commits `3f6f952`, `fdf0f82` |
 | 3 | Outils d'audit visuel versionnés (`tools/audit-visuel/`) | ✅ commit `dba68b5` |
 | 4 | Revue complète de l'application, écran par écran | 🔄 en cours — employé ✅ `8461838`, encadrement ✅ `3137e2a`, fiches et formulaires ✅ (voir `git log`) |
+| 5 | **Préparation de la publication App Store / Google Play** (config, visuels, fiches, garde-fou) | ✅ branche `claude/deep-clean-apple-android-format-daz1ul`, **pas encore fusionnée sur `master`** — voir `docs/PUBLICATION-STORES.md` |
 
 **Déjà revu et corrigé :**
 
@@ -254,6 +255,35 @@ Parcours réellement exécutés (scripts Playwright) : mission, pointage photo +
 GPS, signalement photo + suivi, validation/refus de pointages, congés, compte
 (création → 1re connexion → désactivation), groupe de messagerie, prospect →
 client → devis accepté.
+
+**9 octobre 2026 — préparation de la publication sur les stores** (branche
+`claude/deep-clean-apple-android-format-daz1ul`, demande du client : « le dossier pour
+l'envoyer en format Apple et Android, sans rien casser »). Le guide complet est
+`docs/PUBLICATION-STORES.md` ; tout le matériel est dans `application/store/`.
+
+- **Aucun fichier de `mobile/src/` ni du backend modifié.** Changements : `app.json`,
+  `eas.json`, `package.json` (2 scripts), `.gitignore`, + nouveaux fichiers
+  (`app.config.js`, `scripts/verifier-publication.js` et son test, `public/*.html`,
+  `store/`, outils de capture).
+- **L'identifiant `com.deepclean.app` est déjà pris sur Google Play** (autre application,
+  vérifié le 9 octobre). Remplacé par **`fr.kingdream.deepclean`** (libre sur Google Play et
+  l'App Store, domaine `kingdream.fr` du développeur). Définitif au premier envoi sur un
+  store — à confirmer avec le client avant.
+- **Les apps natives ne peuvent pas utiliser le serveur actuel** : il est en `http://…sslip.io`
+  (iOS et Android bloquent le trafic non chiffré). Il faut un **nom de domaine + HTTPS**
+  (guide, étape 1). L'ancien serveur Render de `eas.json` ne contient plus les routes
+  actuelles : remplacé par `https://api.A-CONFIGURER.invalid/api/v1`, que
+  `npm run verifier:publication` (aussi lancé par EAS, `eas-build-post-install`) refuse.
+- Permissions retirées car inutiles : micro (`RECORD_AUDIO`, l'app ne prend que des
+  photos), position « toujours » et « mouvement » (iOS), `SYSTEM_ALERT_WINDOW` (Android).
+  Sauvegarde cloud Android coupée. iPad natif désactivé (interface téléphone).
+- Notifications Android : il faut un projet Firebase + `google-services.json`
+  (`app.config.js` le prend en compte s'il est présent, sinon ne change rien).
+- Défaut visuel **non corrigé** (hors sujet, repéré en capturant) : dans les listes de
+  missions, la pastille d'une mission « en cours » peut apparaître orange et vide — le halo
+  animé (`PulsingDot`, `MissionCard.tsx`) recouvre l'icône à certains instants.
+- Risque de refus à surveiller : suppression de compte *dans* l'app (Apple 5.1.1(v)) —
+  voir le guide, tableau « Les risques de refus ».
 
 ### Mise en ligne
 

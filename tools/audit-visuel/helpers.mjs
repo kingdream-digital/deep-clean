@@ -15,8 +15,8 @@ export async function launch() {
   return chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
 }
 
-export async function newPage(browser, { colorScheme = "light", viewport = MOBILE } = {}) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 3, colorScheme, locale: "fr-FR" });
+export async function newPage(browser, { colorScheme = "light", viewport = MOBILE, dsf = 3 } = {}) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: dsf, colorScheme, locale: "fr-FR" });
   const page = await context.newPage();
   page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
   return page;

@@ -31,6 +31,7 @@ Chromium est déjà présent dans l'environnement Claude Code
 | `set-phones.mjs` | Ajoute des numéros de téléphone aux comptes de démo (sans quoi le bouton d'appel n'a rien à composer) |
 | `make-pdf.mjs` | Génère un vrai PDF pour tester le partage de document |
 | `check-api.mjs` | Vérifie l'API de messagerie de bout en bout : groupes, permissions, documents, non-lus, cloisonnement |
+| `captures-stores.mjs` + `composer-visuels-stores.py` | Captures et visuels des fiches App Store / Google Play (voir `application/store/`) |
 
 ## Exemple : capturer un écran
 

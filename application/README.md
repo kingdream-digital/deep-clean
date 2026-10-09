@@ -111,13 +111,15 @@ web, pratique pour vérifier rapidement le design).
 - **Backend** : `npm run build` (compile en `dist/`) puis `npm start`. Prévoir un vrai secret manager pour les variables d'environnement en production (ne jamais réutiliser les valeurs de développement).
 - **Mobile** : builds Android/iOS via [EAS Build](https://docs.expo.dev/build/introduction/), configuré dans `mobile/eas.json` (profils `development`, `preview`, `production`).
 
+> **Publication sur l'App Store et Google Play : suivre le guide pas à pas [docs/PUBLICATION-STORES.md](../docs/PUBLICATION-STORES.md)** (comptes, HTTPS, notifications, fiches, captures — tout est prêt dans [`store/`](store/)).
+
 ### Build mobile — première configuration (une seule fois)
 
 ```bash
 cd mobile
 npm install -g eas-cli   # ou npx eas-cli à chaque commande, sans installation globale
 eas login                # compte Expo de l'entreprise
-eas build:configure      # relie le projet à un projectId EAS (écrit dans app.json > extra.eas)
+eas init                 # relie le projet à un projectId EAS (écrit dans app.json > extra.eas)
 ```
 
 Pour un vrai build store (profil `production`), il faut en plus :
@@ -137,7 +139,9 @@ eas build --platform android --profile production
 eas build --platform ios --profile production
 ```
 
-Chaque profil pointe vers une URL d'API différente (`mobile/eas.json` > `env.EXPO_PUBLIC_API_URL`) : `development` vers un serveur local, `preview`/`production` vers l'API de production. Le profil `production` incrémente automatiquement le numéro de build (`autoIncrement: true`) — ne jamais le faire à la main.
+Chaque profil pointe vers une URL d'API différente (`mobile/eas.json` > `env.EXPO_PUBLIC_API_URL`) : `development` vers un serveur local, `preview`/`production` vers l'API de production, **qui doit être en `https://`** (iOS et Android bloquent le `http://`). Tant que l'adresse est l'espace réservé `A-CONFIGURER.invalid`, le contrôle `npm run verifier:publication` — lancé aussi automatiquement par EAS au début de chaque build `preview`/`production` — refuse le build. Le profil `production` incrémente automatiquement le numéro de build (`autoIncrement: true`) — ne jamais le faire à la main.
+
+Les identifiants de l'app sont `fr.kingdream.deepclean` (iOS et Android) : **définitifs dès le premier envoi sur un store**.
 
 ### Soumettre aux stores
 

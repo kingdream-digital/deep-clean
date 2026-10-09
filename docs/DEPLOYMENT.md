@@ -57,6 +57,16 @@ Projet Coolify : **"My first project"**, environnement **"production"**.
   (**doit être disponible "at Buildtime"**, pas seulement "Runtime" — Expo
   intègre cette valeur dans le JS au moment du build, pas au lancement).
 
+### HTTPS : indispensable pour les applications iPhone / Android
+
+Les URL `…sslip.io` ci-dessus sont en **http://** : suffisantes pour le web et Expo Go,
+mais **inutilisables par une app installée depuis l'App Store / Google Play** (iOS et
+Android bloquent le trafic non sécurisé). Avant toute publication, il faut un nom de
+domaine et HTTPS sur le backend (`api.…`) et le web (`app.…`) : voir
+`docs/PUBLICATION-STORES.md`, étape 1. Le site web sert aussi les pages publiques
+exigées par les stores (`/politique-de-confidentialite.html`, `/assistance.html`,
+`/suppression-de-compte.html`, sources dans `application/mobile/public/`).
+
 ### Authentification GitHub utilisée par Coolify
 
 L'organisation GitHub `kingdream-digital` a des policies (niveau Enterprise)
