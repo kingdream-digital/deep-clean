@@ -71,11 +71,21 @@ function periodBounds(period: string): { start: string; end: string } {
  * Ce qui manque pour émettre une facture électronique conforme — en
  * français, pour l'afficher tel quel. Liste vide = prête à partir.
  */
-export function einvoiceBlockers(invoice: EinvoiceSource, c: CompanyProfile = getCompanyProfile()): string[] {
+/**
+ * Ce qui manque côté entreprise émettrice, indépendamment de toute facture
+ * (checklist de mise en service de l'espace Super PDP). `withVat` : le numéro
+ * de TVA n'est exigé que pour une facture avec TVA.
+ */
+export function companyEinvoiceBlockers(c: CompanyProfile = getCompanyProfile(), withVat = true): string[] {
   const missing: string[] = [];
   if (!c.siren || !/^\d{9}$/.test(c.siren)) missing.push("SIREN de l'entreprise (variable COMPANY_SIREN ou COMPANY_SIRET)");
   if (!c.addressLine || !c.postalCode || !c.city) missing.push("adresse complète de l'entreprise (COMPANY_ADDRESS, COMPANY_POSTAL_CODE, COMPANY_CITY)");
-  if (invoice.vatRate > 0 && !c.vatNumber) missing.push("numéro de TVA intracommunautaire de l'entreprise (COMPANY_VAT_NUMBER)");
+  if (withVat && !c.vatNumber) missing.push("numéro de TVA intracommunautaire de l'entreprise (COMPANY_VAT_NUMBER)");
+  return missing;
+}
+
+export function einvoiceBlockers(invoice: EinvoiceSource, c: CompanyProfile = getCompanyProfile()): string[] {
+  const missing = companyEinvoiceBlockers(c, invoice.vatRate > 0);
   if (!sirenOf({ siren: invoice.client.siren, siret: invoice.siret ?? invoice.client.siret })) missing.push("SIREN ou SIRET du client (fiche client)");
   const buyer = structuredAddress(invoice.billingAddress ?? invoice.client.billingAddress, invoice.client);
   if (!buyer?.postalCode || !buyer.city) missing.push("adresse de facturation du client avec code postal et ville");

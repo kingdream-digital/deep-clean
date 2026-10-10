@@ -57,6 +57,7 @@ import { QuoteActionScreen } from "../screens/commercial/QuoteActionScreen";
 import { InvoicesListScreen } from "../screens/commercial/InvoicesListScreen";
 import { InvoiceDetailScreen } from "../screens/commercial/InvoiceDetailScreen";
 import { InvoiceFormScreen } from "../screens/commercial/InvoiceFormScreen";
+import { EinvoicingScreen } from "../screens/commercial/EinvoicingScreen";
 
 // Remplace l'ancien tandem d'onglets "Gestion" (variable selon le rôle) +
 // "Profil" (retour explicite du client : tout ce qui n'est pas Accueil /
@@ -134,6 +135,8 @@ export type MenuStackParamList = {
   InvoicesList: undefined;
   InvoiceDetail: { invoiceId: string };
   InvoiceForm: { invoiceId?: string; clientId?: string; quoteId?: string; siteId?: string } | undefined;
+  // Espace Super PDP (facture électronique) — RH/Direction/Admin uniquement.
+  Einvoicing: undefined;
 };
 
 const Stack = createNativeStackNavigator<MenuStackParamList>();
@@ -309,6 +312,7 @@ export function MenuStack() {
           presentation: "modal",
         })}
       />
+      <Stack.Screen name="Einvoicing" component={EinvoicingScreen} options={{ title: "Espace Super PDP" }} />
       <Stack.Screen
         name="UserDocuments"
         component={UserDocumentsScreen}

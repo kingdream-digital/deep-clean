@@ -17,6 +17,30 @@ export function resetSuperPdpToken(): void {
   cachedToken = null;
 }
 
+/** Hôte de l'API utilisée (affiché dans l'espace Super PDP, jamais les identifiants). */
+export function superPdpHost(): string {
+  try {
+    return new URL(env.SUPERPDP_API_URL).host;
+  } catch {
+    return env.SUPERPDP_API_URL;
+  }
+}
+
+/**
+ * Vérifie réellement les identifiants : demande un NOUVEAU jeton à Super PDP
+ * (le jeton en mémoire est ignoré). Lève une ApiError lisible si refusé.
+ */
+export async function testSuperPdpConnection(): Promise<void> {
+  cachedToken = null;
+  try {
+    await getToken();
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    logger.warn({ err }, "Super PDP : serveur injoignable");
+    throw ApiError.badRequest("Super PDP est injoignable pour le moment. Réessayez dans quelques minutes.");
+  }
+}
+
 function apiUrl(path: string): string {
   return `${env.SUPERPDP_API_URL.replace(/\/$/, "")}${path}`;
 }

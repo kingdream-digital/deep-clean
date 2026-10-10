@@ -3,51 +3,43 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import Animated, { FadeInUp } from "react-native-reanimated";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
 import { StateView } from "../../components/StateView";
 import { KpiGrid } from "../../components/KpiGrid";
 import { ProgressBar } from "../../components/ProgressBar";
+import { SuperPdpCard } from "../../components/SuperPdpCard";
 import { useTheme } from "../../theme/ThemeProvider";
+import { useResponsive } from "../../hooks/useResponsive";
 import { useAuth } from "../../auth/AuthContext";
 import { getCommercialDashboard } from "../../api/commercialDashboard.api";
 import type { CommercialDashboard } from "../../api/commercialDashboard.api";
+import { getEinvoicingOverview } from "../../api/einvoicing.api";
+import type { EinvoicingOverview } from "../../api/einvoicing.api";
 import type { KpiTile } from "../dashboard/useDashboardData";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
-interface CommercialEntry {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  message: string;
-  screen: "ProspectsList" | "ClientsList" | "QuotesList" | "InvoicesList";
-}
+type Nav = NativeStackNavigationProp<MenuStackParamList>;
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
-// Facturation réservée à RH/Direction/Admin (cahier des charges §1-3) — le
-// Superviseur n'y figure pas, contrairement aux prospects/clients/devis.
+// Facturation (et donc facture électronique) réservée à RH/Direction/Admin
+// (cahier des charges §1-3) — le Superviseur n'y figure pas, contrairement
+// aux prospects/clients/devis. Le serveur l'impose de toute façon.
 const INVOICE_ACCESS_ROLES = ["HR", "DIRECTOR", "ADMIN"];
-
-// Point d'entrée du module commercial (cahier des charges "Module commercial
-// / devis / chantiers / facturation", §5) — Prospects, Clients, Devis et
-// Factures ; les chantiers commerciaux se gèrent depuis la fiche chantier
-// elle-même (voir SiteDetailScreen), sans jamais automatiser la création de
-// mission ou de planning (le client final n'a lui-même jamais accès à
-// DeepClean, voir §4).
-const ENTRIES: CommercialEntry[] = [
-  { icon: "person-add-outline", label: "Prospects", message: "Prospection, suivi et relances", screen: "ProspectsList" },
-  { icon: "briefcase-outline", label: "Clients", message: "Coordonnées, historique commercial", screen: "ClientsList" },
-  { icon: "document-text-outline", label: "Devis", message: "Créer, envoyer, relancer, suivre l'acceptation", screen: "QuotesList" },
-  { icon: "receipt-outline", label: "Factures", message: "Préparer, envoyer, suivre les paiements", screen: "InvoicesList" },
-];
 
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 const periodFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 
-// Même style de titre de section que le tableau de bord Statistiques
-// (StatsOverviewScreen) — cohérence visuelle entre les deux écrans plutôt
-// qu'un habillage inventé pour ce seul écran.
-function SectionTitle({ icon, tint, children }: { icon: keyof typeof Ionicons.glyphMap; tint: string; children: React.ReactNode }) {
+// Espace commercial organisé autour de ce qu'on y fait le plus : créer un
+// devis ou une facture (actions rapides en tête), puis suivre devis et
+// factures (deux grandes cartes), la facture électronique (Super PDP) et
+// enfin la prospection et les chantiers. Le client final, lui, ne reçoit que
+// des devis/factures par email : il n'a jamais accès à Deep Clean.
+
+function SectionTitle({ icon, tint, children }: { icon: IconName; tint: string; children: React.ReactNode }) {
   const { colors, spacing, type } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.xl, marginBottom: spacing.sm }}>
@@ -57,79 +49,171 @@ function SectionTitle({ icon, tint, children }: { icon: keyof typeof Ionicons.gl
   );
 }
 
-// Barre segmentée façon "répartition" (Apple Santé/Batterie) : une seule
-// bande arrondie divisée au prorata de chaque valeur — lecture d'ensemble
-// immédiate là où 4 chiffres isolés demandent de comparer soi-même.
-function DistributionBar({ segments }: { segments: { value: number; color: string }[] }) {
-  const { colors, radius } = useTheme();
-  const total = segments.reduce((sum, s) => sum + s.value, 0);
-
+function QuickAction({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  const { colors, spacing, radius, type } = useTheme();
   return (
-    <View style={{ flexDirection: "row", height: 10, borderRadius: radius.pill, overflow: "hidden", backgroundColor: colors.surfaceAlt }}>
-      {total === 0
-        ? null
-        : segments
-            .filter((s) => s.value > 0)
-            .map((s, i) => <View key={i} style={{ flex: s.value, backgroundColor: s.color }} />)}
+    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={{ flex: 1 }}>
+      <View
+        style={{
+          alignItems: "center",
+          paddingVertical: spacing.md,
+          paddingHorizontal: spacing.xxs,
+          borderRadius: radius.lg,
+          backgroundColor: colors.surface,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accentFill, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name={icon} size={20} color={colors.onAccent} />
+        </View>
+        <Text style={[type.caption, { color: colors.ink, marginTop: spacing.xs, textAlign: "center", fontWeight: "600" }]} numberOfLines={2}>
+          {label}
+        </Text>
+      </View>
+    </PressableScale>
+  );
+}
+
+// Petite pastille chiffrée (« À relancer 2 ») sous le grand chiffre d'une carte.
+function Chip({ label, value, fg, bg }: { label: string; value: number; fg: string; bg: string }) {
+  const { spacing, radius, type } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5, marginRight: spacing.xs, marginTop: spacing.xs }}>
+      <Text style={[type.caption, { color: fg, fontWeight: "700" }]}>{value}</Text>
+      <Text style={[type.caption, { color: fg, marginLeft: 4 }]}>{label}</Text>
     </View>
   );
 }
 
-function HeroStat({
+// Grande carte d'un domaine (Devis, Factures) : un chiffre principal, ses
+// pastilles de détail et, si besoin, une alerte — toute la carte ouvre la liste.
+function DomainCard({
   icon,
-  tint,
+  title,
   value,
-  label,
+  caption,
+  onPress,
+  alert,
+  children,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
-  tint: string;
+  icon: IconName;
+  title: string;
   value: string;
-  label: string;
+  caption: string;
+  onPress: () => void;
+  alert?: string | null;
+  children?: React.ReactNode;
 }) {
   const { colors, spacing, radius, type } = useTheme();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
+    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title} : ${value} ${caption}`}>
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name={icon} size={18} color={colors.accentText} />
+          </View>
+          <Text style={[type.headline, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>{title}</Text>
+          <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>Tout voir</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.accentText} />
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "baseline", marginTop: spacing.md }}>
+          <Text style={[type.largeTitle, { color: colors.ink }]}>{value}</Text>
+          <Text style={[type.subhead, { color: colors.inkSecondary, marginLeft: spacing.xs }]}>{caption}</Text>
+        </View>
+        {children}
+        {!!alert && (
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.md, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.warningSoft }}>
+            <Ionicons name="alarm-outline" size={15} color={colors.warning} />
+            <Text style={[type.footnote, { color: colors.warning, marginLeft: 6, fontWeight: "600", flex: 1 }]}>{alert}</Text>
+          </View>
+        )}
+      </Card>
+    </PressableScale>
+  );
+}
+
+// Barre segmentée façon « répartition » : une seule bande arrondie divisée
+// au prorata de chaque valeur — lecture d'ensemble immédiate. (`count` et non
+// `value` : le plugin Reanimated prend `x.value` dans un style pour une
+// valeur animée.)
+function DistributionBar({ segments }: { segments: { count: number; color: string }[] }) {
+  const { colors, radius, spacing } = useTheme();
+  const total = segments.reduce((sum, s) => sum + s.count, 0);
+  return (
+    <View style={{ flexDirection: "row", height: 8, borderRadius: radius.pill, overflow: "hidden", backgroundColor: colors.surfaceAlt, marginTop: spacing.md }}>
+      {total > 0 &&
+        segments
+          .filter((s) => s.count > 0)
+          .map((s, i) => <View key={i} style={{ flex: s.count, backgroundColor: s.color }} />)}
+    </View>
+  );
+}
+
+function ListRow({ icon, label, detail, onPress, first }: { icon: IconName; label: string; detail: string; onPress: () => void; first?: boolean }) {
+  const { colors, spacing, radius, type } = useTheme();
+  return (
+    <PressableScale onPress={onPress}>
       <View
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: radius.md,
-          backgroundColor: tint + "1F",
+          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
-          marginRight: spacing.md,
+          paddingVertical: spacing.md,
+          paddingHorizontal: spacing.lg,
+          borderTopWidth: first ? 0 : 1,
+          borderTopColor: colors.border,
         }}
       >
-        <Ionicons name={icon} size={20} color={tint} />
+        <View style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name={icon} size={18} color={colors.inkSecondary} />
+        </View>
+        <View style={{ marginLeft: spacing.md, flex: 1 }}>
+          <Text style={[type.headline, { color: colors.ink }]}>{label}</Text>
+          <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 1 }]} numberOfLines={1}>
+            {detail}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[type.title2, { color: colors.ink }]}>{value}</Text>
-        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 1 }]}>{label}</Text>
-      </View>
-    </View>
+    </PressableScale>
   );
 }
 
 export function CommercialHomeScreen() {
   const { colors, spacing, radius, type } = useTheme();
+  const { isDesktopWeb } = useResponsive();
   const { user } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
-  const entries = ENTRIES.filter((e) => e.screen !== "InvoicesList" || (user && INVOICE_ACCESS_ROLES.includes(user.role)));
+  const navigation = useNavigation<Nav>();
+  const canInvoice = !!user && INVOICE_ACCESS_ROLES.includes(user.role);
+  const isSupervisor = user?.role === "SUPERVISOR";
 
   const [dashboard, setDashboard] = useState<CommercialDashboard | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [einvoicing, setEinvoicing] = useState<EinvoicingOverview | null>(null);
+  const [einvoicingFailed, setEinvoicingFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     const silent = isBackgroundRefresh();
+    // La carte Super PDP se charge à part : une panne de ce côté ne doit
+    // jamais masquer les devis et factures.
+    const einvoicingTask = canInvoice
+      ? getEinvoicingOverview()
+          .then((o) => {
+            setEinvoicing(o);
+            setEinvoicingFailed(false);
+          })
+          .catch(() => setEinvoicingFailed(true))
+      : Promise.resolve();
     try {
-      if (!silent) setState("loading");
+      if (!silent) setState((s) => (s === "ready" ? s : "loading"));
       setDashboard(await getCommercialDashboard());
       setState("ready");
     } catch {
       if (!silent) setState("error");
     }
-  }, []);
+    await einvoicingTask;
+  }, [canInvoice]);
 
   useLiveFocusEffect(
     useCallback(() => {
@@ -143,43 +227,69 @@ export function CommercialHomeScreen() {
     setRefreshing(false);
   }
 
-  const commercialTiles: KpiTile[] | null = dashboard
-    ? [
-        { key: "prospects", label: "Prospects en cours", value: String(dashboard.commercial.activeProspects), tone: "neutral", icon: "person-add-outline" },
-        { key: "inProgress", label: "Devis en cours", value: String(dashboard.commercial.quotesInProgress), tone: "accent", icon: "document-text-outline" },
-        { key: "toFollowUp", label: "Devis à relancer", value: String(dashboard.commercial.quotesToFollowUp), tone: "warning", icon: "alarm-outline" },
-        { key: "accepted", label: "Devis acceptés", value: String(dashboard.commercial.quotesAccepted), tone: "success", icon: "checkmark-circle-outline" },
-        { key: "rejected", label: "Devis refusés", value: String(dashboard.commercial.quotesRejected), tone: "danger", icon: "close-circle-outline" },
-      ]
-    : null;
+  const c = dashboard?.commercial;
+  const inv = dashboard?.invoicing ?? null;
+  const decided = c ? c.quotesAccepted + c.quotesRejected : 0;
+  const acceptanceRate = c && decided > 0 ? Math.round((c.quotesAccepted / decided) * 100) : null;
 
   const sitesTiles: KpiTile[] | null = dashboard
     ? [
-        {
-          key: "active",
-          label: user?.role === "SUPERVISOR" ? "Mes chantiers actifs" : "Chantiers actifs",
-          value: String(dashboard.sites.activeSites),
-          tone: "neutral",
-          icon: "business-outline",
-        },
-        { key: "planned", label: "Objectif du mois", value: String(dashboard.sites.plannedVisits), tone: "neutral", icon: "flag-outline" },
+        { key: "active", label: isSupervisor ? "Mes chantiers actifs" : "Chantiers actifs", value: String(dashboard.sites.activeSites), tone: "neutral", icon: "business-outline" },
         { key: "scheduled", label: "Programmées", value: String(dashboard.sites.scheduledVisits), tone: "info", icon: "calendar-outline" },
         { key: "completed", label: "Réalisées", value: String(dashboard.sites.completedVisits), tone: "success", icon: "checkmark-circle-outline" },
         { key: "toSchedule", label: "À programmer", value: String(dashboard.sites.toScheduleVisits), tone: "warning", icon: "time-outline" },
       ]
     : null;
-
-  const invoicing = dashboard?.invoicing ?? null;
-  const invoicingTiles: KpiTile[] | null = invoicing
-    ? [
-        { key: "toPrepare", label: "À préparer", value: String(invoicing.toPrepare), tone: "neutral", icon: "create-outline" },
-        { key: "validated", label: "Validées", value: String(invoicing.validated), tone: "info", icon: "shield-checkmark-outline" },
-        { key: "sent", label: "Envoyées", value: String(invoicing.sent), tone: "accent", icon: "paper-plane-outline" },
-        { key: "paid", label: "Payées", value: String(invoicing.paid), tone: "success", icon: "cash-outline" },
-      ]
-    : null;
-
   const completionRatio = dashboard && dashboard.sites.plannedVisits > 0 ? dashboard.sites.completedVisits / dashboard.sites.plannedVisits : 0;
+
+  const quoteCard = c && (
+    <DomainCard
+      icon="document-text-outline"
+      title={isSupervisor ? "Mes devis" : "Devis"}
+      value={String(c.quotesInProgress)}
+      caption="en cours"
+      onPress={() => navigation.navigate("QuotesList")}
+      alert={c.quotesToFollowUp > 0 ? `${c.quotesToFollowUp} devis à relancer` : null}
+    >
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        <Chip label={c.quotesAccepted > 1 ? "acceptés" : "accepté"} value={c.quotesAccepted} fg={colors.success} bg={colors.successSoft} />
+        <Chip label={c.quotesRejected > 1 ? "refusés" : "refusé"} value={c.quotesRejected} fg={colors.danger} bg={colors.dangerSoft} />
+      </View>
+      {acceptanceRate !== null && (
+        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.sm }]}>
+          Taux d'acceptation <Text style={{ color: colors.ink, fontWeight: "700" }}>{acceptanceRate} %</Text>
+        </Text>
+      )}
+    </DomainCard>
+  );
+
+  const invoiceCard = inv && (
+    <DomainCard
+      icon="receipt-outline"
+      title="Factures"
+      value={String(inv.toPrepare + inv.validated)}
+      caption="à préparer ou envoyer"
+      onPress={() => navigation.navigate("InvoicesList")}
+    >
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        <Chip label={inv.sent > 1 ? "envoyées" : "envoyée"} value={inv.sent} fg={colors.accentText} bg={colors.accentSoft} />
+        <Chip label={inv.paid > 1 ? "payées" : "payée"} value={inv.paid} fg={colors.success} bg={colors.successSoft} />
+      </View>
+      <DistributionBar
+        segments={[
+          { count: inv.toPrepare, color: colors.neutral },
+          { count: inv.validated, color: colors.info },
+          { count: inv.sent, color: colors.accent },
+          { count: inv.paid, color: colors.success },
+        ]}
+      />
+      <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.md }}>
+        <Ionicons name="trending-up-outline" size={15} color={colors.success} />
+        <Text style={[type.footnote, { color: colors.inkSecondary, marginLeft: 6, flex: 1 }]}>CA prévisionnel mensuel</Text>
+        <Text style={[type.subhead, { color: colors.ink, fontWeight: "700" }]}>{currencyFmt.format(inv.projectedMonthlyRevenueHt)} HT</Text>
+      </View>
+    </DomainCard>
+  );
 
   return (
     <ScreenContainer>
@@ -188,136 +298,120 @@ export function CommercialHomeScreen() {
         contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.xxl }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
-        <Text style={[type.largeTitle, { color: colors.ink, marginBottom: spacing.xs }]}>Commercial</Text>
-        <Text style={[type.footnote, { color: colors.inkSecondary, marginBottom: spacing.lg }]}>
-          Le client final ne reçoit que des devis/factures par email — il n'a jamais accès à Deep Clean.
+        <Text style={[type.largeTitle, { color: colors.ink }]}>Commercial</Text>
+        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
+          {canInvoice ? "Devis, factures et facture électronique" : "Vos prospects, clients et devis"}
         </Text>
+
+        {/* Actions rapides : créer en un geste, sans passer par une liste. */}
+        <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.lg }}>
+          <QuickAction icon="document-text" label="Nouveau devis" onPress={() => navigation.navigate("QuoteForm", undefined)} />
+          {canInvoice && <QuickAction icon="receipt" label="Nouvelle facture" onPress={() => navigation.navigate("InvoiceForm", undefined)} />}
+          <QuickAction icon="person-add" label="Nouveau prospect" onPress={() => navigation.navigate("ProspectForm", undefined)} />
+          <QuickAction icon="briefcase" label="Nouveau client" onPress={() => navigation.navigate("ClientForm", undefined)} />
+        </View>
 
         {state === "loading" && !dashboard && <StateView kind="loading" />}
         {state === "error" && !dashboard && <StateView kind="error" onRetry={load} />}
 
-        {dashboard && commercialTiles && sitesTiles && (
-          <>
-            <SectionTitle icon="trending-up-outline" tint={colors.accent}>
-              {user?.role === "SUPERVISOR" ? "MES PROSPECTS & DEVIS" : "COMMERCIAL"}
+        {dashboard && (
+          <Animated.View entering={FadeInUp.duration(280)}>
+            <SectionTitle icon="layers-outline" tint={colors.accent}>
+              {canInvoice ? "DEVIS & FACTURES" : "DEVIS"}
             </SectionTitle>
-            <KpiGrid tiles={commercialTiles} />
-
-            <SectionTitle icon="business-outline" tint={colors.warning}>
-              {`CHANTIERS · ${periodFmt.format(new Date(`${dashboard.sites.period}-01`))}`}
-            </SectionTitle>
-            <KpiGrid tiles={sitesTiles} />
-
-            {dashboard.sites.plannedVisits > 0 && (
-              <Card style={{ marginTop: spacing.sm }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm }}>
-                  <Text style={[type.footnote, { color: colors.inkSecondary }]}>Avancement du mois</Text>
-                  <Text style={[type.footnote, { color: colors.ink, fontWeight: "700" }]}>{Math.round(completionRatio * 100)}%</Text>
-                </View>
-                <ProgressBar ratio={completionRatio} color={colors.success} />
-              </Card>
+            {isDesktopWeb && invoiceCard ? (
+              <View style={{ flexDirection: "row", gap: spacing.md }}>
+                <View style={{ flex: 1 }}>{quoteCard}</View>
+                <View style={{ flex: 1 }}>{invoiceCard}</View>
+              </View>
+            ) : (
+              <View style={{ gap: spacing.sm }}>
+                {quoteCard}
+                {invoiceCard}
+              </View>
             )}
 
-            {dashboard.sites.sitesNeedingAttention.length > 0 && (
-              <Card padded={false} style={{ marginTop: spacing.sm }}>
-                {dashboard.sites.sitesNeedingAttention.map((site, i) => (
-                  <PressableScale key={site.siteId} onPress={() => navigation.navigate("SiteDetail", { siteId: site.siteId })}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: spacing.sm,
-                        paddingHorizontal: spacing.md,
-                        borderTopWidth: i === 0 ? 0 : 1,
-                        borderTopColor: colors.border,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: radius.sm,
-                          backgroundColor: colors.warningSoft,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          marginRight: spacing.sm,
-                        }}
-                      >
-                        <Ionicons name="alert" size={14} color={colors.warning} />
-                      </View>
-                      <Text style={[type.footnote, { color: colors.ink, flex: 1, fontWeight: "600" }]} numberOfLines={1}>
-                        {site.siteName}
-                      </Text>
-                      <Text style={[type.footnote, { color: colors.warning, fontWeight: "700" }]}>{site.toScheduleVisits} à programmer</Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: 6 }} />
-                    </View>
-                  </PressableScale>
-                ))}
-              </Card>
-            )}
-
-            {invoicing && invoicingTiles && (
+            {canInvoice && (
               <>
-                <SectionTitle icon="receipt-outline" tint={colors.info}>
-                  FACTURATION
+                <SectionTitle icon="shield-checkmark-outline" tint={colors.accent}>
+                  FACTURE ÉLECTRONIQUE
                 </SectionTitle>
-                <KpiGrid tiles={invoicingTiles} />
-
-                <Card style={{ marginTop: spacing.sm }}>
-                  <DistributionBar
-                    segments={[
-                      { value: invoicing.toPrepare, color: colors.neutral },
-                      { value: invoicing.validated, color: colors.info },
-                      { value: invoicing.sent, color: colors.accent },
-                      { value: invoicing.paid, color: colors.success },
-                    ]}
-                  />
-                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: spacing.md }} />
-                  <HeroStat
-                    icon="cash-outline"
-                    tint={colors.success}
-                    value={`${currencyFmt.format(invoicing.projectedMonthlyRevenueHt)} HT`}
-                    label="CA prévisionnel mensuel (devis acceptés)"
-                  />
-                </Card>
+                <SuperPdpCard overview={einvoicing} failed={einvoicingFailed} onOpen={() => navigation.navigate("Einvoicing")} />
               </>
             )}
-          </>
-        )}
 
-        <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>ACCÈS RAPIDE</Text>
-        <Card padded={false}>
-          {entries.map((entry, index) => (
-            <PressableScale key={entry.screen} onPress={() => navigation.navigate(entry.screen)}>
-              <View
-                style={[
-                  { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-                  index > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
-                ]}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: radius.md,
-                    backgroundColor: colors.accentSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name={entry.icon} size={20} color={colors.accent} />
-                </View>
-                <View style={{ marginLeft: spacing.md, flex: 1 }}>
-                  <Text style={[type.headline, { color: colors.ink }]}>{entry.label}</Text>
-                  <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: 2 }]} numberOfLines={1}>
-                    {entry.message}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
-              </View>
-            </PressableScale>
-          ))}
-        </Card>
+            <SectionTitle icon="people-outline" tint={colors.info}>
+              PROSPECTION
+            </SectionTitle>
+            <Card padded={false}>
+              <ListRow
+                first
+                icon="person-add-outline"
+                label="Prospects"
+                detail={`${dashboard.commercial.activeProspects} en cours · suivi et relances`}
+                onPress={() => navigation.navigate("ProspectsList")}
+              />
+              <ListRow icon="briefcase-outline" label="Clients" detail="Coordonnées, historique commercial" onPress={() => navigation.navigate("ClientsList")} />
+            </Card>
+
+            {sitesTiles && (
+              <>
+                <SectionTitle icon="business-outline" tint={colors.warning}>
+                  {`CHANTIERS · ${periodFmt.format(new Date(`${dashboard.sites.period}-01T12:00:00`)).toUpperCase()}`}
+                </SectionTitle>
+                <KpiGrid tiles={sitesTiles} />
+                {dashboard.sites.plannedVisits > 0 && (
+                  <Card style={{ marginTop: spacing.sm }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm }}>
+                      <Text style={[type.footnote, { color: colors.inkSecondary }]}>
+                        Objectif du mois · {dashboard.sites.completedVisits} / {dashboard.sites.plannedVisits} prestations
+                      </Text>
+                      <Text style={[type.footnote, { color: colors.ink, fontWeight: "700" }]}>{Math.round(completionRatio * 100)} %</Text>
+                    </View>
+                    <ProgressBar ratio={completionRatio} color={colors.success} />
+                  </Card>
+                )}
+                {dashboard.sites.sitesNeedingAttention.length > 0 && (
+                  <Card padded={false} style={{ marginTop: spacing.sm }}>
+                    {dashboard.sites.sitesNeedingAttention.map((site, i) => (
+                      <PressableScale key={site.siteId} onPress={() => navigation.navigate("SiteDetail", { siteId: site.siteId })}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingVertical: spacing.sm,
+                            paddingHorizontal: spacing.md,
+                            borderTopWidth: i === 0 ? 0 : 1,
+                            borderTopColor: colors.border,
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 30,
+                              height: 30,
+                              borderRadius: radius.sm,
+                              backgroundColor: colors.warningSoft,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginRight: spacing.sm,
+                            }}
+                          >
+                            <Ionicons name="alert" size={14} color={colors.warning} />
+                          </View>
+                          <Text style={[type.footnote, { color: colors.ink, flex: 1, fontWeight: "600" }]} numberOfLines={1}>
+                            {site.siteName}
+                          </Text>
+                          <Text style={[type.footnote, { color: colors.warning, fontWeight: "700" }]}>{site.toScheduleVisits} à programmer</Text>
+                          <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} style={{ marginLeft: 6 }} />
+                        </View>
+                      </PressableScale>
+                    ))}
+                  </Card>
+                )}
+              </>
+            )}
+          </Animated.View>
+        )}
       </ScrollView>
     </ScreenContainer>
   );

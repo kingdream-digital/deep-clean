@@ -28,6 +28,7 @@ const COMPANY = {
 // Faux serveur Super PDP : enregistre ce qu'il reçoit, répond comme l'API.
 const received: { path: string; contentType?: string; body: Buffer }[] = [];
 let nextEvents: { id: number; invoice_id: number; status_code: string; status_text: string; created_at: string }[] = [];
+let tokenRejected = false;
 const server = http.createServer((req, res) => {
   const chunks: Buffer[] = [];
   req.on("data", (c) => chunks.push(c));
@@ -38,7 +39,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(code, { "content-type": "application/json" });
       res.end(JSON.stringify(data));
     };
-    if (req.url === "/oauth2/token") return json(200, { access_token: "jeton-test", expires_in: 3600 });
+    if (req.url === "/oauth2/token") return tokenRejected ? json(401, { error: "invalid_client" }) : json(200, { access_token: "jeton-test", expires_in: 3600 });
     if (req.headers.authorization !== "Bearer jeton-test") return json(401, { error: "unauthorized" });
     if (req.url?.startsWith("/v1.beta/invoices/convert")) {
       res.writeHead(200, { "content-type": "application/pdf" });
@@ -61,6 +62,7 @@ beforeEach(async () => {
   await resetDatabase();
   received.length = 0;
   nextEvents = [];
+  tokenRejected = false;
   resetSuperPdpToken();
   Object.assign(mutableEnv, COMPANY, { SUPERPDP_CLIENT_ID: "id-test", SUPERPDP_CLIENT_SECRET: "secret-test" });
 });
@@ -206,5 +208,108 @@ describe("Facture électronique — envoi via Super PDP", () => {
     const sup = await createTestUser({ role: Role.SUPERVISOR, email: "sup-fe@deepclean.test" });
     const supToken = (await request(app).post("/api/v1/auth/login").send({ username: sup.username, password: TEST_PASSWORD })).body.accessToken as string;
     expect((await request(app).post(`/api/v1/invoices/${invoiceId}/einvoice`).set("Authorization", `Bearer ${supToken}`)).status).toBe(403);
+  });
+});
+
+describe("Espace Super PDP — vue d'ensemble, suivi groupé, test de connexion", () => {
+  const event = (id: number, status_code: string, status_text = "") => ({
+    id,
+    invoice_id: 42,
+    status_code,
+    status_text,
+    created_at: new Date().toISOString(),
+  });
+
+  it("classe les factures : à transmettre, en cours, à vérifier, abouties", async () => {
+    const { token, invoiceId } = await validatedInvoice();
+    const auth = { Authorization: `Bearer ${token}` };
+
+    let overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
+    expect(overview).toMatchObject({
+      connection: { configured: true },
+      company: { missing: [] },
+      counts: { toSend: 1, inProgress: 0, attention: 0, done: 0 },
+      deadlines: { reception: "2026-09-01", emission: "2027-09-01" },
+    });
+    const toSend = (await request(app).get("/api/v1/einvoicing/invoices?view=toSend").set(auth)).body;
+    expect(toSend.items).toEqual([
+      expect.objectContaining({ id: invoiceId, clientName: "Hôtel Belle Vue", blockers: [] }),
+    ]);
+
+    await request(app).post(`/api/v1/invoices/${invoiceId}/einvoice`).set(auth);
+    overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
+    expect(overview.counts).toEqual({ toSend: 0, inProgress: 1, attention: 0, done: 0 });
+    expect(overview.lastSyncAt).not.toBeNull();
+
+    // Relecture groupée : la facture passe « Encaissée » → abouties.
+    nextEvents = [event(1, "api:uploaded"), event(2, "fr:212")];
+    const sync = await request(app).post("/api/v1/einvoicing/sync").set(auth);
+    expect(sync.body.result).toEqual({ checked: 1, changed: 1, failed: 0 });
+    overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
+    expect(overview.counts).toEqual({ toSend: 0, inProgress: 0, attention: 0, done: 1 });
+    const done = (await request(app).get("/api/v1/einvoicing/invoices?view=done").set(auth)).body;
+    expect(done.items[0]).toMatchObject({ id: invoiceId, pdpStatusLabel: "Encaissée" });
+    expect(await prisma.activityLog.count({ where: { action: "EINVOICE_STATUS_SYNC" } })).toBe(1);
+  });
+
+  it("range une facture refusée dans « à vérifier »", async () => {
+    const { token, invoiceId } = await validatedInvoice();
+    const auth = { Authorization: `Bearer ${token}` };
+    await request(app).post(`/api/v1/invoices/${invoiceId}/einvoice`).set(auth);
+    nextEvents = [event(3, "fr:210", "Montant contesté")];
+    await request(app).post("/api/v1/einvoicing/sync").set(auth);
+    const list = (await request(app).get("/api/v1/einvoicing/invoices?view=attention").set(auth)).body;
+    expect(list.items).toEqual([expect.objectContaining({ id: invoiceId, pdpError: "Montant contesté" })]);
+  });
+
+  it("signale ce qui manque à l'identité de l'entreprise et à une facture", async () => {
+    const { token } = await validatedInvoice();
+    mutableEnv.COMPANY_SIRET = "";
+    const auth = { Authorization: `Bearer ${token}` };
+    const overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
+    expect(overview.company.missing).toEqual([expect.stringContaining("SIREN de l'entreprise")]);
+    const toSend = (await request(app).get("/api/v1/einvoicing/invoices?view=toSend").set(auth)).body;
+    expect(toSend.items[0].blockers).toEqual([expect.stringContaining("SIREN de l'entreprise")]);
+  });
+
+  it("teste réellement les identifiants Super PDP", async () => {
+    const { token } = await validatedInvoice();
+    const auth = { Authorization: `Bearer ${token}` };
+    const ok = await request(app).post("/api/v1/einvoicing/test-connection").set(auth);
+    expect(ok.status).toBe(200);
+    expect(ok.body.result.ok).toBe(true);
+    expect(received.filter((r) => r.path === "/oauth2/token")).toHaveLength(1);
+
+    tokenRejected = true;
+    const refused = await request(app).post("/api/v1/einvoicing/test-connection").set(auth);
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.message).toContain("Connexion à Super PDP refusée");
+    // Jamais les identifiants dans la réponse.
+    expect(JSON.stringify(refused.body)).not.toContain("secret-test");
+
+    mutableEnv.SUPERPDP_CLIENT_SECRET = "";
+    const missing = await request(app).post("/api/v1/einvoicing/test-connection").set(auth);
+    expect(missing.status).toBe(400);
+    expect(missing.body.error.message).toContain("Identifiants Super PDP absents");
+    const overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
+    expect(overview.connection.configured).toBe(false);
+    expect((await request(app).post("/api/v1/einvoicing/sync").set(auth)).status).toBe(400);
+  });
+
+  it("est réservé à la RH, la direction et l'admin", async () => {
+    await validatedInvoice();
+    for (const role of [Role.SUPERVISOR, Role.EMPLOYEE, Role.SITE_MANAGER]) {
+      const u = await createTestUser({ role, email: `${role.toLowerCase()}-pdp@deepclean.test` });
+      const t = (
+        await request(app).post("/api/v1/auth/login").send({ username: u.username, password: TEST_PASSWORD })
+      ).body.accessToken as string;
+      const auth = { Authorization: `Bearer ${t}` };
+      expect((await request(app).get("/api/v1/einvoicing/overview").set(auth)).status).toBe(403);
+      expect((await request(app).get("/api/v1/einvoicing/invoices").set(auth)).status).toBe(403);
+      expect((await request(app).post("/api/v1/einvoicing/sync").set(auth)).status).toBe(403);
+      expect((await request(app).post("/api/v1/einvoicing/test-connection").set(auth)).status).toBe(403);
+    }
+    expect((await request(app).get("/api/v1/einvoicing/overview")).status).toBe(401);
+    expect(received).toHaveLength(0);
   });
 });

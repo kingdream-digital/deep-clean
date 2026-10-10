@@ -28,6 +28,7 @@ import { clientsRouter } from "./modules/clients/clients.routes";
 import { quotesRouter } from "./modules/quotes/quotes.routes";
 import { invoicesRouter } from "./modules/invoices/invoices.routes";
 import { commercialDashboardRouter } from "./modules/commercial/dashboard.routes";
+import { einvoicingRouter } from "./modules/einvoicing/einvoicing.routes";
 import { authenticate } from "./middleware/auth.middleware";
 import { bumpChangeVersion, currentChangeVersion, isTrackedMutation } from "./utils/changeVersion";
 
@@ -96,6 +97,7 @@ export function createApp() {
   app.use("/api/v1/quotes", quotesRouter);
   app.use("/api/v1/invoices", invoicesRouter);
   app.use("/api/v1/commercial-dashboard", commercialDashboardRouter);
+  app.use("/api/v1/einvoicing", einvoicingRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
