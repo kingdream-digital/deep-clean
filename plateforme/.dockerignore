@@ -1,0 +1,14 @@
+# Contexte de construction de l'image API : jamais de secrets ni de dépendances locales.
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.test.example
+**/dist
+**/storage
+**/storage-test
+apps/api/src/generated
+apps/app/*
+!apps/app/package.json
+.git
+**/*.log

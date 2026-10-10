@@ -9,7 +9,7 @@ import { ApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
 import { CredentialsCard } from "@/features/CredentialsCard";
 import { useBreakpoint } from "@/theme/ThemeProvider";
-import { Button, EmptyState, Screen, SelectField, Text, TextField, useToast } from "@/ui";
+import { AccessDenied, Button, Screen, SelectField, Text, TextField, useToast } from "@/ui";
 
 /**
  * Création d'un compte (RH / administrateur uniquement — contrôlé par le
@@ -58,7 +58,7 @@ export default function NewUserScreen() {
   if (!user || !can("users.create")) {
     return (
       <Screen back title="Nouveau compte">
-        <EmptyState title="Accès réservé à la RH" message="Seule la RH (ou l'administrateur du compte) peut créer des comptes." />
+        <AccessDenied title="Accès réservé à la RH" message="Seule la RH (ou l'administrateur du compte) peut créer des comptes." />
       </Screen>
     );
   }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { changePasswordSchema, loginSchema, type AuthResponseDto } from "@aussitot/shared";
@@ -5,6 +6,7 @@ import { env } from "../../config/env.ts";
 import { parse } from "../../lib/validate.ts";
 import { AppError } from "../../lib/errors.ts";
 import { authenticate } from "../../plugins/auth.ts";
+import { redis } from "../../lib/redis.ts";
 import * as auth from "./auth.service.ts";
 
 /**
@@ -38,11 +40,44 @@ function sendAuth(request: FastifyRequest, reply: FastifyReply, result: auth.Aut
 
 const refreshBodySchema = z.object({ refreshToken: z.string().min(20).max(200).optional() });
 
+/**
+ * Limitation des tentatives de connexion : par COMPTE visé et par adresse IP
+ * (une équipe entière derrière le même accès internet peut se connecter le
+ * matin), plus un plafond global par adresse contre le test massif
+ * d'identifiants. Le verrouillage du compte après 5 échecs complète le tout.
+ */
+export function loginRateKey(request: FastifyRequest): string {
+  const body = (request.body ?? {}) as { organization?: unknown; identifier?: unknown };
+  const target = `${String(body.organization ?? "")
+    .trim()
+    .toLowerCase()}|${String(body.identifier ?? "")
+    .trim()
+    .toLowerCase()}`;
+  return `login:${request.ip}:${createHash("sha256").update(target).digest("base64url").slice(0, 16)}`;
+}
+
+async function enforceLoginIpCeiling(ip: string): Promise<void> {
+  const key = `rl:login-ip:${ip}`;
+  try {
+    const attempts = await redis.incr(key);
+    if (attempts === 1) await redis.expire(key, 15 * 60);
+    if (attempts > env.LOGIN_IP_LIMIT_PER_15_MIN) throw AppError.tooManyRequests();
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    // Redis indisponible : le verrouillage des comptes (en base) continue de protéger.
+  }
+}
+
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/login",
-    { config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_PER_15_MIN, timeWindow: "15 minutes" } } },
+    {
+      config: {
+        rateLimit: { max: env.LOGIN_RATE_LIMIT_PER_15_MIN, timeWindow: "15 minutes", hook: "preHandler", keyGenerator: loginRateKey },
+      },
+    },
     async (request, reply) => {
+      await enforceLoginIpCeiling(request.ip);
       const input = parse(loginSchema, request.body);
       const result = await auth.login(input, { ip: request.ip, userAgent: request.headers["user-agent"] });
       return sendAuth(request, reply, result, input.rememberMe);

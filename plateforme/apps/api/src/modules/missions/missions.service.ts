@@ -10,7 +10,7 @@ import {
   type UpdateMissionInput,
 } from "@aussitot/shared";
 import type { z } from "zod";
-import { fromDbDate, iso, toDbDate, withTenant, type Db } from "../../lib/db.ts";
+import { fromDbDate, inTenant, iso, toDbDate, withTenant, type Db } from "../../lib/db.ts";
 import { withTenantEffects } from "../../lib/afterCommit.ts";
 import { AppError, assertFound } from "../../lib/errors.ts";
 import { hasPermission, requirePermission, type Ctx } from "../../lib/context.ts";
@@ -325,10 +325,10 @@ export async function setMissionInstructions(ctx: Ctx, id: string, raw: unknown)
 }
 
 /** Missions d'une journée (tableau de bord, assistant). */
-export async function missionsOfDay(ctx: Ctx, day: string, onlyMine: boolean): Promise<MissionDto[]> {
+export async function missionsOfDay(ctx: Ctx, day: string, onlyMine: boolean, db?: Db): Promise<MissionDto[]> {
   const { start, end } = dayRange(day, day, ctx.timezone);
   const mine = onlyMine || !hasPermission(ctx, "planning.readAll");
-  return withTenant(ctx.orgId, async (tx) => {
+  return inTenant(ctx.orgId, db, async (tx) => {
     const missions = await tx.mission.findMany({
       where: {
         startsAt: { gte: start, lt: end },
@@ -343,8 +343,8 @@ export async function missionsOfDay(ctx: Ctx, day: string, onlyMine: boolean): P
   });
 }
 
-export async function nextMissionFor(ctx: Ctx): Promise<MissionDto | null> {
-  return withTenant(ctx.orgId, async (tx) => {
+export async function nextMissionFor(ctx: Ctx, db?: Db): Promise<MissionDto | null> {
+  return inTenant(ctx.orgId, db, async (tx) => {
     const mission = await tx.mission.findFirst({
       where: {
         endsAt: { gt: new Date() },

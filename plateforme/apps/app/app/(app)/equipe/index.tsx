@@ -10,6 +10,7 @@ import { timeAgo } from "@/lib/format";
 import { useOrgTimezone } from "@/lib/today";
 import { useDebounced } from "@/lib/useDebounced";
 import {
+  AccessDenied,
   Avatar,
   Badge,
   Button,
@@ -41,7 +42,7 @@ export default function TeamScreen() {
   if (!can("users.read")) {
     return (
       <Screen title="Équipe">
-        <EmptyState title="Accès réservé" message="La liste des comptes est réservée à l'encadrement et à la RH." />
+        <AccessDenied title="Accès réservé" message="La liste des comptes est réservée à l'encadrement et à la RH." />
       </Screen>
     );
   }

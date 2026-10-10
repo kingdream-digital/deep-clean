@@ -7,7 +7,7 @@ export { ListGroup, ListRow } from "./List";
 export { Badge } from "./Badge";
 export { Avatar, AvatarStack } from "./Avatar";
 export { TextField } from "./TextField";
-export { EmptyState, ErrorState, LoadingState, Skeleton, SkeletonList } from "./States";
+export { AccessDenied, EmptyState, ErrorState, LoadingState, Skeleton, SkeletonList } from "./States";
 export { Segmented } from "./Segmented";
 export { ToastProvider, useToast } from "./Toast";
 export { Sheet } from "./Sheet";

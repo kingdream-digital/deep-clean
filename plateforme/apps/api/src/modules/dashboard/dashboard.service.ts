@@ -1,5 +1,5 @@
 import { can, INVOICE_OPEN_STATUSES, type ActivityDto, type DashboardDto, type Page } from "@aussitot/shared";
-import { seq, toDbDate, withTenant } from "../../lib/db.ts";
+import { seq, toDbDate, withTenant, type Db } from "../../lib/db.ts";
 import { requirePermission, type Ctx } from "../../lib/context.ts";
 import { redis } from "../../lib/redis.ts";
 import { activityLabel } from "../../lib/audit.ts";
@@ -69,29 +69,61 @@ export async function salesMetrics(ctx: Ctx): Promise<SalesMetrics> {
   return metrics;
 }
 
-/** Tableau de bord adapté au rôle : « où je dois aller, quand, quoi faire, y a-t-il du nouveau ? » */
+interface TeamMetrics {
+  activeMembers: number;
+  missionsToday: number;
+  missionsUnassigned: number;
+}
+
+/** Indicateurs d'équipe de l'entreprise, identiques pour tous ses responsables : cache de 30 secondes. */
+async function teamMetrics(ctx: Ctx, today: string): Promise<TeamMetrics> {
+  const cacheKey = `dash:team:${ctx.orgId}:${today}`;
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) return JSON.parse(cached) as TeamMetrics;
+  } catch {
+    /* cache indisponible : calcul direct */
+  }
+  const { start, end } = dayRange(today, today, ctx.timezone);
+  const metrics = await withTenant(ctx.orgId, async (tx) => {
+    const [activeMembers, missionsToday, missionsUnassigned] = await seq(
+      () => tx.user.count({ where: { isActive: true } }),
+      () => tx.mission.count({ where: { startsAt: { gte: start, lt: end }, status: { not: "CANCELLED" } } }),
+      () => tx.mission.count({ where: { startsAt: { gte: start }, status: "PLANNED", assignments: { none: {} } } }),
+    );
+    return { activeMembers, missionsToday, missionsUnassigned };
+  });
+  try {
+    await redis.set(cacheKey, JSON.stringify(metrics), "EX", 30);
+  } catch {
+    /* sans effet */
+  }
+  return metrics;
+}
+
+/**
+ * Tableau de bord adapté au rôle : « où je dois aller, quand, quoi faire, y
+ * a-t-il du nouveau ? ». C'est l'écran le plus consulté : ses lectures
+ * personnelles passent par UNE seule transaction, les indicateurs communs à
+ * toute l'entreprise viennent du cache.
+ */
 export async function getDashboard(ctx: Ctx): Promise<DashboardDto> {
   const today = todayIn(ctx.timezone);
-  const [user, todayMissions, nextMission, unread] = await Promise.all([
-    withTenant(ctx.orgId, (tx) => tx.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { firstName: true } })),
-    missionsOfDay(ctx, today, true),
-    nextMissionFor(ctx),
-    unreadCount(ctx),
-  ]);
+  const [user, todayMissions, nextMission, unread] = await withTenant(ctx.orgId, (tx: Db) =>
+    seq(
+      () => tx.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { firstName: true } }),
+      () => missionsOfDay(ctx, today, true, tx),
+      () => nextMissionFor(ctx, tx),
+      () => unreadCount(ctx, tx),
+    ),
+  );
   const dashboard: DashboardDto = { greetingName: user.firstName, today, todayMissions, nextMission, unreadNotifications: unread };
-
-  if (can(ctx.role, "quotes.read")) dashboard.sales = await salesMetrics(ctx);
-  if (can(ctx.role, "planning.readAll")) {
-    const { start, end } = dayRange(today, today, ctx.timezone);
-    dashboard.team = await withTenant(ctx.orgId, async (tx) => {
-      const [activeMembers, missionsToday, missionsUnassigned] = await seq(
-        () => tx.user.count({ where: { isActive: true } }),
-        () => tx.mission.count({ where: { startsAt: { gte: start, lt: end }, status: { not: "CANCELLED" } } }),
-        () => tx.mission.count({ where: { startsAt: { gte: start }, status: "PLANNED", assignments: { none: {} } } }),
-      );
-      return { activeMembers, missionsToday, missionsUnassigned };
-    });
-  }
+  const [sales, team] = await Promise.all([
+    can(ctx.role, "quotes.read") ? salesMetrics(ctx) : undefined,
+    can(ctx.role, "planning.readAll") ? teamMetrics(ctx, today) : undefined,
+  ]);
+  if (sales) dashboard.sales = sales;
+  if (team) dashboard.team = team;
   return dashboard;
 }
 

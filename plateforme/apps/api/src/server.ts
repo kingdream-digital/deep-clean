@@ -1,33 +1,33 @@
+import cluster from "node:cluster";
 import { env } from "./config/env.ts";
-import { buildApp } from "./app.ts";
-import { logger } from "./lib/logger.ts";
-import { prisma } from "./lib/db.ts";
-import { redis } from "./lib/redis.ts";
-import { startOrgCacheSync, stopOrgCacheSync } from "./lib/orgCache.ts";
 
 /**
- * Processus HTTP de l'API. Sans état : on en lance autant que nécessaire
- * derrière un répartiteur de charge (voir docs/SCALABILITE.md). Les tâches de
- * fond (emails, rappels, notifications push) tournent dans un processus
- * séparé : src/worker.ts.
+ * Point d'entrée de l'API.
+ *
+ * WEB_CONCURRENCY = 1 (défaut, recommandé en conteneurs) : un processus ; on
+ * multiplie les conteneurs derrière le répartiteur de charge.
+ * WEB_CONCURRENCY = N (serveur unique) : N processus se partagent le port,
+ * un par cœur ; un processus qui s'arrête anormalement est relancé.
+ * Chaque processus ouvre son propre pool de connexions (DB_POOL_SIZE).
  */
-const app = await buildApp();
-await startOrgCacheSync();
-
-const shutdown = async (signal: string) => {
-  logger.info({ signal }, "Arrêt en cours…");
-  const force = setTimeout(() => process.exit(1), 15_000);
-  force.unref();
-  try {
-    await app.close();
-    await stopOrgCacheSync();
-    await prisma.$disconnect();
-    await redis.quit();
-  } finally {
-    process.exit(0);
-  }
-};
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-process.on("SIGINT", () => void shutdown("SIGINT"));
-
-await app.listen({ port: env.PORT, host: env.HOST });
+if (env.WEB_CONCURRENCY > 1 && cluster.isPrimary) {
+  let stopping = false;
+  for (let i = 0; i < env.WEB_CONCURRENCY; i += 1) cluster.fork();
+  cluster.on("exit", (worker, code, signal) => {
+    if (stopping) return;
+    console.error(`Processus HTTP ${worker.process.pid} arrêté (${signal ?? code}) : relance.`);
+    setTimeout(() => cluster.fork(), 1000);
+  });
+  const stop = (signal: NodeJS.Signals) => {
+    stopping = true;
+    for (const worker of Object.values(cluster.workers ?? {})) worker?.process.kill(signal);
+    setTimeout(() => process.exit(0), 16_000).unref();
+    cluster.on("exit", () => {
+      if (Object.keys(cluster.workers ?? {}).length === 0) process.exit(0);
+    });
+  };
+  process.on("SIGTERM", () => stop("SIGTERM"));
+  process.on("SIGINT", () => stop("SIGINT"));
+} else {
+  await import("./http.ts");
+}

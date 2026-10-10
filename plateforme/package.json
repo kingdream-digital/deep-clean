@@ -15,7 +15,7 @@
     "dev:worker": "npm run dev:worker -w @aussitot/api",
     "dev:app": "npm run web -w @aussitot/app",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test -w @aussitot/shared && npm run test -w @aussitot/api",
+    "test": "npm run test -w @aussitot/shared && npm run test -w @aussitot/app && npm run test -w @aussitot/api",
     "build:api": "npm run build -w @aussitot/api"
   }
 }

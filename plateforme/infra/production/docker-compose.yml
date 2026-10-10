@@ -1,0 +1,125 @@
+# Déploiement de référence sur UN serveur (VM de 4 à 8 vCPU, 16 Go) :
+# proxy HTTPS (Caddy, certificats automatiques), API sur plusieurs
+# conteneurs, worker, PostgreSQL, Redis. Au-delà (10 000 utilisateurs
+# simultanés), voir docs/SCALABILITE.md : mêmes images, services managés.
+#
+#   cp .env.production.example .env   # puis remplir chaque secret
+#   docker compose --env-file .env up -d
+#
+# Les images se construisent depuis le dossier plateforme/ :
+#   docker build -f apps/api/Dockerfile -t aussitot-api .
+#   docker build -f apps/api/Dockerfile --target migrate -t aussitot-migrate .
+name: aussitot
+
+x-api-env: &api-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://aussitot_app:${APP_DB_PASSWORD:?}@db:5432/aussitot
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?}
+  PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:?}
+  APP_URL: https://${APP_DOMAIN:?}
+  CORS_ORIGINS: https://${APP_DOMAIN:?}
+  TRUST_PROXY: "true"
+  WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+  STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_REGION: ${S3_REGION:-}
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+  EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?}
+      APP_DOMAIN: ${APP_DOMAIN:?}
+      CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEB_APP_DIR:-./web}:/srv/app:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api]
+
+  api:
+    image: ${API_IMAGE:-aussitot-api:latest}
+    restart: unless-stopped
+    environment: *api-env
+    deploy:
+      replicas: ${API_REPLICAS:-2}
+    volumes:
+      - files:/app/apps/api/storage
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    image: ${API_IMAGE:-aussitot-api:latest}
+    restart: unless-stopped
+    command: ["node", "--enable-source-maps", "dist/worker.js"]
+    # Pas de serveur HTTP dans le worker : la sonde de l'image API ne s'applique pas.
+    healthcheck:
+      disable: true
+    environment: *api-env
+    volumes:
+      - files:/app/apps/api/storage
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  # Applique les migrations (rôle propriétaire) puis s'arrête.
+  migrate:
+    image: ${MIGRATE_IMAGE:-aussitot-migrate:latest}
+    restart: "no"
+    environment:
+      DATABASE_ADMIN_URL: postgresql://postgres:${POSTGRES_PASSWORD:?}@db:5432/aussitot
+    depends_on:
+      db: { condition: service_healthy }
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: aussitot
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?}
+    # Réglages pour un serveur de 16 Go ; ajuster à la machine.
+    command: ["postgres", "-c", "shared_buffers=2GB", "-c", "effective_cache_size=6GB", "-c", "max_connections=200", "-c", "work_mem=16MB"]
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Par TCP : le serveur temporaire des scripts d'initialisation n'écoute que sur le socket local.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d aussitot"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Files d'attente (BullMQ) : aucune éviction de clés tolérée.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+volumes:
+  db-data:
+  redis-data:
+  files:
+  caddy-data:
+  caddy-config:

@@ -17,9 +17,9 @@ import { useAuth } from "@/auth/AuthProvider";
 import { useOrgLogo } from "@/lib/logo";
 import { useBreakpoint, useTheme } from "@/theme/ThemeProvider";
 import {
+  AccessDenied,
   Button,
   Card,
-  EmptyState,
   ErrorState,
   FilterChips,
   Screen,
@@ -151,7 +151,7 @@ export default function SettingsScreen() {
   if (!can("org.update")) {
     return (
       <Screen title="Réglages">
-        <EmptyState title="Accès réservé" message="Les réglages de l'entreprise sont réservés à l'administrateur du compte." />
+        <AccessDenied title="Accès réservé" message="Les réglages de l'entreprise sont réservés à l'administrateur du compte." />
       </Screen>
     );
   }

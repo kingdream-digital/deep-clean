@@ -19,6 +19,7 @@ const envSchema = z.object({
   /** Rôle PostgreSQL SANS privilège (soumis aux politiques RLS). */
   DATABASE_URL: z.string().min(1, "DATABASE_URL est requis"),
   DB_POOL_SIZE: z.coerce.number().int().min(1).max(200).default(20),
+  WEB_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(1),
 
   REDIS_URL: z.string().min(1, "REDIS_URL est requis"),
 
@@ -34,7 +35,10 @@ const envSchema = z.object({
   TRUST_PROXY: bool,
 
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(300),
+  /** Tentatives par compte et par adresse IP (le verrouillage du compte, lui, s'applique quelle que soit l'adresse). */
   LOGIN_RATE_LIMIT_PER_15_MIN: z.coerce.number().int().positive().default(20),
+  /** Plafond par adresse IP, toutes personnes confondues : une équipe derrière le même accès internet doit pouvoir se connecter. */
+  LOGIN_IP_LIMIT_PER_15_MIN: z.coerce.number().int().positive().default(300),
   ASSISTANT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(20),
 
   /** Jeton de l'opérateur de la plateforme (création d'entreprises clientes). */
@@ -74,7 +78,8 @@ const envSchema = z.object({
   DEMO_MODE: bool,
 });
 
-const parsed = envSchema.safeParse(process.env);
+// Une variable vide (« SMTP_HOST= », fréquent avec Docker Compose) vaut « non définie ».
+const parsed = envSchema.safeParse(Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== "")));
 
 if (!parsed.success) {
   // eslint-disable-next-line no-console

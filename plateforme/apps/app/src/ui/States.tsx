@@ -1,7 +1,7 @@
 import { useEffect, type ComponentType } from "react";
 import { ActivityIndicator, View, type DimensionValue } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming, FadeIn } from "react-native-reanimated";
-import { CloudOff, Inbox, ShieldAlert, TriangleAlert, type LucideProps } from "lucide-react-native";
+import { CloudOff, Inbox, LockKeyhole, ShieldAlert, TriangleAlert, type LucideProps } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Text } from "./Text";
 import { Button } from "./Button";
@@ -58,6 +58,11 @@ export function EmptyState({
       ) : null}
     </Animated.View>
   );
+}
+
+/** Écran réservé à d'autres rôles (le serveur refuse de toute façon l'accès aux données). */
+export function AccessDenied({ title = "Accès réservé", message }: { title?: string; message: string }) {
+  return <EmptyState icon={LockKeyhole} tone="warning" title={title} message={message} />;
 }
 
 /** Erreur : message compréhensible, jamais de détail technique, et « Réessayer ». */

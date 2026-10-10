@@ -10,7 +10,7 @@ import { DocumentRow, ListCard } from "@/features/sales/DocumentRow";
 import { SalesTabs } from "@/features/sales/SalesTabs";
 import { InvoiceStatusBadge } from "@/features/status";
 import { useDebounced } from "@/lib/useDebounced";
-import { Button, Card, EmptyState, ErrorState, FilterChips, Screen, SearchField, SkeletonList } from "@/ui";
+import { AccessDenied, Button, Card, EmptyState, ErrorState, FilterChips, Screen, SearchField, SkeletonList } from "@/ui";
 
 type Filter = "all" | "unpaid" | "overdue" | "DRAFT" | "PAID";
 const FILTERS: { value: Filter; label: string }[] = [
@@ -49,7 +49,7 @@ export default function InvoicesScreen() {
     return (
       <Screen title="Ventes">
         <SalesTabs value="devis" />
-        <EmptyState title="Accès réservé" message="Les factures sont réservées aux personnes chargées de la facturation." />
+        <AccessDenied title="Accès réservé" message="Les factures sont réservées aux personnes chargées de la facturation." />
       </Screen>
     );
   }

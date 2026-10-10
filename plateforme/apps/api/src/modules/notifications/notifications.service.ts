@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { NotificationDto, Page } from "@aussitot/shared";
-import { iso, withTenant, type Db } from "../../lib/db.ts";
+import { inTenant, iso, withTenant, type Db } from "../../lib/db.ts";
 import type { AfterCommit } from "../../lib/afterCommit.ts";
 import { publishToUsers } from "../../lib/realtime.ts";
 import { enqueuePush } from "../../lib/queue.ts";
@@ -70,8 +70,8 @@ export async function listNotifications(
   });
 }
 
-export async function unreadCount(ctx: Ctx): Promise<number> {
-  return withTenant(ctx.orgId, (tx) => tx.notification.count({ where: { userId: ctx.userId, readAt: null } }));
+export async function unreadCount(ctx: Ctx, db?: Db): Promise<number> {
+  return inTenant(ctx.orgId, db, (tx) => tx.notification.count({ where: { userId: ctx.userId, readAt: null } }));
 }
 
 /** Une personne ne peut marquer comme lues que SES notifications. */

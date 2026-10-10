@@ -11,7 +11,7 @@ import { LineEditor, TotalsCompact, TotalsSummary } from "@/features/sales/LineE
 import { emptyLine, fromDto, toInput, type DraftLine } from "@/features/sales/lines";
 import { useToday } from "@/lib/today";
 import { useBreakpoint } from "@/theme/ThemeProvider";
-import { Button, Card, DateField, EmptyState, Screen, SectionTitle, SelectField, Skeleton, Text, TextField, useToast } from "@/ui";
+import { AccessDenied, Button, Card, DateField, Screen, SectionTitle, SelectField, Skeleton, Text, TextField, useToast } from "@/ui";
 
 /** Création / modification d'une facture brouillon (rien n'est définitif avant l'émission). */
 export default function InvoiceFormScreen() {
@@ -91,7 +91,9 @@ export default function InvoiceFormScreen() {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast(editingId ? "Brouillon enregistré" : "Facture brouillon créée");
-      router.replace(`/factures/${invoice.id}`);
+      // Modification : retour à la fiche déjà ouverte ; création : la nouvelle fiche remplace le formulaire.
+      if (editingId && router.canGoBack()) router.back();
+      else router.replace(`/factures/${invoice.id}`);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.details) setErrors(Object.fromEntries(Object.entries(err.details).map(([k, v]) => [k, v[0]])));
@@ -125,7 +127,7 @@ export default function InvoiceFormScreen() {
   if (!can("invoices.write")) {
     return (
       <Screen back title="Facture">
-        <EmptyState title="Accès réservé" message="La facturation est réservée aux personnes qui en ont la charge." />
+        <AccessDenied title="Accès réservé" message="La facturation est réservée aux personnes qui en ont la charge." />
       </Screen>
     );
   }

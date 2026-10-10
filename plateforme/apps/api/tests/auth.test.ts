@@ -56,6 +56,36 @@ describe("connexion", () => {
   });
 });
 
+describe("navigateur (CORS)", () => {
+  it("autorise les modifications et suppressions depuis l'app web", async () => {
+    const res = await app.inject({
+      method: "OPTIONS",
+      url: "/v1/quotes/00000000-0000-0000-0000-000000000000",
+      headers: {
+        origin: "http://localhost:8081",
+        "access-control-request-method": "PATCH",
+        "access-control-request-headers": "authorization,content-type",
+      },
+    });
+    expect(res.statusCode).toBe(204);
+    const allowed = String(res.headers["access-control-allow-methods"]);
+    for (const method of ["PATCH", "PUT", "DELETE"]) expect(allowed).toContain(method);
+  });
+});
+
+describe("limitation des tentatives de connexion", () => {
+  it("compte les tentatives par compte visé, pas par adresse IP partagée", async () => {
+    const { loginRateKey } = await import("../src/modules/auth/auth.routes.ts");
+    const req = (organization: string, identifier: string, ip = "203.0.113.7") => ({ ip, body: { organization, identifier } }) as never;
+    // Deux collègues derrière le même accès internet : compteurs distincts.
+    expect(loginRateKey(req("deep-clean", "lpetit"))).not.toBe(loginRateKey(req("deep-clean", "erousseau")));
+    // Le même compte, quelle que soit la casse : même compteur.
+    expect(loginRateKey(req("Deep-Clean", " LPetit "))).toBe(loginRateKey(req("deep-clean", "lpetit")));
+    // Une autre adresse : autre compteur (le verrouillage du compte, lui, reste global).
+    expect(loginRateKey(req("deep-clean", "lpetit", "198.51.100.2"))).not.toBe(loginRateKey(req("deep-clean", "lpetit")));
+  });
+});
+
 describe("premier accès", () => {
   it("impose le remplacement du mot de passe temporaire avant tout autre usage", async () => {
     const created = await api(app, org.admin.token).post("/v1/users", { firstName: "Paul", lastName: "Nouveau", role: "EMPLOYEE" });

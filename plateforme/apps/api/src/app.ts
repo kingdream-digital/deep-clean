@@ -42,6 +42,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(cors, {
     origin: env.isProduction ? env.corsOrigins : env.corsOrigins.length ? env.corsOrigins : true,
     credentials: true,
+    // Liste explicite : par défaut seuls GET, HEAD et POST seraient permis depuis le navigateur.
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
     exposedHeaders: ["x-request-id", "content-disposition"],
     maxAge: 600,
   });

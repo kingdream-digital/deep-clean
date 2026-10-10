@@ -8,7 +8,7 @@ import { endpoints } from "@/api/endpoints";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
 import { useBreakpoint } from "@/theme/ThemeProvider";
-import { Button, EmptyState, Screen, SectionTitle, Segmented, Skeleton, Text, TextField, useToast } from "@/ui";
+import { AccessDenied, Button, Screen, SectionTitle, Segmented, Skeleton, Text, TextField, useToast } from "@/ui";
 
 type Form = Required<{ [K in keyof ClientInput]: string }>;
 const EMPTY: Form = {
@@ -77,7 +77,9 @@ export default function ClientFormScreen() {
       queryClient.setQueryData(["client", client.id], client);
       void queryClient.invalidateQueries({ queryKey: ["clients"] });
       toast(editingId ? "Client enregistré" : `${client.name} ajouté`);
-      router.replace(`/clients/${client.id}`);
+      // Modification : retour à la fiche déjà ouverte ; création : la nouvelle fiche remplace le formulaire.
+      if (editingId && router.canGoBack()) router.back();
+      else router.replace(`/clients/${client.id}`);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.details) setErrors(Object.fromEntries(Object.entries(err.details).map(([k, v]) => [k, v[0]])));
@@ -101,7 +103,7 @@ export default function ClientFormScreen() {
   if (!can("clients.write")) {
     return (
       <Screen back title="Client">
-        <EmptyState title="Accès réservé" message="La gestion des clients est réservée aux personnes qui gèrent les ventes." />
+        <AccessDenied title="Accès réservé" message="La gestion des clients est réservée aux personnes qui gèrent les ventes." />
       </Screen>
     );
   }

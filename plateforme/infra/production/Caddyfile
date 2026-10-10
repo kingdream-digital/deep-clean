@@ -1,0 +1,37 @@
+# Proxy HTTPS : certificats Let's Encrypt automatiques pour les deux domaines.
+# L'app et l'API doivent être deux sous-domaines du MÊME domaine
+# (app.exemple.fr / api.exemple.fr) : le cookie de session est SameSite=Strict.
+{
+	# Essais en local uniquement : CADDY_GLOBAL_OPTIONS=local_certs (autorité de certification interne).
+	{$CADDY_GLOBAL_OPTIONS}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	header -Server
+	reverse_proxy {
+		# Répartition entre tous les conteneurs « api » (résolution DNS Docker).
+		dynamic a api 4000 {
+			refresh 10s
+		}
+		lb_policy least_conn
+		health_uri /health
+		health_interval 10s
+		# Flux temps réel (Server-Sent Events) : aucune mise en tampon.
+		flush_interval -1
+	}
+}
+
+# Application web (export statique d'Expo : npm run build:web -w @aussitot/app).
+{$APP_DOMAIN} {
+	encode zstd gzip
+	root * /srv/app
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), geolocation=(), microphone=(self)"
+	}
+	try_files {path} /index.html
+	file_server
+}

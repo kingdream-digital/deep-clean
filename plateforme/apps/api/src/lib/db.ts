@@ -47,6 +47,14 @@ export async function withTenant<T>(orgId: string, fn: (tx: Db) => Promise<T>, o
 }
 
 /**
+ * Réutilise la transaction de l'appelant si elle existe (une seule transaction
+ * pour un écran qui agrège plusieurs lectures), sinon en ouvre une.
+ */
+export function inTenant<T>(orgId: string, tx: Db | undefined, fn: (tx: Db) => Promise<T>): Promise<T> {
+  return tx ? fn(tx) : withTenant(orgId, fn);
+}
+
+/**
  * Exécute des requêtes l'une après l'autre. Dans une transaction, toutes les
  * requêtes passent par la même connexion : les lancer en parallèle
  * (Promise.all) ne fait que les empiler côté pilote PostgreSQL.

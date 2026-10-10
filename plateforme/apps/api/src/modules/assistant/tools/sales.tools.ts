@@ -207,15 +207,13 @@ export const searchCatalog = defineTool({
     const items = await catalog.listCatalog(ctx, { q: i.query });
     return {
       content: items.length
-        ? items
-            .slice(0, 8)
-            .map((c) => ({
-              id: c.id,
-              prestation: c.name,
-              unite: c.unit,
-              prix_unitaire_ht_eur: c.unitPriceCents / 100,
-              tva_percent: c.vatRateBps / 100,
-            }))
+        ? items.slice(0, 8).map((c) => ({
+            id: c.id,
+            prestation: c.name,
+            unite: c.unit,
+            prix_unitaire_ht_eur: c.unitPriceCents / 100,
+            tva_percent: c.vatRateBps / 100,
+          }))
         : { resultat: "Aucune prestation correspondante dans le catalogue." },
     };
   },

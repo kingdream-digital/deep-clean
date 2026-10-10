@@ -6,7 +6,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { useOrgTimezone } from "@/lib/today";
 import { useTheme } from "@/theme/ThemeProvider";
-import { Card, EmptyState, ErrorState, Screen, SkeletonList, Text } from "@/ui";
+import { AccessDenied, Card, EmptyState, ErrorState, Screen, SkeletonList, Text } from "@/ui";
 
 /** Journal d'activité : actions importantes, avec leur auteur et l'heure (non modifiable, côté serveur). */
 export default function ActivityScreen() {
@@ -18,7 +18,7 @@ export default function ActivityScreen() {
   if (!can("activity.read")) {
     return (
       <Screen title="Activité">
-        <EmptyState title="Accès réservé" message="Le journal d'activité est réservé à la direction et à la RH." />
+        <AccessDenied title="Accès réservé" message="Le journal d'activité est réservé à la direction et à la RH." />
       </Screen>
     );
   }

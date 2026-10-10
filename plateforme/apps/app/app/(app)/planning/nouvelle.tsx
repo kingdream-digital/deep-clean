@@ -8,7 +8,19 @@ import { ApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
 import { useToday } from "@/lib/today";
 import { useBreakpoint } from "@/theme/ThemeProvider";
-import { Button, DateField, EmptyState, MultiSelectField, Screen, SelectField, Skeleton, Text, TextField, TimeField, useToast } from "@/ui";
+import {
+  AccessDenied,
+  Button,
+  DateField,
+  MultiSelectField,
+  Screen,
+  SelectField,
+  Skeleton,
+  Text,
+  TextField,
+  TimeField,
+  useToast,
+} from "@/ui";
 
 type Errors = Partial<Record<keyof CreateMissionInput | "form", string>>;
 
@@ -84,7 +96,9 @@ export default function MissionFormScreen() {
       void queryClient.invalidateQueries({ queryKey: ["planning"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast(editingId ? "Mission modifiée : l'équipe est prévenue" : "Mission créée : l'équipe est prévenue");
-      router.replace(`/planning/${mission.id}`);
+      // Modification : retour à la fiche déjà ouverte ; création : la nouvelle fiche remplace le formulaire.
+      if (editingId && router.canGoBack()) router.back();
+      else router.replace(`/planning/${mission.id}`);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.details) {
@@ -123,7 +137,7 @@ export default function MissionFormScreen() {
   if (!can("planning.manage")) {
     return (
       <Screen back title="Mission">
-        <EmptyState
+        <AccessDenied
           title="Accès réservé"
           message="La création et la modification du planning sont réservées aux responsables du planning."
         />

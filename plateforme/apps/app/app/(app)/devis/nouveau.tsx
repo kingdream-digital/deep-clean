@@ -11,7 +11,7 @@ import { LineEditor, TotalsCompact, TotalsSummary } from "@/features/sales/LineE
 import { emptyLine, fromDto, toInput, type DraftLine } from "@/features/sales/lines";
 import { useToday } from "@/lib/today";
 import { useBreakpoint } from "@/theme/ThemeProvider";
-import { Button, Card, DateField, EmptyState, Screen, SectionTitle, SelectField, Skeleton, Text, TextField, useToast } from "@/ui";
+import { AccessDenied, Button, Card, DateField, Screen, SectionTitle, SelectField, Skeleton, Text, TextField, useToast } from "@/ui";
 
 /** Création / modification d'un devis brouillon. Les montants sont recalculés par le serveur. */
 export default function QuoteFormScreen() {
@@ -88,7 +88,9 @@ export default function QuoteFormScreen() {
       void queryClient.invalidateQueries({ queryKey: ["quotes"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast(editingId ? "Devis enregistré" : `Devis ${quote.number} créé`);
-      router.replace(`/devis/${quote.id}`);
+      // Modification : retour à la fiche déjà ouverte ; création : la nouvelle fiche remplace le formulaire.
+      if (editingId && router.canGoBack()) router.back();
+      else router.replace(`/devis/${quote.id}`);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.details) setErrors(Object.fromEntries(Object.entries(err.details).map(([k, v]) => [k, v[0]])));
@@ -121,7 +123,7 @@ export default function QuoteFormScreen() {
   if (!can("quotes.write")) {
     return (
       <Screen back title="Devis">
-        <EmptyState title="Accès réservé" message="La création de devis est réservée aux personnes qui gèrent les ventes." />
+        <AccessDenied title="Accès réservé" message="La création de devis est réservée aux personnes qui gèrent les ventes." />
       </Screen>
     );
   }
