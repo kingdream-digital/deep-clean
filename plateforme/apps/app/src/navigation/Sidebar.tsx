@@ -40,7 +40,16 @@ export function Sidebar() {
   const onProfile = pathname === "/profil";
 
   return (
-    <View style={{ width: 264, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface, paddingTop: insets.top + 22, paddingBottom: 14 }}>
+    <View
+      style={{
+        width: 264,
+        borderRightWidth: 1,
+        borderRightColor: colors.border,
+        backgroundColor: colors.surface,
+        paddingTop: insets.top + 22,
+        paddingBottom: 14,
+      }}
+    >
       <View style={{ paddingHorizontal: 22, gap: 6, marginBottom: 22 }}>
         <Wordmark size={20} />
         <Text variant="footnote" tone="tertiary" numberOfLines={1}>
@@ -58,8 +67,22 @@ export function Sidebar() {
           style={{ borderRadius: radius.md, overflow: "hidden" }}
           testID="sidebar-assistant"
         >
-          <LinearGradient colors={["#2347F5", "#5B3FF0"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12 }}>
-            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
+          <LinearGradient
+            colors={["#2347F5", "#5B3FF0"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12 }}
+          >
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: "rgba(255,255,255,0.18)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <AudioLines size={17} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1 }}>
@@ -89,7 +112,15 @@ export function Sidebar() {
               accessibilityState={{ selected: active }}
               accessibilityLabel={count ? `${item.label}, ${count} non lues` : item.label}
               testID={`nav-${item.key}`}
-              style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44, paddingHorizontal: 12, borderRadius: radius.sm, backgroundColor: active ? colors.accentSoft : "transparent" }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                minHeight: 44,
+                paddingHorizontal: 12,
+                borderRadius: radius.sm,
+                backgroundColor: active ? colors.accentSoft : "transparent",
+              }}
               pressedStyle={{ backgroundColor: active ? colors.accentSoft : colors.surfacePressed }}
             >
               <Icon size={20} color={active ? colors.accentText : colors.textSecondary} strokeWidth={active ? 2.3 : 2} />
@@ -97,7 +128,17 @@ export function Sidebar() {
                 {item.label}
               </Text>
               {count ? (
-                <View style={{ minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.spark, alignItems: "center", justifyContent: "center" }}>
+                <View
+                  style={{
+                    minWidth: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    paddingHorizontal: 6,
+                    backgroundColor: colors.spark,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   <Text variant="caption" weight="bold" style={{ color: "#FFFFFF" }}>
                     {count > 99 ? "99+" : count}
                   </Text>
@@ -114,7 +155,14 @@ export function Sidebar() {
           scaleTo={0.98}
           accessibilityLabel={`Mon profil : ${user.firstName} ${user.lastName}, ${ROLE_LABELS[user.role]}`}
           accessibilityState={{ selected: onProfile }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: radius.md, backgroundColor: onProfile ? colors.accentSoft : colors.surfaceMuted }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            padding: 10,
+            borderRadius: radius.md,
+            backgroundColor: onProfile ? colors.accentSoft : colors.surfaceMuted,
+          }}
           pressedStyle={{ backgroundColor: colors.surfacePressed }}
           testID="nav-profile"
         >

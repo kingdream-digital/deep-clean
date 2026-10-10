@@ -12,7 +12,18 @@ export function OfflineBanner() {
   useEffect(() => NetInfo.addEventListener((state) => setOffline(state.isConnected === false)), []);
   if (!offline) return null;
   return (
-    <View accessibilityRole="alert" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 16, backgroundColor: colors.warningSoft }}>
+    <View
+      accessibilityRole="alert"
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        backgroundColor: colors.warningSoft,
+      }}
+    >
       <CloudOff size={16} color={colors.warning} />
       <Text variant="footnote" tone="warning" weight="semibold">
         Hors connexion — affichage des dernières données chargées

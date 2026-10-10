@@ -1,10 +1,25 @@
-import { Switch, View } from "react-native";
+import { View } from "react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { PressableScale } from "./PressableScale";
 import { Text } from "./Text";
+import { Toggle } from "./Toggle";
 
 /** Ligne avec interrupteur : toute la ligne est cliquable, l'état est annoncé. */
-export function SwitchRow({ title, subtitle, value, onValueChange, disabled, testID }: { title: string; subtitle?: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean; testID?: string }) {
+export function SwitchRow({
+  title,
+  subtitle,
+  value,
+  onValueChange,
+  disabled,
+  testID,
+}: {
+  title: string;
+  subtitle?: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  disabled?: boolean;
+  testID?: string;
+}) {
   const { colors } = useTheme();
   return (
     <PressableScale
@@ -30,7 +45,7 @@ export function SwitchRow({ title, subtitle, value, onValueChange, disabled, tes
           </Text>
         ) : null}
       </View>
-      <Switch value={value} onValueChange={onValueChange} disabled={disabled} trackColor={{ true: colors.accentFill, false: colors.borderStrong }} thumbColor="#FFFFFF" importantForAccessibility="no" accessibilityElementsHidden />
+      <Toggle value={value} onValueChange={onValueChange} disabled={disabled} />
     </PressableScale>
   );
 }

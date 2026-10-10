@@ -16,7 +16,11 @@ export function ResultCard({ card }: { card: AssistantCard }) {
     case "quote": {
       const q = card.quote;
       return (
-        <Card onPress={() => router.push(`/devis/${q.id}`)} padding={14} accessibilityLabel={`Devis ${q.number}, ${q.clientName}, ${formatEuro(q.totalCents)}`}>
+        <Card
+          onPress={() => router.push(`/devis/${q.id}`)}
+          padding={14}
+          accessibilityLabel={`Devis ${q.number}, ${q.clientName}, ${formatEuro(q.totalCents)}`}
+        >
           <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
             <IconTile icon={<FileText size={18} color={colors.accentText} />} bg={colors.accentSoft} />
             <View style={{ flex: 1, gap: 3 }}>
@@ -41,7 +45,11 @@ export function ResultCard({ card }: { card: AssistantCard }) {
     case "invoice": {
       const i = card.invoice;
       return (
-        <Card onPress={() => router.push(`/factures/${i.id}`)} padding={14} accessibilityLabel={`Facture ${i.number ?? "brouillon"}, ${i.clientName}, ${formatEuro(i.totalCents)}`}>
+        <Card
+          onPress={() => router.push(`/factures/${i.id}`)}
+          padding={14}
+          accessibilityLabel={`Facture ${i.number ?? "brouillon"}, ${i.clientName}, ${formatEuro(i.totalCents)}`}
+        >
           <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
             <IconTile icon={<Receipt size={18} color={colors.sparkText} />} bg={colors.sparkSoft} />
             <View style={{ flex: 1, gap: 3 }}>
@@ -117,7 +125,15 @@ export function ResultCard({ card }: { card: AssistantCard }) {
               disabled={!item.link}
               scaleTo={1}
               pressedStyle={{ backgroundColor: colors.surfacePressed }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: colors.border }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 11,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+              }}
             >
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="callout" weight="medium" numberOfLines={1}>
@@ -151,7 +167,18 @@ export function ResultCard({ card }: { card: AssistantCard }) {
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
             {card.metrics.map((m) => (
-              <View key={m.label} style={{ minWidth: 130, flexGrow: 1, flexBasis: "45%", backgroundColor: colors.surfaceMuted, borderRadius: 12, padding: 12, gap: 4 }}>
+              <View
+                key={m.label}
+                style={{
+                  minWidth: 130,
+                  flexGrow: 1,
+                  flexBasis: "45%",
+                  backgroundColor: colors.surfaceMuted,
+                  borderRadius: 12,
+                  padding: 12,
+                  gap: 4,
+                }}
+              >
                 <Text variant="footnote" tone="secondary">
                   {m.label}
                 </Text>
@@ -167,5 +194,9 @@ export function ResultCard({ card }: { card: AssistantCard }) {
 }
 
 function IconTile({ icon, bg }: { icon: React.ReactNode; bg: string }) {
-  return <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>{icon}</View>;
+  return (
+    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+      {icon}
+    </View>
+  );
 }

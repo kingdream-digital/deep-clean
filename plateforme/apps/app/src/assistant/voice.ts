@@ -12,7 +12,8 @@ export type DictationError = "not-allowed" | "unavailable" | "no-speech" | "netw
 
 const ERROR_MESSAGES: Record<DictationError, string> = {
   "not-allowed": "Autorisez l'accès au micro pour parler à l'assistant (réglages de l'appareil).",
-  unavailable: "La dictée n'est pas disponible sur cet appareil ou ce navigateur. Utilisez Chrome, Edge ou Safari, ou écrivez votre demande.",
+  unavailable:
+    "La dictée n'est pas disponible sur cet appareil ou ce navigateur. Utilisez Chrome, Edge ou Safari, ou écrivez votre demande.",
   "no-speech": "Je n'ai rien entendu. Appuyez de nouveau sur le micro et parlez.",
   network: "La dictée nécessite une connexion internet sur cet appareil.",
   other: "La dictée s'est interrompue. Réessayez.",
@@ -23,7 +24,22 @@ export function dictationErrorMessage(error: DictationError): string {
 }
 
 /** Vocabulaire métier qui aide la reconnaissance. */
-const CONTEXT = ["devis", "facture", "avoir", "relance", "TTC", "HT", "TVA", "SIRET", "planning", "mission", "encaisser", "acompte", "forfait", "passage"];
+const CONTEXT = [
+  "devis",
+  "facture",
+  "avoir",
+  "relance",
+  "TTC",
+  "HT",
+  "TVA",
+  "SIRET",
+  "planning",
+  "mission",
+  "encaisser",
+  "acompte",
+  "forfait",
+  "passage",
+];
 
 export function isDictationAvailable(): boolean {
   try {
@@ -117,13 +133,16 @@ export function useDictation(onFinal: (text: string) => void) {
     }
   }, []);
 
-  useEffect(() => () => {
-    try {
-      ExpoSpeechRecognitionModule.abort();
-    } catch {
-      /* rien à arrêter */
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      try {
+        ExpoSpeechRecognitionModule.abort();
+      } catch {
+        /* rien à arrêter */
+      }
+    },
+    [],
+  );
 
   return { listening, partial, level, error, start, stop, clearError: () => setError(null) };
 }

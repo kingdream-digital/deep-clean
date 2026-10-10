@@ -31,7 +31,20 @@ export interface ScreenProps {
  * avec retour (détails), contenu centré et limité en largeur sur grand écran,
  * tirer-pour-actualiser, bandeau hors connexion.
  */
-export function Screen({ title, subtitle, back, actions, children, refreshing = false, onRefresh, scroll = true, footer, contentStyle, maxWidth = contentMaxWidth, testID }: ScreenProps) {
+export function Screen({
+  title,
+  subtitle,
+  back,
+  actions,
+  children,
+  refreshing = false,
+  onRefresh,
+  scroll = true,
+  footer,
+  contentStyle,
+  maxWidth = contentMaxWidth,
+  testID,
+}: ScreenProps) {
   const { colors } = useTheme();
   const { isCompact, isWide } = useBreakpoint();
   const insets = useSafeAreaInsets();
@@ -87,7 +100,9 @@ export function Screen({ title, subtitle, back, actions, children, refreshing = 
         <ScrollView
           contentContainerStyle={{ paddingTop: insets.top + (isCompact ? 12 : 32), paddingBottom: (footer ? 24 : 120) + insets.bottom }}
           keyboardShouldPersistTaps="handled"
-          refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} /> : undefined}
+          refreshControl={
+            onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} /> : undefined
+          }
         >
           {body}
         </ScrollView>
@@ -95,7 +110,16 @@ export function Screen({ title, subtitle, back, actions, children, refreshing = 
         <View style={{ flex: 1, paddingTop: insets.top + (isCompact ? 12 : 32) }}>{body}</View>
       )}
       {footer ? (
-        <View style={{ borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: padH, paddingTop: 12, paddingBottom: insets.bottom + 12 }}>
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            backgroundColor: colors.surface,
+            paddingHorizontal: padH,
+            paddingTop: 12,
+            paddingBottom: insets.bottom + 12,
+          }}
+        >
           <View style={{ width: "100%", maxWidth, alignSelf: "center" }}>{footer}</View>
         </View>
       ) : null}

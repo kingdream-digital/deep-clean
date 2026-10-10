@@ -19,3 +19,4 @@ export { SearchField } from "./SearchField";
 export { SelectField, MultiSelectField, DateField, TimeField, MonthCalendar, type SelectOption } from "./Fields";
 export { ConfirmSheet } from "./ConfirmSheet";
 export { SwitchRow } from "./SwitchRow";
+export { Toggle } from "./Toggle";

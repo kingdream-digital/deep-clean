@@ -12,7 +12,23 @@ import { Button } from "./Button";
 import { IconButton } from "./IconButton";
 
 /** Champ « bouton » : libellé visible, valeur, chevron ; ouvre un sélecteur. */
-function FieldButton({ label, value, placeholder, error, onPress, icon, testID }: { label: string; value?: string | null; placeholder: string; error?: string | null; onPress: () => void; icon?: ReactNode; testID?: string }) {
+function FieldButton({
+  label,
+  value,
+  placeholder,
+  error,
+  onPress,
+  icon,
+  testID,
+}: {
+  label: string;
+  value?: string | null;
+  placeholder: string;
+  error?: string | null;
+  onPress: () => void;
+  icon?: ReactNode;
+  testID?: string;
+}) {
   const { colors, radius } = useTheme();
   return (
     <View style={{ gap: 6 }}>
@@ -25,7 +41,17 @@ function FieldButton({ label, value, placeholder, error, onPress, icon, testID }
         scaleTo={0.99}
         accessibilityLabel={`${label} : ${value ?? placeholder}`}
         accessibilityHint={error ?? undefined}
-        style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1.5, borderColor: error ? colors.danger : colors.borderStrong, backgroundColor: colors.surface }}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          minHeight: 50,
+          paddingHorizontal: 14,
+          borderRadius: radius.md,
+          borderWidth: 1.5,
+          borderColor: error ? colors.danger : colors.borderStrong,
+          backgroundColor: colors.surface,
+        }}
         pressedStyle={{ backgroundColor: colors.surfacePressed }}
       >
         {icon}
@@ -50,12 +76,41 @@ export interface SelectOption {
 }
 
 /** Sélection d'un élément dans une liste (avec recherche au-delà de 8 éléments). */
-export function SelectField({ label, options, value, onChange, placeholder = "Choisir", error, allowClear, clearLabel = "Aucun", testID, footer }: { label: string; options: SelectOption[]; value: string | null | undefined; onChange: (value: string | null) => void; placeholder?: string; error?: string | null; allowClear?: boolean; clearLabel?: string; testID?: string; footer?: ReactNode }) {
+export function SelectField({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder = "Choisir",
+  error,
+  allowClear,
+  clearLabel = "Aucun",
+  testID,
+  footer,
+}: {
+  label: string;
+  options: SelectOption[];
+  value: string | null | undefined;
+  onChange: (value: string | null) => void;
+  placeholder?: string;
+  error?: string | null;
+  allowClear?: boolean;
+  clearLabel?: string;
+  testID?: string;
+  footer?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
   return (
     <>
-      <FieldButton label={label} value={selected?.label} placeholder={placeholder} error={error} onPress={() => setOpen(true)} testID={testID} />
+      <FieldButton
+        label={label}
+        value={selected?.label}
+        placeholder={placeholder}
+        error={error}
+        onPress={() => setOpen(true)}
+        testID={testID}
+      />
       <OptionSheet
         visible={open}
         title={label}
@@ -74,10 +129,31 @@ export function SelectField({ label, options, value, onChange, placeholder = "Ch
 }
 
 /** Sélection de plusieurs éléments (équipe d'une mission). */
-export function MultiSelectField({ label, options, values, onChange, placeholder = "Choisir", error, testID }: { label: string; options: SelectOption[]; values: string[]; onChange: (values: string[]) => void; placeholder?: string; error?: string | null; testID?: string }) {
+export function MultiSelectField({
+  label,
+  options,
+  values,
+  onChange,
+  placeholder = "Choisir",
+  error,
+  testID,
+}: {
+  label: string;
+  options: SelectOption[];
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  error?: string | null;
+  testID?: string;
+}) {
   const [open, setOpen] = useState(false);
   const labels = options.filter((o) => values.includes(o.value)).map((o) => o.label);
-  const summary = labels.length === 0 ? null : labels.length <= 2 ? labels.join(", ") : `${labels.slice(0, 2).join(", ")} et ${labels.length - 2} autre${labels.length - 2 > 1 ? "s" : ""}`;
+  const summary =
+    labels.length === 0
+      ? null
+      : labels.length <= 2
+        ? labels.join(", ")
+        : `${labels.slice(0, 2).join(", ")} et ${labels.length - 2} autre${labels.length - 2 > 1 ? "s" : ""}`;
   return (
     <>
       <FieldButton label={label} value={summary} placeholder={placeholder} error={error} onPress={() => setOpen(true)} testID={testID} />
@@ -96,7 +172,29 @@ export function MultiSelectField({ label, options, values, onChange, placeholder
   );
 }
 
-function OptionSheet({ visible, title, subtitle, options, selected, multiple, onToggle, onClose, clear, footer }: { visible: boolean; title: string; subtitle?: string; options: SelectOption[]; selected: string[]; multiple?: boolean; onToggle: (value: string) => void; onClose: () => void; clear?: { label: string; onPress: () => void }; footer?: ReactNode }) {
+function OptionSheet({
+  visible,
+  title,
+  subtitle,
+  options,
+  selected,
+  multiple,
+  onToggle,
+  onClose,
+  clear,
+  footer,
+}: {
+  visible: boolean;
+  title: string;
+  subtitle?: string;
+  options: SelectOption[];
+  selected: string[];
+  multiple?: boolean;
+  onToggle: (value: string) => void;
+  onClose: () => void;
+  clear?: { label: string; onPress: () => void };
+  footer?: ReactNode;
+}) {
   const { colors, radius } = useTheme();
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
@@ -107,7 +205,10 @@ function OptionSheet({ visible, title, subtitle, options, selected, multiple, on
   return (
     <Sheet visible={visible} onClose={onClose} title={title} subtitle={subtitle} footer={footer}>
       {options.length > 8 ? <SearchField value={query} onChangeText={setQuery} /> : null}
-      <View style={{ borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }} accessibilityRole={multiple ? "list" : "radiogroup"}>
+      <View
+        style={{ borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}
+        accessibilityRole={multiple ? "list" : "radiogroup"}
+      >
         {clear ? <OptionRow label={clear.label} selected={selected.length === 0} onPress={clear.onPress} first /> : null}
         {filtered.map((option, index) => (
           <OptionRow
@@ -130,7 +231,21 @@ function OptionSheet({ visible, title, subtitle, options, selected, multiple, on
   );
 }
 
-function OptionRow({ label, description, selected, onPress, first, multiple }: { label: string; description?: string; selected: boolean; onPress: () => void; first?: boolean; multiple?: boolean }) {
+function OptionRow({
+  label,
+  description,
+  selected,
+  onPress,
+  first,
+  multiple,
+}: {
+  label: string;
+  description?: string;
+  selected: boolean;
+  onPress: () => void;
+  first?: boolean;
+  multiple?: boolean;
+}) {
   const { colors } = useTheme();
   return (
     <PressableScale
@@ -140,7 +255,17 @@ function OptionRow({ label, description, selected, onPress, first, multiple }: {
       accessibilityRole={multiple ? "checkbox" : "radio"}
       accessibilityState={multiple ? { checked: selected } : { selected }}
       accessibilityLabel={description ? `${label}, ${description}` : label}
-      style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border, backgroundColor: selected ? colors.accentSoft : colors.surface }}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        minHeight: 52,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderTopWidth: first ? 0 : 1,
+        borderTopColor: colors.border,
+        backgroundColor: selected ? colors.accentSoft : colors.surface,
+      }}
       pressedStyle={{ backgroundColor: colors.surfacePressed }}
     >
       <View style={{ flex: 1, gap: 2 }}>
@@ -154,7 +279,18 @@ function OptionRow({ label, description, selected, onPress, first, multiple }: {
         ) : null}
       </View>
       {multiple ? (
-        <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: selected ? colors.accentFill : colors.borderStrong, backgroundColor: selected ? colors.accentFill : "transparent", alignItems: "center", justifyContent: "center" }}>
+        <View
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            borderWidth: 1.5,
+            borderColor: selected ? colors.accentFill : colors.borderStrong,
+            backgroundColor: selected ? colors.accentFill : "transparent",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           {selected ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
         </View>
       ) : selected ? (
@@ -168,7 +304,23 @@ const WEEKDAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
 const WEEKDAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 
 /** Choix d'une date : jour lisible (« jeudi 15 octobre »), calendrier du mois en feuille. */
-export function DateField({ label, value, onChange, today, error, allowClear, testID }: { label: string; value: string | null | undefined; onChange: (value: string | null) => void; today: string; error?: string | null; allowClear?: boolean; testID?: string }) {
+export function DateField({
+  label,
+  value,
+  onChange,
+  today,
+  error,
+  allowClear,
+  testID,
+}: {
+  label: string;
+  value: string | null | undefined;
+  onChange: (value: string | null) => void;
+  today: string;
+  error?: string | null;
+  allowClear?: boolean;
+  testID?: string;
+}) {
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState((value ?? today).slice(0, 7));
@@ -249,7 +401,21 @@ function shiftMonth(month: string, delta: number): string {
 }
 
 /** Grille d'un mois (semaines du lundi au dimanche), navigable au clavier et au lecteur d'écran. */
-export function MonthCalendar({ month, onMonthChange, selected, today, onSelect, marked }: { month: string; onMonthChange: (month: string) => void; selected: string | null; today: string; onSelect: (date: string) => void; marked?: Set<string> }) {
+export function MonthCalendar({
+  month,
+  onMonthChange,
+  selected,
+  today,
+  onSelect,
+  marked,
+}: {
+  month: string;
+  onMonthChange: (month: string) => void;
+  selected: string | null;
+  today: string;
+  onSelect: (date: string) => void;
+  marked?: Set<string>;
+}) {
   const { colors } = useTheme();
   const first = `${month}-01`;
   const offset = (weekdayOf(first) + 6) % 7; // lundi = 0
@@ -291,12 +457,39 @@ export function MonthCalendar({ month, onMonthChange, selected, today, onSelect,
                 accessibilityLabel={`${formatDayLong(date)}${isToday ? ", aujourd'hui" : ""}`}
                 style={{ flex: 1, height: 44, alignItems: "center", justifyContent: "center" }}
               >
-                <View style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: isSelected ? colors.accentFill : "transparent", borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.accent }}>
-                  <Text variant="callout" weight={isSelected || isToday ? "semibold" : "regular"} style={{ color: isSelected ? colors.onAccent : isToday ? colors.accentText : colors.text }} tabular>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: isSelected ? colors.accentFill : "transparent",
+                    borderWidth: isToday && !isSelected ? 1.5 : 0,
+                    borderColor: colors.accent,
+                  }}
+                >
+                  <Text
+                    variant="callout"
+                    weight={isSelected || isToday ? "semibold" : "regular"}
+                    style={{ color: isSelected ? colors.onAccent : isToday ? colors.accentText : colors.text }}
+                    tabular
+                  >
                     {Number(date.slice(8))}
                   </Text>
                 </View>
-                {marked?.has(date) ? <View style={{ position: "absolute", bottom: 2, width: 5, height: 5, borderRadius: 3, backgroundColor: isSelected ? colors.accentFill : colors.spark }} /> : null}
+                {marked?.has(date) ? (
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: 2,
+                      width: 5,
+                      height: 5,
+                      borderRadius: 3,
+                      backgroundColor: isSelected ? colors.accentFill : colors.spark,
+                    }}
+                  />
+                ) : null}
               </PressableScale>
             );
           })}
@@ -307,7 +500,19 @@ export function MonthCalendar({ month, onMonthChange, selected, today, onSelect,
 }
 
 /** Heure « HH:MM » saisie au clavier numérique (les deux-points s'ajoutent seuls). */
-export function TimeField({ label, value, onChange, error, testID }: { label: string; value: string; onChange: (value: string) => void; error?: string | null; testID?: string }) {
+export function TimeField({
+  label,
+  value,
+  onChange,
+  error,
+  testID,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string | null;
+  testID?: string;
+}) {
   return (
     <TextField
       label={label}

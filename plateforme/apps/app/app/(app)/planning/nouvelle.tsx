@@ -35,7 +35,11 @@ export default function MissionFormScreen() {
   const [errors, setErrors] = useState<Errors>({});
   const [loadedId, setLoadedId] = useState<string | null>(null);
 
-  const existing = useQuery({ queryKey: ["mission", editingId], queryFn: () => endpoints.missions.get(editingId as string), enabled: Boolean(editingId) });
+  const existing = useQuery({
+    queryKey: ["mission", editingId],
+    queryFn: () => endpoints.missions.get(editingId as string),
+    enabled: Boolean(editingId),
+  });
   const sites = useQuery({ queryKey: ["sites"], queryFn: () => endpoints.sites.list() });
   const clients = useQuery({ queryKey: ["clients", "all"], queryFn: () => endpoints.clients.list(), enabled: can("clients.read") });
   const staff = useQuery({ queryKey: ["staff"], queryFn: endpoints.users.staff });
@@ -55,13 +59,26 @@ export default function MissionFormScreen() {
     setInstructions(m.instructions ?? "");
   }, [existing.data, loadedId]);
 
-  const siteOptions = useMemo(() => (sites.data ?? []).filter((s) => s.isActive).map((s) => ({ value: s.id, label: s.name, description: [s.clientName, s.city].filter(Boolean).join(" · ") || undefined })), [sites.data]);
-  const clientOptions = useMemo(() => (clients.data?.items ?? []).map((c) => ({ value: c.id, label: c.name, description: c.city ?? undefined })), [clients.data]);
-  const staffOptions = useMemo(() => (staff.data ?? []).map((p) => ({ value: p.id, label: `${p.firstName} ${p.lastName}`, description: ROLE_LABELS[p.role] })), [staff.data]);
+  const siteOptions = useMemo(
+    () =>
+      (sites.data ?? [])
+        .filter((s) => s.isActive)
+        .map((s) => ({ value: s.id, label: s.name, description: [s.clientName, s.city].filter(Boolean).join(" · ") || undefined })),
+    [sites.data],
+  );
+  const clientOptions = useMemo(
+    () => (clients.data?.items ?? []).map((c) => ({ value: c.id, label: c.name, description: c.city ?? undefined })),
+    [clients.data],
+  );
+  const staffOptions = useMemo(
+    () => (staff.data ?? []).map((p) => ({ value: p.id, label: `${p.firstName} ${p.lastName}`, description: ROLE_LABELS[p.role] })),
+    [staff.data],
+  );
   const leadOptions = staffOptions.filter((o) => assigneeIds.includes(o.value));
 
   const save = useMutation({
-    mutationFn: async (input: CreateMissionInput) => (editingId ? endpoints.missions.update(editingId, input) : endpoints.missions.create(input)),
+    mutationFn: async (input: CreateMissionInput) =>
+      editingId ? endpoints.missions.update(editingId, input) : endpoints.missions.create(input),
     onSuccess: (mission) => {
       queryClient.setQueryData(["mission", mission.id], mission);
       void queryClient.invalidateQueries({ queryKey: ["planning"] });
@@ -106,7 +123,10 @@ export default function MissionFormScreen() {
   if (!can("planning.manage")) {
     return (
       <Screen back title="Mission">
-        <EmptyState title="Accès réservé" message="La création et la modification du planning sont réservées aux responsables du planning." />
+        <EmptyState
+          title="Accès réservé"
+          message="La création et la modification du planning sont réservées aux responsables du planning."
+        />
       </Screen>
     );
   }
@@ -125,9 +145,26 @@ export default function MissionFormScreen() {
       back
       title={editingId ? "Modifier la mission" : "Nouvelle mission"}
       maxWidth={760}
-      footer={<Button label={editingId ? "Enregistrer" : "Créer la mission"} size="lg" fullWidth loading={save.isPending} onPress={submit} testID="mission-save" />}
+      footer={
+        <Button
+          label={editingId ? "Enregistrer" : "Créer la mission"}
+          size="lg"
+          fullWidth
+          loading={save.isPending}
+          onPress={submit}
+          testID="mission-save"
+        />
+      }
     >
-      <TextField label="Titre" value={title} onChangeText={setTitle} placeholder="ex. : Nettoyage des bureaux" error={errors.title} maxLength={160} testID="mission-title" />
+      <TextField
+        label="Titre"
+        value={title}
+        onChangeText={setTitle}
+        placeholder="ex. : Nettoyage des bureaux"
+        error={errors.title}
+        maxLength={160}
+        testID="mission-title"
+      />
       <DateField label="Date" value={date} onChange={setDate} today={today} error={errors.date} testID="mission-date" />
       <View style={twoCols}>
         <View style={{ flex: 1 }}>
@@ -153,13 +190,47 @@ export default function MissionFormScreen() {
         testID="mission-site"
       />
       {can("clients.read") ? (
-        <SelectField label="Client (facultatif)" options={clientOptions} value={clientId} onChange={setClientId} placeholder="Aucun" allowClear clearLabel="Aucun client" error={errors.clientId} />
+        <SelectField
+          label="Client (facultatif)"
+          options={clientOptions}
+          value={clientId}
+          onChange={setClientId}
+          placeholder="Aucun"
+          allowClear
+          clearLabel="Aucun client"
+          error={errors.clientId}
+        />
       ) : null}
-      <MultiSelectField label="Équipe" options={staffOptions} values={assigneeIds} onChange={setAssigneeIds} placeholder="Choisir les personnes" error={errors.assigneeIds} testID="mission-team" />
+      <MultiSelectField
+        label="Équipe"
+        options={staffOptions}
+        values={assigneeIds}
+        onChange={setAssigneeIds}
+        placeholder="Choisir les personnes"
+        error={errors.assigneeIds}
+        testID="mission-team"
+      />
       {assigneeIds.length > 0 ? (
-        <SelectField label="Chef d'équipe (facultatif)" options={leadOptions} value={teamLeadId && assigneeIds.includes(teamLeadId) ? teamLeadId : null} onChange={setTeamLeadId} placeholder="Aucun" allowClear clearLabel="Aucun chef d'équipe" error={errors.teamLeadId} />
+        <SelectField
+          label="Chef d'équipe (facultatif)"
+          options={leadOptions}
+          value={teamLeadId && assigneeIds.includes(teamLeadId) ? teamLeadId : null}
+          onChange={setTeamLeadId}
+          placeholder="Aucun"
+          allowClear
+          clearLabel="Aucun chef d'équipe"
+          error={errors.teamLeadId}
+        />
       ) : null}
-      <TextField label="Consignes (facultatif)" value={instructions} onChangeText={setInstructions} multiline placeholder="Accès, matériel, points d'attention…" error={errors.instructions} maxLength={4000} />
+      <TextField
+        label="Consignes (facultatif)"
+        value={instructions}
+        onChangeText={setInstructions}
+        multiline
+        placeholder="Accès, matériel, points d'attention…"
+        error={errors.instructions}
+        maxLength={4000}
+      />
       {errors.form ? (
         <Text variant="subhead" tone="danger" accessibilityRole="alert">
           {errors.form}

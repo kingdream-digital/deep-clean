@@ -26,7 +26,20 @@ export interface ButtonProps {
 const HEIGHTS: Record<ButtonSize, number> = { sm: 36, md: 46, lg: 54 };
 
 /** Bouton : cible tactile d'au moins 44 px, état de chargement annoncé, libellé toujours explicite. */
-export function Button({ label, onPress, variant = "primary", size = "md", icon: Icon, iconRight: IconRight, loading, disabled, fullWidth, accessibilityHint, style, testID }: ButtonProps) {
+export function Button({
+  label,
+  onPress,
+  variant = "primary",
+  size = "md",
+  icon: Icon,
+  iconRight: IconRight,
+  loading,
+  disabled,
+  fullWidth,
+  accessibilityHint,
+  style,
+  testID,
+}: ButtonProps) {
   const { colors, radius } = useTheme();
   const palette = {
     primary: { bg: colors.accentFill, pressed: colors.accentFillPressed, fg: colors.onAccent, border: "transparent" },

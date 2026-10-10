@@ -10,7 +10,21 @@ import { IconButton } from "./IconButton";
  * Feuille modale : glisse depuis le bas sur téléphone, boîte de dialogue
  * centrée sur grand écran. Fermeture par le bouton, le fond ou la touche Échap.
  */
-export function Sheet({ visible, onClose, title, subtitle, children, footer }: { visible: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
+export function Sheet({
+  visible,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
   const { colors, radius } = useTheme();
   const { isCompact } = useBreakpoint();
   const insets = useSafeAreaInsets();
@@ -18,7 +32,11 @@ export function Sheet({ visible, onClose, title, subtitle, children, footer }: {
     <Modal visible={visible} transparent animationType={isCompact ? "slide" : "fade"} onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <View style={{ flex: 1, justifyContent: isCompact ? "flex-end" : "center", alignItems: "center" }}>
-          <Pressable accessibilityLabel="Fermer" onPress={onClose} style={{ position: "absolute", inset: 0, backgroundColor: colors.overlay } as never} />
+          <Pressable
+            accessibilityLabel="Fermer"
+            onPress={onClose}
+            style={{ position: "absolute", inset: 0, backgroundColor: colors.overlay } as never}
+          />
           <View
             accessibilityViewIsModal
             style={{
@@ -37,7 +55,11 @@ export function Sheet({ visible, onClose, title, subtitle, children, footer }: {
               elevation: 12,
             }}
           >
-            {isCompact ? <View style={{ alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: colors.borderStrong, marginTop: 8 }} /> : null}
+            {isCompact ? (
+              <View
+                style={{ alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: colors.borderStrong, marginTop: 8 }}
+              />
+            ) : null}
             <View style={{ flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 20, paddingTop: 14, gap: 8 }}>
               <View style={{ flex: 1, paddingTop: 6, gap: 2 }}>
                 <Text variant="title3" accessibilityRole="header">

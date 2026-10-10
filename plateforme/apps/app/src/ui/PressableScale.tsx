@@ -20,7 +20,18 @@ export interface PressableScaleProps extends Omit<PressableProps, "style" | "chi
  * haptique sur téléphone, anneau de focus visible au clavier sur le web.
  * Les mouvements sont coupés si l'utilisateur a demandé « réduire les animations ».
  */
-export function PressableScale({ children, style, scaleTo = 0.97, haptic = "light", pressedStyle, onPressIn, onPressOut, onPress, disabled, ...rest }: PressableScaleProps) {
+export function PressableScale({
+  children,
+  style,
+  scaleTo = 0.97,
+  haptic = "light",
+  pressedStyle,
+  onPressIn,
+  onPressOut,
+  onPress,
+  disabled,
+  ...rest
+}: PressableScaleProps) {
   const { colors, reduceMotion } = useTheme();
   const scale = useSharedValue(1);
   const [pressed, setPressed] = useState(false);
@@ -55,7 +66,9 @@ export function PressableScale({ children, style, scaleTo = 0.97, haptic = "ligh
         animated,
         pressed ? pressedStyle : null,
         disabled ? { opacity: 0.45 } : null,
-        focused && Platform.OS === "web" ? ({ outlineColor: colors.focusRing, outlineWidth: 3, outlineStyle: "solid", outlineOffset: 2 } as ViewStyle) : null,
+        focused && Platform.OS === "web"
+          ? ({ outlineColor: colors.focusRing, outlineWidth: 3, outlineStyle: "solid", outlineOffset: 2 } as ViewStyle)
+          : null,
       ]}
       {...rest}
     >

@@ -42,7 +42,14 @@ export function BottomBar() {
       ? { key: "sales", label: "Ventes", href: "/devis", icon: FileText, match: ["/devis", "/factures", "/clients"] }
       : { key: "notifications", label: "Alertes", href: "/notifications", icon: Bell, match: ["/notifications"], badge: unread },
     manager
-      ? { key: "more", label: "Plus", href: "/plus", icon: LayoutGrid, match: ["/plus", "/notifications", "/equipe", "/activite", "/reglages", "/profil"], badge: unread }
+      ? {
+          key: "more",
+          label: "Plus",
+          href: "/plus",
+          icon: LayoutGrid,
+          match: ["/plus", "/notifications", "/equipe", "/activite", "/reglages", "/profil"],
+          badge: unread,
+        }
       : { key: "profile", label: "Profil", href: "/profil", icon: UserRound, match: ["/profil"] },
   ];
 
@@ -64,14 +71,33 @@ export function BottomBar() {
         <View>
           <Icon size={23} color={active ? colors.accent : colors.textTertiary} strokeWidth={active ? 2.3 : 2} />
           {tab.badge ? (
-            <View style={{ position: "absolute", top: -4, right: -9, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.spark, borderWidth: 2, borderColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
+            <View
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -9,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                paddingHorizontal: 4,
+                backgroundColor: colors.spark,
+                borderWidth: 2,
+                borderColor: colors.surface,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <Text style={{ fontSize: 10, lineHeight: 12, color: "#FFFFFF" }} weight="bold">
                 {tab.badge > 9 ? "9+" : tab.badge}
               </Text>
             </View>
           ) : null}
         </View>
-        <Text variant="caption" style={{ fontSize: 11, color: active ? colors.accent : colors.textTertiary }} weight={active ? "semibold" : "medium"}>
+        <Text
+          variant="caption"
+          style={{ fontSize: 11, color: active ? colors.accent : colors.textTertiary }}
+          weight={active ? "semibold" : "medium"}
+        >
           {tab.label}
         </Text>
       </PressableScale>

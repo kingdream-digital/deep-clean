@@ -11,7 +11,20 @@ import { MetricTile } from "@/features/MetricTile";
 import { MissionStatusBadge } from "@/features/status";
 import { greeting } from "@/lib/format";
 import { useBreakpoint, useTheme } from "@/theme/ThemeProvider";
-import { Avatar, Button, Card, EmptyState, ErrorState, IconButton, PressableScale, Screen, SectionTitle, Skeleton, SkeletonList, Text } from "@/ui";
+import {
+  Avatar,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  PressableScale,
+  Screen,
+  SectionTitle,
+  Skeleton,
+  SkeletonList,
+  Text,
+} from "@/ui";
 
 /**
  * Accueil : en un coup d'œil, où aller, quand, quoi faire, et ce qui demande
@@ -28,9 +41,28 @@ export default function HomeScreen() {
   const headerActions = isCompact ? (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
       <View>
-        <IconButton icon={Bell} label={data?.unreadNotifications ? `Notifications, ${data.unreadNotifications} non lues` : "Notifications"} onPress={() => router.push("/notifications")} variant="tinted" testID="home-notifications" />
+        <IconButton
+          icon={Bell}
+          label={data?.unreadNotifications ? `Notifications, ${data.unreadNotifications} non lues` : "Notifications"}
+          onPress={() => router.push("/notifications")}
+          variant="tinted"
+          testID="home-notifications"
+        />
         {data?.unreadNotifications ? (
-          <View pointerEvents="none" style={{ position: "absolute", top: 6, right: 6, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.spark, borderWidth: 2, borderColor: colors.surfaceMuted }} />
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 6,
+              right: 6,
+              width: 10,
+              height: 10,
+              borderRadius: 5,
+              backgroundColor: colors.spark,
+              borderWidth: 2,
+              borderColor: colors.surfaceMuted,
+            }}
+          />
         ) : null}
       </View>
       {user ? (
@@ -96,17 +128,27 @@ function FocusMission({ data }: { data: DashboardDto }) {
   return (
     <View style={{ gap: 12 }}>
       <SectionTitle title={live ? "Mission en cours" : "Prochaine mission"} />
-      <Card onPress={() => router.push(`/planning/${mission.id}`)} padding={18} elevated testID="home-next-mission">
+      <Card padding={18} elevated testID="home-next-mission">
         <View style={{ gap: 14 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: live ? colors.sparkSoft : colors.accentSoft }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: radius.pill,
+                backgroundColor: live ? colors.sparkSoft : colors.accentSoft,
+              }}
+            >
               <AlarmClock size={15} color={live ? colors.sparkText : colors.accentText} />
               <Text variant="subhead" weight="semibold" style={{ color: live ? colors.sparkText : colors.accentText }} tabular>
-                {isToday ? "Aujourd'hui" : capitalize(formatDayLong(mission.date, { year: false }))} · {mission.startTime} – {mission.endTime}
+                {isToday ? "Aujourd'hui" : capitalize(formatDayLong(mission.date, { year: false }))} · {mission.startTime} –{" "}
+                {mission.endTime}
               </Text>
             </View>
-            <View style={{ flex: 1 }} />
-            <MissionStatusBadge status={mission.status} />
+            {mission.status !== "PLANNED" ? <MissionStatusBadge status={mission.status} /> : null}
           </View>
           <View style={{ gap: 4 }}>
             <Text variant="title2">{mission.title}</Text>
@@ -129,11 +171,16 @@ function FocusMission({ data }: { data: DashboardDto }) {
               </Text>
             </View>
           ) : null}
-          {mission.site?.address ? (
-            <View style={{ flexDirection: "row" }}>
-              <DirectionsButton address={mission.site.address} />
-            </View>
-          ) : null}
+          <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <Button
+              label={live ? "Suivre la mission" : "Voir la mission"}
+              size="sm"
+              variant="secondary"
+              onPress={() => router.push(`/planning/${mission.id}`)}
+              testID="home-open-mission"
+            />
+            {mission.site?.address ? <DirectionsButton address={mission.site.address} /> : null}
+          </View>
         </View>
       </Card>
     </View>
@@ -143,15 +190,28 @@ function FocusMission({ data }: { data: DashboardDto }) {
 function TodaySection({ data }: { data: DashboardDto }) {
   const router = useRouter();
   const { can } = useAuth();
+  const companyCount = data.team?.missionsToday ?? 0;
   return (
     <View style={{ gap: 12 }}>
       <SectionTitle
-        title={can("planning.readAll") ? "Aujourd'hui dans l'entreprise" : "Votre journée"}
+        title="Votre journée"
         action={<Button label="Planning" variant="ghost" size="sm" onPress={() => router.push("/planning")} />}
       />
       {data.todayMissions.length === 0 ? (
         <Card>
-          <EmptyState icon={CalendarClock} title="Rien de prévu aujourd'hui" message={can("planning.manage") ? "Ajoutez une mission depuis le planning, ou demandez-le à l'assistant." : "Votre planning s'affichera ici dès qu'une mission vous sera attribuée."} />
+          <EmptyState
+            icon={CalendarClock}
+            title="Aucune mission pour vous aujourd'hui"
+            message={
+              companyCount
+                ? `${companyCount} mission${companyCount > 1 ? "s sont prévues" : " est prévue"} aujourd'hui dans l'entreprise.`
+                : can("planning.manage")
+                  ? "Ajoutez une mission depuis le planning, ou demandez-le à l'assistant."
+                  : "Votre planning s'affichera ici dès qu'une mission vous sera attribuée."
+            }
+            actionLabel={companyCount ? "Voir le planning du jour" : undefined}
+            onAction={() => router.push("/planning")}
+          />
         </Card>
       ) : (
         <View style={{ gap: 10 }}>
@@ -170,18 +230,37 @@ function SalesSection({ sales }: { sales: NonNullable<DashboardDto["sales"]> }) 
   const billing = can("invoices.read");
   return (
     <View style={{ gap: 12 }}>
-      <SectionTitle title="Ventes" action={<Button label="Tout voir" variant="ghost" size="sm" onPress={() => router.push(billing ? "/factures" : "/devis")} />} />
+      <SectionTitle
+        title="Ventes"
+        action={<Button label="Tout voir" variant="ghost" size="sm" onPress={() => router.push(billing ? "/factures" : "/devis")} />}
+      />
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
         {billing ? (
           <>
-            <MetricTile icon={CircleDollarSign} tone="success" label="Encaissé ce mois" value={formatEuro(sales.collectedThisMonthCents)} onPress={() => router.push("/factures")} testID="kpi-collected" />
-            <MetricTile icon={Receipt} label="Facturé ce mois" value={formatEuro(sales.invoicedThisMonthCents)} onPress={() => router.push("/factures")} />
+            <MetricTile
+              icon={CircleDollarSign}
+              tone="success"
+              label="Encaissé ce mois"
+              value={formatEuro(sales.collectedThisMonthCents)}
+              onPress={() => router.push("/factures")}
+              testID="kpi-collected"
+            />
+            <MetricTile
+              icon={Receipt}
+              label="Facturé ce mois"
+              value={formatEuro(sales.invoicedThisMonthCents)}
+              onPress={() => router.push("/factures")}
+            />
             <MetricTile
               icon={FileClock}
               tone={sales.invoicesOverdueCount ? "danger" : "accent"}
               label="En retard"
               value={formatEuro(sales.invoicesOverdueCents)}
-              caption={sales.invoicesOverdueCount ? `${sales.invoicesOverdueCount} facture${sales.invoicesOverdueCount > 1 ? "s" : ""} à relancer` : "Aucune facture en retard"}
+              caption={
+                sales.invoicesOverdueCount
+                  ? `${sales.invoicesOverdueCount} facture${sales.invoicesOverdueCount > 1 ? "s" : ""} à relancer`
+                  : "Aucune facture en retard"
+              }
               onPress={() => router.push("/factures?filtre=retard")}
               testID="kpi-overdue"
             />
@@ -212,7 +291,12 @@ function TeamSection({ team }: { team: NonNullable<DashboardDto["team"]> }) {
       <SectionTitle title="Équipe" />
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
         <MetricTile icon={Users} label="Membres actifs" value={String(team.activeMembers)} onPress={() => router.push("/equipe")} />
-        <MetricTile icon={CalendarClock} label="Missions aujourd'hui" value={String(team.missionsToday)} onPress={() => router.push("/planning")} />
+        <MetricTile
+          icon={CalendarClock}
+          label="Missions aujourd'hui"
+          value={String(team.missionsToday)}
+          onPress={() => router.push("/planning")}
+        />
         <MetricTile
           icon={UserX}
           tone={team.missionsUnassigned ? "warning" : "accent"}

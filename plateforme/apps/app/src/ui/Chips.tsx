@@ -10,10 +10,23 @@ export interface ChipOption<T extends string> {
 }
 
 /** Filtres en pastilles, défilables horizontalement. */
-export function FilterChips<T extends string>({ options, value, onChange }: { options: ChipOption<T>[]; value: T; onChange: (value: T) => void }) {
+export function FilterChips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: ChipOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
   const { colors, radius } = useTheme();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }} accessibilityRole="radiogroup">
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+      accessibilityRole="radiogroup"
+    >
       {options.map((option) => {
         const active = option.value === value;
         return (

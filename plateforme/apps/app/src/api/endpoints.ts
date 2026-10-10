@@ -34,7 +34,8 @@ import type {
   UserDto,
   Role,
 } from "@aussitot/shared";
-import { api, API_URL, getAccessToken, qs, request } from "./client";
+import { Platform } from "react-native";
+import { api, API_URL, ApiError, getAccessToken, parseError, qs, request } from "./client";
 
 /** Appels à l'API, typés avec les formats partagés (packages/shared). */
 export const endpoints = {
@@ -42,7 +43,8 @@ export const endpoints = {
     login: (input: LoginInput) => request<AuthResponseDto>("POST", "/v1/auth/login", { body: input, auth: false }),
     me: () => api.get<SessionUserDto>("/v1/auth/me"),
     logout: () => api.post<{ ok: true }>("/v1/auth/logout"),
-    changePassword: (currentPassword: string, newPassword: string) => api.post<{ ok: true }>("/v1/auth/change-password", { currentPassword, newPassword }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      api.post<{ ok: true }>("/v1/auth/change-password", { currentPassword, newPassword }),
   },
   dashboard: () => api.get<DashboardDto>("/v1/dashboard"),
   activity: () => api.get<Page<ActivityDto>>("/v1/activity?limit=50"),
@@ -76,7 +78,8 @@ export const endpoints = {
     list: (params: { q?: string; clientId?: string } = {}) => api.get<SiteDto[]>(`/v1/sites${qs(params)}`),
   },
   quotes: {
-    list: (params: { status?: string; clientId?: string; q?: string; cursor?: string } = {}) => api.get<Page<QuoteSummaryDto>>(`/v1/quotes${qs({ ...params, limit: 50 })}`),
+    list: (params: { status?: string; clientId?: string; q?: string; cursor?: string } = {}) =>
+      api.get<Page<QuoteSummaryDto>>(`/v1/quotes${qs({ ...params, limit: 50 })}`),
     get: (id: string) => api.get<QuoteDto>(`/v1/quotes/${id}`),
     create: (input: CreateQuoteInput) => api.post<QuoteDto>("/v1/quotes", input),
     update: (id: string, input: UpdateQuoteInput) => api.patch<QuoteDto>(`/v1/quotes/${id}`, input),
@@ -118,7 +121,8 @@ export const endpoints = {
     list: (cursor?: string) => api.get<Page<NotificationDto>>(`/v1/notifications${qs({ cursor, limit: 40 })}`),
     unreadCount: () => api.get<{ count: number }>("/v1/notifications/unread-count"),
     markRead: (ids: string[] | "all") => api.post<{ updated: number }>("/v1/notifications/read", ids === "all" ? { all: true } : { ids }),
-    registerPushToken: (token: string, platform: "ios" | "android" | "web") => api.post<{ ok: true }>("/v1/notifications/push-token", { token, platform }),
+    registerPushToken: (token: string, platform: "ios" | "android" | "web") =>
+      api.post<{ ok: true }>("/v1/notifications/push-token", { token, platform }),
     unregisterPushToken: (token: string) => api.delete<{ ok: true }>("/v1/notifications/push-token", { token }),
   },
   assistant: {
@@ -129,9 +133,34 @@ export const endpoints = {
   },
 };
 
-/** Ouvre un PDF protégé : téléchargement authentifié puis affichage (web) ou partage (téléphone). */
-export async function fetchPdf(path: string): Promise<Blob> {
+/** Téléchargement authentifié d'un fichier privé (PDF, logo) : aucun fichier n'a d'adresse publique. */
+export async function fetchPrivateFile(path: string): Promise<Blob> {
   const res = await fetch(`${API_URL}${path}`, { headers: { authorization: `Bearer ${getAccessToken() ?? ""}` }, credentials: "include" });
-  if (!res.ok) throw new Error("PDF indisponible");
+  if (!res.ok) throw new Error("Fichier indisponible");
   return res.blob();
+}
+
+/** Envoi du logo de l'entreprise (PNG, JPEG ou WebP, 2 Mo au plus ; nettoyé et converti par le serveur). */
+export async function uploadLogo(file: { uri: string; name: string; type: string; webFile?: Blob }): Promise<OrganizationDto> {
+  await endpoints.auth.me(); // jeton d'accès frais
+  const form = new FormData();
+  if (file.webFile) form.append("file", file.webFile, file.name);
+  else form.append("file", { uri: file.uri, name: file.name, type: file.type } as unknown as Blob);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/v1/organization/logo`, {
+      method: "PUT",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${getAccessToken() ?? ""}`,
+        "x-client-platform": Platform.OS === "web" ? "web" : "native",
+      },
+      body: form,
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError(0, "NETWORK", "Pas de connexion internet.");
+  }
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as OrganizationDto;
 }

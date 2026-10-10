@@ -18,7 +18,16 @@ export function Badge({ label, tone = "neutral", dot = true }: { label: string; 
   return (
     <View
       accessibilityLabel={`Statut : ${label}`}
-      style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: bg, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 }}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        alignSelf: "flex-start",
+        backgroundColor: bg,
+        paddingHorizontal: 9,
+        paddingVertical: 4,
+        borderRadius: 999,
+      }}
     >
       {dot ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: fg }} /> : null}
       <Text variant="caption" style={{ color: fg }}>

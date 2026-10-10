@@ -17,7 +17,12 @@ const ALL: Suggestion[] = [
   { label: "Factures en retard", text: "Quelles factures sont en retard de paiement ?", mode: "send", permission: "invoices.read" },
   { label: "Chiffre du mois", text: "Combien avons-nous facturé et encaissé ce mois-ci ?", mode: "send", permission: "invoices.read" },
   { label: "Devis à relancer", text: "Quels devis envoyés attendent encore une réponse ?", mode: "send", permission: "quotes.read" },
-  { label: "Planifier une mission", text: "Planifie une mission demain de 8 h à 12 h pour ", mode: "prefill", permission: "planning.manage" },
+  {
+    label: "Planifier une mission",
+    text: "Planifie une mission demain de 8 h à 12 h pour ",
+    mode: "prefill",
+    permission: "planning.manage",
+  },
   { label: "Qui travaille demain ?", text: "Qui travaille demain, et où ?", mode: "send", permission: "planning.readAll" },
   { label: "Ma journée", text: "Qu'est-ce que j'ai de prévu aujourd'hui ?", mode: "send" },
   { label: "Ma prochaine mission", text: "Quelle est ma prochaine mission, et quelles sont les consignes ?", mode: "send" },

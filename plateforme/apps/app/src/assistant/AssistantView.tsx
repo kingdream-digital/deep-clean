@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, TextInput, View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
-import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TextInput,
+  View,
+  type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
+} from "react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { usePathname } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -105,7 +122,15 @@ export function AssistantView({ variant, onClose }: { variant: "screen" | "panel
   const last = items.at(-1);
   const thinking = busy && !(last?.kind === "assistant" && last.streaming) && !(last?.kind === "tool" && last.status === "running");
   const disabled = status.data && !status.data.enabled;
-  const statusLabel = dictation.listening ? "Je vous écoute…" : busy ? "Je m'en occupe…" : pendingAction ? "En attente de votre confirmation" : "Prêt";
+  const statusLabel = disabled
+    ? "Indisponible"
+    : dictation.listening
+      ? "Je vous écoute…"
+      : busy
+        ? "Je m'en occupe…"
+        : pendingAction
+          ? "En attente de votre confirmation"
+          : "Prêt";
 
   const header = (
     <View
@@ -127,32 +152,51 @@ export function AssistantView({ variant, onClose }: { variant: "screen" | "panel
           Assistant
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }} accessibilityLiveRegion="polite">
-          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: dictation.listening ? colors.spark : busy ? colors.accent : pendingAction ? colors.warning : colors.success }} />
+          <View
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: 4,
+              backgroundColor: disabled
+                ? colors.textTertiary
+                : dictation.listening
+                  ? colors.spark
+                  : busy
+                    ? colors.accent
+                    : pendingAction
+                      ? colors.warning
+                      : colors.success,
+            }}
+          />
           <Text variant="caption" tone="secondary">
             {statusLabel}
           </Text>
         </View>
       </View>
-      <IconButton
-        icon={voiceReplies ? Volume2 : VolumeX}
-        label={voiceReplies ? "Réponses à voix haute : activées" : "Réponses à voix haute : désactivées"}
-        onPress={() => {
-          if (voiceReplies) stopSpeaking();
-          setVoiceReplies(!voiceReplies);
-        }}
-        size={40}
-      />
-      <IconButton
-        icon={SquarePen}
-        label="Nouvelle conversation"
-        onPress={() => {
-          stopSpeaking();
-          void reset();
-          setDraft("");
-        }}
-        disabled={busy || items.length === 0}
-        size={40}
-      />
+      {disabled ? null : (
+        <>
+          <IconButton
+            icon={voiceReplies ? Volume2 : VolumeX}
+            label={voiceReplies ? "Réponses à voix haute : activées" : "Réponses à voix haute : désactivées"}
+            onPress={() => {
+              if (voiceReplies) stopSpeaking();
+              setVoiceReplies(!voiceReplies);
+            }}
+            size={40}
+          />
+          <IconButton
+            icon={SquarePen}
+            label="Nouvelle conversation"
+            onPress={() => {
+              stopSpeaking();
+              void reset();
+              setDraft("");
+            }}
+            disabled={busy || items.length === 0}
+            size={40}
+          />
+        </>
+      )}
       {variant === "panel" && onClose ? <IconButton icon={X} label="Fermer l'assistant" onPress={onClose} size={40} /> : null}
     </View>
   );
@@ -161,14 +205,27 @@ export function AssistantView({ variant, onClose }: { variant: "screen" | "panel
 
   const body = disabled ? (
     <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
-      <EmptyState icon={Mic} tone="warning" title="Assistant indisponible" message={status.data?.reason ?? "L'assistant n'est pas disponible pour le moment."} />
+      <EmptyState
+        icon={Mic}
+        tone="warning"
+        title="Assistant indisponible"
+        message={status.data?.reason ?? "L'assistant n'est pas disponible pour le moment."}
+      />
     </View>
   ) : (
     <ScrollView
       ref={scrollRef}
       onContentSizeChange={scrollToEnd}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ padding: variant === "panel" ? 16 : 20, paddingBottom: 24, gap: 14, flexGrow: 1, width: "100%", maxWidth: 760, alignSelf: "center" }}
+      contentContainerStyle={{
+        padding: variant === "panel" ? 16 : 20,
+        paddingBottom: 24,
+        gap: 14,
+        flexGrow: 1,
+        width: "100%",
+        maxWidth: 760,
+        alignSelf: "center",
+      }}
     >
       {!loaded ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -196,7 +253,14 @@ export function AssistantView({ variant, onClose }: { variant: "screen" | "panel
                   }
                 }}
                 accessibilityHint={s.mode === "prefill" ? "Complète la zone de saisie" : "Envoie la question"}
-                style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: radius.pill,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                }}
                 pressedStyle={{ backgroundColor: colors.surfacePressed }}
               >
                 <Text variant="subhead" weight="medium">
@@ -226,7 +290,11 @@ export function AssistantView({ variant, onClose }: { variant: "screen" | "panel
       }}
     >
       {dictation.listening || dictation.partial ? (
-        <Animated.View entering={FadeInDown.duration(160)} style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingHorizontal: 4 }} accessibilityLiveRegion="polite">
+        <Animated.View
+          entering={FadeInDown.duration(160)}
+          style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingHorizontal: 4 }}
+          accessibilityLiveRegion="polite"
+        >
           <Mic size={15} color={colors.sparkText} />
           <Text variant="subhead" tone={dictation.partial ? "primary" : "secondary"} style={{ flex: 1 }} numberOfLines={3}>
             {dictation.partial || "Je vous écoute… parlez naturellement."}
@@ -234,7 +302,12 @@ export function AssistantView({ variant, onClose }: { variant: "screen" | "panel
         </Animated.View>
       ) : null}
       {dictation.error ? (
-        <PressableScale onPress={dictation.clearError} scaleTo={1} accessibilityRole="alert" style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingHorizontal: 4 }}>
+        <PressableScale
+          onPress={dictation.clearError}
+          scaleTo={1}
+          accessibilityRole="alert"
+          style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingHorizontal: 4 }}
+        >
           <CircleAlert size={15} color={colors.danger} />
           <Text variant="footnote" tone="danger" style={{ flex: 1 }}>
             {dictationErrorMessage(dictation.error)}
@@ -267,14 +340,34 @@ export function AssistantView({ variant, onClose }: { variant: "screen" | "panel
             placeholderTextColor={colors.textTertiary}
             accessibilityLabel="Message pour l'assistant"
             multiline
+            numberOfLines={Platform.OS === "web" ? Math.min(5, Math.max(1, draft.split("\n").length)) : undefined}
             maxLength={4000}
             editable={!busy}
             style={[
-              { flex: 1, fontSize: 16, lineHeight: 22, fontFamily: fonts.regular, color: colors.text, maxHeight: 140, paddingTop: 10, paddingBottom: 10 },
+              {
+                flex: 1,
+                fontSize: 16,
+                lineHeight: 22,
+                fontFamily: fonts.regular,
+                color: colors.text,
+                maxHeight: 140,
+                paddingTop: 10,
+                paddingBottom: 10,
+              },
               Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null,
             ]}
           />
-          {draft.trim() ? <IconButton icon={ArrowUp} label="Envoyer" variant="filled" onPress={submit} size={40} disabled={busy} testID="assistant-send" /> : null}
+          {draft.trim() ? (
+            <IconButton
+              icon={ArrowUp}
+              label="Envoyer"
+              variant="filled"
+              onPress={submit}
+              size={40}
+              disabled={busy}
+              testID="assistant-send"
+            />
+          ) : null}
         </View>
         <VoiceOrb
           size={52}
@@ -308,8 +401,19 @@ function ChatRow({ item, onResolve }: { item: ChatItem; onResolve: (actionId: st
   switch (item.kind) {
     case "user":
       return (
-        <Animated.View entering={FadeInDown.duration(180)} style={{ alignSelf: "flex-end", maxWidth: "86%", gap: 4, alignItems: "flex-end" }}>
-          <View style={{ backgroundColor: colors.accentFill, borderRadius: radius.lg, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 }}>
+        <Animated.View
+          entering={FadeInDown.duration(180)}
+          style={{ alignSelf: "flex-end", maxWidth: "86%", gap: 4, alignItems: "flex-end" }}
+        >
+          <View
+            style={{
+              backgroundColor: colors.accentFill,
+              borderRadius: radius.lg,
+              borderBottomRightRadius: 6,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+            }}
+          >
             <Text variant="body" tone="onAccent">
               {item.text}
             </Text>
@@ -329,7 +433,11 @@ function ChatRow({ item, onResolve }: { item: ChatItem; onResolve: (actionId: st
         <Animated.View entering={FadeIn.duration(160)} style={{ maxWidth: "94%" }}>
           <Text variant="body" selectable>
             {item.text}
-            {item.streaming ? <Text variant="body" tone="accent">{" ▍"}</Text> : null}
+            {item.streaming ? (
+              <Text variant="body" tone="accent">
+                {" ▍"}
+              </Text>
+            ) : null}
           </Text>
         </Animated.View>
       );
@@ -345,7 +453,7 @@ function ChatRow({ item, onResolve }: { item: ChatItem; onResolve: (actionId: st
               <CircleAlert size={16} color={colors.danger} />
             )}
             <Text variant="footnote" tone={item.status === "failed" ? "danger" : "secondary"} style={{ flex: 1 }}>
-              {item.status === "running" ? `${item.label}…` : item.summary ?? item.label}
+              {item.status === "running" ? `${item.label}…` : (item.summary ?? item.label)}
             </Text>
           </View>
           {item.card ? <ResultCard card={item.card} /> : null}
@@ -364,7 +472,17 @@ function ChatRow({ item, onResolve }: { item: ChatItem; onResolve: (actionId: st
       );
     case "error":
       return (
-        <View accessibilityRole="alert" style={{ flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: 12 }}>
+        <View
+          accessibilityRole="alert"
+          style={{
+            flexDirection: "row",
+            gap: 8,
+            alignItems: "flex-start",
+            backgroundColor: colors.dangerSoft,
+            borderRadius: radius.md,
+            padding: 12,
+          }}
+        >
           <CircleAlert size={17} color={colors.danger} />
           <Text variant="subhead" tone="danger" style={{ flex: 1 }}>
             {item.text}
@@ -378,7 +496,11 @@ function ChatRow({ item, onResolve }: { item: ChatItem; onResolve: (actionId: st
 function ThinkingDots() {
   const { colors, reduceMotion } = useTheme();
   return (
-    <View style={{ flexDirection: "row", gap: 5, paddingVertical: 6 }} accessibilityLabel="L'assistant réfléchit" accessibilityRole="progressbar">
+    <View
+      style={{ flexDirection: "row", gap: 5, paddingVertical: 6 }}
+      accessibilityLabel="L'assistant réfléchit"
+      accessibilityRole="progressbar"
+    >
       {[0, 1, 2].map((i) => (
         <Dot key={i} delay={i * 160} color={colors.textTertiary} still={reduceMotion} />
       ))}

@@ -12,7 +12,22 @@ import { MissionStatusBadge } from "@/features/status";
 import { capitalize, formatInstant } from "@/lib/format";
 import { useOrgTimezone } from "@/lib/today";
 import { useBreakpoint, useTheme } from "@/theme/ThemeProvider";
-import { Avatar, Badge, Button, Card, ConfirmSheet, ErrorState, ListGroup, ListRow, Screen, Sheet, Skeleton, Text, TextField, useToast } from "@/ui";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  ConfirmSheet,
+  ErrorState,
+  ListGroup,
+  ListRow,
+  Screen,
+  Sheet,
+  Skeleton,
+  Text,
+  TextField,
+  useToast,
+} from "@/ui";
 
 /** Détail d'une mission : où, quand, avec qui, consignes, et les actions permises au rôle. */
 export default function MissionScreen() {
@@ -39,7 +54,8 @@ export default function MissionScreen() {
   };
   const action = useMutation({
     mutationFn: async (kind: "start" | "finish" | "validate") => endpoints.missions[kind](id),
-    onSuccess: (updated, kind) => onUpdated(updated, kind === "start" ? "Mission démarrée" : kind === "finish" ? "Mission terminée" : "Mission validée"),
+    onSuccess: (updated, kind) =>
+      onUpdated(updated, kind === "start" ? "Mission démarrée" : kind === "finish" ? "Mission terminée" : "Mission validée"),
     onError: (err) => toast(err instanceof ApiError ? err.message : "Action impossible pour le moment.", "error"),
   });
   const cancel = useMutation({
@@ -82,11 +98,36 @@ export default function MissionScreen() {
 
   const primary =
     mission.status === "PLANNED" && canField ? (
-      <Button label="Démarrer la mission" icon={Play} size="lg" fullWidth={!isWide} loading={action.isPending} onPress={() => action.mutate("start")} testID="mission-start" />
+      <Button
+        label="Démarrer la mission"
+        icon={Play}
+        size="lg"
+        fullWidth={!isWide}
+        loading={action.isPending}
+        onPress={() => action.mutate("start")}
+        testID="mission-start"
+      />
     ) : mission.status === "IN_PROGRESS" && canField ? (
-      <Button label="Terminer la mission" icon={Square} size="lg" variant="spark" fullWidth={!isWide} loading={action.isPending} onPress={() => action.mutate("finish")} testID="mission-finish" />
+      <Button
+        label="Terminer la mission"
+        icon={Square}
+        size="lg"
+        variant="spark"
+        fullWidth={!isWide}
+        loading={action.isPending}
+        onPress={() => action.mutate("finish")}
+        testID="mission-finish"
+      />
     ) : mission.status === "DONE" && canValidate ? (
-      <Button label="Valider la mission" icon={CircleCheckBig} size="lg" fullWidth={!isWide} loading={action.isPending} onPress={() => action.mutate("validate")} testID="mission-validate" />
+      <Button
+        label="Valider la mission"
+        icon={CircleCheckBig}
+        size="lg"
+        fullWidth={!isWide}
+        loading={action.isPending}
+        onPress={() => action.mutate("validate")}
+        testID="mission-validate"
+      />
     ) : null;
 
   const subtitle = `${capitalize(formatDayLong(mission.date))} · ${mission.startTime} – ${mission.endTime}`;
@@ -135,7 +176,9 @@ export default function MissionScreen() {
                     ) : null}
                   </View>
                   {mission.site.accessNotes ? (
-                    <View style={{ flexDirection: "row", gap: 10, padding: 12, borderRadius: radius.md, backgroundColor: colors.surfaceMuted }}>
+                    <View
+                      style={{ flexDirection: "row", gap: 10, padding: 12, borderRadius: radius.md, backgroundColor: colors.surfaceMuted }}
+                    >
                       <KeyRound size={16} color={colors.textSecondary} />
                       <Text variant="subhead" tone="secondary" style={{ flex: 1 }}>
                         {mission.site.accessNotes}
@@ -222,8 +265,26 @@ export default function MissionScreen() {
 
           {manage && mission.status !== "CANCELLED" && mission.status !== "VALIDATED" ? (
             <ListGroup title="Gestion">
-              {open ? <ListRow title="Modifier la mission" subtitle="Date, horaires, lieu, équipe" icon={Pencil} onPress={() => router.push(`/planning/nouvelle?id=${mission.id}`)} testID="mission-edit" /> : null}
-              {open ? <ListRow title="Annuler la mission" subtitle="L'équipe est prévenue aussitôt" icon={XCircle} iconTone="danger" destructive onPress={() => setCancelOpen(true)} testID="mission-cancel" /> : null}
+              {open ? (
+                <ListRow
+                  title="Modifier la mission"
+                  subtitle="Date, horaires, lieu, équipe"
+                  icon={Pencil}
+                  onPress={() => router.push(`/planning/nouvelle?id=${mission.id}`)}
+                  testID="mission-edit"
+                />
+              ) : null}
+              {open ? (
+                <ListRow
+                  title="Annuler la mission"
+                  subtitle="L'équipe est prévenue aussitôt"
+                  icon={XCircle}
+                  iconTone="danger"
+                  destructive
+                  onPress={() => setCancelOpen(true)}
+                  testID="mission-cancel"
+                />
+              ) : null}
             </ListGroup>
           ) : null}
         </View>
@@ -248,9 +309,25 @@ export default function MissionScreen() {
         onClose={() => setInstructionsOpen(false)}
         title="Consignes de la mission"
         subtitle="L'équipe affectée est notifiée à l'enregistrement."
-        footer={<Button label="Enregistrer" size="lg" fullWidth loading={saveInstructions.isPending} onPress={() => saveInstructions.mutate()} testID="mission-instructions-save" />}
+        footer={
+          <Button
+            label="Enregistrer"
+            size="lg"
+            fullWidth
+            loading={saveInstructions.isPending}
+            onPress={() => saveInstructions.mutate()}
+            testID="mission-instructions-save"
+          />
+        }
       >
-        <TextField label="Consignes" value={instructions} onChangeText={setInstructions} multiline maxLength={4000} placeholder="ex. : code portail 4521, produits dans le local à gauche" />
+        <TextField
+          label="Consignes"
+          value={instructions}
+          onChangeText={setInstructions}
+          multiline
+          maxLength={4000}
+          placeholder="ex. : code portail 4521, produits dans le local à gauche"
+        />
         {saveInstructions.error ? (
           <Text variant="subhead" tone="danger">
             {saveInstructions.error instanceof ApiError ? saveInstructions.error.message : "Enregistrement impossible."}

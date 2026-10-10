@@ -28,7 +28,19 @@ export default function AppLayout() {
   );
 }
 
-const TOP_LEVEL_ROUTES = ["index", "planning/index", "devis/index", "factures/index", "clients/index", "notifications", "profil", "plus", "equipe/index", "activite", "reglages"];
+const TOP_LEVEL_ROUTES = [
+  "index",
+  "planning/index",
+  "devis/index",
+  "factures/index",
+  "clients/index",
+  "notifications",
+  "profil",
+  "plus",
+  "equipe/index",
+  "activite",
+  "reglages",
+];
 
 function Shell() {
   const { colors, reduceMotion } = useTheme();
@@ -41,11 +53,20 @@ function Shell() {
   usePushNotifications(true, openLink);
 
   const stack = (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg }, animation: isWide || reduceMotion ? "none" : "default" }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bg },
+        animation: isWide || reduceMotion ? "none" : "default",
+      }}
+    >
       {TOP_LEVEL_ROUTES.map((name) => (
         <Stack.Screen key={name} name={name} options={{ animation: "none" }} />
       ))}
-      <Stack.Screen name="assistant" options={{ animation: isWide || reduceMotion ? "none" : "slide_from_bottom", gestureDirection: "vertical" }} />
+      <Stack.Screen
+        name="assistant"
+        options={{ animation: isWide || reduceMotion ? "none" : "slide_from_bottom", gestureDirection: "vertical" }}
+      />
     </Stack>
   );
 

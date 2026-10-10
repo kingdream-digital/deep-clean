@@ -39,7 +39,8 @@ export function useRealtime(): void {
                 toast(payload.title, "info", payload.link ? () => router.push(payload.link as never) : undefined);
               }
               if (event === "refresh") {
-                for (const resource of (data as { resources: string[] }).resources) void queryClient.invalidateQueries({ queryKey: [resource] });
+                for (const resource of (data as { resources: string[] }).resources)
+                  void queryClient.invalidateQueries({ queryKey: [resource] });
               }
             },
           });

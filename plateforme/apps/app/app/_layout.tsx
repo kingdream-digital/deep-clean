@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { Stack, SplashScreen } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
@@ -12,6 +12,14 @@ import { ThemeProvider, useTheme } from "@/theme/ThemeProvider";
 import { ToastProvider } from "@/ui";
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// Web : les icônes gardent leur taille dans les rangées flexibles (sinon le navigateur les écrase).
+if (Platform.OS === "web" && typeof document !== "undefined" && !document.getElementById("aussitot-base-css")) {
+  const style = document.createElement("style");
+  style.id = "aussitot-base-css";
+  style.textContent = "svg.lucide{flex-shrink:0}";
+  document.head.appendChild(style);
+}
 
 /**
  * Racine de l'application : polices, thème, cache des données (gardé sur

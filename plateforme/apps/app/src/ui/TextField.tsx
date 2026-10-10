@@ -39,7 +39,9 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
             backgroundColor: colors.surface,
             minHeight: multiline ? 104 : 50,
             alignItems: multiline ? "flex-start" : "center",
-            ...(focused ? { shadowColor: colors.accent, shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } } : null),
+            ...(focused
+              ? { shadowColor: colors.accent, shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } }
+              : null),
           },
         ]}
       >
@@ -66,12 +68,17 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
           {...rest}
           style={[
             styles.input,
-            { color: colors.text, fontFamily: fonts.regular, paddingTop: multiline ? 12 : 0 },
+            { color: colors.text, fontFamily: fonts.regular, paddingTop: multiline ? 12 : 0, minWidth: 0 },
             Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null,
           ]}
         />
         {secureToggle ? (
-          <PressableScale accessibilityLabel={hidden ? "Afficher le mot de passe" : "Masquer le mot de passe"} onPress={() => setHidden((h) => !h)} haptic="selection" style={styles.toggle}>
+          <PressableScale
+            accessibilityLabel={hidden ? "Afficher le mot de passe" : "Masquer le mot de passe"}
+            onPress={() => setHidden((h) => !h)}
+            haptic="selection"
+            style={styles.toggle}
+          >
             {hidden ? <Eye size={19} color={colors.textSecondary} /> : <EyeOff size={19} color={colors.textSecondary} />}
           </PressableScale>
         ) : null}

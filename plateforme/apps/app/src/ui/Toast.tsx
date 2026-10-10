@@ -34,12 +34,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <View pointerEvents="box-none" style={{ position: "absolute", top: insets.top + (Platform.OS === "web" ? 16 : 8), left: 0, right: 0, alignItems: "center", gap: 8 }}>
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          top: insets.top + (Platform.OS === "web" ? 16 : 8),
+          left: 0,
+          right: 0,
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         {items.map((item) => {
           const Icon = item.tone === "success" ? CircleCheck : item.tone === "error" ? CircleAlert : Info;
           const fg = item.tone === "success" ? colors.success : item.tone === "error" ? colors.danger : colors.accent;
           return (
-            <Animated.View key={item.id} entering={FadeInUp.springify().damping(18)} exiting={FadeOutUp.duration(180)} style={{ maxWidth: 520, width: "92%" }}>
+            <Animated.View
+              key={item.id}
+              entering={FadeInUp.springify().damping(18)}
+              exiting={FadeOutUp.duration(180)}
+              style={{ maxWidth: 520, width: "92%" }}
+            >
               <PressableScale
                 onPress={() => {
                   item.onPress?.();

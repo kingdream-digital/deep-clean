@@ -12,7 +12,21 @@ import { ResultCard } from "./ResultCard";
  * (destinataire, montant…) est calculé par le serveur à partir des données
  * réelles, pas par le modèle.
  */
-export function ActionCard({ action, resultSummary, card, busy, onConfirm, onCancel }: { action: PendingActionDto; resultSummary?: string; card?: AssistantCard; busy?: boolean; onConfirm: () => void; onCancel: () => void }) {
+export function ActionCard({
+  action,
+  resultSummary,
+  card,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  action: PendingActionDto;
+  resultSummary?: string;
+  card?: AssistantCard;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   const { colors, radius } = useTheme();
   const pending = action.status === "PENDING";
   const ok = action.status === "CONFIRMED";
@@ -51,7 +65,8 @@ export function ActionCard({ action, resultSummary, card, busy, onConfirm, onCan
           </View>
         ) : (
           <Text variant="footnote" weight="semibold" style={{ color: tone }}>
-            {resultSummary ?? (ok ? "Fait." : action.status === "EXPIRED" ? "Demande expirée : rien n'a été fait." : "Annulé : rien n'a été fait.")}
+            {resultSummary ??
+              (ok ? "Fait." : action.status === "EXPIRED" ? "Demande expirée : rien n'a été fait." : "Annulé : rien n'a été fait.")}
           </Text>
         )}
         {pending ? (

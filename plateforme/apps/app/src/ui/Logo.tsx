@@ -28,7 +28,10 @@ export function Wordmark({ size = 22, inverse }: { size?: number; inverse?: bool
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: Math.round(size * 0.45) }}>
       <LogoMark size={Math.round(size * 1.55)} />
-      <Text weight="bold" style={{ fontSize: size, lineHeight: Math.round(size * 1.2), letterSpacing: -0.6, color: inverse ? "#FFFFFF" : colors.text }}>
+      <Text
+        weight="bold"
+        style={{ fontSize: size, lineHeight: Math.round(size * 1.2), letterSpacing: -0.6, color: inverse ? "#FFFFFF" : colors.text }}
+      >
         {BRAND.name}
       </Text>
     </View>

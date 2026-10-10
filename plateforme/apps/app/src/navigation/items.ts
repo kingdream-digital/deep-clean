@@ -31,4 +31,16 @@ export function isActive(item: NavItem, pathname: string): boolean {
 }
 
 /** Écrans de premier niveau : la barre d'onglets y est visible (masquée sur les détails et formulaires). */
-export const TOP_LEVEL_PATHS = new Set(["/", "/planning", "/devis", "/factures", "/clients", "/notifications", "/profil", "/plus", "/equipe", "/activite", "/reglages"]);
+export const TOP_LEVEL_PATHS = new Set([
+  "/",
+  "/planning",
+  "/devis",
+  "/factures",
+  "/clients",
+  "/notifications",
+  "/profil",
+  "/plus",
+  "/equipe",
+  "/activite",
+  "/reglages",
+]);

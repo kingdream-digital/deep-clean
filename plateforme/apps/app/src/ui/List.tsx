@@ -6,7 +6,17 @@ import { PressableScale } from "./PressableScale";
 import { Text } from "./Text";
 
 /** Liste groupée (façon réglages iOS) : un titre de section, des lignes séparées par un trait fin. */
-export function ListGroup({ title, footer, children, style }: { title?: string; footer?: string; children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function ListGroup({
+  title,
+  footer,
+  children,
+  style,
+}: {
+  title?: string;
+  footer?: string;
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
   const { colors, radius } = useTheme();
   const rows = Children.toArray(children).filter(isValidElement);
   return (
@@ -16,7 +26,9 @@ export function ListGroup({ title, footer, children, style }: { title?: string; 
           {title}
         </Text>
       ) : null}
-      <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+      <View
+        style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}
+      >
         {rows.map((row, index) => (
           <View key={row.key ?? index}>
             {index > 0 ? <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: 16 }} /> : null}
@@ -48,7 +60,20 @@ export interface ListRowProps {
   testID?: string;
 }
 
-export function ListRow({ title, subtitle, icon: Icon, iconTone = "accent", leading, trailing, trailingText, onPress, chevron = Boolean(onPress), destructive, accessibilityLabel, testID }: ListRowProps) {
+export function ListRow({
+  title,
+  subtitle,
+  icon: Icon,
+  iconTone = "accent",
+  leading,
+  trailing,
+  trailingText,
+  onPress,
+  chevron = Boolean(onPress),
+  destructive,
+  accessibilityLabel,
+  testID,
+}: ListRowProps) {
   const { colors } = useTheme();
   const tones = {
     accent: [colors.accentSoft, colors.accentText],
@@ -61,11 +86,12 @@ export function ListRow({ title, subtitle, icon: Icon, iconTone = "accent", lead
   const [iconBg, iconFg] = tones[iconTone];
   const content = (
     <View style={styles.row}>
-      {leading ?? (Icon ? (
-        <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
-          <Icon size={18} color={iconFg} strokeWidth={2.1} />
-        </View>
-      ) : null)}
+      {leading ??
+        (Icon ? (
+          <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
+            <Icon size={18} color={iconFg} strokeWidth={2.1} />
+          </View>
+        ) : null)}
       <View style={styles.texts}>
         <Text variant="callout" weight="medium" tone={destructive ? "danger" : "primary"} numberOfLines={2}>
           {title}
@@ -87,7 +113,14 @@ export function ListRow({ title, subtitle, icon: Icon, iconTone = "accent", lead
   );
   if (!onPress) return <View accessibilityLabel={accessibilityLabel}>{content}</View>;
   return (
-    <PressableScale testID={testID} onPress={onPress} scaleTo={1} haptic="selection" accessibilityLabel={accessibilityLabel ?? [title, subtitle, trailingText].filter(Boolean).join(", ")} pressedStyle={{ backgroundColor: colors.surfacePressed }}>
+    <PressableScale
+      testID={testID}
+      onPress={onPress}
+      scaleTo={1}
+      haptic="selection"
+      accessibilityLabel={accessibilityLabel ?? [title, subtitle, trailingText].filter(Boolean).join(", ")}
+      pressedStyle={{ backgroundColor: colors.surfacePressed }}
+    >
       {content}
     </PressableScale>
   );

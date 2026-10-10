@@ -10,10 +10,21 @@ export interface SegmentedOption<T extends string> {
 }
 
 /** Sélecteur à segments : radio accessible, segment actif en relief. */
-export function Segmented<T extends string>({ options, value, onChange }: { options: SegmentedOption<T>[]; value: T; onChange: (value: T) => void }) {
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: SegmentedOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
   const { colors, radius } = useTheme();
   return (
-    <View accessibilityRole="radiogroup" style={{ flexDirection: "row", backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: 3, gap: 3 }}>
+    <View
+      accessibilityRole="radiogroup"
+      style={{ flexDirection: "row", backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: 3, gap: 3 }}
+    >
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -33,7 +44,15 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
               justifyContent: "center",
               paddingHorizontal: 8,
               backgroundColor: active ? colors.surfaceRaised : "transparent",
-              ...(active ? { shadowColor: colors.shadow, shadowOpacity: colors.mode === "dark" ? 0.5 : 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 } : null),
+              ...(active
+                ? {
+                    shadowColor: colors.shadow,
+                    shadowOpacity: colors.mode === "dark" ? 0.5 : 0.08,
+                    shadowRadius: 6,
+                    shadowOffset: { width: 0, height: 2 },
+                    elevation: 2,
+                  }
+                : null),
             }}
           >
             <Text variant="subhead" weight={active ? "semibold" : "medium"} tone={active ? "primary" : "secondary"} numberOfLines={1}>

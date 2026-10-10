@@ -24,12 +24,25 @@ export function Card({ children, onPress, padding = 16, style, accessibilityLabe
     borderColor: colors.border,
     padding,
     ...(elevated
-      ? { shadowColor: colors.shadow, shadowOpacity: colors.mode === "dark" ? 0.4 : 0.07, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 }
+      ? {
+          shadowColor: colors.shadow,
+          shadowOpacity: colors.mode === "dark" ? 0.4 : 0.07,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 3,
+        }
       : null),
   };
   if (onPress) {
     return (
-      <PressableScale testID={testID} onPress={onPress} accessibilityLabel={accessibilityLabel} style={[base, style]} pressedStyle={{ backgroundColor: colors.surfacePressed }} scaleTo={0.985}>
+      <PressableScale
+        testID={testID}
+        onPress={onPress}
+        accessibilityLabel={accessibilityLabel}
+        style={[base, style]}
+        pressedStyle={{ backgroundColor: colors.surfacePressed }}
+        scaleTo={0.985}
+      >
         {children}
       </PressableScale>
     );

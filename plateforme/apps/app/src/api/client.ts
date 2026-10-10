@@ -90,7 +90,7 @@ function baseHeaders(json: boolean): Record<string, string> {
   };
 }
 
-async function parseError(res: Response): Promise<ApiError> {
+export async function parseError(res: Response): Promise<ApiError> {
   try {
     const body = (await res.json()) as { error?: { code?: string; message?: string; details?: Record<string, string[]> } };
     return new ApiError(res.status, body.error?.code ?? "ERROR", body.error?.message ?? "Une erreur est survenue.", body.error?.details);

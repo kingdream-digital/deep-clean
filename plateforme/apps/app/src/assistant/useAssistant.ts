@@ -32,7 +32,15 @@ function fromTranscript(items: AssistantTranscriptItem[]): ChatItem[] {
       case "assistant":
         return { kind: "assistant", id: item.id, text: item.text, streaming: false };
       case "tool":
-        return { kind: "tool", id: item.id, name: item.name, label: item.label, status: item.ok ? "done" : "failed", summary: item.summary, card: item.card };
+        return {
+          kind: "tool",
+          id: item.id,
+          name: item.name,
+          label: item.label,
+          status: item.ok ? "done" : "failed",
+          summary: item.summary,
+          card: item.card,
+        };
       case "action":
         return { kind: "action", id: item.id, action: item.action, resultSummary: item.resultSummary, card: item.card };
     }
@@ -124,7 +132,11 @@ export function useAssistant(options: { voiceReplies: boolean }) {
           break;
         case "tool_end":
           setItems((current) =>
-            current.map((i) => (i.kind === "tool" && i.id === event.toolUseId ? { ...i, status: event.ok ? "done" : "failed", summary: event.summary, card: event.card } : i)),
+            current.map((i) =>
+              i.kind === "tool" && i.id === event.toolUseId
+                ? { ...i, status: event.ok ? "done" : "failed", summary: event.summary, card: event.card }
+                : i,
+            ),
           );
           for (const key of TOOL_INVALIDATIONS[event.name] ?? []) void queryClient.invalidateQueries({ queryKey: [key] });
           break;
@@ -138,10 +150,13 @@ export function useAssistant(options: { voiceReplies: boolean }) {
         case "action_resolved":
           setItems((current) =>
             current.map((i) =>
-              i.kind === "action" && i.action.id === event.actionId ? { ...i, busy: false, action: { ...i.action, status: event.status }, resultSummary: event.summary, card: event.card } : i,
+              i.kind === "action" && i.action.id === event.actionId
+                ? { ...i, busy: false, action: { ...i.action, status: event.status }, resultSummary: event.summary, card: event.card }
+                : i,
             ),
           );
-          for (const key of ["quotes", "quote", "invoices", "invoice", "planning", "mission", "dashboard"]) void queryClient.invalidateQueries({ queryKey: [key] });
+          for (const key of ["quotes", "quote", "invoices", "invoice", "planning", "mission", "dashboard"])
+            void queryClient.invalidateQueries({ queryKey: [key] });
           break;
         case "navigate":
           router.push(event.route as never);
@@ -185,14 +200,19 @@ export function useAssistant(options: { voiceReplies: boolean }) {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
       setItems((current) => [
-        ...current.map((i) => (i.kind === "action" && i.action.status === "PENDING" ? { ...i, action: { ...i.action, status: "CANCELLED" as const } } : i)),
+        ...current.map((i) =>
+          i.kind === "action" && i.action.status === "PENDING" ? { ...i, action: { ...i.action, status: "CANCELLED" as const } } : i,
+        ),
         { kind: "user", id: nextId(), text: trimmed, mode },
       ]);
       try {
         const id = await ensureConversation();
         await runStream(`/v1/assistant/conversations/${id}/messages`, { text: trimmed, mode, screen }, mode);
       } catch (err) {
-        setItems((current) => [...current, { kind: "error", id: nextId(), text: err instanceof ApiError ? err.message : "Impossible de joindre l'assistant." }]);
+        setItems((current) => [
+          ...current,
+          { kind: "error", id: nextId(), text: err instanceof ApiError ? err.message : "Impossible de joindre l'assistant." },
+        ]);
       }
     },
     [busy, ensureConversation, runStream],
@@ -212,7 +232,9 @@ export function useAssistant(options: { voiceReplies: boolean }) {
     if (storageKey) await AsyncStorage.removeItem(storageKey).catch(() => undefined);
   }, [storageKey]);
 
-  const pendingAction = [...items].reverse().find((i): i is Extract<ChatItem, { kind: "action" }> => i.kind === "action" && i.action.status === "PENDING");
+  const pendingAction = [...items]
+    .reverse()
+    .find((i): i is Extract<ChatItem, { kind: "action" }> => i.kind === "action" && i.action.status === "PENDING");
 
   return { items, busy, loaded, send, resolve, reset, pendingAction: pendingAction?.action ?? null };
 }

@@ -27,7 +27,10 @@ export function IconButton({ icon: Icon, label, onPress, variant = "plain", size
       disabled={disabled}
       accessibilityLabel={label}
       haptic="selection"
-      style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: "center", justifyContent: "center" }, style]}
+      style={[
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: "center", justifyContent: "center" },
+        style,
+      ]}
       pressedStyle={{ backgroundColor: variant === "plain" ? colors.surfacePressed : undefined, opacity: variant === "plain" ? 1 : 0.85 }}
       scaleTo={0.92}
     >

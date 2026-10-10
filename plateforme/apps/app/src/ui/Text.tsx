@@ -2,7 +2,8 @@ import { Text as RNText, type TextProps as RNTextProps, type TextStyle } from "r
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts, type TypeVariant } from "@/theme/tokens";
 
-export type TextTone = "primary" | "secondary" | "tertiary" | "accent" | "spark" | "success" | "warning" | "danger" | "inverse" | "onAccent";
+export type TextTone =
+  "primary" | "secondary" | "tertiary" | "accent" | "spark" | "success" | "warning" | "danger" | "inverse" | "onAccent";
 
 export interface TextProps extends RNTextProps {
   variant?: TypeVariant;

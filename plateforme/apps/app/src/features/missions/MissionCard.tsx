@@ -39,7 +39,11 @@ export function MissionCard({ mission, showDate }: { mission: MissionDto; showDa
               {showDate}
             </Text>
           ) : null}
-          <Text variant="headline" tabular style={cancelled ? { textDecorationLine: "line-through", color: colors.textTertiary } : undefined}>
+          <Text
+            variant="headline"
+            tabular
+            style={cancelled ? { textDecorationLine: "line-through", color: colors.textTertiary } : undefined}
+          >
             {mission.startTime}
           </Text>
           <Text variant="footnote" tone="tertiary" tabular>
@@ -81,7 +85,15 @@ export function DirectionsButton({ address }: { address: string }) {
     <PressableScale
       onPress={() => openDirections(address)}
       accessibilityLabel={`Itinéraire vers ${address}`}
-      style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.accentSoft }}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: radius.pill,
+        backgroundColor: colors.accentSoft,
+      }}
     >
       <Navigation size={15} color={colors.accentText} />
       <Text variant="subhead" weight="semibold" tone="accent">

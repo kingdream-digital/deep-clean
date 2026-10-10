@@ -8,7 +8,21 @@ import { Button } from "./Button";
 import type { ApiError } from "@/api/client";
 
 /** État vide : une icône, un vrai titre, une phrase utile, et l'action qui débloque. */
-export function EmptyState({ icon: Icon = Inbox, title, message, actionLabel, onAction, tone = "accent" }: { icon?: ComponentType<LucideProps>; title: string; message?: string; actionLabel?: string; onAction?: () => void; tone?: "accent" | "warning" | "danger" | "spark" }) {
+export function EmptyState({
+  icon: Icon = Inbox,
+  title,
+  message,
+  actionLabel,
+  onAction,
+  tone = "accent",
+}: {
+  icon?: ComponentType<LucideProps>;
+  title: string;
+  message?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  tone?: "accent" | "warning" | "danger" | "spark";
+}) {
   const { colors } = useTheme();
   const [bg, fg] = {
     accent: [colors.accentSoft, colors.accentText],
@@ -18,7 +32,17 @@ export function EmptyState({ icon: Icon = Inbox, title, message, actionLabel, on
   }[tone];
   return (
     <Animated.View entering={FadeIn.duration(220)} style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 24, gap: 10 }}>
-      <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: bg, alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
+      <View
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 18,
+          backgroundColor: bg,
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 6,
+        }}
+      >
         <Icon size={26} color={fg} strokeWidth={2} />
       </View>
       <Text variant="title3" align="center" accessibilityRole="header">
@@ -29,7 +53,9 @@ export function EmptyState({ icon: Icon = Inbox, title, message, actionLabel, on
           {message}
         </Text>
       ) : null}
-      {actionLabel && onAction ? <Button label={actionLabel} onPress={onAction} variant="secondary" style={{ marginTop: 8, alignSelf: "center" }} /> : null}
+      {actionLabel && onAction ? (
+        <Button label={actionLabel} onPress={onAction} variant="secondary" style={{ marginTop: 8, alignSelf: "center" }} />
+      ) : null}
     </Animated.View>
   );
 }
@@ -44,7 +70,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
       icon={offline ? CloudOff : forbidden ? ShieldAlert : TriangleAlert}
       tone={offline ? "warning" : "danger"}
       title={offline ? "Pas de connexion" : forbidden ? "Accès refusé" : "Un problème est survenu"}
-      message={offline ? "Vérifiez votre connexion internet, puis réessayez." : apiError?.message ?? "Réessayez dans un instant."}
+      message={offline ? "Vérifiez votre connexion internet, puis réessayez." : (apiError?.message ?? "Réessayez dans un instant.")}
       actionLabel={onRetry && !forbidden ? "Réessayer" : undefined}
       onAction={onRetry}
     />
@@ -77,7 +103,10 @@ export function Skeleton({ width = "100%", height = 16, radius = 8 }: { width?: 
 export function SkeletonList({ rows = 4 }: { rows?: number }) {
   const { colors, radius } = useTheme();
   return (
-    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 18 }} accessibilityLabel="Chargement">
+    <View
+      style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 18 }}
+      accessibilityLabel="Chargement"
+    >
       {Array.from({ length: rows }, (_, i) => (
         <View key={i} style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
           <Skeleton width={34} height={34} radius={10} />

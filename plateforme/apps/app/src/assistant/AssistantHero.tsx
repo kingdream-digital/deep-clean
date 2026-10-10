@@ -36,7 +36,11 @@ export function AssistantHero() {
           <View style={{ flex: 1, gap: 6 }}>
             <Text variant="title3">Dites-le, c'est fait.</Text>
             <Text variant="subhead" tone="secondary">
-              Un devis, une facture, une mission, une question : parlez ou écrivez, je m'occupe du reste.
+              {can("quotes.write")
+                ? "Un devis, une facture, une mission, une question : parlez ou écrivez, je m'occupe du reste."
+                : can("planning.manage")
+                  ? "Une mission à planifier, une consigne, une question : parlez ou écrivez, je m'en occupe."
+                  : "Votre planning, vos consignes, une question : demandez simplement, je vous réponds."}
             </Text>
           </View>
           <VoiceOrb size={64} listening={false} onPress={() => open(true)} label="Parler à l'assistant" />
@@ -51,7 +55,14 @@ export function AssistantHero() {
                 open(false);
               }}
               accessibilityHint={s.mode === "send" ? "Pose la question à l'assistant" : "Ouvre l'assistant"}
-              style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.75)", borderWidth: 1, borderColor: colors.border }}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: radius.pill,
+                backgroundColor: colors.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.75)",
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
             >
               <Text variant="footnote" weight="medium">
                 {s.label}
@@ -61,7 +72,14 @@ export function AssistantHero() {
           <PressableScale
             onPress={() => open(false)}
             accessibilityLabel="Écrire à l'assistant"
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: radius.pill,
+            }}
           >
             <Keyboard size={15} color={colors.accentText} />
             <Text variant="footnote" weight="semibold" tone="accent">

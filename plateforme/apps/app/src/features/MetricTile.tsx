@@ -5,7 +5,23 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { PressableScale, Text } from "@/ui";
 
 /** Indicateur chiffré du tableau de bord ; toucher : la liste correspondante. */
-export function MetricTile({ label, value, caption, icon: Icon, tone = "accent", onPress, testID }: { label: string; value: string; caption?: string; icon: ComponentType<LucideProps>; tone?: "accent" | "success" | "danger" | "warning" | "spark"; onPress?: () => void; testID?: string }) {
+export function MetricTile({
+  label,
+  value,
+  caption,
+  icon: Icon,
+  tone = "accent",
+  onPress,
+  testID,
+}: {
+  label: string;
+  value: string;
+  caption?: string;
+  icon: ComponentType<LucideProps>;
+  tone?: "accent" | "success" | "danger" | "warning" | "spark";
+  onPress?: () => void;
+  testID?: string;
+}) {
   const { colors, radius } = useTheme();
   const [bg, fg] = {
     accent: [colors.accentSoft, colors.accentText],
@@ -34,10 +50,27 @@ export function MetricTile({ label, value, caption, icon: Icon, tone = "accent",
       </View>
     </>
   );
-  const style = { flexGrow: 1, flexBasis: 150, minWidth: 140, gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border } as const;
+  const style = {
+    flexGrow: 1,
+    flexBasis: 150,
+    minWidth: 140,
+    gap: 12,
+    padding: 16,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  } as const;
   if (!onPress) return <View style={style}>{content}</View>;
   return (
-    <PressableScale onPress={onPress} testID={testID} accessibilityLabel={`${label} : ${value}${caption ? `, ${caption}` : ""}`} style={style} pressedStyle={{ backgroundColor: colors.surfacePressed }} scaleTo={0.98}>
+    <PressableScale
+      onPress={onPress}
+      testID={testID}
+      accessibilityLabel={`${label} : ${value}${caption ? `, ${caption}` : ""}`}
+      style={style}
+      pressedStyle={{ backgroundColor: colors.surfacePressed }}
+      scaleTo={0.98}
+    >
       {content}
     </PressableScale>
   );
