@@ -6,9 +6,9 @@ import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
 import { buildInvoicePdf } from "../invoices/invoices.pdf";
 import { getCompanyProfile } from "./companyProfile";
-import { buildEnInvoice, einvoiceBlockers } from "./enInvoice";
+import { buildEnInvoice, companyEinvoiceBlockers, einvoiceBlockers } from "./enInvoice";
 import type { EinvoiceSource } from "./enInvoice";
-import { convertToFacturX, listInvoiceEvents, sendFacturX, superPdpConfigured } from "./superpdp.client";
+import { convertToFacturX, listInvoiceEvents, sendFacturX, superPdpConfigured, superPdpHost, testSuperPdpConnection } from "./superpdp.client";
 import type { SuperPdpEvent } from "./superpdp.client";
 
 interface Actor {
@@ -184,20 +184,129 @@ export async function refreshEinvoiceStatus(id: string) {
   return { changed: true, status: last.status_code };
 }
 
-/** Tâche planifiée : met à jour les factures électroniques encore en cours. */
-export async function runEinvoiceStatusJob(): Promise<void> {
-  if (!superPdpConfigured()) return;
+export interface EinvoiceSyncResult {
+  checked: number;
+  changed: number;
+  failed: number;
+}
+
+// Une seule relecture à la fois (tâche planifiée ou bouton « Actualiser ») :
+// un second appel pendant qu'une relecture tourne attend la même, au lieu
+// d'interroger Super PDP deux fois pour les mêmes factures.
+let runningSync: Promise<EinvoiceSyncResult> | null = null;
+
+async function refreshPendingInvoices(): Promise<EinvoiceSyncResult> {
   const since = new Date(Date.now() - 90 * 86_400_000);
   const pending = await prisma.invoice.findMany({
     where: { pdpInvoiceId: { not: null }, pdpSentAt: { gte: since }, OR: [{ pdpStatus: null }, { pdpStatus: { notIn: [...FINAL_STATUSES] } }] },
     select: { id: true },
     take: 200,
   });
+  const result: EinvoiceSyncResult = { checked: pending.length, changed: 0, failed: 0 };
   for (const { id } of pending) {
     try {
-      await refreshEinvoiceStatus(id);
+      if ((await refreshEinvoiceStatus(id)).changed) result.changed += 1;
     } catch (err) {
+      result.failed += 1;
       logger.warn({ err, invoiceId: id }, "Suivi de facture électronique impossible pour le moment");
     }
   }
+  return result;
+}
+
+function syncOnce(): Promise<EinvoiceSyncResult> {
+  if (!runningSync) {
+    runningSync = refreshPendingInvoices().finally(() => {
+      runningSync = null;
+    });
+  }
+  return runningSync;
+}
+
+/** Tâche planifiée : met à jour les factures électroniques encore en cours. */
+export async function runEinvoiceStatusJob(): Promise<void> {
+  if (!superPdpConfigured()) return;
+  await syncOnce();
+}
+
+// ─── Espace Super PDP (vue d'ensemble du module commercial) ───────────────
+
+/** Échéances légales de la réforme (PME / micro-entreprises). */
+export const EINVOICING_DEADLINES = { reception: "2026-09-01", emission: "2027-09-01" } as const;
+
+/** Statuts « aboutis » : la facture a été approuvée, complétée ou payée. */
+const DONE_STATUSES = ["fr:205", "fr:206", "fr:209", "fr:211", "fr:212"];
+
+export type EinvoiceView = "toSend" | "inProgress" | "attention" | "done";
+
+// « À transmettre » : facture validée ou déjà envoyée par email, pas encore
+// déposée sur la plateforme. Les payées n'y figurent pas : on ne retransmet
+// pas une facture soldée avant la mise en service.
+const VIEW_WHERE = {
+  toSend: { pdpInvoiceId: null, status: { in: [InvoiceStatus.VALIDATED, InvoiceStatus.SENT] } },
+  inProgress: { pdpInvoiceId: { not: null }, OR: [{ pdpStatus: null }, { pdpStatus: { notIn: [...PROBLEM_STATUSES, ...DONE_STATUSES] } }] },
+  attention: { pdpInvoiceId: { not: null }, pdpStatus: { in: [...PROBLEM_STATUSES] } },
+  done: { pdpInvoiceId: { not: null }, pdpStatus: { in: DONE_STATUSES } },
+} satisfies Record<EinvoiceView, object>;
+
+export async function getEinvoicingOverview() {
+  const company = getCompanyProfile();
+  const [toSend, inProgress, attention, done, lastSync] = await Promise.all([
+    prisma.invoice.count({ where: VIEW_WHERE.toSend }),
+    prisma.invoice.count({ where: VIEW_WHERE.inProgress }),
+    prisma.invoice.count({ where: VIEW_WHERE.attention }),
+    prisma.invoice.count({ where: VIEW_WHERE.done }),
+    prisma.invoice.aggregate({ where: { pdpInvoiceId: { not: null } }, _max: { pdpUpdatedAt: true } }),
+  ]);
+  return {
+    connection: { configured: superPdpConfigured(), host: superPdpHost() },
+    company: { name: company.name, missing: companyEinvoiceBlockers(company) },
+    counts: { toSend, inProgress, attention, done },
+    lastSyncAt: lastSync._max.pdpUpdatedAt,
+    deadlines: EINVOICING_DEADLINES,
+  };
+}
+
+export async function listEinvoices(view: EinvoiceView, page: number, pageSize: number) {
+  const where = VIEW_WHERE[view];
+  const [rows, total] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      select: { ...einvoiceSelect, pdpStatusLabel: true, pdpSentAt: true, pdpUpdatedAt: true, pdpError: true },
+      orderBy: view === "toSend" ? [{ issueDate: "desc" }] : [{ pdpUpdatedAt: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.invoice.count({ where }),
+  ]);
+  const items = rows.map((r) => ({
+    id: r.id,
+    invoiceNumber: r.invoiceNumber,
+    status: r.status,
+    issueDate: r.issueDate,
+    totalTtc: r.totalTtc,
+    clientName: r.client.companyName,
+    pdpStatus: r.pdpStatus,
+    pdpStatusLabel: r.pdpStatusLabel,
+    pdpError: r.pdpError,
+    pdpSentAt: r.pdpSentAt,
+    pdpUpdatedAt: r.pdpUpdatedAt,
+    // Uniquement pour les factures à transmettre : ce qui bloque l'envoi.
+    blockers: view === "toSend" ? einvoiceBlockers(r as EinvoiceSource) : [],
+  }));
+  return { items, total, page, pageSize };
+}
+
+export async function syncEinvoiceStatuses(actor: Actor): Promise<EinvoiceSyncResult> {
+  if (!superPdpConfigured()) throw ApiError.badRequest("La facture électronique n'est pas encore activée : identifiants Super PDP manquants sur le serveur.");
+  const result = await syncOnce();
+  await logActivity({ userId: actor.userId, action: "EINVOICE_STATUS_SYNC", entityType: "Invoice", metadata: { ...result } });
+  return result;
+}
+
+export async function testEinvoicingConnection(actor: Actor) {
+  if (!superPdpConfigured()) throw ApiError.badRequest("Identifiants Super PDP absents : renseignez SUPERPDP_CLIENT_ID et SUPERPDP_CLIENT_SECRET sur le serveur.");
+  await testSuperPdpConnection();
+  await logActivity({ userId: actor.userId, action: "EINVOICE_CONNECTION_TEST", entityType: "Invoice" });
+  return { ok: true, host: superPdpHost(), checkedAt: new Date() };
 }

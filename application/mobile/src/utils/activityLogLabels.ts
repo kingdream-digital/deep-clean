@@ -88,6 +88,8 @@ const ACTION_LABELS: Record<string, string> = {
   INVOICE_PAID: "Facture payée",
   INVOICE_CANCELLED: "Facture annulée",
   INVOICE_EINVOICE_SENT: "Facture électronique envoyée",
+  EINVOICE_STATUS_SYNC: "Statuts Super PDP actualisés",
+  EINVOICE_CONNECTION_TEST: "Connexion Super PDP testée",
 };
 
 /** Libellé du type d'élément concerné par une action du journal. */

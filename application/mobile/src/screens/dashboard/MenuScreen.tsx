@@ -65,7 +65,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   HR: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
-    { icon: "briefcase-outline", label: "Commercial", message: "Prospects, clients, devis", tone: "accent", screen: "CommercialHome" },
+    { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
     { icon: "person-add-outline", label: "Comptes utilisateurs", message: "Créer et gérer les accès", tone: "success", screen: "UsersList" },
     { icon: "business-outline", label: "Chantiers", message: "Créer et gérer les fiches chantier", tone: "warning", screen: "SitesList" },
     { icon: "warning-outline", label: "Problèmes", message: "Tous les signalements en cours", tone: "danger", screen: "ProblemsList" },
@@ -78,7 +78,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   DIRECTOR: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
-    { icon: "briefcase-outline", label: "Commercial", message: "Prospects, clients, devis", tone: "accent", screen: "CommercialHome" },
+    { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
     { icon: "business-outline", label: "Chantiers", message: "Vue globale de tous les chantiers", tone: "warning", screen: "SitesList" },
     {
       icon: "people-outline",
@@ -98,7 +98,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   ADMIN: [
     { icon: "time-outline", label: "Mes heures", message: "Historique de vos pointages", tone: "purple", screen: "Timesheet" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
-    { icon: "briefcase-outline", label: "Commercial", message: "Accès technique au module commercial", tone: "accent", screen: "CommercialHome" },
+    { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
     { icon: "people-outline", label: "Comptes", message: "Gestion technique des comptes", tone: "info", screen: "UsersList" },
     { icon: "business-outline", label: "Chantiers", message: "Gestion technique des chantiers", tone: "warning", screen: "SitesList" },
     { icon: "checkmark-done-outline", label: "Validation des heures", message: "Pointages de toute l'entreprise", tone: "success", screen: "TimesheetValidation" },
