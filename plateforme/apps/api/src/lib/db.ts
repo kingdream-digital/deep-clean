@@ -46,6 +46,17 @@ export async function withTenant<T>(orgId: string, fn: (tx: Db) => Promise<T>, o
   );
 }
 
+/**
+ * Exécute des requêtes l'une après l'autre. Dans une transaction, toutes les
+ * requêtes passent par la même connexion : les lancer en parallèle
+ * (Promise.all) ne fait que les empiler côté pilote PostgreSQL.
+ */
+export async function seq<T extends readonly unknown[]>(...tasks: { [K in keyof T]: () => PromiseLike<T[K]> }): Promise<T> {
+  const results: unknown[] = [];
+  for (const task of tasks) results.push(await task());
+  return results as unknown as T;
+}
+
 // ---------------------------------------------------------------------------
 // Accès transverses — uniquement via les fonctions SECURITY DEFINER de la
 // migration initiale, qui ne renvoient que le strict nécessaire.

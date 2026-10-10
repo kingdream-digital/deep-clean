@@ -33,7 +33,9 @@ function sessionExpiry(rememberMe: boolean): Date {
   return new Date(Date.now() + ms);
 }
 
-async function toSessionUser(user: Pick<User, "id" | "username" | "firstName" | "lastName" | "email" | "role" | "mustChangePassword" | "organizationId">): Promise<SessionUserDto> {
+async function toSessionUser(
+  user: Pick<User, "id" | "username" | "firstName" | "lastName" | "email" | "role" | "mustChangePassword" | "organizationId">,
+): Promise<SessionUserDto> {
   const org = await getOrgBasics(user.organizationId);
   return {
     id: user.id,
@@ -47,7 +49,10 @@ async function toSessionUser(user: Pick<User, "id" | "username" | "firstName" | 
   };
 }
 
-export async function login(input: Required<Pick<LoginInput, "organization" | "identifier" | "password">> & { rememberMe: boolean }, meta: RequestMeta): Promise<AuthResult> {
+export async function login(
+  input: Required<Pick<LoginInput, "organization" | "identifier" | "password">> & { rememberMe: boolean },
+  meta: RequestMeta,
+): Promise<AuthResult> {
   const org = await findOrgBySlug(input.organization);
   if (!org) {
     await verifyDecoy(input.password);
@@ -55,9 +60,7 @@ export async function login(input: Required<Pick<LoginInput, "organization" | "i
   }
 
   const identifier = input.identifier.trim().toLowerCase();
-  const user = await withTenant(org.id, (tx) =>
-    tx.user.findFirst({ where: { OR: [{ username: identifier }, { email: identifier }] } }),
-  );
+  const user = await withTenant(org.id, (tx) => tx.user.findFirst({ where: { OR: [{ username: identifier }, { email: identifier }] } }));
   if (!user) {
     await verifyDecoy(input.password);
     throw AppError.unauthorized(INVALID_CREDENTIALS, "INVALID_CREDENTIALS");
@@ -199,7 +202,9 @@ export async function changeOwnPassword(ctx: Ctx, currentPassword: string, newPa
     throw AppError.validation({ currentPassword: ["Mot de passe actuel incorrect."] });
   }
   const parsed = newPasswordSchema.safeParse(newPassword);
-  const problems = parsed.success ? passwordProblems(newPassword, [user.username, user.firstName, user.lastName]) : parsed.error.issues.map((i) => i.message);
+  const problems = parsed.success
+    ? passwordProblems(newPassword, [user.username, user.firstName, user.lastName])
+    : parsed.error.issues.map((i) => i.message);
   if (problems.length) throw AppError.validation({ newPassword: problems });
   if (await verifyPassword(user.passwordHash, newPassword)) {
     throw AppError.validation({ newPassword: ["Le nouveau mot de passe doit être différent de l'actuel."] });
@@ -209,7 +214,10 @@ export async function changeOwnPassword(ctx: Ctx, currentPassword: string, newPa
   const revoked = await withTenant(ctx.orgId, async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { passwordHash, mustChangePassword: false, passwordChangedAt: new Date() } });
     // Toutes les AUTRES sessions sont fermées : un éventuel accès volé est coupé.
-    const others = await tx.session.findMany({ where: { userId: user.id, revokedAt: null, id: { not: ctx.sessionId } }, select: { id: true } });
+    const others = await tx.session.findMany({
+      where: { userId: user.id, revokedAt: null, id: { not: ctx.sessionId } },
+      select: { id: true },
+    });
     await tx.session.updateMany({ where: { id: { in: others.map((s) => s.id) } }, data: { revokedAt: new Date() } });
     await logActivity(tx, ctx, "AUTH_PASSWORD_CHANGED", { type: "user", id: user.id });
     return others.map((s) => s.id);

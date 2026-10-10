@@ -170,8 +170,11 @@ export const updateOwnProfileSchema = z.object({
 // Clients, lieux d'intervention, catalogue
 // ---------------------------------------------------------------------------
 
-export const clientInputSchema = z.object({
-  kind: z.enum(CLIENT_KINDS).default("COMPANY"),
+// Les schémas de MODIFICATION n'ont aucune valeur par défaut : avec Zod 4,
+// un défaut s'appliquerait aussi à un champ absent d'une modification
+// partielle et écraserait la valeur enregistrée.
+const clientFields = {
+  kind: z.enum(CLIENT_KINDS),
   name: requiredText(200, "Le nom du client"),
   contactFirstName: optionalText(60),
   contactLastName: optionalText(60),
@@ -181,14 +184,15 @@ export const clientInputSchema = z.object({
   addressLine2: optionalText(160),
   postalCode: optionalText(12),
   city: optionalText(80),
-  country: z.string().trim().length(2).toUpperCase().default("FR"),
+  country: z.string().trim().length(2).toUpperCase(),
   siren: sirenSchema,
   siret: siretSchema,
   vatNumber: optionalText(20),
   notes: optionalText(2000),
-});
+};
+export const clientInputSchema = z.object({ ...clientFields, kind: clientFields.kind.default("COMPANY"), country: clientFields.country.default("FR") });
 export type ClientInput = z.input<typeof clientInputSchema>;
-export const clientUpdateSchema = clientInputSchema.partial();
+export const clientUpdateSchema = z.object(clientFields).partial();
 
 export const siteInputSchema = z.object({
   name: requiredText(120, "Le nom du lieu"),
@@ -202,16 +206,17 @@ export const siteInputSchema = z.object({
 export type SiteInput = z.input<typeof siteInputSchema>;
 export const siteUpdateSchema = siteInputSchema.partial();
 
-export const catalogItemInputSchema = z.object({
+const catalogFields = {
   name: requiredText(160, "Le nom de la prestation"),
   description: optionalText(1000),
   unit: z.enum(UNITS),
   unitPriceCents: z.number().int().min(0).max(MAX_UNIT_PRICE_CENTS),
   vatRateBps: vatRateSchema,
-  isActive: z.boolean().default(true),
-});
+  isActive: z.boolean(),
+};
+export const catalogItemInputSchema = z.object({ ...catalogFields, isActive: catalogFields.isActive.default(true) });
 export type CatalogItemInput = z.input<typeof catalogItemInputSchema>;
-export const catalogItemUpdateSchema = catalogItemInputSchema.partial();
+export const catalogItemUpdateSchema = z.object(catalogFields).partial();
 
 // ---------------------------------------------------------------------------
 // Devis et factures
@@ -228,7 +233,9 @@ export const documentLineInputSchema = z.object({
 });
 export type DocumentLineInput = z.input<typeof documentLineInputSchema>;
 
-export const createQuoteSchema = z.object({
+const linesSchema = z.array(documentLineInputSchema).max(200, "200 lignes au maximum.");
+
+const quoteFields = {
   clientId: idSchema,
   siteId: idSchema.nullish(),
   title: optionalText(160),
@@ -236,26 +243,26 @@ export const createQuoteSchema = z.object({
   validUntil: dateSchema.optional(),
   notes: optionalText(4000),
   internalNotes: optionalText(4000),
-  lines: z.array(documentLineInputSchema).max(200).default([]),
-});
+  lines: linesSchema,
+};
+export const createQuoteSchema = z.object({ ...quoteFields, lines: linesSchema.default([]) });
 export type CreateQuoteInput = z.input<typeof createQuoteSchema>;
-export const updateQuoteSchema = createQuoteSchema.partial();
+export const updateQuoteSchema = z.object(quoteFields).partial();
 export type UpdateQuoteInput = z.input<typeof updateQuoteSchema>;
 
-export const createInvoiceSchema = z.object({
+const invoiceFields = {
   clientId: idSchema,
-  quoteId: idSchema.nullish(),
   siteId: idSchema.nullish(),
   title: optionalText(160),
-  issueDate: dateSchema.optional(),
   dueDate: dateSchema.optional(),
   servicePeriod: optionalText(80),
   notes: optionalText(4000),
   internalNotes: optionalText(4000),
-  lines: z.array(documentLineInputSchema).max(200).default([]),
-});
+  lines: linesSchema,
+};
+export const createInvoiceSchema = z.object({ ...invoiceFields, quoteId: idSchema.nullish(), lines: linesSchema.default([]) });
 export type CreateInvoiceInput = z.input<typeof createInvoiceSchema>;
-export const updateInvoiceSchema = createInvoiceSchema.omit({ quoteId: true }).partial();
+export const updateInvoiceSchema = z.object(invoiceFields).partial();
 export type UpdateInvoiceInput = z.input<typeof updateInvoiceSchema>;
 
 export const recordPaymentSchema = z.object({
@@ -276,25 +283,25 @@ export type SendDocumentInput = z.input<typeof sendDocumentSchema>;
 // Planning
 // ---------------------------------------------------------------------------
 
-const missionBaseSchema = z.object({
+const missionFields = {
   title: requiredText(160, "Le titre"),
   siteId: idSchema.nullish(),
   clientId: idSchema.nullish(),
   date: dateSchema,
   startTime: timeSchema,
   endTime: timeSchema,
-  assigneeIds: z.array(idSchema).max(50).default([]),
+  assigneeIds: z.array(idSchema).max(50),
   teamLeadId: idSchema.nullish(),
   instructions: optionalText(4000),
-});
+};
 
-export const createMissionSchema = missionBaseSchema.refine((m) => m.endTime > m.startTime, {
+export const createMissionSchema = z.object({ ...missionFields, assigneeIds: missionFields.assigneeIds.default([]) }).refine((m) => m.endTime > m.startTime, {
   message: "L'heure de fin doit être après l'heure de début.",
   path: ["endTime"],
 });
 export type CreateMissionInput = z.input<typeof createMissionSchema>;
 
-export const updateMissionSchema = missionBaseSchema.partial().refine((m) => !m.startTime || !m.endTime || m.endTime > m.startTime, {
+export const updateMissionSchema = z.object(missionFields).partial().refine((m) => !m.startTime || !m.endTime || m.endTime > m.startTime, {
   message: "L'heure de fin doit être après l'heure de début.",
   path: ["endTime"],
 });

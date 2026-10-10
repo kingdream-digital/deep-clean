@@ -13,34 +13,57 @@ import { logger } from "./logger.ts";
 const PREFIX = "sess:";
 const TTL_SECONDS = 60;
 
-export async function isSessionActive(claims: AccessClaims): Promise<boolean> {
+export type SessionState =
+  | { status: "active"; mustChangePassword: boolean }
+  /** Rôle modifié depuis l'émission du jeton : l'app doit en obtenir un nouveau. */
+  | { status: "stale" }
+  | { status: "revoked" };
+
+function encode(state: SessionState, role: string): string {
+  return state.status === "active" ? `1:${role}:${state.mustChangePassword ? 1 : 0}` : "0";
+}
+
+function decode(value: string | null, role: string): SessionState | null {
+  if (value === null) return null;
+  if (value === "0") return { status: "revoked" };
+  const [flag, cachedRole, mustChange] = value.split(":");
+  if (flag !== "1") return null;
+  if (cachedRole !== role) return { status: "stale" };
+  return { status: "active", mustChangePassword: mustChange === "1" };
+}
+
+export async function sessionState(claims: AccessClaims): Promise<SessionState> {
   try {
-    const cached = await redis.get(PREFIX + claims.sessionId);
-    if (cached === "1:" + claims.role) return true;
-    if (cached === "0") return false;
+    const cached = decode(await redis.get(PREFIX + claims.sessionId), claims.role);
+    if (cached) return cached;
   } catch (err) {
     logger.warn({ err }, "Cache de session indisponible — vérification en base");
   }
 
-  const active = await withTenant(claims.orgId, async (tx) => {
+  const state = await withTenant(claims.orgId, async (tx): Promise<SessionState> => {
     const session = await tx.session.findUnique({
       where: { id: claims.sessionId },
-      select: { userId: true, revokedAt: true, expiresAt: true, user: { select: { isActive: true, role: true } } },
+      select: {
+        userId: true,
+        revokedAt: true,
+        expiresAt: true,
+        user: { select: { isActive: true, role: true, mustChangePassword: true } },
+      },
     });
-    if (!session || session.userId !== claims.userId || session.revokedAt || session.expiresAt <= new Date()) return "revoked" as const;
-    if (!session.user.isActive) return "revoked" as const;
-    // Rôle modifié depuis l'émission du jeton : l'app doit renouveler son jeton.
-    if (session.user.role !== claims.role) return "stale" as const;
-    return "active" as const;
+    if (!session || session.userId !== claims.userId || session.revokedAt || session.expiresAt <= new Date()) return { status: "revoked" };
+    if (!session.user.isActive) return { status: "revoked" };
+    if (session.user.role !== claims.role) return { status: "stale" };
+    return { status: "active", mustChangePassword: session.user.mustChangePassword };
   });
 
-  try {
-    if (active === "active") await redis.set(PREFIX + claims.sessionId, "1:" + claims.role, "EX", TTL_SECONDS);
-    if (active === "revoked") await redis.set(PREFIX + claims.sessionId, "0", "EX", TTL_SECONDS);
-  } catch {
-    /* le cache est une optimisation : la base reste la référence */
+  if (state.status !== "stale") {
+    try {
+      await redis.set(PREFIX + claims.sessionId, encode(state, claims.role), "EX", TTL_SECONDS);
+    } catch {
+      /* le cache est une optimisation : la base reste la référence */
+    }
   }
-  return active === "active";
+  return state;
 }
 
 /** Coupe immédiatement ces sessions (déconnexion, désactivation, mot de passe changé). */
@@ -55,7 +78,7 @@ export async function revokeCachedSessions(sessionIds: string[]): Promise<void> 
   }
 }
 
-/** Oublie le cache de ces sessions (changement de rôle : simple revérification). */
+/** Oublie le cache de ces sessions (changement de rôle ou de mot de passe : simple revérification). */
 export async function forgetCachedSessions(sessionIds: string[]): Promise<void> {
   if (sessionIds.length === 0) return;
   try {

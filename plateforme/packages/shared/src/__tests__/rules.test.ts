@@ -93,3 +93,14 @@ describe("schémas", () => {
     expect(parsed.rememberMe).toBe(false);
   });
 });
+
+describe("modifications partielles", () => {
+  it("n'appliquent aucune valeur par défaut aux champs absents", async () => {
+    const { updateQuoteSchema, updateInvoiceSchema, clientUpdateSchema, catalogItemUpdateSchema, updateMissionSchema } = await import("../schemas");
+    expect(updateQuoteSchema.parse({ title: "x" })).toEqual({ title: "x" });
+    expect(updateInvoiceSchema.parse({ dueDate: "2026-11-01" })).toEqual({ dueDate: "2026-11-01" });
+    expect(clientUpdateSchema.parse({ name: "Dupont" })).toEqual({ name: "Dupont" });
+    expect(catalogItemUpdateSchema.parse({ unitPriceCents: 100 })).toEqual({ unitPriceCents: 100 });
+    expect(updateMissionSchema.parse({ title: "Vitres" })).toEqual({ title: "Vitres" });
+  });
+});

@@ -30,7 +30,6 @@ function rateLimitKey(request: { headers: Record<string, unknown>; ip: string })
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     loggerInstance: logger as unknown as FastifyBaseLogger,
-    disableRequestLogging: env.isTest,
     trustProxy: env.TRUST_PROXY,
     bodyLimit: 1024 * 1024,
     genReqId: (req) => {
@@ -113,12 +112,15 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(platformRoutes, { prefix: "/v1/platform" });
 
   // Tout le reste exige une session valide.
-  await app.register(async (scope) => {
-    scope.addHook("onRequest", authenticate);
-    await scope.register(userRoutes, { prefix: "/users" });
-    await scope.register(organizationRoutes, { prefix: "/organization" });
-    await registerBusinessRoutes(scope);
-  }, { prefix: "/v1" });
+  await app.register(
+    async (scope) => {
+      scope.addHook("onRequest", authenticate);
+      await scope.register(userRoutes, { prefix: "/users" });
+      await scope.register(organizationRoutes, { prefix: "/organization" });
+      await registerBusinessRoutes(scope);
+    },
+    { prefix: "/v1" },
+  );
 
   return app;
 }

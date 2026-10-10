@@ -52,7 +52,9 @@ export function toOrganizationDto(org: Organization): OrganizationDto {
 /** Réglages complets (mentions légales, IBAN…) : réservés à ceux qui en ont l'usage. */
 export async function getOrganization(ctx: Ctx): Promise<OrganizationDto> {
   if (!can(ctx.role, "org.update") && !can(ctx.role, "quotes.read") && !can(ctx.role, "invoices.read")) throw AppError.forbidden();
-  return withTenant(ctx.orgId, async (tx) => toOrganizationDto(assertFound(await tx.organization.findUnique({ where: { id: ctx.orgId } }))));
+  return withTenant(ctx.orgId, async (tx) =>
+    toOrganizationDto(assertFound(await tx.organization.findUnique({ where: { id: ctx.orgId } }))),
+  );
 }
 
 export async function updateOrganization(ctx: Ctx, raw: OrganizationSettingsInput): Promise<OrganizationDto> {

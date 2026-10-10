@@ -1,0 +1,6 @@
+node_modules
+dist
+apps/api/src/generated
+apps/app/.expo
+package-lock.json
+*.md

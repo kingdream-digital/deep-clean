@@ -25,5 +25,8 @@ export const logger = pino({
     ],
     censor: "[masqué]",
   },
-  transport: !env.isProduction && !env.isTest ? { target: "pino-pretty", options: { translateTime: "HH:MM:ss", ignore: "pid,hostname,service" } } : undefined,
+  transport:
+    !env.isProduction && !env.isTest
+      ? { target: "pino-pretty", options: { translateTime: "HH:MM:ss", ignore: "pid,hostname,service" } }
+      : undefined,
 });

@@ -592,7 +592,7 @@ CREATE INDEX "notifications_userId_createdAt_idx" ON "notifications"("userId", "
 CREATE INDEX "notifications_userId_readAt_idx" ON "notifications"("userId", "readAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "push_tokens_token_key" ON "push_tokens"("token");
+CREATE UNIQUE INDEX "push_tokens_organization_id_token_key" ON "push_tokens"("organization_id", "token");
 
 -- CreateIndex
 CREATE INDEX "push_tokens_userId_idx" ON "push_tokens"("userId");

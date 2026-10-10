@@ -49,36 +49,34 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.post(
-    "/refresh",
-    { config: { rateLimit: { max: 120, timeWindow: "15 minutes" } } },
-    async (request, reply) => {
-      const body = parse(refreshBodySchema, request.body);
-      const token = body.refreshToken ?? request.cookies[REFRESH_COOKIE];
-      if (!token) throw AppError.unauthorized();
-      try {
-        const result = await auth.refresh(token, { ip: request.ip, userAgent: request.headers["user-agent"] });
-        return sendAuth(request, reply, result);
-      } catch (err) {
-        if (err instanceof AppError && err.status === 401 && err.code !== "REFRESH_RACE") {
-          reply.clearCookie(REFRESH_COOKIE, { path: COOKIE_PATH });
-        }
-        throw err;
+  app.post("/refresh", { config: { rateLimit: { max: 120, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    const body = parse(refreshBodySchema, request.body);
+    const token = body.refreshToken ?? request.cookies[REFRESH_COOKIE];
+    if (!token) throw AppError.unauthorized();
+    try {
+      const result = await auth.refresh(token, { ip: request.ip, userAgent: request.headers["user-agent"] });
+      return sendAuth(request, reply, result);
+    } catch (err) {
+      if (err instanceof AppError && err.status === 401 && err.code !== "REFRESH_RACE") {
+        reply.clearCookie(REFRESH_COOKIE, { path: COOKIE_PATH });
       }
-    },
-  );
+      throw err;
+    }
+  });
 
-  app.post("/logout", { onRequest: authenticate }, async (request, reply) => {
+  app.post("/logout", { onRequest: authenticate, config: { allowPendingPasswordChange: true } }, async (request, reply) => {
     await auth.logout(request.ctx);
     reply.clearCookie(REFRESH_COOKIE, { path: COOKIE_PATH });
     return { ok: true };
   });
 
-  app.get("/me", { onRequest: authenticate }, async (request) => auth.currentUser(request.ctx));
+  app.get("/me", { onRequest: authenticate, config: { allowPendingPasswordChange: true } }, async (request) =>
+    auth.currentUser(request.ctx),
+  );
 
   app.post(
     "/change-password",
-    { onRequest: authenticate, config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } },
+    { onRequest: authenticate, config: { allowPendingPasswordChange: true, rateLimit: { max: 10, timeWindow: "15 minutes" } } },
     async (request) => {
       // La politique de mot de passe (schéma partagé + nom et identifiant de la
       // personne) est appliquée dans le service.
