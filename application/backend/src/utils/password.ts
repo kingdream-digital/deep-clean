@@ -22,6 +22,20 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
   return bcrypt.compare(plain, hash);
 }
 
+// Hash bcrypt « leurre » (coût 10, identique à SALT_ROUNDS) utilisé à la
+// connexion quand l'identifiant n'existe pas : sans lui, aucun bcrypt n'était
+// exécuté dans ce cas, et la réponse était sensiblement plus rapide que pour
+// un identifiant valide avec un mauvais mot de passe — ce qui permettait de
+// distinguer un compte existant d'un compte inexistant par mesure du temps de
+// réponse (énumération de comptes). On fait tourner une comparaison factice
+// pour uniformiser le temps de réponse. Ce hash ne correspond à aucun mot de
+// passe réel et n'est jamais stocké.
+const DECOY_PASSWORD_HASH = "$2a$10$6enAtb3mAzzja/J4lZMsseQlxPTQhrMnaAZXjWfpxdoJg1BtWwvGu";
+
+export async function verifyPasswordDummy(plain: string): Promise<void> {
+  await bcrypt.compare(plain, DECOY_PASSWORD_HASH);
+}
+
 // Politique de mot de passe appliquée côté serveur (jamais uniquement côté mobile).
 const MIN_LENGTH = 10;
 

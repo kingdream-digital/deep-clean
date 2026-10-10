@@ -6,6 +6,7 @@ import { generateTemporaryPassword, hashPassword } from "../../utils/password";
 import { generateUsername } from "../../utils/username";
 import { logActivity } from "../../utils/activityLog";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
+import { escapeLikePattern } from "../../utils/likePattern";
 import { countWorkableDays } from "../../utils/frenchCalendar";
 
 // Peut consulter le dossier complet d'un employé (pointages, absences,
@@ -205,11 +206,15 @@ export async function listUsers(viewerRole: Role, filters: ListUsersFilters, vie
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search
       ? {
+          // Les métacaractères LIKE (« % », « _ ») sont échappés pour qu'une
+          // saisie utilisateur soit traitée littéralement et non comme un
+          // joker SQL (même protection que les modules commerciaux, via
+          // escapeLikePattern).
           OR: [
-            { username: { contains: filters.search, mode: "insensitive" as const } },
-            { email: { contains: filters.search, mode: "insensitive" as const } },
-            { firstName: { contains: filters.search, mode: "insensitive" as const } },
-            { lastName: { contains: filters.search, mode: "insensitive" as const } },
+            { username: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
+            { email: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
+            { firstName: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
+            { lastName: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
           ],
         }
       : {}),
@@ -293,6 +298,15 @@ export async function updateUser(actorId: string, actorRole: Role, targetId: str
   if (actorId === targetId && input.role !== undefined) {
     throw ApiError.badRequest("Vous ne pouvez pas modifier votre propre rôle.");
   }
+  // Faille corrigée (audit sécurité) : comme setUserActive et resetUserAccess,
+  // modifier un compte doit vérifier le droit d'AGIR SUR LA CIBLE, et pas
+  // seulement le droit d'attribuer le nouveau rôle. Sans ce contrôle, un
+  // compte RH pouvait rétrograder un Directeur ou l'Admin technique (et un
+  // Directeur, l'Admin technique) en changeant simplement leur rôle en
+  // Employé via PATCH /users/:id — neutralisant un compte de rang supérieur
+  // au sien. On réserve donc toute action sur un compte de rang supérieur à
+  // l'admin technique, exactement comme pour la désactivation.
+  assertCanActOnTarget(actorRole, target.role);
   if (input.role !== undefined) {
     assertCanAssignRole(actorRole, input.role);
   }
