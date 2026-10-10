@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "Aussitôt",
+    "slug": "aussitot",
+    "scheme": "aussitot",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F5F6F8",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.aussitot.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.aussitot.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2347F5"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "lang": "fr",
+      "name": "Aussitôt",
+      "shortName": "Aussitôt",
+      "themeColor": "#2347F5",
+      "backgroundColor": "#F5F6F8",
+      "display": "standalone"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "backgroundColor": "#F5F6F8",
+          "dark": { "image": "./assets/splash-icon.png", "backgroundColor": "#0A0C10" }
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Aussitôt utilise le micro uniquement quand vous appuyez sur le bouton de l'assistant, pour comprendre votre demande.",
+          "speechRecognitionPermission": "Aussitôt transcrit votre voix en texte pour exécuter votre demande.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
+      [
+        "expo-notifications",
+        { "icon": "./assets/adaptive-icon.png", "color": "#2347F5" }
+      ],
+      [
+        "expo-image-picker",
+        { "photosPermission": "Aussitôt accède à vos photos pour choisir le logo de votre entreprise." }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}
