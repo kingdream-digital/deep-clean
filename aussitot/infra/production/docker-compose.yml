@@ -6,7 +6,7 @@
 #   cp .env.production.example .env   # puis remplir chaque secret
 #   docker compose --env-file .env up -d
 #
-# Les images se construisent depuis le dossier plateforme/ :
+# Les images se construisent depuis le dossier aussitot/ :
 #   docker build -f apps/api/Dockerfile -t aussitot-api .
 #   docker build -f apps/api/Dockerfile --target migrate -t aussitot-migrate .
 name: aussitot

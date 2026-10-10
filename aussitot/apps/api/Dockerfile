@@ -5,7 +5,7 @@
 #   worker   : node dist/worker.js   (emails, notifications push, maintenance)
 # Migrations : cible « migrate » (prisma migrate deploy, rôle propriétaire).
 #
-# Construction (depuis le dossier plateforme/) :
+# Construction (depuis le dossier aussitot/) :
 #   docker build -f apps/api/Dockerfile -t aussitot-api .
 #   docker build -f apps/api/Dockerfile --target migrate -t aussitot-migrate .
 # Réseau d'entreprise avec inspection TLS : ajoutez
