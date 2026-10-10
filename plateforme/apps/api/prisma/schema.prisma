@@ -1,0 +1,782 @@
+// Aussitôt — schéma de base de données (PostgreSQL 16).
+//
+// MULTI-ENTREPRISES : chaque table métier porte `organization_id`. L'isolation
+// entre entreprises clientes n'est pas laissée au code applicatif seul : des
+// politiques Row-Level Security (voir migrations/*_init/migration.sql, section
+// RLS) filtrent CHAQUE requête sur l'entreprise de la session courante
+// (`app.org_id`, positionné par src/lib/db.ts). Le rôle PostgreSQL utilisé par
+// l'API n'a pas le droit de contourner ces politiques.
+//
+// `organization_id` a pour valeur par défaut `app_current_org()` : une ligne
+// créée sans préciser l'entreprise est rattachée à celle de la session — et la
+// politique RLS refuse toute ligne rattachée à une autre.
+//
+// MONTANTS : entiers en centimes ; taux et remises en points de base (2000 =
+// 20 %). Voir packages/shared/src/money.ts.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Énumérations
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  DIRECTOR
+  HR
+  SUPERVISOR
+  TEAM_LEAD
+  EMPLOYEE
+}
+
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum Plan {
+  STARTER
+  PRO
+  BUSINESS
+}
+
+enum VatRegime {
+  NORMAL
+  FRANCHISE
+}
+
+enum ClientKind {
+  COMPANY
+  INDIVIDUAL
+}
+
+enum Unit {
+  HOUR
+  DAY
+  UNIT
+  SQM
+  FLAT
+  MONTH
+  VISIT
+  KM
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+enum InvoiceKind {
+  INVOICE
+  CREDIT_NOTE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  SENT
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  TRANSFER
+  CARD
+  CHECK
+  CASH
+  DIRECT_DEBIT
+  OTHER
+}
+
+enum MissionStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  VALIDATED
+  CANCELLED
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum AssistantRole {
+  USER
+  ASSISTANT
+}
+
+enum PendingActionStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Entreprises clientes de la plateforme (« tenants »)
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  /// Code entreprise saisi à la connexion (ex. « deep-clean »).
+  slug                  String    @unique
+  name                  String
+  status                OrgStatus @default(ACTIVE)
+  plan                  Plan      @default(PRO)
+  /// Nombre maximal de comptes actifs inclus dans l'abonnement.
+  seatLimit             Int       @default(25)
+  /// Nombre de demandes à l'assistant incluses par mois (0 = assistant désactivé).
+  assistantMonthlyQuota Int       @default(3000)
+
+  // Mentions légales (devis, factures)
+  legalName         String?
+  legalForm         String?
+  shareCapital      String?
+  siren             String?
+  siret             String?
+  vatNumber         String?
+  rcs               String?
+  addressLine1      String?
+  addressLine2      String?
+  postalCode        String?
+  city              String?
+  country           String    @default("FR")
+  email             String?
+  phone             String?
+  website           String?
+  iban              String?
+  bic               String?
+  vatRegime         VatRegime @default(NORMAL)
+  defaultVatRateBps Int       @default(2000)
+  paymentTermsDays  Int       @default(30)
+  quoteValidityDays Int       @default(30)
+  latePenaltyText   String?
+  timezone          String    @default("Europe/Paris")
+  quotePrefix       String    @default("D")
+  invoicePrefix     String    @default("F")
+  creditNotePrefix  String    @default("AV")
+  brandColor        String?
+  emailSignature    String?
+  /// Clé de stockage du logo (jamais une URL publique).
+  logoKey           String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  users                  User[]
+  sessions               Session[]
+  clients                Client[]
+  sites                  Site[]
+  catalogItems           CatalogItem[]
+  quotes                 Quote[]
+  quoteLines             QuoteLine[]
+  invoices               Invoice[]
+  invoiceLines           InvoiceLine[]
+  payments               Payment[]
+  missions               Mission[]
+  missionAssignments     MissionAssignment[]
+  notifications          Notification[]
+  pushTokens             PushToken[]
+  activityLogs           ActivityLog[]
+  emails                 EmailOutbox[]
+  numberSequences        NumberSequence[]
+  assistantConversations AssistantConversation[]
+  assistantMessages      AssistantMessage[]
+  assistantActions       AssistantAction[]
+  aiUsage                AiUsageMonth[]
+
+  @@map("organizations")
+}
+
+// ---------------------------------------------------------------------------
+// Comptes et sessions
+// ---------------------------------------------------------------------------
+
+model User {
+  id                 String       @id @default(uuid(7)) @db.Uuid
+  organizationId     String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Identifiant de connexion, unique dans l'entreprise (ex. « jdupont »).
+  username           String
+  email              String?
+  passwordHash       String
+  role               Role         @default(EMPLOYEE)
+  firstName          String
+  lastName           String
+  phone              String?
+  jobTitle           String?
+  weeklyHours        Float?
+  isActive           Boolean      @default(true)
+  /// Vrai tant que le mot de passe temporaire remis par la RH n'a pas été changé.
+  mustChangePassword Boolean      @default(true)
+  failedLoginCount   Int          @default(0)
+  lockedUntil        DateTime?    @db.Timestamptz(3)
+  lastLoginAt        DateTime?    @db.Timestamptz(3)
+  passwordChangedAt  DateTime?    @db.Timestamptz(3)
+  createdById        String?      @db.Uuid
+  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(3)
+
+  sessions               Session[]
+  createdClients         Client[]                @relation("ClientCreatedBy")
+  createdQuotes          Quote[]                 @relation("QuoteCreatedBy")
+  createdInvoices        Invoice[]               @relation("InvoiceCreatedBy")
+  createdMissions        Mission[]               @relation("MissionCreatedBy")
+  ledMissions            Mission[]               @relation("MissionTeamLead")
+  validatedMissions      Mission[]               @relation("MissionValidatedBy")
+  missionAssignments     MissionAssignment[]
+  notifications          Notification[]
+  pushTokens             PushToken[]
+  activityLogs           ActivityLog[]
+  assistantConversations AssistantConversation[]
+  assistantActions       AssistantAction[]
+  recordedPayments       Payment[]
+
+  @@unique([organizationId, username])
+  @@unique([organizationId, email])
+  @@index([organizationId, role])
+  @@map("users")
+}
+
+/// Sessions « refresh token » : permettent « Rester connecté » et une
+/// déconnexion réelle. Le jeton n'est jamais stocké en clair (SHA-256).
+/// Table hors RLS : consultée par le service d'authentification avant que
+/// l'entreprise de la requête soit connue.
+model Session {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  organizationId   String       @map("organization_id") @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId           String       @db.Uuid
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String       @unique
+  /// Toutes les sessions issues d'une même connexion partagent la même
+  /// famille : la réutilisation d'un jeton déjà renouvelé (vol probable)
+  /// révoque toute la famille.
+  family           String       @db.Uuid
+  replacedById     String?      @db.Uuid
+  rememberMe       Boolean      @default(false)
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime     @db.Timestamptz(3)
+  revokedAt        DateTime?    @db.Timestamptz(3)
+  lastUsedAt       DateTime     @default(now()) @db.Timestamptz(3)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@index([userId])
+  @@index([family])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Clients, lieux d'intervention, catalogue
+// ---------------------------------------------------------------------------
+
+model Client {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  organizationId   String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind             ClientKind   @default(COMPANY)
+  name             String
+  contactFirstName String?
+  contactLastName  String?
+  email            String?
+  phone            String?
+  addressLine1     String?
+  addressLine2     String?
+  postalCode       String?
+  city             String?
+  country          String       @default("FR")
+  siren            String?
+  siret            String?
+  vatNumber        String?
+  notes            String?
+  archivedAt       DateTime?    @db.Timestamptz(3)
+  createdById      String?      @db.Uuid
+  createdBy        User?        @relation("ClientCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+
+  sites    Site[]
+  quotes   Quote[]
+  invoices Invoice[]
+  missions Mission[]
+
+  @@index([organizationId, name])
+  @@map("clients")
+}
+
+model Site {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String?      @db.Uuid
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  name           String
+  addressLine1   String?
+  addressLine2   String?
+  postalCode     String?
+  city           String?
+  accessNotes    String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+
+  quotes   Quote[]
+  invoices Invoice[]
+  missions Mission[]
+
+  @@index([organizationId, name])
+  @@map("sites")
+}
+
+model CatalogItem {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  unit           Unit
+  unitPriceCents Int
+  vatRateBps     Int
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+
+  quoteLines   QuoteLine[]
+  invoiceLines InvoiceLine[]
+
+  @@index([organizationId, name])
+  @@map("catalog_items")
+}
+
+// ---------------------------------------------------------------------------
+// Devis
+// ---------------------------------------------------------------------------
+
+model Quote {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Ex. « D-2026-0001 » — attribué à la création, jamais réutilisé.
+  number         String
+  status         QuoteStatus  @default(DRAFT)
+  clientId       String       @db.Uuid
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  siteId         String?      @db.Uuid
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  title          String?
+  issueDate      DateTime     @db.Date
+  validUntil     DateTime?    @db.Date
+  /// Visible sur le PDF envoyé au client.
+  notes          String?
+  /// Jamais visible par le client.
+  internalNotes  String?
+  vatExempt      Boolean      @default(false)
+  subtotalCents  Int          @default(0)
+  vatCents       Int          @default(0)
+  totalCents     Int          @default(0)
+  vatBreakdown   Json         @default("[]")
+  /// Coordonnées du client et de l'entreprise figées à l'envoi : un devis
+  /// envoyé ne change jamais, même si la fiche client est modifiée ensuite.
+  clientSnapshot Json?
+  sellerSnapshot Json?
+  sentAt         DateTime?    @db.Timestamptz(3)
+  acceptedAt     DateTime?    @db.Timestamptz(3)
+  declinedAt     DateTime?    @db.Timestamptz(3)
+  cancelledAt    DateTime?    @db.Timestamptz(3)
+  createdById    String?      @db.Uuid
+  createdBy      User?        @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+
+  lines    QuoteLine[]
+  invoices Invoice[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, issueDate])
+  @@index([organizationId, clientId])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quoteId        String       @db.Uuid
+  quote          Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  position       Int
+  description    String
+  quantity       Decimal      @db.Decimal(12, 3)
+  unit           Unit
+  unitPriceCents Int
+  vatRateBps     Int
+  discountBps    Int          @default(0)
+  totalHtCents   Int
+  catalogItemId  String?      @db.Uuid
+  catalogItem    CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId, position])
+  @@map("quote_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Factures et avoirs
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  organizationId    String        @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind              InvoiceKind   @default(INVOICE)
+  /// Numéro légal, attribué à l'émission (séquence continue, sans trou) ;
+  /// nul tant que la facture est un brouillon.
+  number            String?
+  status            InvoiceStatus @default(DRAFT)
+  clientId          String        @db.Uuid
+  client            Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  siteId            String?       @db.Uuid
+  site              Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  quoteId           String?       @db.Uuid
+  quote             Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  /// Pour un avoir : la facture qu'il annule (totalement ou partiellement).
+  creditedInvoiceId String?       @db.Uuid
+  creditedInvoice   Invoice?      @relation("CreditNotes", fields: [creditedInvoiceId], references: [id], onDelete: Restrict)
+  creditNotes       Invoice[]     @relation("CreditNotes")
+  title             String?
+  issueDate         DateTime?     @db.Date
+  dueDate           DateTime?     @db.Date
+  servicePeriod     String?
+  notes             String?
+  internalNotes     String?
+  vatExempt         Boolean       @default(false)
+  subtotalCents     Int           @default(0)
+  vatCents          Int           @default(0)
+  totalCents        Int           @default(0)
+  vatBreakdown      Json          @default("[]")
+  amountPaidCents   Int           @default(0)
+  clientSnapshot    Json?
+  sellerSnapshot    Json?
+  issuedAt          DateTime?     @db.Timestamptz(3)
+  sentAt            DateTime?     @db.Timestamptz(3)
+  paidAt            DateTime?     @db.Timestamptz(3)
+  cancelledAt       DateTime?     @db.Timestamptz(3)
+  createdById       String?       @db.Uuid
+  createdBy         User?         @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, clientId])
+  @@index([organizationId, issueDate])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String       @db.Uuid
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position       Int
+  description    String
+  quantity       Decimal      @db.Decimal(12, 3)
+  unit           Unit
+  unitPriceCents Int
+  vatRateBps     Int
+  discountBps    Int          @default(0)
+  totalHtCents   Int
+  catalogItemId  String?      @db.Uuid
+  catalogItem    CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId, position])
+  @@map("invoice_lines")
+}
+
+model Payment {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String        @db.Uuid
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amountCents    Int
+  paidOn         DateTime      @db.Date
+  method         PaymentMethod
+  reference      String?
+  recordedById   String?       @db.Uuid
+  recordedBy     User?         @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([invoiceId])
+  @@index([organizationId, paidOn])
+  @@map("payments")
+}
+
+/// Compteurs de numérotation (devis, factures, avoirs) par entreprise et par
+/// année. Incrémentés dans la transaction qui émet le document : une
+/// émission annulée n'en consomme pas (numérotation continue, exigence légale).
+model NumberSequence {
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key            String
+  lastValue      Int          @default(0)
+
+  @@id([organizationId, key])
+  @@map("number_sequences")
+}
+
+// ---------------------------------------------------------------------------
+// Planning
+// ---------------------------------------------------------------------------
+
+model Mission {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title          String
+  status         MissionStatus @default(PLANNED)
+  siteId         String?       @db.Uuid
+  site           Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  clientId       String?       @db.Uuid
+  client         Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  /// Jour de la mission (calendrier de l'entreprise).
+  date           DateTime      @db.Date
+  startsAt       DateTime      @db.Timestamptz(3)
+  endsAt         DateTime      @db.Timestamptz(3)
+  teamLeadId     String?       @db.Uuid
+  teamLead       User?         @relation("MissionTeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
+  instructions   String?
+  startedAt      DateTime?     @db.Timestamptz(3)
+  finishedAt     DateTime?     @db.Timestamptz(3)
+  validatedAt    DateTime?     @db.Timestamptz(3)
+  validatedById  String?       @db.Uuid
+  validatedBy    User?         @relation("MissionValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
+  cancelledAt    DateTime?     @db.Timestamptz(3)
+  cancelReason   String?
+  createdById    String?       @db.Uuid
+  createdBy      User?         @relation("MissionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+
+  assignments MissionAssignment[]
+
+  @@index([organizationId, date])
+  @@index([organizationId, status, date])
+  @@index([siteId])
+  @@map("missions")
+}
+
+model MissionAssignment {
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  missionId      String       @db.Uuid
+  mission        Mission      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@id([missionId, userId])
+  @@index([organizationId, userId])
+  @@map("mission_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type           String
+  title          String
+  body           String
+  link           String?
+  readAt         DateTime?    @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model PushToken {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token          String       @unique
+  platform       String
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  lastSeenAt     DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("push_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Journal d'activité et file d'emails
+// ---------------------------------------------------------------------------
+
+model ActivityLog {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?      @db.Uuid
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String
+  entityType     String?
+  entityId       String?      @db.Uuid
+  metadata       Json?
+  /// Vrai quand l'action a été déclenchée via l'assistant (voix ou chat).
+  viaAssistant   Boolean      @default(false)
+  ipAddress      String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, entityType, entityId])
+  @@map("activity_logs")
+}
+
+/// File d'envoi des emails (« outbox ») : l'envoi d'un devis ou d'une facture
+/// est enregistré dans la même transaction que le changement de statut, puis
+/// réalisé par le worker. Un envoi n'est jamais perdu, même si le serveur
+/// redémarre entre les deux.
+model EmailOutbox {
+  id                String       @id @default(uuid(7)) @db.Uuid
+  organizationId    String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind              String
+  entityType        String
+  entityId          String       @db.Uuid
+  to                String
+  replyTo           String?
+  subject           String
+  body              String
+  status            EmailStatus  @default(QUEUED)
+  attempts          Int          @default(0)
+  lastError         String?
+  providerMessageId String?
+  sentAt            DateTime?    @db.Timestamptz(3)
+  createdById       String?      @db.Uuid
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@index([organizationId, entityType, entityId])
+  @@index([status, createdAt])
+  @@map("email_outbox")
+}
+
+// ---------------------------------------------------------------------------
+// Assistant (voix + chat)
+// ---------------------------------------------------------------------------
+
+model AssistantConversation {
+  id                 String       @id @default(uuid(7)) @db.Uuid
+  organizationId     String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId             String       @db.Uuid
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title              String?
+  /// Rôle au démarrage : la liste d'outils (préfixe de la conversation) en
+  /// dépend ; si le rôle change, une nouvelle conversation est ouverte.
+  roleAtStart        Role
+  /// Résultats d'outils déjà exécutés, en attente de la confirmation d'une
+  /// autre action du même tour avant d'être renvoyés au modèle.
+  pendingToolResults Json?
+  lastActivityAt     DateTime     @default(now()) @db.Timestamptz(3)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(3)
+
+  messages AssistantMessage[]
+  actions  AssistantAction[]
+
+  @@index([userId, lastActivityAt(sort: Desc)])
+  @@map("assistant_conversations")
+}
+
+/// Historique en ajout seul : le contenu envoyé au modèle est conservé tel
+/// quel (blocs de réflexion compris) et n'est jamais réécrit.
+model AssistantMessage {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId String                @db.Uuid
+  conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  seq            Int
+  role           AssistantRole
+  content        Json
+  /// Texte tel que l'utilisateur l'a tapé ou dicté (messages utilisateur).
+  displayText    String?
+  inputMode      String?
+  /// Cartes et événements d'outils à réafficher dans l'historique.
+  uiEvents       Json?
+  model          String?
+  stopReason     String?
+  usage          Json?
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+
+  @@unique([conversationId, seq])
+  @@map("assistant_messages")
+}
+
+model AssistantAction {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId String                @db.Uuid
+  conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String                @db.Uuid
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolUseId      String
+  toolName       String
+  input          Json
+  title          String
+  details        Json
+  confirmLabel   String
+  status         PendingActionStatus   @default(PENDING)
+  result         Json?
+  error          String?
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+  resolvedAt     DateTime?             @db.Timestamptz(3)
+
+  @@index([conversationId, status])
+  @@map("assistant_actions")
+}
+
+/// Consommation de l'assistant par entreprise et par mois (quotas, facturation).
+model AiUsageMonth {
+  organizationId  String       @default(dbgenerated("app_current_org()")) @map("organization_id") @db.Uuid
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  month           String
+  requests        Int          @default(0)
+  inputTokens     BigInt       @default(0)
+  outputTokens    BigInt       @default(0)
+  cacheReadTokens BigInt       @default(0)
+
+  @@id([organizationId, month])
+  @@map("ai_usage_months")
+}

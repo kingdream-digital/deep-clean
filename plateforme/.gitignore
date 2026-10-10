@@ -1,0 +1,27 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+!.env.test.example
+*.log
+.DS_Store
+Thumbs.db
+
+# API
+apps/api/src/generated/
+apps/api/storage/
+apps/api/storage-test/
+
+# Expo
+apps/app/.expo/
+apps/app/web-build/
+apps/app/dist/
+apps/app/ios/
+apps/app/android/
+apps/app/expo-env.d.ts
+
+# Captures et rapports locaux
+infra/loadtest/results/

@@ -1,0 +1,54 @@
+# Dépendances locales de développement : PostgreSQL, Redis, Mailpit (boîte
+# mail de test : http://localhost:8025) et MinIO (stockage S3 local :
+# http://localhost:9001). L'API et l'app se lancent hors Docker (npm run dev:*).
+#
+#   docker compose up -d
+#   docker compose exec db psql -U postgres -f /docker-entrypoint-initdb.d/00-roles.sql   # (automatique au 1er démarrage)
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: aussitot
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: aussitot
+      MINIO_ROOT_PASSWORD: aussitot-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+volumes:
+  db-data:
+  redis-data:
+  minio-data:

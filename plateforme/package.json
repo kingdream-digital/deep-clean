@@ -1,0 +1,21 @@
+{
+  "name": "aussitot-plateforme",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Aussitôt — logiciel de gestion pour TPE/PME de services (propreté, entretien, multiservices), pilotable à la voix et par chat.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev:api": "npm run dev -w @aussitot/api",
+    "dev:worker": "npm run dev:worker -w @aussitot/api",
+    "dev:app": "npm run web -w @aussitot/app",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test -w @aussitot/shared && npm run test -w @aussitot/api",
+    "build:api": "npm run build -w @aussitot/api"
+  }
+}
