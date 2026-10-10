@@ -80,7 +80,8 @@ describe("planning et notifications", () => {
     });
     expect(res.statusCode).toBe(200);
 
-    const unread = async (s: Session) => (await api(app, s.token).get("/v1/notifications?unreadOnly=true")).json().items.map((n: { title: string }) => n.title);
+    const unread = async (s: Session) =>
+      (await api(app, s.token).get("/v1/notifications?unreadOnly=true")).json().items.map((n: { title: string }) => n.title);
     expect(await unread(alice)).toEqual(["L'horaire de votre mission a été modifié."]);
     expect(await unread(bruno)).toEqual(["Vous n'êtes plus affecté(e) à une mission."]);
     expect(await unread(chloe)).toContain("Une nouvelle mission vous a été attribuée.");

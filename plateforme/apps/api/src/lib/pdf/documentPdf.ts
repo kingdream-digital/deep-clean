@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import { formatDayLong, formatEuro, formatQuantity, formatVatRate, UNIT_SHORT, type Unit, type VatBreakdownEntry } from "@aussitot/shared";
+import { formatDayLong, formatEuro, formatQuantity, formatVatRate, unitShort, type Unit, type VatBreakdownEntry } from "@aussitot/shared";
 import type { ClientSnapshot, SellerSnapshot } from "../../modules/sales/snapshots.ts";
 
 /**
@@ -250,7 +250,7 @@ export async function renderDocumentPdf(data: PdfDocumentData): Promise<Buffer> 
         .fillColor(MUTED)
         .text(discountNote, cols.desc.x, doc.y + 1, { width: cols.desc.w });
     doc.font("Helvetica").fontSize(9).fillColor(INK);
-    doc.text(`${formatQuantity(line.quantity, { plain: true })} ${UNIT_SHORT[line.unit]}`, cols.qty.x, y + 4, {
+    doc.text(`${formatQuantity(line.quantity, { plain: true })} ${unitShort(line.unit, Math.abs(line.quantity))}`, cols.qty.x, y + 4, {
       width: cols.qty.w,
       align: "right",
     });
@@ -392,6 +392,8 @@ export async function renderDocumentPdf(data: PdfDocumentData): Promise<Buffer> 
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i += 1) {
     doc.switchToPage(i);
+    // Le pied de page est sous la marge basse : sans cela, PDFKit ouvrirait une page vide.
+    doc.page.margins.bottom = 0;
     doc.font("Helvetica").fontSize(7).fillColor(MUTED);
     doc.text(footer, LEFT, 842 - 40, { width: WIDTH - 60, lineBreak: false, height: 10, ellipsis: true });
     doc.text(`Page ${i + 1} / ${range.count}`, RIGHT - 60, 842 - 40, { width: 60, align: "right", lineBreak: false });

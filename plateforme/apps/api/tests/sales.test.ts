@@ -120,11 +120,22 @@ describe("factures", () => {
   it("enregistre les paiements partiels puis le solde", async () => {
     const invoice = await draft();
     await api(app, org.admin.token).post(`/v1/invoices/${invoice.id}/send`);
-    const partial = await api(app, org.admin.token).post(`/v1/invoices/${invoice.id}/payments`, { amountCents: 10000, paidOn: "2026-10-12", method: "TRANSFER" });
+    const partial = await api(app, org.admin.token).post(`/v1/invoices/${invoice.id}/payments`, {
+      amountCents: 10000,
+      paidOn: "2026-10-12",
+      method: "TRANSFER",
+    });
     expect(partial.json().status).toBe("PARTIALLY_PAID");
-    const tooMuch = await api(app, org.admin.token).post(`/v1/invoices/${invoice.id}/payments`, { amountCents: 999999, paidOn: "2026-10-12" });
+    const tooMuch = await api(app, org.admin.token).post(`/v1/invoices/${invoice.id}/payments`, {
+      amountCents: 999999,
+      paidOn: "2026-10-12",
+    });
     expect(tooMuch.statusCode).toBe(400);
-    const full = await api(app, org.admin.token).post(`/v1/invoices/${invoice.id}/payments`, { amountCents: 17000, paidOn: "2026-10-13", method: "CHECK" });
+    const full = await api(app, org.admin.token).post(`/v1/invoices/${invoice.id}/payments`, {
+      amountCents: 17000,
+      paidOn: "2026-10-13",
+      method: "CHECK",
+    });
     expect(full.json().status).toBe("PAID");
     expect(full.json().amountPaidCents).toBe(27000);
   });

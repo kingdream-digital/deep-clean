@@ -25,6 +25,12 @@ export const UNIT_WORDS: Record<Unit, [string, string]> = {
   KM: ["km", "km"],
 };
 
+/** Libellé court accordé (« 2 passages », « 1 forfait », « 3,5 h »). */
+export function unitShort(unit: Unit, quantity: number): string {
+  if (unit === "VISIT" || unit === "FLAT" || unit === "UNIT") return unitWord(unit, quantity);
+  return UNIT_SHORT[unit];
+}
+
 export function unitWord(unit: Unit, quantity: number): string {
   const [one, many] = UNIT_WORDS[unit];
   return Math.abs(quantity) >= 2 ? many : one;
