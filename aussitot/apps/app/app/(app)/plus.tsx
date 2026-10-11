@@ -53,7 +53,7 @@ export default function MoreScreen() {
         {can("org.update") ? (
           <ListRow
             title="Réglages de l'entreprise"
-            subtitle="Mentions légales, TVA, numérotation, logo"
+            subtitle="Logo et couleur, mentions légales, TVA, numérotation"
             icon={Settings}
             onPress={() => router.push("/reglages")}
             testID="more-settings"

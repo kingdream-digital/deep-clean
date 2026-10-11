@@ -43,6 +43,7 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   USER_ACCESS_RESET: "Accès réinitialisé",
   ORG_UPDATED: "Réglages de l'entreprise modifiés",
   ORG_LOGO_UPDATED: "Logo de l'entreprise modifié",
+  ORG_LOGO_REMOVED: "Logo de l'entreprise retiré",
   CLIENT_CREATED: "Client créé",
   CLIENT_UPDATED: "Client modifié",
   CLIENT_ARCHIVED: "Client archivé",

@@ -45,7 +45,15 @@ async function toSessionUser(
     email: user.email,
     role: user.role,
     mustChangePassword: user.mustChangePassword,
-    organization: { id: org.id, slug: org.slug, name: org.name, timezone: org.timezone, hasLogo: org.hasLogo, brandColor: org.brandColor },
+    organization: {
+      id: org.id,
+      slug: org.slug,
+      name: org.name,
+      timezone: org.timezone,
+      hasLogo: org.hasLogo,
+      logoVersion: org.logoVersion,
+      brandColor: org.brandColor,
+    },
   };
 }
 

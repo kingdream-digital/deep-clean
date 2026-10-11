@@ -51,7 +51,11 @@ export const endpoints = {
   organization: {
     get: () => api.get<OrganizationDto>("/v1/organization"),
     update: (input: OrganizationSettingsInput) => api.put<OrganizationDto>("/v1/organization", input),
-    logoUrl: () => `${API_URL}/v1/organization/logo`,
+    /** Logo actuel (fichier privé, lu avec la session). */
+    logo: () => request<Blob>("GET", "/v1/organization/logo", { raw: true }),
+    removeLogo: () => api.delete<OrganizationDto>("/v1/organization/logo"),
+    /** Document fictif mis en page avec le logo et la couleur enregistrés. */
+    previewPath: (kind: "quote" | "invoice") => `/v1/organization/document-preview?kind=${kind}`,
   },
   users: {
     list: (q?: string, includeInactive?: boolean) => api.get<UserDto[]>(`/v1/users${qs({ q, includeInactive })}`),

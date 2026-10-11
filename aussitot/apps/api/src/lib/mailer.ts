@@ -9,7 +9,8 @@ export interface OutgoingMail {
   subject: string;
   text: string;
   html: string;
-  attachments?: { filename: string; content: Buffer; contentType: string }[];
+  /** `cid` : image intégrée au corps de l'email (logo de l'entreprise). */
+  attachments?: { filename: string; content: Buffer; contentType: string; cid?: string }[];
 }
 
 /** Boîte d'envoi des tests (aucun email réel n'est envoyé pendant les tests). */

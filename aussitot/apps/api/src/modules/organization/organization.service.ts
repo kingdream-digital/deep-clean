@@ -1,11 +1,25 @@
 import sharp from "sharp";
-import { can, organizationSettingsSchema, type OrganizationDto, type OrganizationSettingsInput } from "@aussitot/shared";
+import {
+  addDays,
+  can,
+  computeTotals,
+  lineTotalHtCents,
+  organizationSettingsSchema,
+  PREVIEW_CLIENT_NAME,
+  previewDocumentLines,
+  type OrganizationDto,
+  type OrganizationSettingsInput,
+} from "@aussitot/shared";
 import { env } from "../../config/env.ts";
 import { withTenant } from "../../lib/db.ts";
 import { AppError, assertFound } from "../../lib/errors.ts";
 import { requirePermission, type Ctx } from "../../lib/context.ts";
 import { logActivity } from "../../lib/audit.ts";
-import { invalidateOrg } from "../../lib/orgCache.ts";
+import { invalidateOrg, logoVersionOf } from "../../lib/orgCache.ts";
+import { logoAccentColor } from "../../lib/logoColor.ts";
+import { renderDocumentPdf, type PdfDocumentKind } from "../../lib/pdf/documentPdf.ts";
+import { todayIn } from "../../lib/time.ts";
+import { sellerSnapshot } from "../sales/snapshots.ts";
 import { getOrThrow, orgKey, storage } from "../../lib/storage.ts";
 import { parse } from "../../lib/validate.ts";
 import type { Organization } from "../../generated/prisma/client.ts";
@@ -44,6 +58,8 @@ export function toOrganizationDto(org: Organization): OrganizationDto {
     brandColor: org.brandColor,
     emailSignature: org.emailSignature,
     hasLogo: Boolean(org.logoKey),
+    logoVersion: logoVersionOf(org.logoKey),
+    logoColor: org.logoKey ? org.logoColor : null,
     plan: org.plan,
     assistantEnabled: org.assistantMonthlyQuota > 0 && Boolean(env.ANTHROPIC_API_KEY),
   };
@@ -80,27 +96,86 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 export async function updateLogo(ctx: Ctx, data: Buffer): Promise<OrganizationDto> {
   requirePermission(ctx, "org.update");
   if (data.length > MAX_LOGO_BYTES) throw AppError.badRequest("Le logo ne doit pas dépasser 2 Mo.");
+  const encode = (trim: boolean) => {
+    const image = sharp(data, { limitInputPixels: 40_000_000 }).rotate();
+    // Marges vides (fond transparent ou uni) retirées : le logo s'aligne au bord du document.
+    if (trim) image.trim({ threshold: 12 });
+    return image.resize({ width: 800, height: 400, fit: "inside", withoutEnlargement: true }).png({ compressionLevel: 9 }).toBuffer();
+  };
   let png: Buffer;
   try {
-    png = await sharp(data, { limitInputPixels: 40_000_000 })
-      .rotate()
-      .resize({ width: 800, height: 400, fit: "inside", withoutEnlargement: true })
-      .png({ compressionLevel: 9 })
-      .toBuffer();
+    png = await encode(true).catch(() => encode(false));
   } catch {
     throw AppError.badRequest("Image illisible. Utilisez un fichier PNG, JPEG ou WebP.");
   }
+  const logoColor = await logoAccentColor(png).catch(() => null);
   const key = orgKey(ctx.orgId, "branding", `logo-${Date.now()}.png`);
   await storage.put(key, png, "image/png");
-  const { org, previous } = await withTenant(ctx.orgId, async (tx) => {
-    const before = await tx.organization.findUnique({ where: { id: ctx.orgId }, select: { logoKey: true } });
-    const updated = await tx.organization.update({ where: { id: ctx.orgId }, data: { logoKey: key } });
+  // L'ancien fichier n'est PAS supprimé : les devis envoyés et les factures
+  // émises le référencent (coordonnées figées) et doivent rester identiques
+  // à ce qu'a reçu le client, même après un changement de logo.
+  const org = await withTenant(ctx.orgId, async (tx) => {
+    const updated = await tx.organization.update({ where: { id: ctx.orgId }, data: { logoKey: key, logoColor } });
     await logActivity(tx, ctx, "ORG_LOGO_UPDATED", { type: "organization", id: ctx.orgId });
-    return { org: updated, previous: before?.logoKey ?? null };
+    return updated;
   });
-  if (previous) await storage.delete(previous).catch(() => undefined);
   await invalidateOrg(ctx.orgId);
   return toOrganizationDto(org);
+}
+
+/** Retire le logo des PROCHAINS documents (les documents déjà transmis gardent le leur). */
+export async function removeLogo(ctx: Ctx): Promise<OrganizationDto> {
+  requirePermission(ctx, "org.update");
+  const org = await withTenant(ctx.orgId, async (tx) => {
+    const updated = await tx.organization.update({ where: { id: ctx.orgId }, data: { logoKey: null, logoColor: null } });
+    await logActivity(tx, ctx, "ORG_LOGO_REMOVED", { type: "organization", id: ctx.orgId });
+    return updated;
+  });
+  await invalidateOrg(ctx.orgId);
+  return toOrganizationDto(org);
+}
+
+/**
+ * Aperçu de mise en page : un devis ou une facture FICTIFS, rendus avec le
+ * logo, la couleur et les mentions actuelles de l'entreprise, pour juger du
+ * résultat avant d'envoyer de vrais documents. Rien n'est enregistré ni numéroté.
+ */
+export async function renderDocumentPreview(ctx: Ctx, kind: PdfDocumentKind): Promise<{ filename: string; buffer: Buffer }> {
+  requirePermission(ctx, "org.update");
+  const org = await withTenant(ctx.orgId, (tx) => tx.organization.findUniqueOrThrow({ where: { id: ctx.orgId } }));
+  const seller = sellerSnapshot(org);
+  const vatExempt = org.vatRegime === "FRANCHISE";
+  const lines = previewDocumentLines(vatExempt ? 0 : org.defaultVatRateBps);
+  const totals = computeTotals(lines, { vatExempt });
+  const today = todayIn(org.timezone);
+  const logo = org.logoKey ? await storage.get(org.logoKey).catch(() => null) : null;
+  const buffer = await renderDocumentPdf({
+    kind,
+    number: "EXEMPLE",
+    title: "Aperçu de mise en page — document fictif, sans valeur",
+    issueDate: today,
+    secondaryDate: kind === "QUOTE" ? addDays(today, org.quoteValidityDays) : addDays(today, org.paymentTermsDays),
+    seller,
+    client: {
+      kind: "COMPANY",
+      name: PREVIEW_CLIENT_NAME,
+      contactName: "Camille Martin",
+      email: "contact@client-exemple.example",
+      phone: null,
+      addressLines: ["10 rue de l'Exemple", "69002 Lyon"],
+      siren: null,
+      siret: null,
+      vatNumber: null,
+    },
+    lines: lines.map((l) => ({ ...l, totalHtCents: lineTotalHtCents(l) })),
+    subtotalCents: totals.subtotalCents,
+    vatBreakdown: totals.vatBreakdown,
+    totalCents: totals.totalCents,
+    vatExempt,
+    notes: "Ce document est un exemple généré pour vérifier la mise en page (logo, couleur, mentions). Il n'a aucune valeur.",
+    logo,
+  });
+  return { filename: `Apercu-${kind === "QUOTE" ? "devis" : "facture"}.pdf`, buffer };
 }
 
 export async function getLogo(ctx: Ctx): Promise<Buffer> {

@@ -15,6 +15,15 @@ export interface PressableScaleProps extends Omit<PressableProps, "style" | "chi
   pressedStyle?: StyleProp<ViewStyle>;
 }
 
+/** Web : anneau seulement pour la navigation au clavier (« :focus-visible »), pas après un clic. */
+function isFocusVisible(target: unknown): boolean {
+  try {
+    return (target as { matches?: (selector: string) => boolean }).matches?.(":focus-visible") ?? true;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Surface pressable : léger enfoncement au toucher (ressort court), retour
  * haptique sur téléphone, anneau de focus visible au clavier sur le web.
@@ -59,7 +68,7 @@ export function PressableScale({
         }
         onPress?.(e);
       }}
-      onFocus={() => setFocused(true)}
+      onFocus={(event) => setFocused(Platform.OS !== "web" || isFocusVisible(event.target))}
       onBlur={() => setFocused(false)}
       style={[
         style,

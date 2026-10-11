@@ -5,7 +5,8 @@ import type { AfterCommit } from "../../lib/afterCommit.ts";
 import { enqueueEmail } from "../../lib/queue.ts";
 import { MailNotConfiguredError, sendMail } from "../../lib/mailer.ts";
 import { logger } from "../../lib/logger.ts";
-import { toHtml } from "./templates.ts";
+import { LOGO_CID, toHtml } from "./templates.ts";
+import { storage } from "../../lib/storage.ts";
 import { renderInvoicePdfFor } from "../invoices/invoices.pdf.ts";
 import { renderQuotePdfFor } from "../quotes/quotes.pdf.ts";
 
@@ -76,18 +77,23 @@ export async function deliverQueuedEmail(
 
   try {
     const org = await withTenant(orgId, (tx) =>
-      tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { name: true, brandColor: true } }),
+      tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { name: true, brandColor: true, logoKey: true } }),
     );
     const pdf =
       email.entityType === "quote" ? await renderQuotePdfFor(orgId, email.entityId) : await renderInvoicePdfFor(orgId, email.entityId);
+    // Logo de l'entreprise en tête de l'email (intégré, pas un lien vers un fichier public).
+    const logo = org.logoKey ? await storage.get(org.logoKey).catch(() => null) : null;
     const result = await sendMail({
       fromName: org.name,
       replyTo: email.replyTo,
       to: email.to,
       subject: email.subject,
       text: email.body,
-      html: toHtml(email.body, org.brandColor, org.name),
-      attachments: [{ filename: pdf.filename, content: pdf.buffer, contentType: "application/pdf" }],
+      html: toHtml(email.body, org.brandColor, org.name, Boolean(logo)),
+      attachments: [
+        { filename: pdf.filename, content: pdf.buffer, contentType: "application/pdf" },
+        ...(logo ? [{ filename: "logo.png", content: logo, contentType: "image/png", cid: LOGO_CID }] : []),
+      ],
     });
     await withTenant(orgId, (tx) =>
       tx.emailOutbox.update({

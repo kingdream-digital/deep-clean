@@ -8,27 +8,36 @@ import { endpoints, fetchPrivateFile } from "@/api/endpoints";
  * Ouvre le PDF d'un devis ou d'une facture. Le fichier n'a pas d'adresse
  * publique : il est téléchargé avec le jeton de la session, puis affiché
  * (ordinateur) ou proposé au partage (téléphone : email, WhatsApp, Fichiers…).
+ * `prepare` s'exécute avant le téléchargement (ex. : enregistrer les réglages
+ * dont l'aperçu dépend) ; s'il échoue, rien n'est ouvert.
  */
-export async function openPdf(path: string, fileName: string): Promise<void> {
-  // Garantit un jeton d'accès frais (renouvelé automatiquement si besoin).
-  await endpoints.auth.me();
-
+export async function openPdf(path: string, fileName: string, prepare?: () => Promise<unknown>): Promise<void> {
   if (Platform.OS === "web") {
-    // Fenêtre ouverte tout de suite (sinon bloquée comme fenêtre surgissante), remplie une fois le fichier reçu.
+    // Fenêtre ouverte tout de suite, pendant le clic (sinon bloquée comme fenêtre surgissante), remplie une fois le fichier reçu.
     const win = typeof window !== "undefined" ? window.open("", "_blank") : null;
-    const blob = await fetchPrivateFile(path);
-    const url = URL.createObjectURL(blob);
-    if (win) win.location.href = url;
-    else {
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      link.click();
+    try {
+      if (prepare) await prepare();
+      // Garantit un jeton d'accès frais (renouvelé automatiquement si besoin).
+      await endpoints.auth.me();
+      const blob = await fetchPrivateFile(path);
+      const url = URL.createObjectURL(blob);
+      if (win) win.location.href = url;
+      else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        link.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      win?.close();
+      throw err;
     }
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
     return;
   }
 
+  if (prepare) await prepare();
+  await endpoints.auth.me();
   const target = new File(Paths.cache, fileName.replace(/[^\w.\-]+/g, "_"));
   const file = await File.downloadFileAsync(`${API_URL}${path}`, target, {
     headers: { authorization: `Bearer ${getAccessToken() ?? ""}`, accept: "application/pdf" },

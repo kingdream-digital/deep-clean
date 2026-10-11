@@ -10,6 +10,8 @@ import { IconButton } from "./IconButton";
 import { OfflineBanner } from "./OfflineBanner";
 
 export interface ScreenProps {
+  /** Au-dessus du titre (ex. : logo de l'entreprise sur l'accueil du téléphone). */
+  eyebrow?: ReactNode;
   title?: string;
   subtitle?: string | ReactNode;
   /** Titre compact avec bouton retour (écrans de détail). */
@@ -32,6 +34,7 @@ export interface ScreenProps {
  * tirer-pour-actualiser, bandeau hors connexion.
  */
 export function Screen({
+  eyebrow,
   title,
   subtitle,
   back,
@@ -68,6 +71,7 @@ export function Screen({
           ) : null}
         </View>
       ) : null}
+      {eyebrow ? <View style={{ marginBottom: 8 }}>{eyebrow}</View> : null}
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
         <View style={{ flex: 1, gap: 4 }}>
           <Text variant={back ? "title1" : "display"} accessibilityRole="header" numberOfLines={3}>

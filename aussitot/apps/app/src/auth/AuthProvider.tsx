@@ -15,6 +15,8 @@ interface AuthValue {
   login: (input: { organization: string; identifier: string; password: string; rememberMe: boolean }) => Promise<SessionUserDto>;
   logout: () => Promise<void>;
   changePassword: (current: string, next: string) => Promise<void>;
+  /** Relit la session (après un changement de nom, de logo ou de couleur de l'entreprise). */
+  reloadUser: () => Promise<void>;
   can: (permission: Permission) => boolean;
 }
 
@@ -87,6 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me);
   }, []);
 
+  const reloadUser = useCallback(async () => {
+    setUser(await endpoints.auth.me());
+  }, []);
+
   const value = useMemo<AuthValue>(
     () => ({
       status,
@@ -95,9 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       changePassword,
+      reloadUser,
       can: (permission) => (user ? can(user.role, permission) : false),
     }),
-    [status, user, lastOrganization, login, logout, changePassword],
+    [status, user, lastOrganization, login, logout, changePassword, reloadUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

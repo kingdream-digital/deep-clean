@@ -7,6 +7,7 @@ import { AudioLines, ChevronRight } from "lucide-react-native";
 import { BRAND, ROLE_LABELS } from "@aussitot/shared";
 import { useAuth } from "@/auth/AuthProvider";
 import { useAssistantSession } from "@/assistant/AssistantProvider";
+import { CompanyLogo } from "@/features/branding/CompanyLogo";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Avatar, PressableScale, Text, Wordmark } from "@/ui";
 import { NAV_ITEMS, isActive } from "./items";
@@ -50,11 +51,10 @@ export function Sidebar() {
         paddingBottom: 14,
       }}
     >
-      <View style={{ paddingHorizontal: 22, gap: 6, marginBottom: 22 }}>
+      <View style={{ paddingHorizontal: 22, gap: 10, marginBottom: 22 }}>
         <Wordmark size={20} />
-        <Text variant="footnote" tone="tertiary" numberOfLines={1}>
-          {user.organization.name}
-        </Text>
+        {/* L'entreprise : son logo (choisi dans les réglages), sinon son nom. */}
+        <CompanyLogo organization={user.organization} height={28} maxWidth={200} fallback="name" />
       </View>
 
       <View style={{ paddingHorizontal: 14 }}>

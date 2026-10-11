@@ -26,3 +26,6 @@ apps/app/expo-env.d.ts
 
 # Captures et rapports locaux
 infra/loadtest/results/
+
+# Instantanés Redis locaux
+dump.rdb

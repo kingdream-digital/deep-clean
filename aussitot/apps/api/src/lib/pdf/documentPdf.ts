@@ -1,5 +1,15 @@
 import PDFDocument from "pdfkit";
-import { formatDayLong, formatEuro, formatQuantity, formatVatRate, unitShort, type Unit, type VatBreakdownEntry } from "@aussitot/shared";
+import {
+  brandTextOnWhite,
+  formatDayLong,
+  formatEuro,
+  formatQuantity,
+  formatVatRate,
+  readableTextOn,
+  unitShort,
+  type Unit,
+  type VatBreakdownEntry,
+} from "@aussitot/shared";
 import type { ClientSnapshot, SellerSnapshot } from "../../modules/sales/snapshots.ts";
 
 /**
@@ -72,7 +82,12 @@ function legalFooter(seller: SellerSnapshot): string {
 }
 
 export async function renderDocumentPdf(data: PdfDocumentData): Promise<Buffer> {
+  // Couleur de l'entreprise : aplats à sa couleur exacte ; textes ajustés pour rester lisibles.
   const accent = data.seller.brandColor ?? DEFAULT_ACCENT;
+  const accentText = brandTextOnWhite(accent, INK);
+  const onAccent = readableTextOn(accent, INK);
+  // Petits intitulés : même exigence que le texte courant (4,5:1), donc la couleur seulement si le blanc y est lisible.
+  const accentSmallText = onAccent === "#FFFFFF" ? accent : INK;
   const doc = new PDFDocument({
     size: "A4",
     margins: { top: 48, bottom: 48, left: LEFT, right: 595 - RIGHT },
@@ -102,7 +117,7 @@ export async function renderDocumentPdf(data: PdfDocumentData): Promise<Buffer> 
   doc
     .font("Helvetica-Bold")
     .fontSize(22)
-    .fillColor(accent)
+    .fillColor(accentText)
     .text(TITLES[data.kind], 300, 44, { width: RIGHT - 300, align: "right", characterSpacing: 1.5 });
   doc
     .font("Helvetica-Bold")
@@ -304,7 +319,7 @@ export async function renderDocumentPdf(data: PdfDocumentData): Promise<Buffer> 
   doc
     .font("Helvetica-Bold")
     .fontSize(10.5)
-    .fillColor("#FFFFFF")
+    .fillColor(onAccent)
     .text(data.vatExempt ? "Total" : "Total TTC", tx + 4, y + 12, { width: tw * 0.5 });
   doc.text(euro(data.totalCents), tx + tw * 0.4, y + 12, { width: tw * 0.6 - 8, align: "right" });
   y += 42;
@@ -356,7 +371,7 @@ export async function renderDocumentPdf(data: PdfDocumentData): Promise<Buffer> 
     doc
       .font("Helvetica-Bold")
       .fontSize(8)
-      .fillColor(accent)
+      .fillColor(accentSmallText)
       .text(title.toUpperCase(), LEFT + 14, y + 11, { characterSpacing: 0.6 });
     doc
       .font("Helvetica")

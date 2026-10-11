@@ -21,7 +21,13 @@ export interface OrgBasics {
   assistantMonthlyQuota: number;
   seatLimit: number;
   hasLogo: boolean;
+  logoVersion: string | null;
   brandColor: string | null;
+}
+
+/** Identifiant de version d'un logo (nom du fichier, horodaté à chaque envoi). */
+export function logoVersionOf(logoKey: string | null): string | null {
+  return logoKey ? (logoKey.split("/").pop() ?? logoKey).replace(/\.png$/, "") : null;
 }
 
 const TTL_MS = 30_000;
@@ -45,6 +51,7 @@ export async function getOrgBasics(orgId: string): Promise<OrgBasics> {
     assistantMonthlyQuota: org.assistantMonthlyQuota,
     seatLimit: org.seatLimit,
     hasLogo: Boolean(org.logoKey),
+    logoVersion: logoVersionOf(org.logoKey),
     brandColor: org.brandColor,
   };
   cache.set(orgId, { value, expiresAt: Date.now() + TTL_MS });

@@ -176,6 +176,8 @@ model Organization {
   emailSignature    String?
   /// Clé de stockage du logo (jamais une URL publique).
   logoKey           String?
+  /// Couleur dominante du logo (« #RRGGBB »), proposée comme couleur des documents.
+  logoColor         String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)

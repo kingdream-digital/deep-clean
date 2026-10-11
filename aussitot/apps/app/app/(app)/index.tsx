@@ -9,6 +9,7 @@ import { AssistantHero } from "@/assistant/AssistantHero";
 import { DirectionsButton, MissionCard } from "@/features/missions/MissionCard";
 import { MetricTile } from "@/features/MetricTile";
 import { MissionStatusBadge } from "@/features/status";
+import { CompanyLogo } from "@/features/branding/CompanyLogo";
 import { greeting } from "@/lib/format";
 import { useBreakpoint, useTheme } from "@/theme/ThemeProvider";
 import {
@@ -77,6 +78,10 @@ export default function HomeScreen() {
 
   return (
     <Screen
+      eyebrow={
+        // Téléphone : le logo de l'entreprise en tête de l'accueil (sur ordinateur, il est dans la barre latérale).
+        isCompact && user ? <CompanyLogo organization={user.organization} height={26} maxWidth={170} fallback="none" /> : undefined
+      }
       title={`${greeting()} ${user?.firstName ?? ""}`.trim()}
       subtitle={subtitle}
       actions={headerActions}

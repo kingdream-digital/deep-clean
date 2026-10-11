@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Image, Platform, View } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImageUp, Sparkles } from "lucide-react-native";
+import { Sparkles } from "lucide-react-native";
 import {
   formatVatRate,
   organizationSettingsSchema,
@@ -11,10 +10,10 @@ import {
   type OrganizationSettingsInput,
   type VatRegime,
 } from "@aussitot/shared";
-import { endpoints, uploadLogo } from "@/api/endpoints";
+import { endpoints } from "@/api/endpoints";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
-import { useOrgLogo } from "@/lib/logo";
+import { BrandingSection } from "@/features/branding/BrandingSection";
 import { useBreakpoint, useTheme } from "@/theme/ThemeProvider";
 import {
   AccessDenied,
@@ -98,19 +97,19 @@ function toInput(form: Form): OrganizationSettingsInput {
 }
 
 /**
- * Réglages de l'entreprise (administrateur du compte) : ce qui figure sur les
- * devis et factures (mentions légales obligatoires), TVA, délais, numérotation, logo.
+ * Réglages de l'entreprise (administrateur du compte) : son identité visuelle
+ * (logo, couleur) et ce qui figure sur les devis et factures (mentions légales
+ * obligatoires), TVA, délais, numérotation.
  */
 export default function SettingsScreen() {
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
   const { isWide } = useBreakpoint();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { can } = useAuth();
+  const { can, reloadUser } = useAuth();
   const org = useQuery({ queryKey: ["organization"], queryFn: endpoints.organization.get });
   const [form, setForm] = useState<Form | null>(null);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
-  const logo = useOrgLogo(Boolean(org.data?.hasLogo), org.dataUpdatedAt.toString());
 
   useEffect(() => {
     if (org.data && !form) setForm(toForm(org.data));
@@ -122,30 +121,15 @@ export default function SettingsScreen() {
       queryClient.setQueryData(["organization"], updated);
       setForm(toForm(updated));
       toast("Réglages enregistrés");
+      // Nom et couleur affichés dans la navigation.
+      void reloadUser().catch(() => undefined);
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.details) setErrors(Object.fromEntries(Object.entries(err.details).map(([k, v]) => [k, v[0]])));
-      else toast(err instanceof ApiError ? err.message : "Enregistrement impossible.", "error");
+      if (err instanceof ApiError && err.details) {
+        setErrors(Object.fromEntries(Object.entries(err.details).map(([k, v]) => [k, v[0]])));
+        toast("Certains champs sont à corriger.", "error");
+      } else toast(err instanceof ApiError ? err.message : "Enregistrement impossible.", "error");
     },
-  });
-  const upload = useMutation({
-    mutationFn: async () => {
-      const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.9, allowsMultipleSelection: false });
-      if (picked.canceled || !picked.assets[0]) return null;
-      const asset = picked.assets[0];
-      return uploadLogo({
-        uri: asset.uri,
-        name: asset.fileName ?? "logo.png",
-        type: asset.mimeType ?? "image/png",
-        webFile: Platform.OS === "web" ? (asset.file ?? undefined) : undefined,
-      });
-    },
-    onSuccess: (updated) => {
-      if (!updated) return;
-      queryClient.setQueryData(["organization"], updated);
-      toast("Logo mis à jour : il figure sur vos prochains devis et factures");
-    },
-    onError: (err) => toast(err instanceof ApiError ? err.message : "Le logo n'a pas pu être envoyé.", "error"),
   });
 
   if (!can("org.update")) {
@@ -178,7 +162,8 @@ export default function SettingsScreen() {
   );
   const row = (children: React.ReactNode) => <View style={{ flexDirection: isWide ? "row" : "column", gap: 16 }}>{children}</View>;
 
-  const submit = () => {
+  /** Vérifie puis enregistre ; false si un champ est à corriger ou si l'enregistrement échoue (erreur affichée). */
+  const saveForm = async (): Promise<boolean> => {
     const input = toInput(form);
     const parsed = organizationSettingsSchema.safeParse(input);
     if (!parsed.success) {
@@ -186,13 +171,17 @@ export default function SettingsScreen() {
       for (const issue of parsed.error.issues) next[String(issue.path[0])] ??= issue.message;
       setErrors(next);
       toast("Certains champs sont à corriger.", "error");
-      return;
+      return false;
     }
     setErrors({});
-    save.mutate(input);
+    return save.mutateAsync(input).then(
+      () => true,
+      () => false,
+    );
   };
 
   const franchise = form.vatRegime === "FRANCHISE";
+  const dirty = JSON.stringify(toInput(form)) !== JSON.stringify(toInput(toForm(org.data)));
 
   return (
     <Screen
@@ -200,47 +189,26 @@ export default function SettingsScreen() {
       subtitle="Ces informations figurent sur vos devis et factures."
       maxWidth={880}
       footer={
-        <Button label="Enregistrer les réglages" size="lg" fullWidth loading={save.isPending} onPress={submit} testID="settings-save" />
+        <Button
+          label="Enregistrer les réglages"
+          size="lg"
+          fullWidth
+          loading={save.isPending}
+          onPress={() => void saveForm()}
+          testID="settings-save"
+        />
       }
       testID="settings"
     >
-      <Card padding={18}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-          <View
-            style={{
-              width: 120,
-              height: 64,
-              borderRadius: radius.md,
-              backgroundColor: colors.surfaceMuted,
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-            }}
-          >
-            {logo ? (
-              <Image source={logo} style={{ width: 112, height: 56 }} resizeMode="contain" accessibilityLabel="Logo de l'entreprise" />
-            ) : (
-              <Text variant="footnote" tone="tertiary">
-                Pas de logo
-              </Text>
-            )}
-          </View>
-          <View style={{ flex: 1, gap: 8 }}>
-            <Text variant="headline">Logo</Text>
-            <Text variant="footnote" tone="secondary">
-              PNG, JPEG ou WebP, 2 Mo au plus. Affiché en tête des documents.
-            </Text>
-            <Button
-              label={org.data.hasLogo ? "Changer le logo" : "Ajouter un logo"}
-              icon={ImageUp}
-              size="sm"
-              variant="secondary"
-              loading={upload.isPending}
-              onPress={() => upload.mutate()}
-            />
-          </View>
-        </View>
-      </Card>
+      <SectionTitle title="Identité visuelle" />
+      <BrandingSection
+        organization={org.data}
+        draft={form}
+        onColorChange={set("brandColor")}
+        colorError={errors.brandColor}
+        dirty={dirty}
+        saveDraft={saveForm}
+      />
 
       <SectionTitle title="Identité" />
       {row(
@@ -371,23 +339,6 @@ export default function SettingsScreen() {
         onChange={(v) => v && set("timezone")(v)}
         error={errors.timezone}
       />
-      {row(
-        <>
-          {field("brandColor", "Couleur de marque (documents)", { placeholder: "#2347F5", autoCapitalize: "none" })}
-          <View
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: radius.md,
-              marginTop: isWide ? 25 : 0,
-              backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(form.brandColor) ? form.brandColor : colors.surfaceMuted,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-            accessibilityLabel="Aperçu de la couleur"
-          />
-        </>,
-      )}
       {field("emailSignature", "Signature des emails", { multiline: true })}
 
       <Card padding={16}>

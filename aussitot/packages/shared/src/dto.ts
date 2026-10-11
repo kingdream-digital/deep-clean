@@ -1,15 +1,6 @@
 import type { Role } from "./roles";
 import type { Unit } from "./catalog";
-import type {
-  ClientKind,
-  EmailStatus,
-  InvoiceKind,
-  InvoiceStatus,
-  MissionStatus,
-  PaymentMethod,
-  QuoteStatus,
-  VatRegime,
-} from "./statuses";
+import type { ClientKind, EmailStatus, InvoiceKind, InvoiceStatus, MissionStatus, PaymentMethod, QuoteStatus, VatRegime } from "./statuses";
 import type { VatBreakdownEntry } from "./money";
 
 /**
@@ -55,6 +46,10 @@ export interface OrganizationDto {
   brandColor: string | null;
   emailSignature: string | null;
   hasLogo: boolean;
+  /** Change à chaque nouveau logo (rafraîchissement des images en cache). */
+  logoVersion: string | null;
+  /** Couleur dominante du logo, proposée comme couleur des documents (null : logo en noir et blanc, ou pas de logo). */
+  logoColor: string | null;
   plan: string;
   assistantEnabled: boolean;
 }
@@ -67,7 +62,15 @@ export interface SessionUserDto {
   email: string | null;
   role: Role;
   mustChangePassword: boolean;
-  organization: { id: string; slug: string; name: string; timezone: string; hasLogo: boolean; brandColor: string | null };
+  organization: {
+    id: string;
+    slug: string;
+    name: string;
+    timezone: string;
+    hasLogo: boolean;
+    logoVersion: string | null;
+    brandColor: string | null;
+  };
 }
 
 export interface AuthResponseDto {

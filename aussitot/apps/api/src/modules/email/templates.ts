@@ -88,8 +88,14 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/** Version HTML (texte échappé : aucun contenu saisi ne peut injecter de balise). */
-export function toHtml(text: string, brandColor: string | null, orgName: string): string {
+/** Identifiant de l'image du logo intégrée aux emails (pièce jointe « inline »). */
+export const LOGO_CID = "logo@aussitot";
+
+/**
+ * Version HTML (texte échappé : aucun contenu saisi ne peut injecter de
+ * balise), aux couleurs de l'entreprise et avec son logo s'il existe.
+ */
+export function toHtml(text: string, brandColor: string | null, orgName: string, withLogo = false): string {
   const accent = brandColor ?? "#2347F5";
   const paragraphs = text
     .split(/\n{2,}/)
@@ -99,6 +105,7 @@ export function toHtml(text: string, brandColor: string | null, orgName: string)
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:14px;overflow:hidden">
 <tr><td style="height:4px;background:${accent}"></td></tr>
+${withLogo ? `<tr><td style="padding:24px 28px 0"><img src="cid:${LOGO_CID}" alt="${escapeHtml(orgName)}" height="44" style="display:block;height:44px;max-width:220px;border:0"></td></tr>` : ""}
 <tr><td style="padding:28px 28px 8px;font-size:15px">${paragraphs}</td></tr>
 <tr><td style="padding:0 28px 24px;font-size:12px;color:#64748B">${escapeHtml(orgName)} · document joint au format PDF</td></tr>
 </table></td></tr></table></body></html>`;
