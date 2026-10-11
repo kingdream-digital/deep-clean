@@ -1,7 +1,7 @@
 /**
  * Rôles d'un compte au sein d'UNE entreprise cliente (un même rôle n'a
  * jamais de droit sur une autre entreprise : l'isolation est assurée par la
- * base de données, voir apps/api/prisma/rls.sql).
+ * base de données : politiques RLS de apps/api/prisma/migrations/*_init).
  *
  * Repris de Deep Clean (employé, chef d'équipe, superviseur, RH, direction),
  * plus « Administrateur » : la personne qui a souscrit l'abonnement — dans une

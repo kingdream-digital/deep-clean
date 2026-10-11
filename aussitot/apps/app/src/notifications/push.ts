@@ -28,7 +28,7 @@ export async function registerPushNotifications(): Promise<void> {
     await Notifications.setNotificationChannelAsync("default", { name: "Activité", importance: Notifications.AndroidImportance.HIGH });
   }
   const projectId = (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId;
-  if (!projectId) return; // projet EAS non configuré (voir README) : pas de push, le reste fonctionne
+  if (!projectId) return; // projet EAS non configuré (voir docs/DEPLOIEMENT.md) : pas de push, le reste fonctionne
   const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
   registeredToken = data;
   await endpoints.notifications.registerPushToken(data, Platform.OS === "ios" ? "ios" : "android");

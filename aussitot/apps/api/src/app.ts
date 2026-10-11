@@ -4,7 +4,7 @@ import helmet from "@fastify/helmet";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "./config/env.ts";
 import { logger } from "./lib/logger.ts";
 import { AppError } from "./lib/errors.ts";
@@ -25,6 +25,13 @@ function rateLimitKey(request: { headers: Record<string, unknown>; ip: string })
     return "t:" + createHash("sha256").update(auth).digest("base64url").slice(0, 22);
   }
   return "ip:" + request.ip;
+}
+
+/** Comparaison en temps constant (jetons d'accès techniques). */
+function sameSecret(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -104,8 +111,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     return { status: db && cache ? "ready" : "degraded", database: db, redis: cache };
   });
   app.get("/metrics", { config: { rateLimit: false } }, async (request, reply) => {
-    const token = process.env.METRICS_TOKEN;
-    if (token && request.headers.authorization !== `Bearer ${token}`) throw AppError.notFound();
+    // Métriques internes : jeton dédié exigé s'il est défini ; en production, désactivées sans jeton.
+    const token = env.METRICS_TOKEN;
+    if (token ? !sameSecret(request.headers.authorization ?? "", `Bearer ${token}`) : env.isProduction) throw AppError.notFound();
     reply.type(registry.contentType);
     return registry.metrics();
   });

@@ -43,6 +43,8 @@ const envSchema = z.object({
 
   /** Jeton de l'opérateur de la plateforme (création d'entreprises clientes). */
   PLATFORM_ADMIN_TOKEN: z.string().min(32).optional(),
+  /** Accès à /metrics (Prometheus). En production, sans ce jeton, /metrics est désactivé. */
+  METRICS_TOKEN: z.string().min(32).optional(),
 
   // Assistant (Claude)
   ANTHROPIC_API_KEY: z.string().optional(),

@@ -17,6 +17,7 @@ x-api-env: &api-env
   REDIS_URL: redis://redis:6379/0
   JWT_SECRET: ${JWT_SECRET:?}
   PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:?}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
   APP_URL: https://${APP_DOMAIN:?}
   CORS_ORIGINS: https://${APP_DOMAIN:?}
   TRUST_PROXY: "true"
