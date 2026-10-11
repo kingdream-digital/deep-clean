@@ -76,7 +76,7 @@ Ajouter un outil : `defineTool({ name, description, input: schéma zod, permissi
 
 ## Dictée vocale : prérequis
 
-- **iOS / Android** : la dictée utilise un module natif, absent d'Expo Go. Il faut une version de développement ou une version de test construite avec EAS (voir [DEPLOIEMENT.md](DEPLOIEMENT.md#application-mobile-android-et-ios)). Autorisations micro et reconnaissance vocale demandées au premier usage, avec un texte explicatif.
+- **iOS / Android** : la dictée utilise un module natif, absent d'Expo Go (dans Expo Go, l'app l'indique et l'assistant s'utilise à l'écrit). Il faut une version de développement ou une version de test construite avec EAS (voir [DEPLOIEMENT.md](DEPLOIEMENT.md#application-mobile-android-et-ios) et [TESTER-SUR-TELEPHONE.md](TESTER-SUR-TELEPHONE.md#la-dictée-vocale-sur-téléphone)). Autorisations micro et reconnaissance vocale demandées au premier usage, avec un texte explicatif.
 - **Web** : Chrome, Edge ou Safari (Firefox n'a pas de reconnaissance vocale) ; le micro exige HTTPS (ou `localhost`).
 - Selon l'appareil, la reconnaissance peut passer par les serveurs d'Apple ou de Google : à mentionner dans la politique de confidentialité, au même titre que le traitement des demandes par Anthropic.
 - Sans dictée disponible, l'app le dit simplement et propose d'écrire.

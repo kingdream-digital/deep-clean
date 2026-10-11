@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import * as Speech from "expo-speech";
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import type * as SpeechRecognition from "expo-speech-recognition";
+import { inExpoGo } from "@/lib/runtime";
+import { speechRecognition } from "./speechModule";
 
 /**
  * Dictée vocale (reconnaissance de la parole de l'appareil : iOS, Android,
  * Chrome / Edge / Safari sur ordinateur). Le son n'est capté que pendant
- * l'écoute, déclenchée par l'utilisateur.
+ * l'écoute, déclenchée par l'utilisateur. Dans Expo Go, le module de dictée
+ * n'existe pas : l'assistant s'utilise alors à l'écrit.
  */
-export type DictationError = "not-allowed" | "unavailable" | "no-speech" | "network" | "other";
+export type DictationError = "not-allowed" | "unavailable" | "needs-app" | "no-speech" | "network" | "other";
 
 const ERROR_MESSAGES: Record<DictationError, string> = {
   "not-allowed": "Autorisez l'accès au micro pour parler à l'assistant (réglages de l'appareil).",
   unavailable:
     "La dictée n'est pas disponible sur cet appareil ou ce navigateur. Utilisez Chrome, Edge ou Safari, ou écrivez votre demande.",
+  "needs-app": "La dictée vocale n'existe pas dans Expo Go : écrivez votre demande, ou utilisez la version installée de l'application.",
   "no-speech": "Je n'ai rien entendu. Appuyez de nouveau sur le micro et parlez.",
   network: "La dictée nécessite une connexion internet sur cet appareil.",
   other: "La dictée s'est interrompue. Réessayez.",
@@ -41,9 +45,15 @@ const CONTEXT = [
   "passage",
 ];
 
+const speech = speechRecognition();
+const recognizer = speech?.ExpoSpeechRecognitionModule ?? null;
+// Choisi une fois pour toutes : le module est présent ou absent pendant toute la vie de l'app.
+const useSpeechRecognitionEvent: typeof SpeechRecognition.useSpeechRecognitionEvent =
+  speech?.useSpeechRecognitionEvent ?? ((() => undefined) as unknown as typeof SpeechRecognition.useSpeechRecognitionEvent);
+
 export function isDictationAvailable(): boolean {
   try {
-    return ExpoSpeechRecognitionModule.isRecognitionAvailable();
+    return recognizer?.isRecognitionAvailable() ?? false;
   } catch {
     return false;
   }
@@ -105,17 +115,17 @@ export function useDictation(onFinal: (text: string) => void) {
 
   const start = useCallback(async () => {
     setError(null);
-    if (!isDictationAvailable()) {
-      setError("unavailable");
+    if (!recognizer || !isDictationAvailable()) {
+      setError(!recognizer && inExpoGo() ? "needs-app" : "unavailable");
       return;
     }
     stopSpeaking();
-    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    const permission = await recognizer.requestPermissionsAsync();
     if (!permission.granted) {
       setError("not-allowed");
       return;
     }
-    ExpoSpeechRecognitionModule.start({
+    recognizer.start({
       lang: "fr-FR",
       interimResults: true,
       continuous: false,
@@ -127,7 +137,7 @@ export function useDictation(onFinal: (text: string) => void) {
 
   const stop = useCallback(() => {
     try {
-      ExpoSpeechRecognitionModule.stop();
+      recognizer?.stop();
     } catch {
       /* déjà arrêté */
     }
@@ -136,7 +146,7 @@ export function useDictation(onFinal: (text: string) => void) {
   useEffect(
     () => () => {
       try {
-        ExpoSpeechRecognitionModule.abort();
+        recognizer?.abort();
       } catch {
         /* rien à arrêter */
       }

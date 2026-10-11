@@ -14,6 +14,13 @@ import { startOrgCacheSync, stopOrgCacheSync } from "./lib/orgCache.ts";
 const app = await buildApp();
 await startOrgCacheSync();
 
+if (env.isProduction && !env.APP_URL.startsWith("https://")) {
+  logger.warn(
+    { appUrl: env.APP_URL },
+    "Application servie en HTTP : acceptable pour un serveur d'essai uniquement (données de test). En vrai service, HTTPS obligatoire.",
+  );
+}
+
 const shutdown = async (signal: string) => {
   logger.info({ signal }, "Arrêt en cours…");
   const force = setTimeout(() => process.exit(1), 15_000);

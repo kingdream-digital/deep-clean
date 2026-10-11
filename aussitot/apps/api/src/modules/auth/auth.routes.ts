@@ -22,11 +22,15 @@ function isWebClient(request: FastifyRequest): boolean {
   return request.headers["x-client-platform"] === "web";
 }
 
+// Cookie « Secure » dès que l'app web est servie en HTTPS (toute installation réelle). Un serveur
+// d'essai en HTTP (adresses sslip.io sans certificat) le refuserait, et la session web ne tiendrait pas.
+const SECURE_COOKIE = env.APP_URL.startsWith("https://");
+
 function sendAuth(request: FastifyRequest, reply: FastifyReply, result: auth.AuthResult, rememberMe?: boolean): AuthResponseDto {
   if (isWebClient(request)) {
     reply.setCookie(REFRESH_COOKIE, result.refreshToken, {
       httpOnly: true,
-      secure: env.isProduction,
+      secure: SECURE_COOKIE,
       sameSite: "strict",
       path: COOKIE_PATH,
       // Sans « Rester connecté » : cookie de session (effacé à la fermeture du navigateur).

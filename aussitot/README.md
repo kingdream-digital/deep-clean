@@ -65,7 +65,9 @@ npm run dev:app        # application web sur http://localhost:8081
 
 Emails en développement : avec `SMTP_HOST=localhost` et `SMTP_PORT=1025`, ils arrivent dans Mailpit ; sans SMTP, ils sont seulement journalisés.
 
-Sur téléphone : `EXPO_PUBLIC_API_URL=http://<IP-de-l-ordinateur>:4000 npm run start -w @aussitot/app` (téléphone et ordinateur sur le même réseau). La **dictée vocale** nécessite un *development build* (elle n'existe pas dans Expo Go) : voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md#application-mobile-android-et-ios).
+Sur téléphone : `EXPO_PUBLIC_API_URL=http://<IP-de-l-ordinateur>:4000 npm run start -w @aussitot/app` (téléphone et ordinateur sur le même réseau), puis scanner le QR code avec **Expo Go**. Dans Expo Go, tout fonctionne sauf la dictée vocale et les notifications push, qui demandent la version installée (voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md#application-mobile-android-et-ios)).
+
+**Tester sur téléphone comme Deep Clean**, avec un serveur d'essai en ligne (Coolify) et Expo Go : [docs/TESTER-SUR-TELEPHONE.md](docs/TESTER-SUR-TELEPHONE.md).
 
 L'assistant a besoin d'une clé `ANTHROPIC_API_KEY` dans `apps/api/.env` ; sans elle, il est indiqué comme indisponible et tout le reste fonctionne.
 
@@ -112,6 +114,7 @@ Les tests de l'API tournent contre une vraie base PostgreSQL avec RLS : isolatio
 | [docs/ASSISTANT.md](docs/ASSISTANT.md) | Assistant vocal / chat : fonctionnement, outils, confirmations, coûts |
 | [docs/IDENTITE-VISUELLE.md](docs/IDENTITE-VISUELLE.md) | Logo et couleur de chaque entreprise sur ses documents |
 | [docs/SCALABILITE.md](docs/SCALABILITE.md) | Mesures réelles, dimensionnement pour 10 000 utilisateurs |
+| [docs/TESTER-SUR-TELEPHONE.md](docs/TESTER-SUR-TELEPHONE.md) | Serveur d'essai sur Coolify et application dans Expo Go, pas à pas |
 | [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md) | Mise en production, sauvegardes, builds Android et iOS |
 | [docs/MARQUE.md](docs/MARQUE.md) | Le nom « Aussitôt » : choix, vérifications faites et à faire |
 | [docs/REPRISE-SESSION.md](docs/REPRISE-SESSION.md) | État du projet et suite du travail |

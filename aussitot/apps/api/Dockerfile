@@ -3,7 +3,7 @@
 # Image de l'API Aussitôt — une seule image pour les deux processus :
 #   API HTTP : node dist/server.js   (commande par défaut)
 #   worker   : node dist/worker.js   (emails, notifications push, maintenance)
-# Migrations : cible « migrate » (prisma migrate deploy, rôle propriétaire).
+# Base de données : cible « migrate » (rôle applicatif, migrations, démonstration facultative).
 #
 # Construction (depuis le dossier aussitot/) :
 #   docker build -f apps/api/Dockerfile -t aussitot-api .
@@ -14,6 +14,8 @@
 FROM node:22-bookworm-slim AS base
 WORKDIR /app
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false
+# OpenSSL : attendu par le moteur de migrations de Prisma (étapes de construction et « migrate » seulement).
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 # Manifestes seuls : la couche des dépendances n'est reconstruite que si elles changent.
 FROM base AS manifests
@@ -34,11 +36,14 @@ COPY apps/api apps/api
 # « generate » ne se connecte pas à la base : une adresse fictive suffit à charger la configuration.
 RUN cd apps/api && DATABASE_ADMIN_URL=postgresql://build:build@localhost:5432/build npx prisma generate && npx tsup
 
-# Migrations de la base (à lancer avant chaque déploiement, avec DATABASE_ADMIN_URL).
+# Préparation de la base (avant chaque déploiement, avec DATABASE_ADMIN_URL) : rôle applicatif
+# si APP_DB_PASSWORD est fourni, migrations, démonstration si DEMO_SEED=1 (voir prisma/deploy.mjs).
 FROM build AS migrate
 WORKDIR /app/apps/api
+# Dossier des fichiers (logo de la démonstration) : partagé avec l'API par un volume.
+RUN mkdir -p storage && chown node:node storage
 USER node
-CMD ["npx", "prisma", "migrate", "deploy"]
+CMD ["node", "prisma/deploy.mjs"]
 
 FROM manifests AS prod-deps
 RUN --mount=type=secret,id=extra_ca,required=false --mount=type=cache,target=/root/.npm \

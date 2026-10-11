@@ -1,0 +1,18 @@
+# Application web d'Aussitôt (export statique d'Expo) : une seule page, toutes les routes servent index.html.
+# Le HTTPS est assuré en amont (Coolify / Traefik, ou le Caddy de infra/production).
+:80 {
+	root * /srv
+	encode zstd gzip
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), geolocation=(), microphone=(self)"
+	}
+	# Fichiers du build (noms uniques) : gardés en cache ; la page elle-même est toujours revalidée.
+	@build path /_expo/* /assets/*
+	header @build Cache-Control "public, max-age=31536000, immutable"
+	header ?Cache-Control "no-cache"
+	try_files {path} /index.html
+	file_server
+}

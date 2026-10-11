@@ -1,0 +1,15 @@
+# Contexte de l'image web (apps/app/Dockerfile) : sources de l'app et du paquet partagé seulement.
+**/node_modules
+**/.env
+**/.env.*
+**/dist
+**/web-build
+**/.expo
+**/storage
+**/storage-test
+**/*.log
+.git
+docs
+infra
+apps/api/*
+!apps/api/package.json

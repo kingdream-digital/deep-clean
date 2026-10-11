@@ -133,4 +133,8 @@ eas build --profile development --platform android   # installer l'APK obtenu su
 EXPO_PUBLIC_API_URL=http://192.168.1.20:4000 npm run start -w @aussitot/app
 ```
 
-Le téléphone et l'ordinateur doivent être sur le même réseau.
+Le téléphone et l'ordinateur doivent être sur le même réseau. Pour des essais avec un serveur en ligne et **Expo Go** (sans installation), comme pour Deep Clean : [TESTER-SUR-TELEPHONE.md](TESTER-SUR-TELEPHONE.md).
+
+## Serveur d'essai sur Coolify
+
+[docker-compose.coolify.yml](../docker-compose.coolify.yml) déploie en une seule ressource Coolify l'API, le worker, PostgreSQL, Redis, l'application web et une boîte mail de test (Mailpit), avec des secrets générés par Coolify et une entreprise de démonstration. Il sert aux **essais** (HTTP sur des adresses `sslip.io`, données fictives) ; un service réel utilise la configuration de production ci-dessus, en HTTPS. Pas à pas : [TESTER-SUR-TELEPHONE.md](TESTER-SUR-TELEPHONE.md).

@@ -1,3 +1,4 @@
+import "@/expoGo";
 import { useEffect } from "react";
 import { Platform, View } from "react-native";
 import { Stack, SplashScreen } from "expo-router";

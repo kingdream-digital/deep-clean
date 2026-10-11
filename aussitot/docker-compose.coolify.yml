@@ -1,0 +1,144 @@
+# Serveur D'ESSAI d'Aussitôt sur Coolify — par exemple sur le serveur de
+# Deep Clean, à côté de lui et sans y toucher : API, worker, base de données,
+# Redis, application web et boîte mail de test. Guide pas à pas :
+# docs/TESTER-SUR-TELEPHONE.md
+#
+# Coolify → New Resource → dépôt Git → Build Pack « Docker Compose » :
+#   Base Directory           /aussitot
+#   Docker Compose Location  /docker-compose.coolify.yml
+#
+# Secrets : générés puis conservés par Coolify (variables SERVICE_PASSWORD_* /
+# SERVICE_HEX_*). À renseigner : APP_PUBLIC_URL et API_PUBLIC_URL, et les
+# domaines des services « web », « api » et « mailpit ».
+#
+# Par défaut, une entreprise de démonstration est chargée (DEMO_SEED=1, mot de
+# passe public) et aucun email ne part réellement (boîte de test Mailpit) :
+# c'est un serveur d'ESSAI, jamais un service réel (voir docs/DEPLOIEMENT.md).
+
+x-api-env: &api-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://aussitot_app:${SERVICE_PASSWORD_64_APPDB}@db:5432/aussitot
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${SERVICE_HEX_64_JWT}
+  PLATFORM_ADMIN_TOKEN: ${SERVICE_PASSWORD_64_PLATFORM}
+  METRICS_TOKEN: ${SERVICE_PASSWORD_64_METRICS}
+  APP_URL: ${APP_PUBLIC_URL:?}
+  CORS_ORIGINS: ${APP_PUBLIC_URL:?}
+  TRUST_PROXY: "true"
+  WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  SMTP_HOST: ${SMTP_HOST:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@aussitot.app}
+  STORAGE_DRIVER: local
+  EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+
+services:
+  # API : domaine à déclarer dans Coolify avec le port 4000 (ex. http://api-aussitot.<IP>.sslip.io:4000).
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - files:/app/apps/api/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Emails avec PDF, notifications push, reprise des tâches.
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    restart: unless-stopped
+    command: ["node", "--enable-source-maps", "dist/worker.js"]
+    # Pas de serveur HTTP dans le worker : la sonde de l'image API ne s'applique pas.
+    healthcheck:
+      disable: true
+    environment: *api-env
+    volumes:
+      - files:/app/apps/api/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # À chaque déploiement : rôle PostgreSQL de l'API, migrations, démonstration (une fois). Puis s'arrête.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      <<: *api-env
+      DATABASE_ADMIN_URL: postgresql://postgres:${SERVICE_PASSWORD_64_POSTGRES}@db:5432/aussitot
+      APP_DB_PASSWORD: ${SERVICE_PASSWORD_64_APPDB}
+      DEMO_SEED: ${DEMO_SEED:-1}
+    volumes:
+      - files:/app/apps/api/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_64_POSTGRES}
+      POSTGRES_DB: aussitot
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d aussitot"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Files d'attente (BullMQ) : aucune éviction de clés tolérée.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  # Application web (ordinateur, ou navigateur du téléphone) : domaine avec le port 80.
+  web:
+    build:
+      context: .
+      dockerfile: apps/app/Dockerfile
+      args:
+        EXPO_PUBLIC_API_URL: ${API_PUBLIC_URL:?}
+    restart: unless-stopped
+
+  # Boîte mail de test : les emails des devis et factures y arrivent au lieu de partir.
+  # Domaine avec le port 8025 ; identifiant « aussitot », mot de passe : variable SERVICE_PASSWORD_MAILPIT.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    environment:
+      MP_UI_AUTH: aussitot:${SERVICE_PASSWORD_MAILPIT}
+      MP_MAX_MESSAGES: 500
+
+volumes:
+  db-data:
+  redis-data:
+  files:

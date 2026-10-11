@@ -4,6 +4,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { endpoints } from "@/api/endpoints";
+import { inExpoGo } from "@/lib/runtime";
 
 /**
  * Notifications push (iOS / Android). Le jeton de l'appareil est envoyé à
@@ -19,7 +20,8 @@ if (Platform.OS !== "web") {
 }
 
 export async function registerPushNotifications(): Promise<void> {
-  if (Platform.OS === "web" || !Device.isDevice) return;
+  // Expo Go (essais) : pas de notifications push ; le centre de notifications et le temps réel fonctionnent.
+  if (Platform.OS === "web" || !Device.isDevice || inExpoGo()) return;
   const settings = await Notifications.getPermissionsAsync();
   let granted = settings.granted;
   if (!granted && settings.canAskAgain) granted = (await Notifications.requestPermissionsAsync()).granted;
