@@ -36,3 +36,8 @@ export const validateMonthHandler = asyncHandler(async (req: Request, res: Respo
   const count = await leaveService.validateMonth(actorOf(req), req.body.month);
   res.status(200).json({ validated: count });
 });
+
+export const setOpeningLeaveBalanceHandler = asyncHandler(async (req: Request, res: Response) => {
+  const result = await leaveService.setOpeningLeaveBalance(actorOf(req), req.params.userId as string, req.body);
+  res.status(200).json({ openingBalance: result });
+});

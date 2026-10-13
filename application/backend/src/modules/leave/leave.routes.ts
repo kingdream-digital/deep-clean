@@ -3,6 +3,7 @@ import { authenticate } from "../../middleware/auth.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import {
   createLeaveAdjustmentSchema,
+  setOpeningLeaveBalanceSchema,
   leaveBalanceQuerySchema,
   leaveTransactionsQuerySchema,
   listAccrualsQuerySchema,
@@ -24,4 +25,5 @@ leaveRouter.post("/accruals/validate-month", validate(validateMonthSchema), leav
 leaveRouter.post("/accruals/:id/validate", validate(validateAccrualSchema), leaveController.validateAccrualHandler);
 leaveRouter.get("/:userId/balance", validate(leaveBalanceQuerySchema), leaveController.getLeaveBalanceHandler);
 leaveRouter.get("/:userId/transactions", validate(leaveTransactionsQuerySchema), leaveController.listLeaveTransactionsHandler);
+leaveRouter.put("/:userId/opening-balance", validate(setOpeningLeaveBalanceSchema), leaveController.setOpeningLeaveBalanceHandler);
 leaveRouter.post("/:userId/adjustments", validate(createLeaveAdjustmentSchema), leaveController.createLeaveAdjustmentHandler);

@@ -385,13 +385,18 @@ export async function getMyMonthlySummary(actor: Actor, months = 12) {
   for (const entry of entries) {
     const bucket = byMonth.get(companyDateKey(entry.clockIn).slice(0, 7));
     if (!bucket || !entry.clockOut) continue;
-    const minutes = Math.max(0, Math.round((entry.clockOut.getTime() - entry.clockIn.getTime()) / 60000));
+    // Durée exacte : arrondie une seule fois, sur le total (voir plus bas),
+    // pour concorder avec le détail des majorations du mois.
+    const minutes = Math.max(0, (entry.clockOut.getTime() - entry.clockIn.getTime()) / 60000);
     bucket.totalMinutes += minutes;
     if (entry.status === TimeEntryStatus.VALIDATED) bucket.validatedMinutes += minutes;
     else bucket.pendingMinutes += minutes;
     bucket.entryCount += 1;
   }
-  return keys.map((k) => byMonth.get(k)!);
+  return keys.map((k) => {
+    const b = byMonth.get(k)!;
+    return { ...b, totalMinutes: Math.round(b.totalMinutes), validatedMinutes: Math.round(b.validatedMinutes), pendingMinutes: Math.round(b.pendingMinutes) };
+  });
 }
 
 export async function getMyStatus(actor: Actor) {

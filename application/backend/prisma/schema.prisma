@@ -605,6 +605,10 @@ enum LeaveTransactionType {
   LEAVE_TAKEN // congé validé : jours déduits (days négatif)
   LEAVE_CANCELLED // congé annulé après validation : jours recrédités (days positif)
   ADJUSTMENT // correction manuelle RH (days positif ou négatif)
+  // Reprise du solde à l'arrivée dans l'application (bulletin de paie) :
+  // congés N-1 restants et congés N déjà acquis, chacun rangé dans sa période
+  // de référence (`periodYear`) pour être pris ou perdu à la bonne date.
+  OPENING_BALANCE
 }
 
 // Droits à congés acquis sur UN mois, calculés automatiquement à la fin du
@@ -646,6 +650,9 @@ model LeaveTransaction {
   // Signé : négatif = déduction, positif = crédit — permet un simple SUM()
   // pour retrouver l'impact net sur le solde d'une période donnée.
   days        Float
+  // Année de début de la période de référence (1er juin) à laquelle ces
+  // jours appartiennent — renseignée pour la reprise de solde uniquement.
+  periodYear  Int?
   occurredAt  DateTime             @default(now())
   absenceId   String?
   absence     Absence?             @relation(fields: [absenceId], references: [id], onDelete: SetNull)

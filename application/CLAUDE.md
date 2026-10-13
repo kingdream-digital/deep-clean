@@ -162,7 +162,7 @@ Il peut notamment :
 - créer et gérer les chantiers et leurs fiches ;
 - publier des actualités/annonces ;
 - **modifier un compte utilisateur existant, l'activer, le désactiver, réinitialiser son accès** — sans jamais pouvoir en **créer** un nouveau (toujours réservé à la RH/admin technique), ni agir sur le compte de l'admin technique lui-même ou lui attribuer ce rôle ;
-- consulter les équipes, les employés, les chantiers, les plannings, les missions, les problèmes, les validations et le journal d'activité complet de l'entreprise ;
+- consulter les équipes, les employés, les chantiers, les plannings, les missions, les problèmes et les validations de l'entreprise (le journal d'activité, lui, est réservé à l'admin technique — voir section 21) ;
 - consulter les statistiques et la vue d'ensemble de l'activité ;
 - modifier son propre mot de passe.
 
@@ -691,6 +691,8 @@ Enregistrer notamment :
 - date ;
 - heure ;
 - élément concerné.
+
+Retour explicite du client (validé, confirmé le 13 octobre 2026) : le journal d'activité n'est consultable **que par l'admin technique** — ni la RH, ni la direction, ni personne d'autre. Il expose des détails sur le fonctionnement interne de l'application ; les actions restent enregistrées pour tout le monde, seule la consultation est réservée.
 
 ---
 

@@ -190,12 +190,13 @@ export async function generateAccruals(options: { userIds?: string[]; now?: Date
     let month = (startKey > createdKey ? startKey : createdKey).slice(0, 7);
     if (month > lastCompleted) continue;
 
-    const [absences, existing] = await Promise.all([
+    const [absences, existing, opening] = await Promise.all([
       prisma.absence.findMany({
         where: { userId: user.id, status: AbsenceStatus.APPROVED, endDate: { gte: calendarDay(`${month}-01`) } },
         select: { type: true, startDate: true, endDate: true },
       }),
       prisma.leaveAccrual.findMany({ where: { userId: user.id }, select: { id: true, month: true, status: true, days: true, computedDays: true } }),
+      prisma.leaveTransaction.findMany({ where: { userId: user.id, type: LeaveTransactionType.OPENING_BALANCE }, select: { periodYear: true, days: true } }),
     ]);
     const byMonth = new Map(existing.map((a) => [a.month, a]));
     const cap = user.leaveAccrualCap ?? DEFAULT_PERIOD_CAP;
@@ -209,9 +210,10 @@ export async function generateAccruals(options: { userIds?: string[]; now?: Date
       if (!details) continue;
       // Plafond de la période de référence (1er juin → 31 mai).
       const periodYear = referencePeriodStartYear(month);
-      const alreadyInPeriod = existing
-        .filter((a) => a.month !== month && referencePeriodStartYear(a.month) === periodYear)
-        .reduce((sum, a) => sum + a.days, 0);
+      // Les jours N repris à l'arrivée (bulletin de paie) comptent dans le plafond de la période.
+      const alreadyInPeriod =
+        existing.filter((a) => a.month !== month && referencePeriodStartYear(a.month) === periodYear).reduce((sum, a) => sum + a.days, 0) +
+        opening.filter((o) => o.periodYear === periodYear).reduce((sum, o) => sum + o.days, 0);
       const days = round2(Math.max(0, Math.min(details.rawDays, cap - alreadyInPeriod)));
       const finalDetails = { ...details, capped: days < details.rawDays };
 
@@ -432,7 +434,7 @@ export async function getLeaveBalance(actor: Actor, targetUserId: string, year: 
     prisma.leaveAccrual.findMany({ where: { userId: targetUserId }, select: { month: true, days: true, status: true } }),
     prisma.leaveTransaction.findMany({
       where: { userId: targetUserId },
-      select: { type: true, days: true, occurredAt: true, absenceId: true, absence: { select: { startDate: true } } },
+      select: { type: true, days: true, periodYear: true, occurredAt: true, absenceId: true, absence: { select: { startDate: true } } },
     }),
     prisma.absence.findMany({
       where: { userId: targetUserId, type: AbsenceType.PAID_LEAVE, status: AbsenceStatus.PENDING },
@@ -457,6 +459,13 @@ export async function getLeaveBalance(actor: Actor, targetUserId: string, year: 
   const debits: LeaveDebit[] = [];
   let adjustments = 0;
   for (const [i, t] of transactions.entries()) {
+    if (t.type === LeaveTransactionType.OPENING_BALANCE) {
+      // Reprise du solde : rangée dans sa propre période de référence (N-1
+      // à prendre avant le 31 mai, N en cours d'acquisition).
+      adjustments += t.days;
+      credits.push({ periodYear: t.periodYear ?? referencePeriodOf(companyDateKey(t.occurredAt)) - 1, days: t.days });
+      continue;
+    }
     if (t.type === LeaveTransactionType.ADJUSTMENT) {
       adjustments += t.days;
       const dateKey = companyDateKey(t.occurredAt);
@@ -615,6 +624,7 @@ export async function listLeaveTransactions(actor: Actor, targetUserId: string, 
       id: true,
       type: true,
       days: true,
+      periodYear: true,
       occurredAt: true,
       note: true,
       absenceId: true,
@@ -622,4 +632,55 @@ export async function listLeaveTransactions(actor: Actor, targetUserId: string, 
     },
     orderBy: { occurredAt: "desc" },
   });
+}
+
+export interface OpeningLeaveBalance {
+  /** Congés N-1 restant à prendre (période précédente), en jours ouvrables. */
+  previousYear?: number;
+  /** Congés N déjà acquis depuis le 1er juin (période en cours). */
+  currentYear?: number;
+}
+
+/**
+ * Reprise du solde de congés à l'arrivée dans l'application (retour explicite
+ * du client : « il ne perd rien, tout est basculé ») — les deux montants du
+ * dernier bulletin de paie, chacun dans sa période de référence. Remplace une
+ * éventuelle reprise précédente (correction d'une erreur de saisie).
+ */
+export async function setOpeningLeaveBalance(actor: Actor, targetUserId: string, input: OpeningLeaveBalance) {
+  if (!canManageLeave(actor)) throw ApiError.forbidden();
+  if (targetUserId === actor.userId) throw ApiError.forbidden("Vous ne pouvez pas saisir votre propre solde : demandez à une autre personne habilitée.");
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
+  if (!target) throw ApiError.notFound("Compte introuvable.");
+
+  const current = referencePeriodOf(companyDateKey(new Date()));
+  const lines = [
+    { periodYear: current - 1, days: round2(input.previousYear ?? 0), label: "congés N-1" },
+    { periodYear: current, days: round2(input.currentYear ?? 0), label: "congés N" },
+  ].filter((l) => l.days > 0);
+
+  await prisma.$transaction([
+    prisma.leaveTransaction.deleteMany({ where: { userId: targetUserId, type: LeaveTransactionType.OPENING_BALANCE } }),
+    ...lines.map((l) =>
+      prisma.leaveTransaction.create({
+        data: {
+          userId: targetUserId,
+          type: LeaveTransactionType.OPENING_BALANCE,
+          days: l.days,
+          periodYear: l.periodYear,
+          createdById: actor.userId,
+          note: `Reprise du solde (${l.label}, dernier bulletin de paie)`,
+        },
+      })
+    ),
+  ]);
+
+  await logActivity({
+    userId: actor.userId,
+    action: "LEAVE_OPENING_BALANCE",
+    entityType: "User",
+    entityId: targetUserId,
+    metadata: { previousYear: input.previousYear ?? 0, currentYear: input.currentYear ?? 0 },
+  });
+  return { previousYear: input.previousYear ?? 0, currentYear: input.currentYear ?? 0 };
 }

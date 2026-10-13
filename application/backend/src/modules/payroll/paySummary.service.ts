@@ -159,14 +159,21 @@ export async function getPaySummary(actor: Actor, userId: string, month: string)
   return {
     month,
     user,
+    // Calculs à la seconde près (voir workHours.ts), arrondis à la minute
+    // uniquement ici, pour l'affichage — comme le total du mois.
     totals: {
-      countedMinutes: bucket.totalMinutes,
-      pendingMinutes: bucket.pendingMinutes,
-      minutesByCategory: bucket.minutesByCategory,
+      countedMinutes: Math.round(bucket.totalMinutes),
+      pendingMinutes: Math.round(bucket.pendingMinutes),
+      minutesByCategory: {
+        normal: Math.round(bucket.minutesByCategory.normal),
+        night: Math.round(bucket.minutesByCategory.night),
+        sunday: Math.round(bucket.minutesByCategory.sunday),
+        holiday: Math.round(bucket.minutesByCategory.holiday),
+      },
       premiumMinutes: Math.round(bucket.premiumMinutes * 100) / 100,
-      nightMinutes: bucket.nightMinutes,
+      nightMinutes: Math.round(bucket.nightMinutes),
       byRate: Object.entries(bucket.minutesByRate)
-        .map(([rate, minutes]) => ({ rate: Number(rate), minutes }))
+        .map(([rate, minutes]) => ({ rate: Number(rate), minutes: Math.round(minutes) }))
         .filter((r) => r.rate > 0)
         .sort((a, b) => a.rate - b.rate),
     },

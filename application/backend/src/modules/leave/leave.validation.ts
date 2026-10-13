@@ -42,3 +42,12 @@ export const validateAccrualSchema = {
 export const validateMonthSchema = {
   body: z.object({ month }),
 };
+
+const openingDays = z.coerce.number().min(0, "Le solde ne peut pas être négatif.").max(60, "60 jours au maximum.").optional();
+
+export const openingLeaveBalanceBody = z.object({ previousYear: openingDays, currentYear: openingDays });
+
+export const setOpeningLeaveBalanceSchema = {
+  params: z.object({ userId: z.string().uuid() }),
+  body: openingLeaveBalanceBody,
+};
