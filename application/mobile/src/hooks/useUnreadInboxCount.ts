@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { listNotifications } from "../api/notifications.api";
 import { getUnreadMessagesCount } from "../api/messages.api";
 import { subscribeToDataChanges } from "../sync/liveSync";
+import { subscribeToInboxChanges } from "../sync/inboxEvents";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -37,10 +38,14 @@ export function useUnreadInboxCount(): number {
     const interval = setInterval(poll, POLL_INTERVAL_MS);
     // Nouvelle donnée quelque part (message, notification…) : badge à jour tout de suite.
     const unsubscribe = subscribeToDataChanges(() => void poll());
+    // Lecture / suppression / envoi sur cet appareil : le serveur ne le
+    // signale pas (voir sync/inboxEvents.ts), on recalcule tout de suite.
+    const unsubscribeInbox = subscribeToInboxChanges(() => void poll());
     return () => {
       cancelled = true;
       clearInterval(interval);
       unsubscribe();
+      unsubscribeInbox();
     };
   }, []);
 
