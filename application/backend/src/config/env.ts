@@ -62,7 +62,7 @@ const envSchema = z.object({
   // commercial, §15). Tous optionnels pour ne jamais bloquer le démarrage
   // du serveur, mais DOIVENT être renseignés en production avant d'envoyer
   // un vrai devis : sans eux, le PDF reste utilisable mais incomplet.
-  COMPANY_LEGAL_NAME: z.string().default("Deep Clean"),
+  COMPANY_LEGAL_NAME: z.string().default("DEEP CLEAN"),
   COMPANY_ADDRESS: z.string().optional(),
   COMPANY_SIRET: z.string().optional(),
   COMPANY_PHONE: z.string().optional(),

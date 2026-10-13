@@ -147,3 +147,5 @@ eas submit --platform ios --profile production
 ```
 
 Nécessite d'avoir renseigné les identifiants store dans `eas submit` (interactif la première fois, ou via variables d'environnement — voir la [documentation EAS Submit](https://docs.expo.dev/submit/introduction/)).
+
+Dossier complet de publication (comptes, textes des fiches, captures, questionnaires de confidentialité) : `docs/PUBLICATION-STORES.md` à la racine du dépôt.

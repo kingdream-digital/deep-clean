@@ -358,11 +358,13 @@ export async function setUserActive(actorId: string, actorRole: Role, targetId: 
   const user = await prisma.$transaction(async (tx) => {
     const updated = await tx.user.update({ where: { id: targetId }, data: { isActive }, select: publicSelect });
     if (!isActive) {
-      // Un compte désactivé perd immédiatement tout accès actif.
+      // Un compte désactivé perd immédiatement tout accès actif, et ses
+      // téléphones ne reçoivent plus aucune notification.
       await tx.session.updateMany({
         where: { userId: targetId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      await tx.pushToken.deleteMany({ where: { userId: targetId } });
       await detachAsSiteManager(tx, targetId);
     }
     return updated;

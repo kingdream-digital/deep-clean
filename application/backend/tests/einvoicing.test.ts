@@ -121,9 +121,11 @@ describe("Facture électronique — format EN 16931", () => {
   });
 
   it("liste en français ce qui manque avant l'envoi", () => {
-    mutableEnv.COMPANY_SIRET = "";
+    // Le SIREN de Deep Clean est intégré à l'application (config/companyIdentity.ts) :
+    // c'est l'adresse, propre au serveur, qui peut encore manquer.
+    mutableEnv.COMPANY_ADDRESS = "";
     const blockers = einvoiceBlockers({ ...source, client: { ...source.client, siret: null } }, getCompanyProfile());
-    expect(blockers).toEqual(expect.arrayContaining([expect.stringContaining("SIREN de l'entreprise"), expect.stringContaining("SIREN ou SIRET du client")]));
+    expect(blockers).toEqual(expect.arrayContaining([expect.stringContaining("adresse complète de l'entreprise"), expect.stringContaining("SIREN ou SIRET du client")]));
   });
 });
 
@@ -264,12 +266,12 @@ describe("Espace Super PDP — vue d'ensemble, suivi groupé, test de connexion"
 
   it("signale ce qui manque à l'identité de l'entreprise et à une facture", async () => {
     const { token } = await validatedInvoice();
-    mutableEnv.COMPANY_SIRET = "";
+    mutableEnv.COMPANY_ADDRESS = "";
     const auth = { Authorization: `Bearer ${token}` };
     const overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
-    expect(overview.company.missing).toEqual([expect.stringContaining("SIREN de l'entreprise")]);
+    expect(overview.company.missing).toEqual([expect.stringContaining("adresse complète de l'entreprise")]);
     const toSend = (await request(app).get("/api/v1/einvoicing/invoices?view=toSend").set(auth)).body;
-    expect(toSend.items[0].blockers).toEqual([expect.stringContaining("SIREN de l'entreprise")]);
+    expect(toSend.items[0].blockers).toEqual([expect.stringContaining("adresse complète de l'entreprise")]);
   });
 
   it("teste réellement les identifiants Super PDP", async () => {

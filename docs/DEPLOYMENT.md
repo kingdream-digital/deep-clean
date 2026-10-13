@@ -220,6 +220,35 @@ toutes gratuites, sans clé :
   ville, SIRET, SIREN). Si l'annuaire ne répond pas, l'application le dit et
   la fiche se remplit à la main.
 
+## 4 bis. Nom de domaine `deep-clean.fr`
+
+Adresses retenues (déjà intégrées dans l'app mobile, voir
+`application/mobile/eas.json` et `application/mobile/src/config/links.ts`) :
+
+| Adresse | Rôle |
+|---|---|
+| `https://api.deep-clean.fr` | Backend (API) |
+| `https://app.deep-clean.fr` | Application web, et pages légales exigées par les stores (`/confidentialite.html`, `/support.html`, `/suppression-compte.html`, servies depuis `application/mobile/public/`) |
+| `https://deep-clean.fr` | Site de l'entreprise (hors de ce dépôt) |
+
+Mise en place :
+1. **DNS**, chez le fournisseur du domaine : enregistrements **A** `api` et
+   `app` vers `141.253.112.12`.
+2. **Coolify**, onglet *Domains* de chaque application :
+   `https://api.deep-clean.fr` pour le backend, `https://app.deep-clean.fr`
+   pour le web. Le certificat HTTPS (Let's Encrypt) est créé tout seul ; il
+   faut que les ports 80 et 443 soient ouverts (déjà le cas, §4).
+3. **Variables** :
+   - backend : `CORS_ORIGINS` doit contenir `https://app.deep-clean.fr` ;
+   - web : `EXPO_PUBLIC_API_URL=https://api.deep-clean.fr/api/v1` (Buildtime).
+4. Redéployer le backend, puis le web.
+5. Garder les anciennes adresses `sslip.io` dans `CORS_ORIGINS` le temps de
+   la transition, puis les retirer.
+
+Les apps iPhone/Android compilées avec le profil `production` appellent
+`https://api.deep-clean.fr` : l'adresse doit répondre **avant** le premier
+build store (voir `docs/PUBLICATION-STORES.md`).
+
 ## 5. Bugs rencontrés pendant la mise en place (pour ne pas les refaire)
 
 - **"Base directory" qui revient à `/`** : après avoir changé le "Build

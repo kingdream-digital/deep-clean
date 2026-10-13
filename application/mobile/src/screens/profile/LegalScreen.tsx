@@ -1,9 +1,11 @@
 import React from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Linking, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { Card } from "../../components/Card";
+import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
+import { ACCOUNT_DELETION_URL, PRIVACY_URL, SITE_URL } from "../../config/links";
 
 function Section({
   icon,
@@ -52,9 +54,10 @@ export function LegalScreen() {
         </Section>
 
         <Section icon="briefcase-outline" title="Exploitant">
-          L'application est exploitée par Deep Clean pour la gestion interne de son activité : équipes, chantiers,
-          plannings, pointages et communication entre collaborateurs. Elle est strictement réservée à un usage
-          interne — aucun compte ne peut être créé sans passer par la RH.
+          L'application est exploitée par DEEP CLEAN, SAS au capital de 600 €, RCS Manosque 942 773 375, SIRET
+          942 773 375 00012, TVA FR54942773375 ({SITE_URL.replace("https://", "")}), pour la gestion interne de son
+          activité : équipes, chantiers, plannings, pointages et communication entre collaborateurs. Elle est
+          strictement réservée à un usage interne — aucun compte ne peut être créé sans passer par la RH.
         </Section>
 
         <Section icon="shield-checkmark-outline" title="Sécurité des comptes et des données">
@@ -82,13 +85,25 @@ export function LegalScreen() {
         <Section icon="person-outline" title="Vos droits">
           Pour toute question sur les informations vous concernant, ou pour demander leur accès, leur correction ou
           leur suppression, contactez votre service RH — c'est votre interlocuteur unique pour tout ce qui concerne
-          votre compte et vos données.
+          votre compte et vos données. La suppression d'un compte se demande aussi à la RH : le compte est
+          désactivé immédiatement, puis les données sont effacées sauf celles que la loi impose de conserver.
         </Section>
 
         <Section icon="document-text-outline" title="Propriété intellectuelle">
           L'application Deep Clean (code, design, identité visuelle) est la propriété de KingDream Digital. Toute
           reproduction ou réutilisation en dehors du cadre de cette exploitation est interdite sans autorisation.
         </Section>
+        {[
+          { label: "Politique de confidentialité complète", url: PRIVACY_URL },
+          { label: "Suppression de compte et des données", url: ACCOUNT_DELETION_URL },
+        ].map((link) => (
+          <PressableScale key={link.url} onPress={() => void Linking.openURL(link.url)} accessibilityRole="link" style={{ marginTop: spacing.md }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons name="open-outline" size={16} color={colors.accentText} />
+              <Text style={[type.callout, { color: colors.accentText, fontWeight: "600", marginLeft: spacing.xs }]}>{link.label}</Text>
+            </View>
+          </PressableScale>
+        ))}
       </ScrollView>
     </ScreenContainer>
   );
