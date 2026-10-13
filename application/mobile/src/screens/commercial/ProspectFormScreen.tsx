@@ -8,6 +8,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
+import { CompanyLookupField } from "../../components/CompanyLookupField";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Checkbox } from "../../components/Checkbox";
@@ -181,6 +182,15 @@ export function ProspectFormScreen() {
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
+        <CompanyLookupField
+          onFound={(c) => {
+            setCompanyName(c.companyName);
+            if (c.address) setAddress(c.address);
+            if (c.postalCode) setPostalCode(c.postalCode);
+            if (c.city) setCity(c.city);
+            setSiret(c.siret ?? "");
+          }}
+        />
         <TextField label="Entreprise" placeholder="Entreprise ABC" value={companyName} onChangeText={setCompanyName} />
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <View style={{ flex: 1 }}>

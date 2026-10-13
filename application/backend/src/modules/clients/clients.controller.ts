@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandler";
 import * as clientsService from "./clients.service";
+import { lookupCompany } from "./companyLookup.service";
 
 function actorOf(req: Request) {
   return { userId: req.auth!.userId, role: req.auth!.role };
@@ -24,4 +25,9 @@ export const getClientHandler = asyncHandler(async (req: Request, res: Response)
 export const updateClientHandler = asyncHandler(async (req: Request, res: Response) => {
   const client = await clientsService.updateClient(actorOf(req), req.params.id as string, req.body);
   res.status(200).json({ client });
+});
+
+export const companyLookupHandler = asyncHandler(async (req: Request, res: Response) => {
+  const company = await lookupCompany(req.params.number as string);
+  res.status(200).json({ company });
 });

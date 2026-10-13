@@ -65,3 +65,21 @@ export async function updateClient(id: string, input: Partial<ClientInput>): Pro
   const { data } = await apiClient.patch<{ client: Client }>(`/clients/${id}`, input);
   return data.client;
 }
+
+// Fiche d'entreprise trouvée dans l'annuaire officiel (SIRENE) à partir d'un
+// SIRET ou d'un SIREN — sert à pré-remplir une fiche client ou prospect.
+export interface CompanyLookup {
+  companyName: string;
+  siren: string;
+  siret: string | null;
+  address: string | null;
+  postalCode: string | null;
+  city: string | null;
+  active: boolean;
+  isHeadOffice: boolean;
+}
+
+export async function lookupCompany(number: string): Promise<CompanyLookup> {
+  const { data } = await apiClient.get<{ company: CompanyLookup }>(`/clients/lookup/${encodeURIComponent(number.replace(/[\s.-]/g, ""))}`);
+  return data.company;
+}

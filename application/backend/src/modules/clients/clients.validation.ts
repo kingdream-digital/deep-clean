@@ -52,3 +52,7 @@ export const listClientsQuerySchema = {
     pageSize: z.coerce.number().int().positive().max(100).optional().default(20),
   }),
 };
+
+export const companyLookupSchema = {
+  params: z.object({ number: z.string().trim().min(1).max(30) }),
+};

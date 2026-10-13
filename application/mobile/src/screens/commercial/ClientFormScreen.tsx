@@ -6,6 +6,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
+import { CompanyLookupField } from "../../components/CompanyLookupField";
 import { Button } from "../../components/Button";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
@@ -125,6 +126,16 @@ export function ClientFormScreen() {
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
+        <CompanyLookupField
+          onFound={(c) => {
+            setCompanyName(c.companyName);
+            if (c.address) setBillingAddress(c.address);
+            if (c.postalCode) setPostalCode(c.postalCode);
+            if (c.city) setCity(c.city);
+            setSiret(c.siret ?? "");
+        setSiren(c.siren);
+          }}
+        />
         <TextField label="Entreprise" placeholder="Entreprise ABC" value={companyName} onChangeText={setCompanyName} />
         <TextField label="Prénom du contact" placeholder="Julie" value={contactFirstName} onChangeText={setContactFirstName} />
         <TextField label="Nom du contact" placeholder="Dupont" value={contactLastName} onChangeText={setContactLastName} />

@@ -210,6 +210,16 @@ Deux couches de pare-feu à tenir synchronisées :
     tout passe par 80/443 via le reverse proxy de Coolify ; à fermer quand
     l'occasion se présente (amélioration sécurité, non urgente).
 
+Sorties du serveur vers internet (HTTPS, port 443) utilisées par l'API —
+toutes gratuites, sans clé :
+
+- `api-adresse.data.gouv.fr` : position GPS d'un chantier à partir de son
+  adresse ;
+- `recherche-entreprises.api.gouv.fr` : bouton « Remplir avec le SIRET ou
+  le SIREN » des fiches client et prospect (nom, adresse, code postal,
+  ville, SIRET, SIREN). Si l'annuaire ne répond pas, l'application le dit et
+  la fiche se remplit à la main.
+
 ## 5. Bugs rencontrés pendant la mise en place (pour ne pas les refaire)
 
 - **"Base directory" qui revient à `/`** : après avoir changé le "Build
