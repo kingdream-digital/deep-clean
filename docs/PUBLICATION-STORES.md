@@ -13,7 +13,8 @@ Les éléments encore à fournir sont repérés par **⚠️ À FOURNIR**.
 | | |
 |---|---|
 | Nom de l'app | **Deep Clean** |
-| Éditeur (compte développeur) | **DEEP CLEAN**, SAS au capital de 600 € — SIREN 942 773 375 — RCS Manosque — TVA FR54942773375 |
+| Éditeur (compte développeur) | **Boris Corsiez** — KingDream Digital, micro-entreprise (compte développeur **personnel**). Nom affiché sur les stores : celui du compte. |
+| Client utilisateur | **DEEP CLEAN**, SAS au capital de 600 € — SIREN 942 773 375 — RCS Manosque — TVA FR54942773375. L'application lui est **louée** ; elle reste la propriété de l'éditeur. |
 | Identifiant iOS (Bundle ID) | `fr.deepclean.app` |
 | Nom de paquet Android | `fr.deepclean.app` |
 | Version | 1.0.0 (le numéro de build s'incrémente tout seul) |
@@ -59,57 +60,83 @@ Détail dans `docs/DEPLOYMENT.md`, section « Nom de domaine ».
 
 ---
 
-## 2. Comptes à créer (au nom de DEEP CLEAN)
+## 2. Comptes à créer (au nom de Boris Corsiez)
 
-Les deux stores exigent, pour une société, un **numéro D-U-N-S** (gratuit).
+L'application est publiée sur **votre** compte développeur, en tant que
+personne physique (micro-entreprise). Pas besoin de numéro D-U-N-S.
 
-1. **Numéro D-U-N-S** : demande gratuite via l'outil d'Apple
-   (developer.apple.com → « D-U-N-S Number Lookup »). Compter quelques jours.
-2. **Apple Developer Program**, inscription en tant qu'**organisation**
-   (99 €/an) : developer.apple.com/programs/enroll. Il faut :
-   - le D-U-N-S ;
-   - le site `deep-clean.fr` en ligne ;
-   - une adresse email sur le domaine ;
-   - une personne habilitée à engager la société (le président).
-3. **Google Play Console**, compte **organisation** (25 $ une fois) :
-   play.google.com/console, avec le même D-U-N-S.
-   - Un compte organisation n'est **pas** soumis à l'obligation des
-     « 12 testeurs pendant 14 jours » imposée aux comptes personnels.
-4. **Expo** (gratuit) : le compte qui lance les builds (`eas login`).
-5. **Firebase** (gratuit), pour les notifications Android : voir §8.
+1. **Apple Developer Program**, inscription **individuelle** (99 €/an) :
+   developer.apple.com/programs/enroll, avec votre identifiant Apple et une
+   pièce d'identité.
+   - Le nom affiché sous l'app sur l'App Store sera **« Boris Corsiez »**.
+   - Le nom de la micro-entreprise ne peut pas remplacer le nom personnel
+     sans D-U-N-S et statut de société.
+2. **Google Play Console**, compte **personnel** (25 $ une fois) :
+   play.google.com/console, avec vérification d'identité.
+   - ⚠️ Règle Google pour les comptes personnels récents : avant de publier,
+     l'app doit passer **14 jours en test fermé avec au moins 12 testeurs**
+     inscrits sans interruption.
+   - Solution simple : inviter 12 salariés (ou plus) de Deep Clean comme
+     testeurs, avec l'adresse Gmail de leur téléphone Android.
+3. **Expo** (gratuit) : le compte qui lance les builds (`eas login`).
+4. **Firebase** (gratuit), pour les notifications Android : voir §8.
 
-> Conseil : créer les comptes Apple et Google au nom de Deep Clean, puis
-> inviter KingDream Digital comme membre (rôle « Admin » chez Apple, ou
-> accès « Administrateur » dans la Play Console). L'entreprise reste
-> propriétaire de son application.
+### Droits sur le nom et le logo « Deep Clean »
 
----
+Le nom et le logo appartiennent à la société DEEP CLEAN, et le compte
+développeur est à un autre nom. Apple (règle 5.2.1) et Google peuvent donc
+demander une preuve que vous avez le droit de les utiliser.
 
-## 3. Mode de distribution recommandé
+Préparez avant l'envoi une **autorisation écrite signée par le président de
+DEEP CLEAN** :
+- elle vous autorise, vous et KingDream Digital, à publier l'application
+  sous le nom et le logo Deep Clean, dans le cadre du contrat de location ;
+- elle est à joindre en pièce jointe dans App Store Connect
+  (« Informations de vérification ») et à garder sous la main pour Google.
 
-### iPhone : « distribution non répertoriée » (lien direct)
+## 3. Distribution : publique, sur l'App Store et Google Play
 
-Apple refuse souvent, sur l'App Store public, les applications réservées
-aux salariés d'une seule entreprise. Apple prévoit pour ce cas la
-**distribution non répertoriée** :
-- l'app passe la vérification Apple normalement ;
-- elle n'apparaît ni dans les recherches ni dans les catégories ;
-- les salariés l'installent depuis un **lien direct** sur leur iPhone
-  personnel, sans configuration particulière.
+Objectif : l'app est trouvable et téléchargeable par tout le monde, en
+cherchant « Deep Clean » dans les stores.
 
-Marche à suivre :
-1. Envoyer la version 1.0 en vérification normalement (§10).
-2. En même temps, remplir la demande sur
-   developer.apple.com/contact/request/unlisted-app.
+### Pourquoi Apple pourrait poser une question
 
-### Android : publication normale (production)
+Apple vérifie chaque app à la main. Deux réactions sont fréquentes pour une
+app où l'on ne peut pas créer de compte :
+- **« App réservée à une seule entreprise »** (règle 3.2) : Apple peut
+  proposer la distribution privée à la place de l'App Store public.
+- **« Droits sur la marque »** (règle 5.2.1) : le nom « Deep Clean »
+  appartient à une société, le compte est à votre nom. D'où l'autorisation
+  écrite du §2.
 
-Google accepte une app interne en publication publique : elle reste
-inutilisable sans compte créé par la RH. Le lien Play Store est envoyé aux
-salariés. On peut aussi commencer par un « test fermé » limité à une liste
-d'adresses email.
+Ces deux points sont prévus à l'avance dans la fiche et la note aux
+vérificateurs :
+- **Fiche** : la description présente l'app pour ce qu'elle est, un outil
+  de gestion d'équipe pour entreprise de nettoyage, édité par vous et loué
+  à l'entreprise, dont les salariés reçoivent leurs identifiants.
+- **Note aux vérificateurs (§6)** : elle dit clairement qui édite l'app,
+  qui l'utilise, et pourquoi il n'y a pas d'inscription. Elle fournit les
+  comptes de démonstration.
+- **Pas de promesse de fonctions futures** : Apple juge l'app telle
+  qu'elle est. Annoncer un accès élargi « dans une future mise à jour »
+  n'aide pas, et la règle 2.3 interdit les descriptions qui ne
+  correspondent pas à l'app livrée.
 
----
+Si Apple refuse malgré tout la publication publique, on répond au
+vérificateur dans App Store Connect (le « Resolution Center ») avec le
+contrat de location et l'autorisation. Une demande d'appel est possible. La
+distribution par lien direct ne reste qu'une solution de repli.
+
+### Google Play
+
+Publication publique en production, après le test fermé de 14 jours exigé
+pour un compte personnel (§2).
+
+### Nom de l'app
+
+Le nom doit être unique sur chaque store. Si « Deep Clean » est déjà pris,
+utiliser **« Deep Clean – Équipes »**. Le nom affiché sous l'icône du
+téléphone reste « Deep Clean ».
 
 ## 4. Textes de la fiche (à copier-coller)
 
@@ -129,11 +156,11 @@ Planning, missions et pointage de l'équipe Deep Clean, au même endroit.
 
 **Description complète** (Apple et Google, 4000 max) :
 ```
-Deep Clean est l'application interne de l'entreprise de nettoyage DEEP CLEAN. Elle réunit toute l'équipe — employés, chefs d'équipe, superviseurs, RH et direction — au même endroit.
-
-Application réservée aux collaborateurs : les comptes sont créés par le service RH, il n'est pas possible de s'inscrire depuis l'application.
+Deep Clean réunit toute l'équipe d'une entreprise de nettoyage — employés, chefs d'équipe, superviseurs, RH et direction — dans une seule application.
 
 En ouvrant l'application, chacun sait immédiatement où aller, quand, et ce qu'il doit faire.
+
+Accès réservé aux équipes : votre compte est créé par le service RH de votre entreprise, qui vous remet vos identifiants. Il n'y a pas d'inscription publique.
 
 POUR LES ÉQUIPES SUR LE TERRAIN
 • Planning du jour et de la semaine, missions à venir et terminées
@@ -160,7 +187,7 @@ POUR LA RH ET LA DIRECTION
 SÉCURITÉ
 Chacun ne voit que ce qui le concerne, contrôlé par le serveur. Mots de passe chiffrés, connexions sécurisées, reconnexion par Face ID ou empreinte digitale.
 
-Un problème de connexion ? Contactez la RH.
+Un problème de connexion ? Contactez le service RH de votre entreprise.
 ```
 
 **Mots-clés Apple** (100 max) :
@@ -217,16 +244,18 @@ passe dans les deux consoles :
 Ces comptes restent actifs tant que l'app est publiée : Apple et Google
 re-vérifient chaque mise à jour.
 
-**Note pour les vérificateurs** (en anglais, à coller tel quel) :
+**Note pour les vérificateurs** (en anglais, à coller telle quelle) :
 ```
-Deep Clean is the internal workforce app of DEEP CLEAN, a French cleaning company (SIREN 942 773 375). Accounts are created only by the company's HR department: there is no public sign-up, by design. Please use the demo accounts provided.
+Deep Clean is a workforce management app for cleaning companies: schedules, job-site missions, clock-in/clock-out, problem reporting with photos, notifications and team messaging.
 
-Employee account: today's missions, weekly schedule, clock-in/clock-out, problem reporting with photos, notifications and internal team messaging. Manager account: schedule management, validation of completed missions and timesheets.
+It is developed and published by Boris Corsiez (KingDream Digital) and licensed to client companies. The first client is DEEP CLEAN SAS (French cleaning company, SIREN 942 773 375). It authorizes the use of its name and logo; the written authorization is attached.
+
+Accounts are created by each client company's HR department, which gives employees their credentials. There is no public sign-up, by design, as in other employer-provided workforce apps. Please use the demo accounts provided:
+- Employee account: today's missions, schedule, clock-in/out, problem reporting, notifications, messaging.
+- Manager account: schedule management, validation of completed missions and timesheets.
 
 Camera and location are used only when the user clocks in or out, as proof of presence on the job site. Location is never used in the background. Face ID is optional, for quick re-login. The app is in French.
 ```
-
----
 
 ## 7. Questionnaires de confidentialité
 
@@ -342,8 +371,9 @@ eas submit --platform android --profile production   # vers la Play Console
    classification par âge.
 3. Indiquer les comptes de démonstration (§6).
 4. Sélectionner le build envoyé par `eas submit`.
-5. Envoyer en vérification (généralement 24 à 48 h). Demander ensuite la
-   distribution non répertoriée (§3).
+5. Joindre l'autorisation de DEEP CLEAN (§2).
+6. Envoyer en vérification (généralement 24 à 48 h). Choisir la
+   disponibilité **publique**, dans tous les pays voulus.
 
 **Google (Play Console)** :
 1. Créer l'app (nom, langue, application gratuite).
@@ -351,8 +381,11 @@ eas submit --platform android --profile production   # vers la Play Console
    (§6), annonces (Non), classification (§7), public cible (18+),
    sécurité des données (§7), application gouvernementale (Non).
 3. Fiche Play Store principale : textes (§4) et visuels (§5).
-4. Production → créer une release, envoyer le `.aab`, puis envoyer en
-   examen (quelques heures à quelques jours).
+4. Test fermé :
+   - créer une release, envoyer le `.aab` et ajouter au moins 12 testeurs ;
+   - attendre 14 jours sans interruption.
+5. Demander l'accès à la production, puis publier : quelques heures à
+   quelques jours d'examen.
 
 ---
 

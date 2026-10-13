@@ -49,8 +49,9 @@ export function LegalScreen() {
         </Text>
 
         <Section icon="business-outline" title="Éditeur de l'application">
-          L'application Deep Clean (mobile et web) est conçue et développée par KingDream Digital, qui assure sa
-          maintenance technique et ses mises à jour.{"\n\n"}Contact : kingdreamdigital@gmail.com
+          L'application Deep Clean (mobile et web) est éditée par Boris Corsiez — KingDream Digital, entrepreneur
+          individuel —, qui la conçoit, l'héberge et assure sa maintenance et ses mises à jour. Elle est mise à
+          disposition de l'entreprise Deep Clean en location.{"\n\n"}Contact : kingdreamdigital@gmail.com
         </Section>
 
         <Section icon="briefcase-outline" title="Exploitant">
@@ -90,8 +91,10 @@ export function LegalScreen() {
         </Section>
 
         <Section icon="document-text-outline" title="Propriété intellectuelle">
-          L'application Deep Clean (code, design, identité visuelle) est la propriété de KingDream Digital. Toute
-          reproduction ou réutilisation en dehors du cadre de cette exploitation est interdite sans autorisation.
+          L'application Deep Clean (code, design, fonctionnement) est la propriété de son éditeur, Boris Corsiez —
+          KingDream Digital. Le nom et le logo Deep Clean appartiennent à la société DEEP CLEAN, qui en autorise
+          l'usage pour cette application. Toute reproduction ou réutilisation en dehors de ce cadre est interdite
+          sans autorisation.
         </Section>
         {[
           { label: "Politique de confidentialité complète", url: PRIVACY_URL },
