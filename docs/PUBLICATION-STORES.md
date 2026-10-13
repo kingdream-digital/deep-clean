@@ -403,3 +403,45 @@ eas submit --platform android --profile production   # vers la Play Console
     `app.json` (1.1.0…) pour un numéro visible par les utilisateurs.
 - Les vérifications Apple et Google des mises à jour sont en général plus
   rapides que la première.
+
+---
+
+## Annexe — Modèle d'autorisation d'usage du nom et du logo
+
+À imprimer sur papier à en-tête de DEEP CLEAN, signer, scanner en PDF, puis
+joindre dans App Store Connect (et garder pour Google). Une version en
+anglais est utile pour les vérificateurs : elle suit le texte français.
+
+```
+AUTORISATION D'UTILISATION DE MARQUE
+
+Je soussigné(e) [Prénom NOM], Président(e) de la société DEEP CLEAN, SAS au
+capital de 600 €, immatriculée au RCS de Manosque sous le numéro
+942 773 375, dont le siège est situé [adresse du siège],
+
+autorise Monsieur Boris Corsiez, entrepreneur individuel exerçant sous le
+nom commercial KingDream Digital (SIRET [numéro]), à publier et distribuer
+sur l'App Store d'Apple et sur Google Play l'application mobile « Deep
+Clean », en utilisant le nom « Deep Clean » et le logo de la société DEEP
+CLEAN.
+
+Cette application est louée par Monsieur Boris Corsiez à la société DEEP
+CLEAN, pour la gestion de ses équipes. La présente autorisation vaut pour
+toute la durée du contrat de location.
+
+Fait à [ville], le [date].
+
+[Signature et cachet]
+
+---
+
+TRADEMARK USE AUTHORIZATION
+
+I, the undersigned [First name LAST NAME], President of DEEP CLEAN SAS
+(registered in Manosque, France, under number 942 773 375), authorize
+Mr Boris Corsiez (KingDream Digital) to publish and distribute the
+"Deep Clean" mobile app on the Apple App Store and Google Play, using the
+DEEP CLEAN name and logo. The app is licensed by Mr Corsiez to DEEP CLEAN
+for its workforce management. This authorization is valid for the whole
+term of the license agreement.
+```
