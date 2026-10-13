@@ -101,9 +101,11 @@ export function UserFormScreen() {
   const [openingPrevText, setOpeningPrevText] = useState("");
   const [openingCurText, setOpeningCurText] = useState("");
   const [initialOpening, setInitialOpening] = useState({ previousYear: 0, currentYear: 0 });
-  // Contrat de travail déposé dès la création (facultatif, possible plus tard
-  // depuis la fiche → Documents).
+  // Documents déposés dès la création (facultatifs, possibles plus tard depuis
+  // la fiche → Documents) : contrat de travail et convention collective
+  // (retour explicite du client : l'entreprise établit sa propre convention).
   const [contract, setContract] = useState<LocalDocumentAsset | null>(null);
+  const [agreement, setAgreement] = useState<LocalDocumentAsset | null>(null);
   const canSetOpening = !!actor && ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"].includes(actor.role) && actor.id !== userId;
 
   const load = useCallback(async () => {
@@ -201,15 +203,20 @@ export function UserFormScreen() {
           ...(capValue != null ? { leaveAccrualCap: capValue } : {}),
           ...(openingPrev > 0 || openingCur > 0 ? { openingLeave: { previousYear: openingPrev, currentYear: openingCur } } : {}),
         });
-        if (contract) {
+        const failed: string[] = [];
+        for (const [title, asset] of [["Contrat de travail", contract], ["Convention collective", agreement]] as const) {
+          if (!asset) continue;
           try {
-            await uploadDocument(user.id, "Contrat de travail", contract);
-          } catch (err) {
-            Alert.alert(
-              "Compte créé, contrat non envoyé",
-              `${extractErrorMessage(err)}\n\nVous pourrez le déposer depuis la fiche de l'employé → Documents.`
-            );
+            await uploadDocument(user.id, title, asset);
+          } catch {
+            failed.push(title.toLowerCase());
           }
+        }
+        if (failed.length) {
+          Alert.alert(
+            "Compte créé, document non envoyé",
+            `Envoi impossible : ${failed.join(" et ")}.\n\nVous pourrez le déposer depuis la fiche de l'employé → Documents.`
+          );
         }
         navigation.replace("UserDetail", { userId: user.id, temporaryPassword });
       }
@@ -220,14 +227,43 @@ export function UserFormScreen() {
     }
   }
 
-  async function handlePickContract() {
+  async function pickPdf(fallbackName: string): Promise<LocalDocumentAsset | null> {
     if (Platform.OS === "web") {
       const picked = await pickWebFile({ accept: "application/pdf" });
-      if (picked) setContract({ uri: picked.uri, fileName: picked.fileName ?? "contrat.pdf", file: picked.file });
-    } else {
-      const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf", copyToCacheDirectory: true });
-      if (!result.canceled && result.assets?.[0]) setContract({ uri: result.assets[0].uri, fileName: result.assets[0].name });
+      return picked ? { uri: picked.uri, fileName: picked.fileName ?? fallbackName, file: picked.file } : null;
     }
+    const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf", copyToCacheDirectory: true });
+    return !result.canceled && result.assets?.[0] ? { uri: result.assets[0].uri, fileName: result.assets[0].name } : null;
+  }
+
+  function documentSlot(label: string, asset: LocalDocumentAsset | null, set: (a: LocalDocumentAsset | null) => void, fallbackName: string) {
+    return asset ? (
+      <Card style={{ marginBottom: spacing.xs }}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Ionicons name="document-text-outline" size={20} color={colors.accent} />
+          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+            <Text style={[type.caption, { color: colors.inkTertiary }]}>{label}</Text>
+            <Text style={[type.callout, { color: colors.ink }]} numberOfLines={1}>
+              {asset.fileName}
+            </Text>
+          </View>
+          <PressableScale onPress={() => set(null)} accessibilityLabel={`Retirer : ${label}`} style={{ paddingLeft: spacing.sm }}>
+            <Text style={[type.footnote, { color: colors.danger, fontWeight: "600" }]}>Retirer</Text>
+          </PressableScale>
+        </View>
+      </Card>
+    ) : (
+      <Button
+        label={`Joindre : ${label.toLowerCase()} (PDF)`}
+        icon="attach-outline"
+        variant="secondary"
+        style={{ marginBottom: spacing.xs }}
+        onPress={async () => {
+          const picked = await pickPdf(fallbackName);
+          if (picked) set(picked);
+        }}
+      />
+    );
   }
 
   if (loadState === "loading") {
@@ -311,24 +347,11 @@ export function UserFormScreen() {
 
         {!isEdit && (
           <>
-            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>CONTRAT DE TRAVAIL (FACULTATIF)</Text>
-            {contract ? (
-              <Card style={{ marginBottom: spacing.xs }}>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons name="document-text-outline" size={20} color={colors.accent} />
-                  <Text style={[type.callout, { color: colors.ink, flex: 1, marginLeft: spacing.sm }]} numberOfLines={1}>
-                    {contract.fileName}
-                  </Text>
-                  <PressableScale onPress={() => setContract(null)} accessibilityLabel="Retirer le contrat" style={{ paddingLeft: spacing.sm }}>
-                    <Text style={[type.footnote, { color: colors.danger, fontWeight: "600" }]}>Retirer</Text>
-                  </PressableScale>
-                </View>
-              </Card>
-            ) : (
-              <Button label="Joindre le contrat (PDF)" icon="attach-outline" variant="secondary" onPress={handlePickContract} />
-            )}
+            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>DOCUMENTS (FACULTATIF)</Text>
+            {documentSlot("Contrat de travail", contract, setContract, "contrat.pdf")}
+            {documentSlot("Convention collective", agreement, setAgreement, "convention-collective.pdf")}
             <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xs, marginBottom: spacing.md }]}>
-              Il sera rangé dans les documents de l'employé, qui pourra le consulter. Vous pourrez aussi le déposer plus tard depuis sa fiche → Documents.
+              Rangés dans les documents de l'employé, qui pourra les consulter. Vous pourrez aussi les déposer plus tard depuis sa fiche → Documents.
             </Text>
           </>
         )}
