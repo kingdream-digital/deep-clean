@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { createApp } from "../src/app";
 import { prisma } from "../src/db/prisma";
 import { createTestUser, resetDatabase, TEST_PASSWORD } from "./helpers";
+import { clearCompanyLookupCache } from "../src/modules/clients/companyLookup.service";
 
 const app = createApp();
 
@@ -33,6 +34,7 @@ function annuaire(results: unknown[], status = 200) {
 
 beforeEach(async () => {
   await resetDatabase();
+  clearCompanyLookupCache();
   fetchMock = jest.spyOn(global, "fetch");
 });
 
@@ -68,6 +70,16 @@ describe("Recherche d'une entreprise par SIRET / SIREN", () => {
       isHeadOffice: false,
     });
     expect(String(fetchMock.mock.calls[0]![0])).toContain("q=55203253400646");
+  });
+
+  it("une entreprise déjà recherchée ressort sans rappeler l'annuaire", async () => {
+    const token = await tokenFor(Role.HR, "rh-lookup-cache@deepclean.test");
+    annuaire([DANONE]);
+    const first = await request(app).get("/api/v1/clients/lookup/552032534").set("Authorization", `Bearer ${token}`);
+    const second = await request(app).get("/api/v1/clients/lookup/552 032 534").set("Authorization", `Bearer ${token}`);
+    expect(second.status).toBe(200);
+    expect(second.body).toEqual(first.body);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("SIREN : renvoie le siège social", async () => {

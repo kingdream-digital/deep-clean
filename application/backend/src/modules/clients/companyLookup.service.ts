@@ -11,6 +11,18 @@ import { ApiError } from "../../utils/ApiError";
 const API_URL = "https://recherche-entreprises.api.gouv.fr/search";
 const REQUEST_TIMEOUT_MS = 8000;
 
+// Mémoire des recherches réussies : la même entreprise recherchée à nouveau
+// (fiche prospect puis fiche client, deux commerciaux…) ressort
+// instantanément, sans rappeler l'annuaire. 24 h suffisent : nom et adresse
+// changent rarement.
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CACHE_MAX_ENTRIES = 500;
+const cache = new Map<string, { at: number; result: CompanyLookupResult }>();
+
+export function clearCompanyLookupCache(): void {
+  cache.clear();
+}
+
 export interface CompanyLookupResult {
   companyName: string;
   siren: string;
@@ -72,6 +84,16 @@ export async function lookupCompany(raw: string): Promise<CompanyLookupResult> {
   }
   const siren = number.slice(0, 9);
 
+  const cached = cache.get(number);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.result;
+
+  const result = await fetchCompany(number, siren);
+  if (cache.size >= CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value as string);
+  cache.set(number, { at: Date.now(), result });
+  return result;
+}
+
+async function fetchCompany(number: string, siren: string): Promise<CompanyLookupResult> {
   let data: { results?: ApiCompany[] };
   try {
     const res = await fetch(`${API_URL}?q=${number}&page=1&per_page=5`, {
