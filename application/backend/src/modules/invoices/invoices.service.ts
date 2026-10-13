@@ -1,6 +1,7 @@
 import { InvoiceStatus, Prisma, QuoteItemUnit, QuoteStatus, Role } from "@prisma/client";
 import { companyDateLabel } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
+import { nextDocumentNumber } from "../../utils/documentNumber";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { escapeLikePattern } from "../../utils/likePattern";
@@ -121,8 +122,7 @@ function assertIsEditable(invoice: { status: InvoiceStatus }): void {
 async function generateInvoiceNumber(tx: Prisma.TransactionClient): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `FAC-${year}-`;
-  const count = await tx.invoice.count({ where: { invoiceNumber: { startsWith: prefix } } });
-  return `${prefix}${String(count + 1).padStart(4, "0")}`;
+  return nextDocumentNumber(tx, "invoice", prefix);
 }
 
 const MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];

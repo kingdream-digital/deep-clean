@@ -396,16 +396,23 @@ export async function decideAbsence(
     }
   }
 
-  const updated = await prisma.absence.update({
-    where: { id },
+  // BUG CORRIGÉ (test de courses) : deux RH qui tranchaient la même demande à
+  // la même seconde (accord / refus) recevaient toutes deux « OK » et
+  // l'employé deux décisions contradictoires. La décision n'est enregistrée
+  // que si la demande est ENCORE en attente, en une seule opération.
+  const claimed = await prisma.absence.updateMany({
+    where: { id, status: AbsenceStatus.PENDING },
     data: {
       status: input.status,
       decidedById: actor.userId,
       decidedAt: new Date(),
       decisionNote: input.decisionNote,
     },
-    select: absenceSelect,
   });
+  if (claimed.count === 0) {
+    throw ApiError.conflict("Cette demande a déjà été traitée.");
+  }
+  const updated = await prisma.absence.findUniqueOrThrow({ where: { id }, select: absenceSelect });
 
   await logActivity({
     userId: actor.userId,

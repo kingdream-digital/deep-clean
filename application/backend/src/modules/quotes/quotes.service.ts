@@ -1,6 +1,7 @@
 import { Prisma, QuoteEventAction, QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit, QuoteReplyStatus, QuoteStatus, Role } from "@prisma/client";
 import { companyDateLabel } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
+import { nextDocumentNumber } from "../../utils/documentNumber";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { escapeLikePattern } from "../../utils/likePattern";
@@ -208,11 +209,21 @@ function assertIsEditable(quote: { status: QuoteStatus }): void {
 const VALIDATABLE_STATUSES: QuoteStatus[] = [QuoteStatus.DRAFT, QuoteStatus.TO_VALIDATE];
 const AWAITING_RESPONSE_STATUSES: QuoteStatus[] = [QuoteStatus.SENT, QuoteStatus.FOLLOW_UP];
 
+// Changement de statut atomique. BUG CORRIGÉ (test de courses) : deux
+// actions simultanées sur le même devis (double appui sur « Valider la
+// signature », « Accepté » et « Refusé » cliqués en même temps…) passaient
+// toutes les deux, écrasant la première et doublant l'historique. Le
+// changement n'est appliqué que si le devis est ENCORE dans l'un des statuts
+// attendus ; sinon, conflit pour le second.
+async function transitionQuote(id: string, from: QuoteStatus[], data: Prisma.QuoteUncheckedUpdateManyInput, conflictMessage: string): Promise<void> {
+  const claimed = await prisma.quote.updateMany({ where: { id, status: { in: from } }, data });
+  if (claimed.count === 0) throw ApiError.conflict(conflictMessage);
+}
+
 async function generateQuoteNumber(tx: Prisma.TransactionClient): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `DEV-${year}-`;
-  const count = await tx.quote.count({ where: { quoteNumber: { startsWith: prefix } } });
-  return `${prefix}${String(count + 1).padStart(4, "0")}`;
+  return nextDocumentNumber(tx, "quote", prefix);
 }
 
 interface CreateQuoteInput {
@@ -469,14 +480,22 @@ export async function sendQuote(actor: Actor, id: string, message?: string) {
     .filter(Boolean)
     .join("\n");
 
-  await sendMail({
-    to: recipient,
-    subject: `Devis ${quote.quoteNumber} — ${quote.client.companyName}`,
-    text,
-    attachments: [{ filename: `${quote.quoteNumber}.pdf`, content: pdf, contentType: "application/pdf" }],
-  });
+  // Réservé avant l'envoi : un double appui sur « Envoyer » n'envoie jamais
+  // deux emails au client. Si l'envoi échoue, le devis redevient « validé ».
+  await transitionQuote(id, [QuoteStatus.VALIDATED], { status: QuoteStatus.SENT }, "Ce devis a déjà été envoyé.");
+  try {
+    await sendMail({
+      to: recipient,
+      subject: `Devis ${quote.quoteNumber} — ${quote.client.companyName}`,
+      text,
+      attachments: [{ filename: `${quote.quoteNumber}.pdf`, content: pdf, contentType: "application/pdf" }],
+    });
+  } catch (err) {
+    await prisma.quote.updateMany({ where: { id, status: QuoteStatus.SENT }, data: { status: QuoteStatus.VALIDATED } });
+    throw err;
+  }
 
-  const updated = await prisma.quote.update({ where: { id }, data: { status: QuoteStatus.SENT }, select: quoteSelect });
+  const updated = await prisma.quote.findUniqueOrThrow({ where: { id }, select: quoteSelect });
   await recordEvent(id, actor.userId, QuoteEventAction.SENT, { comment: message, metadata: { recipient } });
   await logActivity({ userId: actor.userId, action: "QUOTE_SENT", entityType: "Quote", entityId: id, metadata: { recipient } });
   return presentQuote(updated);
@@ -518,17 +537,13 @@ export async function markQuoteAccepted(actor: Actor, id: string, input: { metho
     throw ApiError.conflict("Seul un devis envoyé peut être marqué comme accepté.");
   }
 
-  const quote = await prisma.quote.update({
-    where: { id },
-    data: {
-      status: QuoteStatus.ACCEPTED,
-      acceptedAt: new Date(),
-      acceptedById: actor.userId,
-      acceptedMethod: input.method,
-      acceptedComment: input.comment,
-    },
-    select: quoteSelect,
-  });
+  await transitionQuote(
+    id,
+    AWAITING_RESPONSE_STATUSES,
+    { status: QuoteStatus.ACCEPTED, acceptedAt: new Date(), acceptedById: actor.userId, acceptedMethod: input.method, acceptedComment: input.comment },
+    "Ce devis a déjà reçu une réponse."
+  );
+  const quote = await prisma.quote.findUniqueOrThrow({ where: { id }, select: quoteSelect });
   await recordEvent(id, actor.userId, QuoteEventAction.ACCEPTED, { method: input.method, comment: input.comment });
   await logActivity({ userId: actor.userId, action: "QUOTE_ACCEPTED", entityType: "Quote", entityId: id });
   await notifyQuote(actor, quote, "accepted");
@@ -557,9 +572,10 @@ export async function signQuote(actor: Actor, id: string, input: QuoteSignatureI
 
   const signedAt = new Date();
   const comment = `Signé sur place par ${input.signerName}`;
-  const quote = await prisma.quote.update({
-    where: { id },
-    data: {
+  await transitionQuote(
+    id,
+    [QuoteStatus.VALIDATED, ...AWAITING_RESPONSE_STATUSES],
+    {
       status: QuoteStatus.ACCEPTED,
       acceptedAt: signedAt,
       acceptedById: actor.userId,
@@ -569,8 +585,9 @@ export async function signQuote(actor: Actor, id: string, input: QuoteSignatureI
       signedByName: input.signerName,
       signatureStrokes: input.signature,
     },
-    select: quoteSelect,
-  });
+    "Ce devis vient d'être signé ou a déjà reçu une réponse."
+  );
+  const quote = await prisma.quote.findUniqueOrThrow({ where: { id }, select: quoteSelect });
   await recordEvent(id, actor.userId, QuoteEventAction.ACCEPTED, {
     method: QuoteFollowUpMethod.MEETING,
     comment,
@@ -621,11 +638,13 @@ export async function markQuoteRejected(actor: Actor, id: string, input: { comme
   if (!AWAITING_RESPONSE_STATUSES.includes(existing.status)) {
     throw ApiError.conflict("Seul un devis envoyé peut être marqué comme refusé.");
   }
-  const quote = await prisma.quote.update({
-    where: { id },
-    data: { status: QuoteStatus.REJECTED, rejectedAt: new Date(), rejectedById: actor.userId, rejectedComment: input.comment },
-    select: quoteSelect,
-  });
+  await transitionQuote(
+    id,
+    AWAITING_RESPONSE_STATUSES,
+    { status: QuoteStatus.REJECTED, rejectedAt: new Date(), rejectedById: actor.userId, rejectedComment: input.comment },
+    "Ce devis a déjà reçu une réponse."
+  );
+  const quote = await prisma.quote.findUniqueOrThrow({ where: { id }, select: quoteSelect });
   await recordEvent(id, actor.userId, QuoteEventAction.REJECTED, { comment: input.comment });
   await logActivity({ userId: actor.userId, action: "QUOTE_REJECTED", entityType: "Quote", entityId: id });
   await notifyQuote(actor, quote, "rejected");
@@ -755,15 +774,27 @@ export async function decideQuoteReply(actor: Actor, replyId: string, decision: 
   }
 
   const comment = `Réponse par email de ${reply.fromEmail} le ${companyDateLabel(reply.receivedAt)}`;
-  if (decision === "ACCEPT") {
-    await markQuoteAccepted(actor, quote.id, { method: QuoteFollowUpMethod.EMAIL, comment });
-  } else if (decision === "REJECT") {
-    await markQuoteRejected(actor, quote.id, { comment });
-  }
-
   const status = decision === "ACCEPT" ? QuoteReplyStatus.ACCEPTED : decision === "REJECT" ? QuoteReplyStatus.REJECTED : QuoteReplyStatus.DISMISSED;
   const handledAt = new Date();
-  await prisma.quoteReply.update({ where: { id: replyId }, data: { status, handledById: actor.userId, handledAt } });
+  // La réponse est réservée d'abord, de façon atomique : si deux personnes
+  // cliquent en même temps (Accepté / Refusé), une seule décision passe.
+  const claimed = await prisma.quoteReply.updateMany({
+    where: { id: replyId, status: QuoteReplyStatus.PENDING },
+    data: { status, handledById: actor.userId, handledAt },
+  });
+  if (claimed.count === 0) throw ApiError.conflict("Cette réponse a déjà été traitée.");
+  try {
+    if (decision === "ACCEPT") {
+      await markQuoteAccepted(actor, quote.id, { method: QuoteFollowUpMethod.EMAIL, comment });
+    } else if (decision === "REJECT") {
+      await markQuoteRejected(actor, quote.id, { comment });
+    }
+  } catch (err) {
+    // Le devis n'a pas pu changer (déjà tranché entre-temps…) : la réponse
+    // redevient « à traiter » plutôt que de mentir sur ce qui a été fait.
+    await prisma.quoteReply.update({ where: { id: replyId }, data: { status: QuoteReplyStatus.PENDING, handledById: null, handledAt: null } });
+    throw err;
+  }
   // Le devis est tranché : les autres réponses encore en attente sur ce même
   // devis n'appellent plus de décision.
   if (decision !== "DISMISS") {

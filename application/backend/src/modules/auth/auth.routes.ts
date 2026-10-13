@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authRateLimiter } from "../../middleware/rateLimit.middleware";
+import { changePasswordRateLimiter, loginRateLimiters } from "../../middleware/rateLimit.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import { authenticate } from "../../middleware/auth.middleware";
 import { changePasswordSchema, loginSchema, logoutSchema, refreshSchema } from "./auth.validation";
@@ -8,8 +8,8 @@ import * as authController from "./auth.controller";
 export const authRouter = Router();
 
 // Pas de route d'inscription : les comptes sont exclusivement créés par la RH (voir users.routes.ts).
-authRouter.post("/login", authRateLimiter, validate(loginSchema), authController.loginHandler);
-// Pas de authRateLimiter ici : un refresh token ne se devine pas par force
+authRouter.post("/login", ...loginRateLimiters, validate(loginSchema), authController.loginHandler);
+// Pas de limite de connexion ici : un refresh token ne se devine pas par force
 // brute (64 octets aléatoires), et le rafraîchissement automatique à chaque
 // expiration de session fait partie de l'usage normal — le compter dans la
 // même limite stricte que /login bloquait un utilisateur légitime qui n'a
@@ -23,8 +23,8 @@ authRouter.post("/logout", validate(logoutSchema), authController.logoutHandler)
 authRouter.get("/me", authenticate({ allowPasswordChangePending: true }), authController.meHandler);
 authRouter.post(
   "/change-password",
-  authRateLimiter,
   authenticate({ allowPasswordChangePending: true }),
+  changePasswordRateLimiter,
   validate(changePasswordSchema),
   authController.changePasswordHandler
 );

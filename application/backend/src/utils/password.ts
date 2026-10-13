@@ -1,9 +1,9 @@
 import { randomInt } from "node:crypto";
-import bcrypt from "bcryptjs";
+import { runBcrypt } from "./passwordWorkerPool";
 
 // bcryptjs est une implémentation pure JS (pas de binding natif) : le calcul
-// tourne entièrement sur le thread JS principal et bloque l'event loop le
-// temps du hash/compare. Sur l'hébergement actuel (CPU partagé/limité), un
+// est désormais exécuté dans des threads dédiés (voir passwordWorkerPool.ts)
+// pour ne plus bloquer le thread principal. Sur l'hébergement actuel (CPU partagé/limité), un
 // facteur de coût 12 fait grimper un login à plusieurs secondes en solo, et
 // à ~20s quand plusieurs employés se connectent en même temps (chaque
 // login se sérialise derrière les autres sur le même thread) — constaté
@@ -15,11 +15,11 @@ import bcrypt from "bcryptjs";
 const SALT_ROUNDS = 10;
 
 export async function hashPassword(plain: string): Promise<string> {
-  return bcrypt.hash(plain, SALT_ROUNDS);
+  return runBcrypt("hash", plain, SALT_ROUNDS);
 }
 
 export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(plain, hash);
+  return runBcrypt("compare", plain, hash);
 }
 
 // Hash bcrypt « leurre » (coût 10, identique à SALT_ROUNDS) utilisé à la
@@ -33,7 +33,7 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
 const DECOY_PASSWORD_HASH = "$2a$10$6enAtb3mAzzja/J4lZMsseQlxPTQhrMnaAZXjWfpxdoJg1BtWwvGu";
 
 export async function verifyPasswordDummy(plain: string): Promise<void> {
-  await bcrypt.compare(plain, DECOY_PASSWORD_HASH);
+  await runBcrypt("compare", plain, DECOY_PASSWORD_HASH);
 }
 
 // Politique de mot de passe appliquée côté serveur (jamais uniquement côté mobile).

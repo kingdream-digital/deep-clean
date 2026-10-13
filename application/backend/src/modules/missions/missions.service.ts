@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { calendarDay, calendarDayEnd, calendarDayKey, companyDateKey, companyDateTime, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
 import { MissionStatus, NotificationType, Prisma, Role, ValidationType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
+import { withMutex } from "../../utils/keyedMutex";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification, markRelatedNotificationsRead } from "../notifications/notifications.service";
@@ -387,7 +388,7 @@ interface CreateMissionInput {
   recurrence?: RecurrenceInput;
 }
 
-export async function createMission(actor: Actor, input: CreateMissionInput) {
+async function createMissionUnlocked(actor: Actor, input: CreateMissionInput) {
   const site = await findSiteOrThrow(input.siteId);
   if (!canManagePlanning(actor)) throw ApiError.forbidden();
   if (!site.isActive) throw ApiError.badRequest("Ce chantier est inactif.");
@@ -628,7 +629,7 @@ interface UpdateMissionInput {
   isExceptional?: boolean;
 }
 
-export async function updateMission(actor: Actor, id: string, input: UpdateMissionInput) {
+async function updateMissionUnlocked(actor: Actor, id: string, input: UpdateMissionInput) {
   const mission = await findMissionOrThrow(id);
   assertCanSeeMission(actor, mission);
   const managesPlanning = canManagePlanning(actor);
@@ -894,7 +895,7 @@ interface UpdateAssignmentsInput {
   leadId?: string;
 }
 
-export async function updateAssignments(actor: Actor, id: string, input: UpdateAssignmentsInput) {
+async function updateAssignmentsUnlocked(actor: Actor, id: string, input: UpdateAssignmentsInput) {
   const mission = await findMissionOrThrow(id);
   assertCanSeeMission(actor, mission);
   if (!canManagePlanning(actor)) throw ApiError.forbidden();
@@ -1291,7 +1292,7 @@ export async function listMissionsToReassign(actor: Actor) {
  * doit être ni absent ce jour-là, ni déjà sur une mission qui se recouvre.
  * Les deux personnes sont prévenues.
  */
-export async function replaceAssignee(actor: Actor, missionId: string, input: { fromUserId: string; toUserId: string }) {
+async function replaceAssigneeUnlocked(actor: Actor, missionId: string, input: { fromUserId: string; toUserId: string }) {
   if (!canManagePlanning(actor)) throw ApiError.forbidden();
   const mission = await findMissionOrThrow(missionId);
   if (mission.status === MissionStatus.CANCELLED || mission.status === MissionStatus.COMPLETED) {
@@ -1336,4 +1337,28 @@ export async function replaceAssignee(actor: Actor, missionId: string, input: { 
     missionId
   );
   return presentMission(updated);
+}
+
+// BUG CORRIGÉ (test de courses) : deux superviseurs affectant le même employé
+// à la même seconde sur deux créneaux qui se chevauchent passaient tous les
+// deux la vérification (assertNoScheduleOverlap) avant que l'une ou l'autre
+// mission ne soit enregistrée — l'employé se retrouvait sur deux missions en
+// même temps. Les écritures qui touchent aux créneaux des personnes passent
+// désormais une par une.
+const PLANNING_LOCK = "planning";
+
+export function createMission(actor: Actor, input: CreateMissionInput) {
+  return withMutex(PLANNING_LOCK, () => createMissionUnlocked(actor, input));
+}
+
+export function updateMission(actor: Actor, id: string, input: UpdateMissionInput) {
+  return withMutex(PLANNING_LOCK, () => updateMissionUnlocked(actor, id, input));
+}
+
+export function updateAssignments(actor: Actor, id: string, input: UpdateAssignmentsInput) {
+  return withMutex(PLANNING_LOCK, () => updateAssignmentsUnlocked(actor, id, input));
+}
+
+export function replaceAssignee(actor: Actor, missionId: string, input: { fromUserId: string; toUserId: string }) {
+  return withMutex(PLANNING_LOCK, () => replaceAssigneeUnlocked(actor, missionId, input));
 }

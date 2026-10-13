@@ -26,6 +26,12 @@ const envSchema = z.object({
   // même pour un seul utilisateur légitime.
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(600),
   AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+  // Échecs de connexion tolérés par IP, tous comptes confondus (plusieurs
+  // employés derrière le même Wi-Fi partagent cette IP).
+  AUTH_IP_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
+  // Actions RH sensibles (création, activation, réinitialisation de comptes)
+  // par utilisateur et par fenêtre.
+  HR_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
 
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().optional(),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).optional(),
