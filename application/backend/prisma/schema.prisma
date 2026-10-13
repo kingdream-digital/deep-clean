@@ -1105,6 +1105,15 @@ model Quote {
   acceptedMethod  QuoteFollowUpMethod?
   acceptedComment String?
 
+  // Signature manuscrite du client, recueillie sur place sur l'écran de
+  // l'appareil (retour explicite du client). Signer fait passer le devis en
+  // « Accepté ». `signatureStrokes` contient les traits du tracé
+  // ({ width, height, strokes: number[][] }), redessinés en vectoriel dans le
+  // cadre « Bon pour accord » du PDF (voir quotes.pdf.ts).
+  signedAt         DateTime?
+  signedByName     String?
+  signatureStrokes Json?
+
   rejectedAt      DateTime?
   rejectedById    String?
   rejectedBy      User?     @relation("QuoteRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)

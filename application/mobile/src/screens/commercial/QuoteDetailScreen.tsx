@@ -274,13 +274,15 @@ export function QuoteDetailScreen() {
           {quote.status === "VALIDATED" && (
             <>
               <Button label="Envoyer par email" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "send" })} />
+              <Button label="Faire signer le client sur place" icon="create-outline" variant="secondary" onPress={() => navigation.navigate("QuoteSign", { quoteId })} />
               <Button label="Créer une nouvelle version" variant="secondary" onPress={confirmNewVersion} loading={actionLoading} />
             </>
           )}
 
           {(quote.status === "SENT" || quote.status === "FOLLOW_UP") && (
             <>
-              <Button label="Marquer comme accepté" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "accept" })} />
+              <Button label="Faire signer le client sur place" icon="create-outline" onPress={() => navigation.navigate("QuoteSign", { quoteId })} />
+              <Button label="Marquer comme accepté" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "accept" })} />
               <Button label="Enregistrer une relance" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "followUp" })} />
               <Button label="Marquer comme refusé" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "reject" })} />
               <PressableScale onPress={confirmExpire} style={{ alignItems: "center", paddingVertical: spacing.sm }}>
@@ -294,7 +296,9 @@ export function QuoteDetailScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm }}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                 <Text style={[type.footnote, { color: colors.success, marginLeft: 6, fontWeight: "600" }]}>
-                  Accepté{quote.acceptedAt ? ` le ${dateFmt.format(new Date(quote.acceptedAt))}` : ""}
+                  {quote.signedAt ? "Signé" : "Accepté"}
+                  {quote.acceptedAt ? ` le ${dateFmt.format(new Date(quote.acceptedAt))}` : ""}
+                  {quote.signedByName ? ` par ${quote.signedByName}` : ""}
                 </Text>
               </View>
               {/* Action humaine explicite (module commercial §19) : l'acceptation

@@ -5,6 +5,7 @@ import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { escapeLikePattern } from "../../utils/likePattern";
 import { sendMail } from "../../utils/mailer";
+import { logger } from "../../config/logger";
 import { COMMERCIAL_FULL_ROLES, isOwnRecord, resolveAssignedUserId } from "../commercial/roles";
 import type { Actor } from "../commercial/roles";
 import { buildQuotePdf } from "./quotes.pdf";
@@ -62,6 +63,9 @@ const quoteSelect = {
   acceptedBy: { select: userSummarySelect },
   acceptedMethod: true,
   acceptedComment: true,
+  signedAt: true,
+  signedByName: true,
+  signatureStrokes: true,
   rejectedAt: true,
   rejectedComment: true,
   previousVersionId: true,
@@ -529,6 +533,83 @@ export async function markQuoteAccepted(actor: Actor, id: string, input: { metho
   // JAMAIS automatiquement de chantier, de mission ni d'événement de planning
   // — volontairement aucun autre effet de bord ici.
   return presentQuote(quote);
+}
+
+export interface QuoteSignatureInput {
+  signerName: string;
+  signature: { width: number; height: number; strokes: number[][] };
+  sendCopy?: boolean;
+}
+
+// Signature manuscrite du client sur place (retour explicite du client) : le
+// client signe sur l'écran, le devis passe en « Accepté » et la signature est
+// apposée dans le cadre « Bon pour accord » du PDF. Possible dès que le devis
+// est validé en interne, qu'il ait déjà été envoyé par email ou non.
+export async function signQuote(actor: Actor, id: string, input: QuoteSignatureInput) {
+  const existing = await findQuoteOrThrow(id);
+  assertCanAccessQuote(actor, existing);
+  if (existing.status !== QuoteStatus.VALIDATED && !AWAITING_RESPONSE_STATUSES.includes(existing.status)) {
+    throw ApiError.conflict("Seul un devis validé ou envoyé, en attente de réponse, peut être signé.");
+  }
+
+  const signedAt = new Date();
+  const comment = `Signé sur place par ${input.signerName}`;
+  const quote = await prisma.quote.update({
+    where: { id },
+    data: {
+      status: QuoteStatus.ACCEPTED,
+      acceptedAt: signedAt,
+      acceptedById: actor.userId,
+      acceptedMethod: QuoteFollowUpMethod.MEETING,
+      acceptedComment: comment,
+      signedAt,
+      signedByName: input.signerName,
+      signatureStrokes: input.signature,
+    },
+    select: quoteSelect,
+  });
+  await recordEvent(id, actor.userId, QuoteEventAction.ACCEPTED, {
+    method: QuoteFollowUpMethod.MEETING,
+    comment,
+    metadata: { signed: true, signerName: input.signerName },
+  });
+  await logActivity({ userId: actor.userId, action: "QUOTE_SIGNED", entityType: "Quote", entityId: id, metadata: { signerName: input.signerName } });
+  await notifyQuote(actor, quote, "accepted");
+
+  // Copie du devis signé au client : la signature reste acquise même si
+  // l'email échoue (serveur mail indisponible) — le résultat est renvoyé
+  // pour que l'application l'indique clairement.
+  let copySentTo: string | null = null;
+  let copyError: string | null = null;
+  if (input.sendCopy) {
+    const recipient = quote.contactEmail ?? quote.client.email;
+    if (!recipient) {
+      copyError = "Aucune adresse email connue pour ce client : la copie signée n'a pas été envoyée.";
+    } else {
+      try {
+        const pdf = await buildQuotePdf(quote);
+        await sendMail({
+          to: recipient,
+          subject: `Devis ${quote.quoteNumber} signé — ${quote.client.companyName}`,
+          text: [
+            quote.contactName ? `Bonjour ${quote.contactName},` : "Bonjour,",
+            "",
+            `Merci pour votre confiance. Vous trouverez ci-joint votre exemplaire du devis ${quote.quoteNumber}, signé le ${companyDateLabel(signedAt)}.`,
+            "",
+            "Cordialement,",
+          ].join("\n"),
+          attachments: [{ filename: `${quote.quoteNumber}-signe.pdf`, content: pdf, contentType: "application/pdf" }],
+        });
+        copySentTo = recipient;
+        await recordEvent(id, actor.userId, QuoteEventAction.SENT, { comment: "Copie du devis signé", metadata: { recipient, signedCopy: true } });
+      } catch (err) {
+        logger.warn({ err, quoteId: id }, "Copie du devis signé non envoyée");
+        copyError = "La signature est bien enregistrée, mais l'email de copie n'a pas pu être envoyé. Réessayez depuis « Voir / partager le PDF ».";
+      }
+    }
+  }
+
+  return { quote: presentQuote(quote), copySentTo, copyError };
 }
 
 export async function markQuoteRejected(actor: Actor, id: string, input: { comment?: string }) {

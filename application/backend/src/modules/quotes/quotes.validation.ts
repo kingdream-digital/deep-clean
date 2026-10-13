@@ -110,6 +110,29 @@ export const acceptQuoteSchema = {
   }),
 };
 
+// Tracé de la signature : chaque trait est une liste plate [x1, y1, x2, y2…]
+// en coordonnées de la zone de signature (width × height). Bornes larges pour
+// une vraie signature, mais qui empêchent d'envoyer un volume démesuré.
+const MAX_SIGNATURE_POINTS_TOTAL = 20000;
+
+export const signQuoteSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    signerName: z.string().trim().min(1, "Le nom du signataire est obligatoire.").max(120),
+    signature: z
+      .object({
+        width: z.number().positive().max(4000),
+        height: z.number().positive().max(4000),
+        strokes: z.array(z.array(z.number().finite().min(-50).max(4050)).max(8000)).min(1).max(300),
+      })
+      .refine((s) => s.strokes.some((stroke) => stroke.length >= 4), "La signature est vide.")
+      .refine((s) => s.strokes.every((stroke) => stroke.length % 2 === 0), "Tracé de signature invalide.")
+      .refine((s) => s.strokes.reduce((n, stroke) => n + stroke.length, 0) <= MAX_SIGNATURE_POINTS_TOTAL, "Tracé de signature trop volumineux."),
+    // Envoie au client, par email, une copie du devis signé (PDF).
+    sendCopy: z.boolean().optional().default(false),
+  }),
+};
+
 export const rejectQuoteSchema = {
   params: z.object({ id: z.string().uuid() }),
   body: z.object({ comment: z.string().trim().max(2000).optional() }),

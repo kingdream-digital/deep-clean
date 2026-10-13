@@ -54,6 +54,7 @@ import { QuotesListScreen } from "../screens/commercial/QuotesListScreen";
 import { QuoteDetailScreen } from "../screens/commercial/QuoteDetailScreen";
 import { QuoteFormScreen } from "../screens/commercial/QuoteFormScreen";
 import { QuoteActionScreen } from "../screens/commercial/QuoteActionScreen";
+import { QuoteSignScreen } from "../screens/commercial/QuoteSignScreen";
 import { InvoicesListScreen } from "../screens/commercial/InvoicesListScreen";
 import { InvoiceDetailScreen } from "../screens/commercial/InvoiceDetailScreen";
 import { InvoiceFormScreen } from "../screens/commercial/InvoiceFormScreen";
@@ -132,6 +133,7 @@ export type MenuStackParamList = {
   QuoteDetail: { quoteId: string };
   QuoteForm: { quoteId?: string; clientId?: string } | undefined;
   QuoteAction: { quoteId: string; action: "send" | "followUp" | "accept" | "reject" };
+  QuoteSign: { quoteId: string };
   InvoicesList: undefined;
   InvoiceDetail: { invoiceId: string };
   InvoiceForm: { invoiceId?: string; clientId?: string; quoteId?: string; siteId?: string } | undefined;
@@ -302,6 +304,7 @@ export function MenuStack() {
           presentation: "modal",
         })}
       />
+      <Stack.Screen name="QuoteSign" component={QuoteSignScreen} options={{ title: "Signature du client", presentation: "modal" }} />
       <Stack.Screen name="InvoicesList" component={InvoicesListScreen} options={{ title: "Factures" }} />
       <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: "Facture" }} />
       <Stack.Screen

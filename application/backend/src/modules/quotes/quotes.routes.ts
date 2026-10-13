@@ -11,6 +11,7 @@ import {
   recordFollowUpSchema,
   rejectQuoteSchema,
   sendQuoteSchema,
+  signQuoteSchema,
   updateQuoteSchema,
 } from "./quotes.validation";
 import * as quotesController from "./quotes.controller";
@@ -35,6 +36,7 @@ quotesRouter.post("/:id/validate", validate(quoteIdParamSchema), quotesControlle
 quotesRouter.post("/:id/send", validate(sendQuoteSchema), quotesController.sendQuoteHandler);
 quotesRouter.post("/:id/follow-up", validate(recordFollowUpSchema), quotesController.recordQuoteFollowUpHandler);
 quotesRouter.post("/:id/accept", validate(acceptQuoteSchema), quotesController.markQuoteAcceptedHandler);
+quotesRouter.post("/:id/sign", validate(signQuoteSchema), quotesController.signQuoteHandler);
 quotesRouter.post("/:id/reject", validate(rejectQuoteSchema), quotesController.markQuoteRejectedHandler);
 quotesRouter.post("/:id/expire", validate(quoteIdParamSchema), quotesController.markQuoteExpiredHandler);
 quotesRouter.post("/:id/versions", validate(quoteIdParamSchema), quotesController.createQuoteVersionHandler);

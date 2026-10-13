@@ -136,6 +136,8 @@ export interface Quote {
   acceptedBy: PersonSummary | null;
   acceptedMethod: QuoteFollowUpMethod | null;
   acceptedComment: string | null;
+  signedAt: string | null;
+  signedByName: string | null;
   rejectedAt: string | null;
   rejectedComment: string | null;
   previousVersionId: string | null;
@@ -226,6 +228,21 @@ export async function sendQuote(id: string, message?: string): Promise<Quote> {
 export async function recordQuoteFollowUp(id: string, input: { method: QuoteFollowUpMethod; comment?: string; nextFollowUpAt?: string }): Promise<Quote> {
   const { data } = await apiClient.post<{ quote: Quote }>(`/quotes/${id}/follow-up`, input);
   return data.quote;
+}
+
+export interface QuoteSignatureResult {
+  quote: Quote;
+  copySentTo: string | null;
+  copyError: string | null;
+}
+
+// Signature manuscrite du client sur place : le devis passe en « Accepté ».
+export async function signQuote(
+  id: string,
+  input: { signerName: string; signature: { width: number; height: number; strokes: number[][] }; sendCopy: boolean }
+): Promise<QuoteSignatureResult> {
+  const { data } = await apiClient.post<QuoteSignatureResult>(`/quotes/${id}/sign`, input);
+  return data;
 }
 
 export async function markQuoteAccepted(id: string, input: { method: QuoteFollowUpMethod; comment?: string }): Promise<Quote> {
