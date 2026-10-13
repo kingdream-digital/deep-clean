@@ -49,14 +49,15 @@ export function LegalScreen() {
         </Text>
 
         <Section icon="business-outline" title="Éditeur de l'application">
-          L'application Deep Clean (mobile et web) est éditée par Boris Corsiez — KingDream Digital, entrepreneur
-          individuel —, qui la conçoit, l'héberge et assure sa maintenance et ses mises à jour. Elle est mise à
+          L'application Deep Clean (mobile et web) est éditée par Boris Corsiez (KingDream Digital, entrepreneur
+          individuel, SIRET 102 486 677 00010), qui la conçoit, l'héberge et assure sa maintenance et ses mises à jour. Elle est mise à
           disposition de l'entreprise Deep Clean en location.{"\n\n"}Contact : kingdreamdigital@gmail.com
         </Section>
 
         <Section icon="briefcase-outline" title="Exploitant">
           L'application est exploitée par DEEP CLEAN, SAS au capital de 600 €, RCS Manosque 942 773 375, SIRET
-          942 773 375 00012, TVA FR54942773375 ({SITE_URL.replace("https://", "")}), pour la gestion interne de son
+          942 773 375 00012, TVA FR54942773375, siège : 21 boulevard de la Plaine, 04100 Manosque
+          ({SITE_URL.replace("https://", "")} · deepclean.contact.pro@gmail.com · 06 81 70 07 51), pour la gestion interne de son
           activité : équipes, chantiers, plannings, pointages et communication entre collaborateurs. Elle est
           strictement réservée à un usage interne — aucun compte ne peut être créé sans passer par la RH.
         </Section>

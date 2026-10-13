@@ -13,8 +13,8 @@ Les éléments encore à fournir sont repérés par **⚠️ À FOURNIR**.
 | | |
 |---|---|
 | Nom de l'app | **Deep Clean** |
-| Éditeur (compte développeur) | **Boris Corsiez** — KingDream Digital, micro-entreprise (compte développeur **personnel**). Nom affiché sur les stores : celui du compte. |
-| Client utilisateur | **DEEP CLEAN**, SAS au capital de 600 € — SIREN 942 773 375 — RCS Manosque — TVA FR54942773375. L'application lui est **louée** ; elle reste la propriété de l'éditeur. |
+| Éditeur (compte développeur) | **Boris Corsiez** — KingDream Digital, micro-entreprise, SIRET 102 486 677 00010 (compte développeur **personnel**, déjà créé chez Apple). Nom affiché sur les stores : celui du compte. |
+| Client utilisateur | **DEEP CLEAN**, SAS au capital de 600 € — 21 boulevard de la Plaine, 04100 Manosque — SIREN 942 773 375 — RCS Manosque — TVA FR54942773375 — président : Romain Chris Kada-Junior FEDI — deepclean.contact.pro@gmail.com, 06 81 70 07 51. L'application lui est **louée** ; elle reste la propriété de l'éditeur. |
 | Identifiant iOS (Bundle ID) | `fr.deepclean.app` |
 | Nom de paquet Android | `fr.deepclean.app` |
 | Version | 1.0.0 (le numéro de build s'incrémente tout seul) |
@@ -26,7 +26,8 @@ Les éléments encore à fournir sont repérés par **⚠️ À FOURNIR**.
 | Assistance | `https://app.deep-clean.fr/support.html` |
 | Suppression de compte | `https://app.deep-clean.fr/suppression-compte.html` |
 | Site de l'entreprise | `https://deep-clean.fr` |
-| Email de contact / assistance | ⚠️ À FOURNIR (idéalement une adresse `@deep-clean.fr`) |
+| Email de contact des stores (éditeur) | kingdreamdigital@gmail.com |
+| Contact de l'entreprise cliente | deepclean.contact.pro@gmail.com · 06 81 70 07 51 |
 
 > L'identifiant `fr.deepclean.app` reprend le domaine de l'entreprise. Il
 > remplace `com.deepclean.app`, qui risquait d'être déjà pris par une autre
@@ -40,8 +41,8 @@ Les éléments encore à fournir sont repérés par **⚠️ À FOURNIR**.
 Les applications publiées appellent `https://api.deep-clean.fr`. Il faut
 donc que cette adresse fonctionne **avant** le premier build store.
 
-1. Chez le fournisseur du nom de domaine (⚠️ À FOURNIR : OVH, Gandi,
-   IONOS…), créer deux enregistrements DNS de type **A** :
+1. Chez **BookMyName** (fournisseur du domaine), créer deux enregistrements
+   DNS de type **A** :
    - `api.deep-clean.fr` → `141.253.112.12`
    - `app.deep-clean.fr` → `141.253.112.12`
 2. Dans Coolify :
@@ -415,12 +416,12 @@ anglais est utile pour les vérificateurs : elle suit le texte français.
 ```
 AUTORISATION D'UTILISATION DE MARQUE
 
-Je soussigné(e) [Prénom NOM], Président(e) de la société DEEP CLEAN, SAS au
+Je soussigné Romain Chris Kada-Junior FEDI, Président de la société DEEP CLEAN, SAS au
 capital de 600 €, immatriculée au RCS de Manosque sous le numéro
-942 773 375, dont le siège est situé [adresse du siège],
+942 773 375, dont le siège est situé 21 boulevard de la Plaine, 04100 Manosque,
 
 autorise Monsieur Boris Corsiez, entrepreneur individuel exerçant sous le
-nom commercial KingDream Digital (SIRET [numéro]), à publier et distribuer
+nom commercial KingDream Digital (SIRET 102 486 677 00010), à publier et distribuer
 sur l'App Store d'Apple et sur Google Play l'application mobile « Deep
 Clean », en utilisant le nom « Deep Clean » et le logo de la société DEEP
 CLEAN.
@@ -429,7 +430,7 @@ Cette application est louée par Monsieur Boris Corsiez à la société DEEP
 CLEAN, pour la gestion de ses équipes. La présente autorisation vaut pour
 toute la durée du contrat de location.
 
-Fait à [ville], le [date].
+Fait à Manosque, le [date].
 
 [Signature et cachet]
 
@@ -437,7 +438,7 @@ Fait à [ville], le [date].
 
 TRADEMARK USE AUTHORIZATION
 
-I, the undersigned [First name LAST NAME], President of DEEP CLEAN SAS
+I, the undersigned Romain Chris Kada-Junior FEDI, President of DEEP CLEAN SAS
 (registered in Manosque, France, under number 942 773 375), authorize
 Mr Boris Corsiez (KingDream Digital) to publish and distribute the
 "Deep Clean" mobile app on the Apple App Store and Google Play, using the

@@ -2,7 +2,7 @@ import { env } from "../src/config/env";
 import { getCompanyProfile, sellerBlockLines } from "../src/modules/einvoicing/companyProfile";
 
 const mutableEnv = env as unknown as Record<string, unknown>;
-const KEYS = ["COMPANY_LEGAL_NAME", "COMPANY_LEGAL_FORM", "COMPANY_SHARE_CAPITAL", "COMPANY_SIREN", "COMPANY_SIRET", "COMPANY_RCS", "COMPANY_VAT_NUMBER"];
+const KEYS = ["COMPANY_LEGAL_NAME", "COMPANY_LEGAL_FORM", "COMPANY_SHARE_CAPITAL", "COMPANY_SIREN", "COMPANY_SIRET", "COMPANY_RCS", "COMPANY_VAT_NUMBER", "COMPANY_ADDRESS", "COMPANY_POSTAL_CODE", "COMPANY_CITY", "COMPANY_PHONE", "COMPANY_EMAIL"];
 const saved: Record<string, unknown> = {};
 
 beforeEach(() => {
@@ -26,7 +26,13 @@ describe("Identité légale de Deep Clean sur les devis et factures", () => {
       siret: "94277337500012",
       rcs: "RCS Manosque 942 773 375",
       vatNumber: "FR54942773375",
+      addressLine: "21 boulevard de la Plaine",
+      postalCode: "04100",
+      city: "Manosque",
+      phone: "06 81 70 07 51",
+      email: "deepclean.contact.pro@gmail.com",
     });
+    expect(c.iban).toBeUndefined();
     expect(sellerBlockLines(c)[0]).toBe("DEEP CLEAN, SAS au capital de 600 €");
   });
 

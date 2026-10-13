@@ -232,8 +232,10 @@ Adresses retenues (déjà intégrées dans l'app mobile, voir
 | `https://deep-clean.fr` | Site de l'entreprise (hors de ce dépôt) |
 
 Mise en place :
-1. **DNS**, chez le fournisseur du domaine : enregistrements **A** `api` et
-   `app` vers `141.253.112.12`.
+1. **DNS**, chez **BookMyName** (espace client → le domaine `deep-clean.fr`
+   → gestion de la zone DNS) : ajouter deux enregistrements **A**, `api` et
+   `app`, pointant vers `141.253.112.12`. La propagation prend de quelques
+   minutes à quelques heures.
 2. **Coolify**, onglet *Domains* de chaque application :
    `https://api.deep-clean.fr` pour le backend, `https://app.deep-clean.fr`
    pour le web. Le certificat HTTPS (Let's Encrypt) est créé tout seul ; il

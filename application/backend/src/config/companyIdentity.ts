@@ -14,6 +14,13 @@ export const DEEP_CLEAN_IDENTITY = {
   siret: "94277337500012",
   rcs: "RCS Manosque 942 773 375",
   vatNumber: "FR54942773375",
+  // Siège social (annuaire des entreprises) et contact (retour explicite du
+  // client, octobre 2026).
+  address: "21 boulevard de la Plaine",
+  postalCode: "04100",
+  city: "Manosque",
+  phone: "06 81 70 07 51",
+  email: "deepclean.contact.pro@gmail.com",
   // Site et domaine de l'entreprise.
   website: "https://deep-clean.fr",
 } as const;

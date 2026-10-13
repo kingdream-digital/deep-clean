@@ -121,10 +121,9 @@ describe("Facture électronique — format EN 16931", () => {
   });
 
   it("liste en français ce qui manque avant l'envoi", () => {
-    // Le SIREN de Deep Clean est intégré à l'application (config/companyIdentity.ts) :
-    // c'est l'adresse, propre au serveur, qui peut encore manquer.
-    mutableEnv.COMPANY_ADDRESS = "";
-    const blockers = einvoiceBlockers({ ...source, client: { ...source.client, siret: null } }, getCompanyProfile());
+    // L'identité de Deep Clean est intégrée (config/companyIdentity.ts) : on
+    // simule un profil incomplet pour vérifier les messages.
+    const blockers = einvoiceBlockers({ ...source, client: { ...source.client, siret: null } }, { ...getCompanyProfile(), addressLine: undefined });
     expect(blockers).toEqual(expect.arrayContaining([expect.stringContaining("adresse complète de l'entreprise"), expect.stringContaining("SIREN ou SIRET du client")]));
   });
 });
@@ -264,14 +263,16 @@ describe("Espace Super PDP — vue d'ensemble, suivi groupé, test de connexion"
     expect(list.items).toEqual([expect.objectContaining({ id: invoiceId, pdpError: "Montant contesté" })]);
   });
 
-  it("signale ce qui manque à l'identité de l'entreprise et à une facture", async () => {
-    const { token } = await validatedInvoice();
-    mutableEnv.COMPANY_ADDRESS = "";
+  it("identité de Deep Clean complète par défaut, et signale ce qui manque à une facture", async () => {
+    const { token, invoiceId } = await validatedInvoice();
+    for (const k of ["COMPANY_ADDRESS", "COMPANY_POSTAL_CODE", "COMPANY_CITY", "COMPANY_SIRET", "COMPANY_VAT_NUMBER"]) mutableEnv[k] = "";
     const auth = { Authorization: `Bearer ${token}` };
     const overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
-    expect(overview.company.missing).toEqual([expect.stringContaining("adresse complète de l'entreprise")]);
+    expect(overview.company.missing).toEqual([]);
+    await prisma.invoice.update({ where: { id: invoiceId }, data: { siret: null } });
+    await prisma.client.updateMany({ data: { siret: null, siren: null } });
     const toSend = (await request(app).get("/api/v1/einvoicing/invoices?view=toSend").set(auth)).body;
-    expect(toSend.items[0].blockers).toEqual([expect.stringContaining("adresse complète de l'entreprise")]);
+    expect(toSend.items[0].blockers).toEqual([expect.stringContaining("SIREN ou SIRET du client")]);
   });
 
   it("teste réellement les identifiants Super PDP", async () => {
