@@ -20,6 +20,16 @@ import type { MenuStackParamList } from "../../navigation/MenuStack";
 type Route = RouteProp<MenuStackParamList, "QuoteSign">;
 const currencyFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
+// Même texte que celui conservé par le serveur avec le devis signé
+// (backend/src/modules/quotes/signatureConsent.ts).
+function consentLabel(quoteNumber: string): string {
+  return (
+    `J'accepte de signer électroniquement le devis ${quoteNumber}. ` +
+    "Je reconnais que ma signature tracée sur cet écran a la même valeur qu'une signature manuscrite sur papier, " +
+    "qu'elle m'engage et vaut « Bon pour accord » sur le contenu et le montant de ce devis."
+  );
+}
+
 /**
  * Signature du devis sur place : le client lit le montant, écrit son nom et
  * signe au doigt sur l'écran. La validation fait passer le devis en
@@ -36,6 +46,8 @@ export function QuoteSignScreen() {
   const [signerName, setSignerName] = useState("");
   const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [sendCopy, setSendCopy] = useState(true);
+  // Case obligatoire, jamais pré-cochée : c'est le client qui la coche.
+  const [consent, setConsent] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,14 +73,14 @@ export function QuoteSignScreen() {
   const recurring = quote.monthlyAmountHt > 0;
   const monthlyTtc = Math.round(quote.monthlyAmountHt * (1 + quote.vatRate / 100) * 100) / 100;
   const amountLabel = recurring ? `${currencyFmt.format(monthlyTtc)} TTC par mois` : `${currencyFmt.format(quote.totalTtc)} TTC`;
-  const canSubmit = !!signature && signature.strokes.length > 0 && signerName.trim().length > 0;
+  const canSubmit = consent && !!signature && signature.strokes.length > 0 && signerName.trim().length > 0;
 
   async function handleSubmit() {
     if (!signature || !quote) return;
     setError(null);
     setSaving(true);
     try {
-      const result = await signQuote(quoteId, { signerName: signerName.trim(), signature, sendCopy: sendCopy && !!recipient });
+      const result = await signQuote(quoteId, { signerName: signerName.trim(), signature, consent: true, sendCopy: sendCopy && !!recipient });
       if (result.copyError) {
         Alert.alert("Devis signé", result.copyError);
       } else if (result.copySentTo) {
@@ -112,6 +124,15 @@ export function QuoteSignScreen() {
         >
           <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>Effacer la signature</Text>
         </PressableScale>
+
+        <Card style={{ marginBottom: spacing.md }}>
+          <Checkbox label={consentLabel(quote.quoteNumber)} checked={consent} onChange={setConsent} />
+          {!consent && (
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.sm }]}>
+              Case à cocher par le client pour pouvoir valider la signature.
+            </Text>
+          )}
+        </Card>
 
         {recipient ? (
           <View style={{ marginBottom: spacing.md }}>

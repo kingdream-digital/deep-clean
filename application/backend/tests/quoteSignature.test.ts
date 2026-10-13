@@ -55,7 +55,7 @@ describe("Devis — signature du client sur place", () => {
     const res = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true });
 
     expect(res.status).toBe(200);
     expect(res.body.quote.status).toBe("ACCEPTED");
@@ -73,6 +73,30 @@ describe("Devis — signature du client sur place", () => {
     expect(log).not.toBeNull();
   });
 
+  it("refuse de signer sans la case « J'accepte la signature électronique », puis conserve le texte accepté et l'empreinte", async () => {
+    const { accessToken } = await loginAs(Role.HR, "hr-sign-consent@deepclean.test");
+    const quoteId = await createQuote(accessToken);
+
+    for (const consent of [undefined, false, "true"]) {
+      const refused = await request(app)
+        .post(`/api/v1/quotes/${quoteId}/sign`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ signerName: "Marie Dupont", signature: SIGNATURE, ...(consent === undefined ? {} : { consent }) });
+      expect(refused.status).toBe(400);
+    }
+    expect((await prisma.quote.findUniqueOrThrow({ where: { id: quoteId } })).status).toBe("VALIDATED");
+
+    const res = await request(app)
+      .post(`/api/v1/quotes/${quoteId}/sign`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true });
+    expect(res.status).toBe(200);
+    const stored = await prisma.quote.findUniqueOrThrow({ where: { id: quoteId } });
+    expect(stored.signatureConsentText).toContain("J'accepte de signer électroniquement le devis");
+    expect(stored.signatureConsentText).toContain(stored.quoteNumber);
+    expect(stored.signatureFingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it("appose la signature dans le PDF du devis", async () => {
     const { accessToken } = await loginAs(Role.HR, "hr-sign2@deepclean.test");
     const quoteId = await createQuote(accessToken);
@@ -81,7 +105,7 @@ describe("Devis — signature du client sur place", () => {
     await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true });
 
     const after = await request(app).get(`/api/v1/quotes/${quoteId}/pdf`).set("Authorization", `Bearer ${accessToken}`).buffer(true);
     expect(after.status).toBe(200);
@@ -98,7 +122,7 @@ describe("Devis — signature du client sur place", () => {
     const res = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true });
     expect(res.status).toBe(200);
     expect(res.body.quote.status).toBe("ACCEPTED");
   });
@@ -110,7 +134,7 @@ describe("Devis — signature du client sur place", () => {
     const res = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE, sendCopy: true });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true, sendCopy: true });
 
     expect(res.status).toBe(200);
     expect(res.body.copySentTo).toBe("contact@abc.test");
@@ -124,7 +148,7 @@ describe("Devis — signature du client sur place", () => {
     const res = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE, sendCopy: true });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true, sendCopy: true });
 
     expect(res.status).toBe(200);
     expect(res.body.quote.status).toBe("ACCEPTED");
@@ -139,14 +163,14 @@ describe("Devis — signature du client sur place", () => {
     const res = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true });
     expect(res.status).toBe(409);
   });
 
   it("refuse de signer deux fois le même devis", async () => {
     const { accessToken } = await loginAs(Role.HR, "hr-sign7@deepclean.test");
     const quoteId = await createQuote(accessToken);
-    const payload = { signerName: "Marie Dupont", signature: SIGNATURE };
+    const payload = { signerName: "Marie Dupont", signature: SIGNATURE, consent: true };
 
     await request(app).post(`/api/v1/quotes/${quoteId}/sign`).set("Authorization", `Bearer ${accessToken}`).send(payload);
     const second = await request(app).post(`/api/v1/quotes/${quoteId}/sign`).set("Authorization", `Bearer ${accessToken}`).send(payload);
@@ -160,13 +184,13 @@ describe("Devis — signature du client sur place", () => {
     const empty = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: { width: 300, height: 150, strokes: [] } });
+      .send({ signerName: "Marie Dupont", signature: { width: 300, height: 150, strokes: [] }, consent: true });
     expect(empty.status).toBe(400);
 
     const noName = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "  ", signature: SIGNATURE });
+      .send({ signerName: "  ", signature: SIGNATURE, consent: true });
     expect(noName.status).toBe(400);
 
     const quote = await prisma.quote.findUniqueOrThrow({ where: { id: quoteId } });
@@ -181,7 +205,7 @@ describe("Devis — signature du client sur place", () => {
     const res = await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true });
     expect(res.status).toBe(403);
   });
 
@@ -191,7 +215,7 @@ describe("Devis — signature du client sur place", () => {
     await request(app)
       .post(`/api/v1/quotes/${quoteId}/sign`)
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ signerName: "Marie Dupont", signature: SIGNATURE });
+      .send({ signerName: "Marie Dupont", signature: SIGNATURE, consent: true });
 
     const version = await request(app).post(`/api/v1/quotes/${quoteId}/versions`).set("Authorization", `Bearer ${accessToken}`);
     expect(version.status).toBe(201);

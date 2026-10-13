@@ -128,6 +128,9 @@ export const signQuoteSchema = {
       .refine((s) => s.strokes.some((stroke) => stroke.length >= 4), "La signature est vide.")
       .refine((s) => s.strokes.every((stroke) => stroke.length % 2 === 0), "Tracé de signature invalide.")
       .refine((s) => s.strokes.reduce((n, stroke) => n + stroke.length, 0) <= MAX_SIGNATURE_POINTS_TOTAL, "Tracé de signature trop volumineux."),
+    // Case « J'accepte la signature électronique » : sans elle, pas de
+    // signature (voir signatureConsent.ts).
+    consent: z.literal(true, { errorMap: () => ({ message: "Le client doit accepter la signature électronique avant de signer." }) }),
     // Envoie au client, par email, une copie du devis signé (PDF).
     sendCopy: z.boolean().optional().default(false),
   }),

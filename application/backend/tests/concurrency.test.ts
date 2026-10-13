@@ -80,7 +80,7 @@ describe("Actions simultanées — une seule doit gagner", () => {
     const quote = await validatedQuote(token);
     const results = await Promise.all(
       ["Signataire A", "Signataire B"].map((signerName) =>
-        request(app).post(`/api/v1/quotes/${quote.id}/sign`).set("Authorization", `Bearer ${token}`).send({ signerName, signature: SIGNATURE })
+        request(app).post(`/api/v1/quotes/${quote.id}/sign`).set("Authorization", `Bearer ${token}`).send({ signerName, signature: SIGNATURE, consent: true })
       )
     );
     expect(results.map((r) => r.status).sort()).toEqual([200, 409]);

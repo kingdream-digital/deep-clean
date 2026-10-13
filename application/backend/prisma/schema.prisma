@@ -1121,6 +1121,11 @@ model Quote {
   signedAt         DateTime?
   signedByName     String?
   signatureStrokes Json?
+  // Consentement à la signature électronique (case obligatoire cochée par le
+  // client) : texte exact accepté, et empreinte SHA-256 du contenu signé,
+  // imprimée sur le PDF (voir signatureConsent.ts).
+  signatureConsentText String?
+  signatureFingerprint String?
 
   rejectedAt      DateTime?
   rejectedById    String?

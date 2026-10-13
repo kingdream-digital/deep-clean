@@ -241,7 +241,7 @@ export interface QuoteSignatureResult {
 // Signature manuscrite du client sur place : le devis passe en « Accepté ».
 export async function signQuote(
   id: string,
-  input: { signerName: string; signature: { width: number; height: number; strokes: number[][] }; sendCopy: boolean }
+  input: { signerName: string; signature: { width: number; height: number; strokes: number[][] }; consent: true; sendCopy: boolean }
 ): Promise<QuoteSignatureResult> {
   const { data } = await apiClient.post<QuoteSignatureResult>(`/quotes/${id}/sign`, input);
   return data;

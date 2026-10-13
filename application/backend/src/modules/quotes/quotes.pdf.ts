@@ -42,6 +42,8 @@ interface QuotePdfData {
   signedAt?: Date | null;
   signedByName?: string | null;
   signatureStrokes?: unknown;
+  signatureConsentText?: string | null;
+  signatureFingerprint?: string | null;
   // Volontairement absent de cette interface : `internalNotes` n'est jamais
   // lu ici (cahier des charges §9/§15 : "Les notes internes ne doivent
   // JAMAIS apparaître dans le PDF client").
@@ -210,6 +212,18 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
   }
   doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.5).text("Merci pour votre confiance.", PAGE_LEFT, signY + 34, { width: 220 });
   doc.y = signY + boxHeight + 10;
+
+  // Preuve du consentement à la signature électronique (case cochée par le
+  // client avant de signer, voir signatureConsent.ts).
+  if (signed && quote.signatureConsentText) {
+    const proof = [
+      `Signature électronique acceptée par le signataire : « ${quote.signatureConsentText} »`,
+      "Signature électronique au sens des articles 1366 et 1367 du Code civil et du règlement (UE) n° 910/2014 (eIDAS).",
+      quote.signatureFingerprint ? `Empreinte SHA-256 du devis signé : ${quote.signatureFingerprint}` : undefined,
+    ].filter(Boolean) as string[];
+    if (doc.y + 50 > FOOTER_Y) doc.addPage();
+    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(7).text(proof.join("\n"), PAGE_LEFT, doc.y, { width: PAGE_RIGHT - PAGE_LEFT });
+  }
 
   finalizePagination(doc, companyFooterLine(company));
   doc.end();

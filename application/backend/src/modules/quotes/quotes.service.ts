@@ -10,6 +10,7 @@ import { logger } from "../../config/logger";
 import { COMMERCIAL_FULL_ROLES, isOwnRecord, resolveAssignedUserId } from "../commercial/roles";
 import type { Actor } from "../commercial/roles";
 import { buildQuotePdf } from "./quotes.pdf";
+import { signatureConsentText, signatureFingerprint } from "./signatureConsent";
 import { createNotification, markRelatedNotificationsRead } from "../notifications/notifications.service";
 
 const userSummarySelect = { id: true, firstName: true, lastName: true, email: true, role: true } as const;
@@ -67,6 +68,8 @@ const quoteSelect = {
   signedAt: true,
   signedByName: true,
   signatureStrokes: true,
+  signatureConsentText: true,
+  signatureFingerprint: true,
   rejectedAt: true,
   rejectedComment: true,
   previousVersionId: true,
@@ -556,6 +559,9 @@ export async function markQuoteAccepted(actor: Actor, id: string, input: { metho
 export interface QuoteSignatureInput {
   signerName: string;
   signature: { width: number; height: number; strokes: number[][] };
+  // Case « J'accepte la signature électronique » — obligatoire (contrôlée par
+  // le schéma de validation, revérifiée ici).
+  consent: boolean;
   sendCopy?: boolean;
 }
 
@@ -570,8 +576,17 @@ export async function signQuote(actor: Actor, id: string, input: QuoteSignatureI
     throw ApiError.conflict("Seul un devis validé ou envoyé, en attente de réponse, peut être signé.");
   }
 
+  if (input.consent !== true) {
+    throw ApiError.badRequest("Le client doit accepter la signature électronique avant de signer.");
+  }
+
   const signedAt = new Date();
   const comment = `Signé sur place par ${input.signerName}`;
+  // Le devis n'est plus modifiable à ce stade (non brouillon, verrouillé) :
+  // l'empreinte porte sur le contenu exact que le client a signé.
+  const content = await prisma.quote.findUniqueOrThrow({ where: { id }, select: quoteSelect });
+  const consentText = signatureConsentText(existing.quoteNumber);
+  const fingerprint = signatureFingerprint(content, { signerName: input.signerName, signedAt, consentText, strokes: input.signature.strokes });
   await transitionQuote(
     id,
     [QuoteStatus.VALIDATED, ...AWAITING_RESPONSE_STATUSES],
@@ -584,6 +599,8 @@ export async function signQuote(actor: Actor, id: string, input: QuoteSignatureI
       signedAt,
       signedByName: input.signerName,
       signatureStrokes: input.signature,
+      signatureConsentText: consentText,
+      signatureFingerprint: fingerprint,
     },
     "Ce devis vient d'être signé ou a déjà reçu une réponse."
   );
@@ -591,9 +608,9 @@ export async function signQuote(actor: Actor, id: string, input: QuoteSignatureI
   await recordEvent(id, actor.userId, QuoteEventAction.ACCEPTED, {
     method: QuoteFollowUpMethod.MEETING,
     comment,
-    metadata: { signed: true, signerName: input.signerName },
+    metadata: { signed: true, signerName: input.signerName, consentText, fingerprint },
   });
-  await logActivity({ userId: actor.userId, action: "QUOTE_SIGNED", entityType: "Quote", entityId: id, metadata: { signerName: input.signerName } });
+  await logActivity({ userId: actor.userId, action: "QUOTE_SIGNED", entityType: "Quote", entityId: id, metadata: { signerName: input.signerName, electronicSignatureConsent: true, fingerprint } });
   await notifyQuote(actor, quote, "accepted");
 
   // Copie du devis signé au client : la signature reste acquise même si
