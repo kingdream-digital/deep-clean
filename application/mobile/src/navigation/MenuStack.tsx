@@ -54,6 +54,8 @@ import { QuotesListScreen } from "../screens/commercial/QuotesListScreen";
 import { QuoteDetailScreen } from "../screens/commercial/QuoteDetailScreen";
 import { QuoteFormScreen } from "../screens/commercial/QuoteFormScreen";
 import { QuoteActionScreen } from "../screens/commercial/QuoteActionScreen";
+import { QuoteSignScreen } from "../screens/commercial/QuoteSignScreen";
+import { HoursHubScreen } from "../screens/timesheets/HoursHubScreen";
 import { InvoicesListScreen } from "../screens/commercial/InvoicesListScreen";
 import { InvoiceDetailScreen } from "../screens/commercial/InvoiceDetailScreen";
 import { InvoiceFormScreen } from "../screens/commercial/InvoiceFormScreen";
@@ -86,6 +88,7 @@ export type MenuStackParamList = {
   StandardForm: { siteId: string; standardId?: string };
   StandardDetail: { standardId: string };
   Timesheet: undefined;
+  HoursHub: undefined;
   TimesheetValidation: undefined;
   TimesheetReject: { entryId: string };
   TimesheetRetroactive: undefined;
@@ -131,7 +134,8 @@ export type MenuStackParamList = {
   QuotesList: undefined;
   QuoteDetail: { quoteId: string };
   QuoteForm: { quoteId?: string; clientId?: string } | undefined;
-  QuoteAction: { quoteId: string; action: "send" | "followUp" | "accept" | "reject" };
+  QuoteAction: { quoteId: string; action: "send" | "followUp" | "remind" | "accept" | "reject" };
+  QuoteSign: { quoteId: string };
   InvoicesList: undefined;
   InvoiceDetail: { invoiceId: string };
   InvoiceForm: { invoiceId?: string; clientId?: string; quoteId?: string; siteId?: string } | undefined;
@@ -298,10 +302,12 @@ export function MenuStack() {
         name="QuoteAction"
         component={QuoteActionScreen}
         options={({ route }) => ({
-          title: { send: "Envoyer le devis", followUp: "Relance", accept: "Marquer accepté", reject: "Marquer refusé" }[route.params.action],
+          title: { send: "Envoyer le devis", followUp: "Relance", remind: "Relancer par email", accept: "Marquer accepté", reject: "Marquer refusé" }[route.params.action],
           presentation: "modal",
         })}
       />
+      <Stack.Screen name="HoursHub" component={HoursHubScreen} options={{ title: "Heures" }} />
+      <Stack.Screen name="QuoteSign" component={QuoteSignScreen} options={{ title: "Signature du client", presentation: "modal" }} />
       <Stack.Screen name="InvoicesList" component={InvoicesListScreen} options={{ title: "Factures" }} />
       <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: "Facture" }} />
       <Stack.Screen

@@ -94,6 +94,8 @@ export interface CreateUserInput {
   weeklyHours?: number;
   leaveAccrualRate?: number;
   leaveAccrualCap?: number;
+  // Reprise du solde de congés du dernier bulletin de paie (facultatif).
+  openingLeave?: { previousYear?: number; currentYear?: number };
 }
 
 // Réservé RH / Admin — seule façon de créer un compte (aucune inscription

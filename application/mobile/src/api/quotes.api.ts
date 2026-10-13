@@ -136,6 +136,10 @@ export interface Quote {
   acceptedBy: PersonSummary | null;
   acceptedMethod: QuoteFollowUpMethod | null;
   acceptedComment: string | null;
+  signedAt: string | null;
+  signedByName: string | null;
+  // Nombre de réponses du client reçues par email, en attente de décision.
+  _count?: { replies: number };
   rejectedAt: string | null;
   rejectedComment: string | null;
   previousVersionId: string | null;
@@ -228,6 +232,21 @@ export async function recordQuoteFollowUp(id: string, input: { method: QuoteFoll
   return data.quote;
 }
 
+export interface QuoteSignatureResult {
+  quote: Quote;
+  copySentTo: string | null;
+  copyError: string | null;
+}
+
+// Signature manuscrite du client sur place : le devis passe en « Accepté ».
+export async function signQuote(
+  id: string,
+  input: { signerName: string; signature: { width: number; height: number; strokes: number[][] }; consent: true; sendCopy: boolean }
+): Promise<QuoteSignatureResult> {
+  const { data } = await apiClient.post<QuoteSignatureResult>(`/quotes/${id}/sign`, input);
+  return data;
+}
+
 export async function markQuoteAccepted(id: string, input: { method: QuoteFollowUpMethod; comment?: string }): Promise<Quote> {
   const { data } = await apiClient.post<{ quote: Quote }>(`/quotes/${id}/accept`, input);
   return data.quote;
@@ -279,4 +298,72 @@ export function previewQuoteTotals(items: { totalHt: number; monthlyAmountHt: nu
   const totalTtc = round2(taxableHt + vatAmount);
   const monthlyAmountHt = round2(items.reduce((sum, i) => sum + i.monthlyAmountHt, 0));
   return { subtotalHt, vatAmount, totalTtc, monthlyAmountHt };
+}
+
+// ---------------------------------------------------------------------------
+// Réponses du client reçues par email, et relance prête à envoyer
+// ---------------------------------------------------------------------------
+
+export type QuoteReplyIntent = "POSITIVE" | "NEGATIVE" | "UNCLEAR";
+export type QuoteReplyStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "DISMISSED";
+
+export interface QuoteReply {
+  id: string;
+  quoteId: string;
+  fromEmail: string;
+  fromName: string | null;
+  subject: string | null;
+  receivedAt: string;
+  replyText: string;
+  intent: QuoteReplyIntent;
+  positiveKeywords: string[];
+  negativeKeywords: string[];
+  doubtKeywords: string[];
+  senderMatchesContact: boolean;
+  status: QuoteReplyStatus;
+  handledAt: string | null;
+  handledBy: PersonSummary | null;
+}
+
+export async function listQuoteReplies(quoteId: string): Promise<QuoteReply[]> {
+  const { data } = await apiClient.get<{ items: QuoteReply[] }>(`/quotes/${quoteId}/replies`);
+  return data.items;
+}
+
+export async function decideQuoteReply(replyId: string, decision: "ACCEPT" | "REJECT" | "DISMISS"): Promise<Quote> {
+  const { data } = await apiClient.post<{ quote: Quote }>(`/quotes/replies/${replyId}/decision`, { decision });
+  return data.quote;
+}
+
+export interface FollowUpEmailDraft {
+  to: string;
+  subject: string;
+  text: string;
+}
+
+export async function getFollowUpEmailDraft(quoteId: string): Promise<FollowUpEmailDraft> {
+  const { data } = await apiClient.get<{ draft: FollowUpEmailDraft }>(`/quotes/${quoteId}/follow-up-email`);
+  return data.draft;
+}
+
+export async function sendFollowUpEmail(quoteId: string, input: { text: string; nextFollowUpAt?: string }): Promise<Quote> {
+  const { data } = await apiClient.post<{ quote: Quote }>(`/quotes/${quoteId}/follow-up-email`, input);
+  return data.quote;
+}
+
+export interface InboxStatus {
+  configured: boolean;
+  address: string | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
+}
+
+export async function getInboxStatus(): Promise<InboxStatus> {
+  const { data } = await apiClient.get<{ inbox: InboxStatus }>("/quotes/inbox/status");
+  return data.inbox;
+}
+
+export async function syncInbox(): Promise<{ summary: { scanned: number; recorded: number }; inbox: InboxStatus }> {
+  const { data } = await apiClient.post<{ summary: { scanned: number; recorded: number }; inbox: InboxStatus }>("/quotes/inbox/sync");
+  return data;
 }

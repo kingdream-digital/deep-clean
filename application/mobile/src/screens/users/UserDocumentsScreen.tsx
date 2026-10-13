@@ -28,6 +28,8 @@ const dayFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric"
 // explicite du client) : déposer un document (contrat, avenant...) dans son
 // espace, le consulter, ou le retirer. Même schéma d'upload PDF que
 // StandardFormScreen/SiteFormScreen (DocumentPicker natif, pickWebFile sur web).
+const DOCUMENT_TITLES = ["Contrat de travail", "Convention collective", "Avenant", "Attestation"];
+
 export function UserDocumentsScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const route = useRoute<Route>();
@@ -120,13 +122,37 @@ export function UserDocumentsScreen() {
   return (
     <ScreenContainer style={{ paddingTop: spacing.lg }}>
       <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.md }]}>
-        Documents visibles uniquement par {fullName} et par la RH/direction — contrat, avenant, attestation...
+        Documents visibles uniquement par {fullName} et par la RH/direction — contrat, convention collective, avenant, attestation...
       </Text>
 
       <Card>
         <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
           AJOUTER UN DOCUMENT
         </Text>
+        {/* Titres courants en un clic (retour explicite du client : contrat et
+            convention collective de l'entreprise, ajoutables à tout moment). */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm }}>
+          {DOCUMENT_TITLES.map((preset) => {
+            const active = title === preset;
+            return (
+              <PressableScale
+                key={preset}
+                onPress={() => setTitle(preset)}
+                accessibilityLabel={`Titre : ${preset}`}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  backgroundColor: active ? colors.accentSoft : colors.surface,
+                  borderWidth: 1,
+                  borderColor: active ? colors.accent : colors.border,
+                }}
+              >
+                <Text style={[type.footnote, { color: active ? colors.accentText : colors.inkSecondary, fontWeight: "600" }]}>{preset}</Text>
+              </PressableScale>
+            );
+          })}
+        </View>
         <TextField label="Titre" placeholder="Contrat de travail" value={title} onChangeText={setTitle} />
         {pdfAsset ? (
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.sm }}>

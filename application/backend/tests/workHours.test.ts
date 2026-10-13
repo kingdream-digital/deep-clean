@@ -4,6 +4,17 @@ import { companyDateTime } from "../src/utils/companyTime";
 const at = (date: string, time: string) => companyDateTime(date, time);
 
 describe("Heures majorées (convention collective de la propreté)", () => {
+  it("compte la durée exacte à la seconde : le détail des majorations concorde avec le total du mois", () => {
+    // 8 h 05 min 30 s → 8 h 09 min 10 s = 3 min 40 s (avant : 4 minutes « commencées »).
+    const b = computePayBreakdown([{ clockIn: new Date("2026-10-13T08:05:30+02:00"), clockOut: new Date("2026-10-13T08:09:10+02:00") }]);
+    expect(b.totalMinutes).toBeCloseTo(11 / 3, 6);
+    expect(b.minutesByCategory.normal).toBeCloseTo(11 / 3, 6);
+    // Nuit à cheval sur 21 h à la seconde près : 20 h 59 min 30 s → 21 h 00 min 30 s.
+    const n = computePayBreakdown([{ clockIn: new Date("2026-10-13T20:59:30+02:00"), clockOut: new Date("2026-10-13T21:00:30+02:00") }]);
+    expect(n.minutesByCategory.normal).toBeCloseTo(0.5, 6);
+    expect(n.minutesByCategory.night).toBeCloseTo(0.5, 6);
+  });
+
   it("une journée de semaine en journée n'a aucune majoration", () => {
     const b = computePayBreakdown([{ clockIn: at("2026-10-07", "08:00"), clockOut: at("2026-10-07", "12:00") }]);
     expect(b.totalMinutes).toBe(240);

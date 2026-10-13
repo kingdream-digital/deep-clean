@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import { companyDateLabel } from "../../utils/companyTime";
+import { companyDateLabel, companyTimeKey } from "../../utils/companyTime";
 import { companyFooterLine, getCompanyProfile, sellerBlockLines, sirenOf } from "../einvoicing/companyProfile";
 import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, ensureSpace, finalizePagination, formatEuroPdf } from "../../utils/pdfBrand";
 import { drawCommercialHeader, drawInfoStrip, drawNoteBox, drawParties, drawTableHeader, drawTotals } from "../../utils/pdfCommercial";
@@ -38,6 +38,12 @@ interface QuotePdfData {
   monthlyAmountHt: number;
   client: { companyName: string; siren?: string | null; siret?: string | null };
   items: QuotePdfItem[];
+  // Signature manuscrite recueillie sur place (voir quotes.service.ts::signQuote).
+  signedAt?: Date | null;
+  signedByName?: string | null;
+  signatureStrokes?: unknown;
+  signatureConsentText?: string | null;
+  signatureFingerprint?: string | null;
   // Volontairement absent de cette interface : `internalNotes` n'est jamais
   // lu ici (cahier des charges §9/§15 : "Les notes internes ne doivent
   // JAMAIS apparaître dans le PDF client").
@@ -183,16 +189,82 @@ export async function buildQuotePdf(quote: QuotePdfData): Promise<Buffer> {
     ].filter(Boolean) as string[]
   );
 
-  // Bon pour accord : signature du client.
-  if (doc.y + 92 > FOOTER_Y) doc.addPage();
+  // Bon pour accord : signature du client — tracé manuscrit s'il a signé sur
+  // place, sinon cadre vide à compléter à la main.
+  const signature = parseSignature(quote.signatureStrokes);
+  const signed = !!(signature && quote.signedAt);
+  const boxHeight = signed ? 118 : 80;
+  if (doc.y + boxHeight + 12 > FOOTER_Y) doc.addPage();
   const signY = doc.y + 4;
-  doc.roundedRect(PAGE_RIGHT - 250, signY, 250, 80, 8).lineWidth(1.2).strokeColor(BRAND.accent).stroke();
-  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(9.5).text("Bon pour accord", PAGE_RIGHT - 238, signY + 10, { width: 226 });
-  doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(8).text("Date, nom, signature et cachet du client, précédés de la mention « Bon pour accord »", PAGE_RIGHT - 238, signY + 24, { width: 226 });
+  const boxX = PAGE_RIGHT - 250;
+  doc.roundedRect(boxX, signY, 250, boxHeight, 8).lineWidth(1.2).strokeColor(BRAND.accent).stroke();
+  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(9.5).text("Bon pour accord", boxX + 12, signY + 10, { width: 226 });
+  if (signed && signature && quote.signedAt) {
+    const when = `${dateFmt(quote.signedAt)} à ${companyTimeKey(quote.signedAt).replace(":", "h")}`;
+    doc
+      .fillColor(BRAND.inkTertiary)
+      .font("Helvetica")
+      .fontSize(8)
+      .text(`Signé électroniquement sur place le ${when}${quote.signedByName ? ` par ${quote.signedByName}` : ""}`, boxX + 12, signY + 24, { width: 226 });
+    drawSignature(doc, signature, { x: boxX + 12, y: signY + 42, width: 226, height: boxHeight - 50 });
+  } else {
+    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(8).text("Date, nom, signature et cachet du client, précédés de la mention « Bon pour accord »", boxX + 12, signY + 24, { width: 226 });
+  }
   doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.5).text("Merci pour votre confiance.", PAGE_LEFT, signY + 34, { width: 220 });
-  doc.y = signY + 90;
+  doc.y = signY + boxHeight + 10;
+
+  // Preuve du consentement à la signature électronique (case cochée par le
+  // client avant de signer, voir signatureConsent.ts).
+  if (signed && quote.signatureConsentText) {
+    const proof = [
+      `Signature électronique acceptée par le signataire : « ${quote.signatureConsentText} »`,
+      "Signature électronique au sens des articles 1366 et 1367 du Code civil et du règlement (UE) n° 910/2014 (eIDAS).",
+      quote.signatureFingerprint ? `Empreinte SHA-256 du devis signé : ${quote.signatureFingerprint}` : undefined,
+    ].filter(Boolean) as string[];
+    if (doc.y + 50 > FOOTER_Y) doc.addPage();
+    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(7).text(proof.join("\n"), PAGE_LEFT, doc.y, { width: PAGE_RIGHT - PAGE_LEFT });
+  }
 
   finalizePagination(doc, companyFooterLine(company));
   doc.end();
   return done;
+}
+
+interface SignatureTrace {
+  width: number;
+  height: number;
+  strokes: number[][];
+}
+
+// Relit le tracé stocké en base (JSON) sans lui faire confiance aveuglément.
+function parseSignature(value: unknown): SignatureTrace | null {
+  if (!value || typeof value !== "object") return null;
+  const { width, height, strokes } = value as Partial<SignatureTrace>;
+  if (typeof width !== "number" || typeof height !== "number" || width <= 0 || height <= 0 || !Array.isArray(strokes)) return null;
+  const clean = strokes.filter((st): st is number[] => Array.isArray(st) && st.length >= 2 && st.every((n) => typeof n === "number" && Number.isFinite(n)));
+  return clean.length ? { width, height, strokes: clean } : null;
+}
+
+// Redessine le tracé en vectoriel, mis à l'échelle et centré dans la zone,
+// proportions conservées.
+function drawSignature(doc: PDFKit.PDFDocument, signature: SignatureTrace, area: { x: number; y: number; width: number; height: number }) {
+  const scale = Math.min(area.width / signature.width, area.height / signature.height);
+  const offsetX = area.x + (area.width - signature.width * scale) / 2;
+  const offsetY = area.y + (area.height - signature.height * scale) / 2;
+  doc.save();
+  doc.lineWidth(1.3).strokeColor(BRAND.ink).lineCap("round").lineJoin("round");
+  for (const stroke of signature.strokes) {
+    const x0 = offsetX + stroke[0]! * scale;
+    const y0 = offsetY + stroke[1]! * scale;
+    if (stroke.length === 2) {
+      doc.circle(x0, y0, 0.8).fill(BRAND.ink);
+      continue;
+    }
+    doc.moveTo(x0, y0);
+    for (let i = 2; i + 1 < stroke.length; i += 2) {
+      doc.lineTo(offsetX + stroke[i]! * scale, offsetY + stroke[i + 1]! * scale);
+    }
+    doc.stroke();
+  }
+  doc.restore();
 }

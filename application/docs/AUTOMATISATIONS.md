@@ -14,7 +14,8 @@ base (`automation_events`) : il ne part jamais deux fois.
 | 9 h | Devis en brouillon depuis plus de 24 h (tous les 2 jours, 3 fois max) | Le commercial / créateur du devis |
 | 9 h | Devis à valider depuis plus de 24 h | Direction + RH |
 | 9 h | Devis validé mais pas envoyé | Le commercial / créateur |
-| 9 h | Devis envoyé sans réponse depuis 7 jours, ou date de relance atteinte | Le commercial / créateur |
+| 9 h | Devis envoyé sans réponse depuis 7 jours, ou date de relance atteinte — le mail de relance est prêt, envoyé en un clic depuis le devis. Pas de rappel tant qu'une réponse du client attend une décision | Le commercial / créateur |
+| Toutes les 5 min | Réponse d'un client à un devis, lue dans la boîte mail (IMAP) et classée par mots-clés : « semble accepter », « semble refuser » ou « à lire ». Confirmation Accepté / Refusé en un clic, jamais automatique | Le commercial du devis + direction + RH |
 | 18 h | Missions du lendemain | Chaque personne affectée |
 | Le 1er à 8 h 10 | Chantiers du mois écoulé pas encore facturés | Direction + RH |
 

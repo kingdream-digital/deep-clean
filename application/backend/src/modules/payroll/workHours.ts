@@ -59,10 +59,20 @@ function pad(n: number): string {
 export function computePayBreakdown(periods: WorkedPeriod[]): PayBreakdown {
   const result = emptyBreakdown();
   for (const period of periods) {
-    const start = Math.floor(period.clockIn.getTime() / 60_000) * 60_000;
-    const end = Math.floor(period.clockOut.getTime() / 60_000) * 60_000;
+    // BUG CORRIGÉ (revue « Mes heures ») : les bornes étaient arrondies à la
+    // minute inférieure et chaque minute commencée comptait entière — le total
+    // des majorations (8 min) ne correspondait pas au total du mois (7 min)
+    // calculé, lui, sur la durée exacte. Chaque minute compte désormais pour
+    // la part réellement travaillée (à la seconde) : les deux totaux
+    // concordent, l'arrondi ne se fait qu'à l'affichage.
+    const exactStart = period.clockIn.getTime();
+    const exactEnd = period.clockOut.getTime();
+    const start = Math.floor(exactStart / 60_000) * 60_000;
+    const end = exactEnd;
     let offset = companyOffsetMs(new Date(start));
     for (let t = start; t < end; t += 60_000) {
+      const weight = (Math.min(t + 60_000, exactEnd) - Math.max(t, exactStart)) / 60_000;
+      if (weight <= 0) continue;
       // Le décalage ne change qu'à l'heure pile (passage heure d'été/hiver).
       if (t % 3_600_000 === 0) offset = companyOffsetMs(new Date(t));
       const local = new Date(t + offset);
@@ -86,17 +96,17 @@ export function computePayBreakdown(periods: WorkedPeriod[]): PayBreakdown {
         consider("holiday", rateOn(full ? PAY_RULES.holiday.exceptional : PAY_RULES.holiday.regular, dateKey));
       }
 
-      result.totalMinutes += 1;
-      result.minutesByCategory[category] += 1;
+      result.totalMinutes += weight;
+      result.minutesByCategory[category] += weight;
       const key = String(rate);
-      result.minutesByRate[key] = (result.minutesByRate[key] ?? 0) + 1;
-      result.premiumMinutes += rate;
+      result.minutesByRate[key] = (result.minutesByRate[key] ?? 0) + weight;
+      result.premiumMinutes += rate * weight;
       if (isNight) {
-        result.nightMinutes += 1;
+        result.nightMinutes += weight;
         // Journée de travail : la nuit de 21 h à 6 h est rattachée au jour où elle commence.
         const workDay = new Date(t + offset - NIGHT_END_HOUR * 3_600_000);
         const workDayKey = `${workDay.getUTCFullYear()}-${pad(workDay.getUTCMonth() + 1)}-${pad(workDay.getUTCDate())}`;
-        result.nightMinutesByWorkDay[workDayKey] = (result.nightMinutesByWorkDay[workDayKey] ?? 0) + 1;
+        result.nightMinutesByWorkDay[workDayKey] = (result.nightMinutesByWorkDay[workDayKey] ?? 0) + weight;
       }
     }
   }

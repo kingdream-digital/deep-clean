@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { openingLeaveBalanceBody } from "../leave/leave.validation";
 import { Role } from "@prisma/client";
 
 const roleEnum = z.nativeEnum(Role);
@@ -22,6 +23,8 @@ export const createUserSchema = {
     // mois, plafond 30 par période de référence).
     leaveAccrualRate: z.coerce.number().positive().max(5).optional(),
     leaveAccrualCap: z.coerce.number().positive().max(60).optional(),
+    // Reprise du solde de congés du dernier bulletin de paie (facultatif).
+    openingLeave: openingLeaveBalanceBody.optional(),
   }),
 };
 

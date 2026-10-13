@@ -26,6 +26,12 @@ const envSchema = z.object({
   // même pour un seul utilisateur légitime.
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(600),
   AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+  // Échecs de connexion tolérés par IP, tous comptes confondus (plusieurs
+  // employés derrière le même Wi-Fi partagent cette IP).
+  AUTH_IP_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
+  // Actions RH sensibles (création, activation, réinitialisation de comptes)
+  // par utilisateur et par fenêtre.
+  HR_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
 
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().optional(),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).optional(),
@@ -56,7 +62,7 @@ const envSchema = z.object({
   // commercial, §15). Tous optionnels pour ne jamais bloquer le démarrage
   // du serveur, mais DOIVENT être renseignés en production avant d'envoyer
   // un vrai devis : sans eux, le PDF reste utilisable mais incomplet.
-  COMPANY_LEGAL_NAME: z.string().default("Deep Clean"),
+  COMPANY_LEGAL_NAME: z.string().default("DEEP CLEAN"),
   COMPANY_ADDRESS: z.string().optional(),
   COMPANY_SIRET: z.string().optional(),
   COMPANY_PHONE: z.string().optional(),
@@ -99,10 +105,26 @@ const envSchema = z.object({
   // production réelle du module commercial.
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  // BUG CORRIGÉ : z.coerce.boolean() lisait SMTP_SECURE="false" comme VRAI
+  // (toute chaîne non vide vaut true), ce qui forçait TLS direct sur le port
+  // 587 et faisait échouer l'envoi. Même lecture que COMPANY_VAT_ON_DEBITS.
+  SMTP_SECURE: z
+    .string()
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+
+  // Réception des réponses aux devis (lecture de la boîte mail de
+  // l'entreprise en IMAP). Pour Gmail : IMAP_HOST="imap.gmail.com" et un
+  // « mot de passe d'application » Google (jamais le mot de passe du compte).
+  // Sans IMAP_USER / IMAP_PASSWORD, la lecture des réponses est désactivée.
+  IMAP_HOST: z.string().optional(),
+  IMAP_PORT: z.coerce.number().int().positive().default(993),
+  IMAP_USER: z.string().optional(),
+  IMAP_PASSWORD: z.string().optional(),
+  IMAP_MAILBOX: z.string().default("INBOX"),
 });
 
 const parsed = envSchema.safeParse(process.env);

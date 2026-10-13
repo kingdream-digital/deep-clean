@@ -129,9 +129,9 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     MESSAGERIE,
     menuStep({
       icon: "checkmark-done-outline",
-      title: "Validation des heures",
-      body: "Depuis Menu → Validation des heures, vérifiez les pointages de votre équipe. Sur le terrain, vous démarrez et terminez les missions, puis validez celles de vos chantiers.",
-      targetId: "menu.TimesheetValidation",
+      title: "Heures",
+      body: "Depuis Menu → Heures, vérifiez et validez les pointages de votre équipe. Sur le terrain, vous démarrez et terminez les missions, puis validez celles de vos chantiers.",
+      targetId: "menu.HoursHub",
     }),
     menuStep({
       icon: "warning-outline",
@@ -156,9 +156,9 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
     CREATE_MISSION,
     menuStep({
       icon: "checkmark-done-outline",
-      title: "Validation des heures",
-      body: "Chaque pointage passe par vous avant la RH. Validez d'un geste ce qui concorde, refusez avec un motif ce qui ne va pas.",
-      targetId: "menu.TimesheetValidation",
+      title: "Heures",
+      body: "Menu → Heures réunit tout : les pointages à valider avant la RH, les écarts de la semaine et les heures de chacun. Validez d'un geste ce qui concorde, refusez avec un motif ce qui ne va pas.",
+      targetId: "menu.HoursHub",
     }),
     menuStep({
       icon: "calendar-number-outline",

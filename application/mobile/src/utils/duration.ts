@@ -1,6 +1,7 @@
 export function formatDuration(clockIn: string, clockOut: string | null): string {
   const end = clockOut ? new Date(clockOut).getTime() : Date.now();
-  const minutes = Math.max(0, Math.floor((end - new Date(clockIn).getTime()) / 60000));
+  // Arrondi à la minute la plus proche, comme les totaux calculés par le serveur.
+  const minutes = Math.max(0, Math.round((end - new Date(clockIn).getTime()) / 60000));
   return formatMinutes(minutes);
 }
 

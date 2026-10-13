@@ -31,12 +31,14 @@ export async function getLeaveBalance(userId: string, year?: number): Promise<Le
   return data.balance;
 }
 
-export type LeaveTransactionType = "LEAVE_TAKEN" | "LEAVE_CANCELLED" | "ADJUSTMENT";
+export type LeaveTransactionType = "LEAVE_TAKEN" | "LEAVE_CANCELLED" | "ADJUSTMENT" | "OPENING_BALANCE";
 
 export interface LeaveTransaction {
   id: string;
   type: LeaveTransactionType;
   days: number;
+  // Reprise de solde : année de début (1er juin) de la période concernée.
+  periodYear?: number | null;
   occurredAt: string;
   note: string | null;
   absenceId: string | null;
@@ -107,4 +109,18 @@ export async function validateLeaveAccrual(id: string, input: { days?: number; n
 export async function validateLeaveMonth(month: string): Promise<number> {
   const { data } = await apiClient.post<{ validated: number }>("/leave/accruals/validate-month", { month });
   return data.validated;
+}
+
+export interface OpeningLeaveBalance {
+  /** Congés N-1 restants (dernier bulletin de paie). */
+  previousYear?: number;
+  /** Congés N acquis depuis le 1er juin. */
+  currentYear?: number;
+}
+
+// Reprise du solde de congés du dernier bulletin de paie : remplace une
+// éventuelle reprise précédente (correction d'une erreur de saisie).
+export async function setOpeningLeaveBalance(userId: string, input: OpeningLeaveBalance): Promise<OpeningLeaveBalance> {
+  const { data } = await apiClient.put<{ openingBalance: OpeningLeaveBalance }>(`/leave/${userId}/opening-balance`, input);
+  return data.openingBalance;
 }

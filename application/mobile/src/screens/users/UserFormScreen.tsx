@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Text, View } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { pickerStyle } from "../../components/pickerStyle";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -18,6 +20,12 @@ import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { createUser, getUser, updateUser } from "../../api/users.api";
+import { listLeaveTransactions, setOpeningLeaveBalance } from "../../api/leave.api";
+import { uploadDocument } from "../../api/documents.api";
+import type { LocalDocumentAsset } from "../../api/documents.api";
+import { pickWebFile } from "../../utils/webImagePicker";
+import { PressableScale } from "../../components/PressableScale";
+import { Alert } from "../../utils/alert";
 import type { Role } from "../../api/auth.api";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 
@@ -43,6 +51,22 @@ function assignableRoleOptionsFor(actorRole: Role | undefined): { value: Role; l
 }
 
 const hireDateFormat = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
+
+// Période de référence des congés (1er juin → 31 mai) : année de son 1er juin.
+function currentLeavePeriod(): number {
+  const now = new Date();
+  return now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+function parseDays(text: string): number | null {
+  if (!text.trim()) return 0;
+  const n = Number(text.replace(",", "."));
+  return Number.isNaN(n) || n < 0 || n > 60 ? null : Math.round(n * 100) / 100;
+}
+
+function daysText(n: number): string {
+  return n > 0 ? String(n).replace(".", ",") : "";
+}
 
 export function UserFormScreen() {
   const { colors, spacing, type } = useTheme();
@@ -72,6 +96,17 @@ export function UserFormScreen() {
   // Congés : vide = règle légale (2,5 jours ouvrables / mois, 30 / an).
   const [accrualRateText, setAccrualRateText] = useState("");
   const [accrualCapText, setAccrualCapText] = useState("");
+  // Reprise du solde du dernier bulletin de paie (retour explicite du client :
+  // « il ne perd rien, tout est basculé »).
+  const [openingPrevText, setOpeningPrevText] = useState("");
+  const [openingCurText, setOpeningCurText] = useState("");
+  const [initialOpening, setInitialOpening] = useState({ previousYear: 0, currentYear: 0 });
+  // Documents déposés dès la création (facultatifs, possibles plus tard depuis
+  // la fiche → Documents) : contrat de travail et convention collective
+  // (retour explicite du client : l'entreprise établit sa propre convention).
+  const [contract, setContract] = useState<LocalDocumentAsset | null>(null);
+  const [agreement, setAgreement] = useState<LocalDocumentAsset | null>(null);
+  const canSetOpening = !!actor && ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"].includes(actor.role) && actor.id !== userId;
 
   const load = useCallback(async () => {
     if (!isEdit || !userId) return;
@@ -88,6 +123,15 @@ export function UserFormScreen() {
       setNightWorkerStatus(account.nightWorkerStatus ?? "AUTO");
       setAccrualRateText(account.leaveAccrualRate != null ? String(account.leaveAccrualRate).replace(".", ",") : "");
       setAccrualCapText(account.leaveAccrualCap != null ? String(account.leaveAccrualCap).replace(".", ",") : "");
+      if (canSetOpening) {
+        const period = currentLeavePeriod();
+        const opening = (await listLeaveTransactions(userId).catch(() => [])).filter((t) => t.type === "OPENING_BALANCE");
+        const prev = opening.filter((t) => t.periodYear === period - 1).reduce((sum, t) => sum + t.days, 0);
+        const cur = opening.filter((t) => t.periodYear === period).reduce((sum, t) => sum + t.days, 0);
+        setInitialOpening({ previousYear: prev, currentYear: cur });
+        setOpeningPrevText(daysText(prev));
+        setOpeningCurText(daysText(cur));
+      }
       setLoadState("ready");
     } catch {
       setLoadState("error");
@@ -121,6 +165,12 @@ export function UserFormScreen() {
       setError("Plafond annuel : indiquez un nombre de jours, par exemple 30.");
       return;
     }
+    const openingPrev = parseDays(openingPrevText);
+    const openingCur = parseDays(openingCurText);
+    if (openingPrev === null || openingCur === null) {
+      setError("Solde de congés : indiquez un nombre de jours entre 0 et 60, par exemple 12,5.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -136,6 +186,9 @@ export function UserFormScreen() {
           leaveAccrualRate: rateValue,
           leaveAccrualCap: capValue,
         });
+        if (canSetOpening && (openingPrev !== initialOpening.previousYear || openingCur !== initialOpening.currentYear)) {
+          await setOpeningLeaveBalance(userId, { previousYear: openingPrev, currentYear: openingCur });
+        }
         navigation.goBack();
       } else {
         const { user, temporaryPassword } = await createUser({
@@ -148,7 +201,23 @@ export function UserFormScreen() {
           ...(weeklyHoursValue != null ? { weeklyHours: weeklyHoursValue } : {}),
           ...(rateValue != null ? { leaveAccrualRate: rateValue } : {}),
           ...(capValue != null ? { leaveAccrualCap: capValue } : {}),
+          ...(openingPrev > 0 || openingCur > 0 ? { openingLeave: { previousYear: openingPrev, currentYear: openingCur } } : {}),
         });
+        const failed: string[] = [];
+        for (const [title, asset] of [["Contrat de travail", contract], ["Convention collective", agreement]] as const) {
+          if (!asset) continue;
+          try {
+            await uploadDocument(user.id, title, asset);
+          } catch {
+            failed.push(title.toLowerCase());
+          }
+        }
+        if (failed.length) {
+          Alert.alert(
+            "Compte créé, document non envoyé",
+            `Envoi impossible : ${failed.join(" et ")}.\n\nVous pourrez le déposer depuis la fiche de l'employé → Documents.`
+          );
+        }
         navigation.replace("UserDetail", { userId: user.id, temporaryPassword });
       }
     } catch (err) {
@@ -156,6 +225,45 @@ export function UserFormScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function pickPdf(fallbackName: string): Promise<LocalDocumentAsset | null> {
+    if (Platform.OS === "web") {
+      const picked = await pickWebFile({ accept: "application/pdf" });
+      return picked ? { uri: picked.uri, fileName: picked.fileName ?? fallbackName, file: picked.file } : null;
+    }
+    const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf", copyToCacheDirectory: true });
+    return !result.canceled && result.assets?.[0] ? { uri: result.assets[0].uri, fileName: result.assets[0].name } : null;
+  }
+
+  function documentSlot(label: string, asset: LocalDocumentAsset | null, set: (a: LocalDocumentAsset | null) => void, fallbackName: string) {
+    return asset ? (
+      <Card style={{ marginBottom: spacing.xs }}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Ionicons name="document-text-outline" size={20} color={colors.accent} />
+          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+            <Text style={[type.caption, { color: colors.inkTertiary }]}>{label}</Text>
+            <Text style={[type.callout, { color: colors.ink }]} numberOfLines={1}>
+              {asset.fileName}
+            </Text>
+          </View>
+          <PressableScale onPress={() => set(null)} accessibilityLabel={`Retirer : ${label}`} style={{ paddingLeft: spacing.sm }}>
+            <Text style={[type.footnote, { color: colors.danger, fontWeight: "600" }]}>Retirer</Text>
+          </PressableScale>
+        </View>
+      </Card>
+    ) : (
+      <Button
+        label={`Joindre : ${label.toLowerCase()} (PDF)`}
+        icon="attach-outline"
+        variant="secondary"
+        style={{ marginBottom: spacing.xs }}
+        onPress={async () => {
+          const picked = await pickPdf(fallbackName);
+          if (picked) set(picked);
+        }}
+      />
+    );
   }
 
   if (loadState === "loading") {
@@ -217,8 +325,36 @@ export function UserFormScreen() {
           formatValue={(d) => hireDateFormat.format(d)}
         />
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
-          Le compteur de congés part de 0 et s'incrémente chaque mois à partir de cette date. Pour un salarié déjà présent, reportez son solde actuel depuis sa fiche (« Ajuster le solde »).
+          Date d'arrivée dans l'entreprise. Les congés s'acquièrent ensuite automatiquement chaque mois.
         </Text>
+
+        {canSetOpening && (
+          <>
+            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>SOLDE DE CONGÉS ACTUEL</Text>
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <TextField label="Congés N-1 restants" placeholder="0" keyboardType="decimal-pad" value={openingPrevText} onChangeText={setOpeningPrevText} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <TextField label="Congés N acquis" placeholder="0" keyboardType="decimal-pad" value={openingCurText} onChangeText={setOpeningCurText} />
+              </View>
+            </View>
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+              Pour un salarié déjà dans l'entreprise, recopiez les deux soldes de son dernier bulletin de paie (en jours ouvrables) : il ne perd rien. Les congés N-1 sont à prendre avant le 31 mai {currentLeavePeriod() + 1}. Laissez vide pour un nouveau salarié.
+            </Text>
+          </>
+        )}
+
+        {!isEdit && (
+          <>
+            <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.sm, marginBottom: spacing.sm }]}>DOCUMENTS (FACULTATIF)</Text>
+            {documentSlot("Contrat de travail", contract, setContract, "contrat.pdf")}
+            {documentSlot("Convention collective", agreement, setAgreement, "convention-collective.pdf")}
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xs, marginBottom: spacing.md }]}>
+              Rangés dans les documents de l'employé, qui pourra les consulter. Vous pourrez aussi les déposer plus tard depuis sa fiche → Documents.
+            </Text>
+          </>
+        )}
 
         <TextField
           label="Heures par semaine (contrat)"

@@ -149,6 +149,48 @@ DEMO_MODE=1 DEMO_DATE=2026-10-02 npx tsx prisma/seedPresentationDemo.ts
 comptes de démo ont un mot de passe public). À faire ensemble, ce n'est pas
 une commande à lancer seul.
 
+## 3 ter. Emails : envoi des devis et lecture des réponses (Gmail)
+
+L'application envoie les devis, les copies signées et les relances par email
+(SMTP), et lit les réponses des clients dans la même boîte (IMAP) toutes les
+5 minutes. Les deux utilisent un **mot de passe d'application** Google, jamais
+le mot de passe du compte.
+
+1. Sur le compte Gmail de l'entreprise : Compte Google → Sécurité → activer la
+   **Validation en deux étapes**, puis **Mots de passe des applications** →
+   créer « Deep Clean ». Google affiche un code de 16 lettres (à copier, il ne
+   sera plus réaffiché).
+2. Dans Gmail → Paramètres → « Transfert et POP/IMAP » : vérifier que l'accès
+   **IMAP est activé**.
+3. Dans Coolify → backend → Environment Variables, renseigner :
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=adresse@gmail.com
+   SMTP_PASSWORD=<code de 16 lettres>
+   SMTP_FROM=Deep Clean <adresse@gmail.com>
+   IMAP_HOST=imap.gmail.com
+   IMAP_PORT=993
+   IMAP_USER=adresse@gmail.com
+   IMAP_PASSWORD=<le même code de 16 lettres>
+   ```
+4. Redémarrer le backend. Dans l'app : Menu → Commercial → Devis, la ligne
+   « Réponses lues dans adresse@gmail.com » apparaît en haut ; « Vérifier »
+   force une lecture immédiate et affiche l'erreur claire si les identifiants
+   sont refusés.
+
+Ce que fait la lecture : elle repère les réponses à un devis (numéro
+`DEV-AAAA-NNNN` dans l'objet ou le message cité, sinon l'adresse du client),
+les classe par mots-clés (« semble accepter », « semble refuser », « à lire »)
+et prévient le commercial, la direction et la RH. **Le statut du devis ne
+change jamais tout seul** : il faut confirmer en un clic sur la fiche du devis.
+Elle n'efface, ne déplace et ne marque jamais un email comme lu. Au premier
+démarrage, elle ne remonte que les 30 derniers jours.
+
+Les nouvelles tables (`quote_replies`, `mailbox_sync_state`) et les colonnes de
+signature des devis s'ajoutent avec le `npx prisma db push` habituel (section 3).
+
 ## 4. Pare-feu / accès réseau
 
 Deux couches de pare-feu à tenir synchronisées :
@@ -167,6 +209,45 @@ Deux couches de pare-feu à tenir synchronisées :
     avant la mise en place de Coolify) — plus nécessaires maintenant que
     tout passe par 80/443 via le reverse proxy de Coolify ; à fermer quand
     l'occasion se présente (amélioration sécurité, non urgente).
+
+Sorties du serveur vers internet (HTTPS, port 443) utilisées par l'API —
+toutes gratuites, sans clé :
+
+- `api-adresse.data.gouv.fr` : position GPS d'un chantier à partir de son
+  adresse ;
+- `recherche-entreprises.api.gouv.fr` : bouton « Remplir avec le SIRET ou
+  le SIREN » des fiches client et prospect (nom, adresse, code postal,
+  ville, SIRET, SIREN). Si l'annuaire ne répond pas, l'application le dit et
+  la fiche se remplit à la main.
+
+## 4 bis. Nom de domaine `deep-clean.fr`
+
+Adresses retenues (déjà intégrées dans l'app mobile, voir
+`application/mobile/eas.json` et `application/mobile/src/config/links.ts`) :
+
+| Adresse | Rôle |
+|---|---|
+| `https://api.deep-clean.fr` | Backend (API) |
+| `https://app.deep-clean.fr` | Application web, et pages légales exigées par les stores (`/confidentialite.html`, `/support.html`, `/suppression-compte.html`, servies depuis `application/mobile/public/`) |
+| `https://deep-clean.fr` | Site de l'entreprise (hors de ce dépôt) |
+
+Mise en place :
+1. **DNS**, chez le fournisseur du domaine : enregistrements **A** `api` et
+   `app` vers `141.253.112.12`.
+2. **Coolify**, onglet *Domains* de chaque application :
+   `https://api.deep-clean.fr` pour le backend, `https://app.deep-clean.fr`
+   pour le web. Le certificat HTTPS (Let's Encrypt) est créé tout seul ; il
+   faut que les ports 80 et 443 soient ouverts (déjà le cas, §4).
+3. **Variables** :
+   - backend : `CORS_ORIGINS` doit contenir `https://app.deep-clean.fr` ;
+   - web : `EXPO_PUBLIC_API_URL=https://api.deep-clean.fr/api/v1` (Buildtime).
+4. Redéployer le backend, puis le web.
+5. Garder les anciennes adresses `sslip.io` dans `CORS_ORIGINS` le temps de
+   la transition, puis les retirer.
+
+Les apps iPhone/Android compilées avec le profil `production` appellent
+`https://api.deep-clean.fr` : l'adresse doit répondre **avant** le premier
+build store (voir `docs/PUBLICATION-STORES.md`).
 
 ## 5. Bugs rencontrés pendant la mise en place (pour ne pas les refaire)
 

@@ -69,12 +69,15 @@ describe("Contrôle des permissions — gestion des comptes (réservée à la RH
   it("empêche un employé désactivé par la RH de se reconnecter", async () => {
     const { accessToken: hrToken } = await loginAs(Role.HR);
     const employee = await createTestUser({ email: "adesactiver@deepclean.test", role: Role.EMPLOYEE });
+    await prisma.pushToken.create({ data: { userId: employee.id, token: "ExponentPushToken[desactive]", platform: "ios" } });
 
     const deactivate = await request(app)
       .post(`/api/v1/users/${employee.id}/deactivate`)
       .set("Authorization", `Bearer ${hrToken}`);
     expect(deactivate.status).toBe(200);
     expect(deactivate.body.user.isActive).toBe(false);
+    // Plus aucune notification sur ses téléphones.
+    expect(await prisma.pushToken.count({ where: { userId: employee.id } })).toBe(0);
 
     const login = await request(app)
       .post("/api/v1/auth/login")

@@ -1,6 +1,8 @@
 import { NightWorkerStatus, Prisma, Role } from "@prisma/client";
 import { calendarDay } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
+import { setOpeningLeaveBalance } from "../leave/leave.service";
+import type { OpeningLeaveBalance } from "../leave/leave.service";
 import { ApiError } from "../../utils/ApiError";
 import { generateTemporaryPassword, hashPassword } from "../../utils/password";
 import { generateUsername } from "../../utils/username";
@@ -84,6 +86,8 @@ interface CreateUserInput {
   weeklyHours?: number;
   leaveAccrualRate?: number;
   leaveAccrualCap?: number;
+  // Reprise du solde de congés (dernier bulletin de paie), voir leave.service.ts.
+  openingLeave?: OpeningLeaveBalance;
 }
 
 // Rôles qu'un compte RH ne peut PAS attribuer, ni à la création ni à la
@@ -175,6 +179,12 @@ export async function createUser(actorId: string, actorRole: Role, input: Create
     entityId: user.id,
     metadata: { role: user.role },
   });
+
+  // Retour explicite du client : à la création, la RH reprend le solde de
+  // congés du dernier bulletin de paie — le salarié ne perd rien.
+  if ((input.openingLeave?.previousYear ?? 0) > 0 || (input.openingLeave?.currentYear ?? 0) > 0) {
+    await setOpeningLeaveBalance({ userId: actorId, role: actorRole }, user.id, input.openingLeave!);
+  }
 
   return { user: presentUser(user), temporaryPassword };
 }
@@ -348,11 +358,13 @@ export async function setUserActive(actorId: string, actorRole: Role, targetId: 
   const user = await prisma.$transaction(async (tx) => {
     const updated = await tx.user.update({ where: { id: targetId }, data: { isActive }, select: publicSelect });
     if (!isActive) {
-      // Un compte désactivé perd immédiatement tout accès actif.
+      // Un compte désactivé perd immédiatement tout accès actif, et ses
+      // téléphones ne reçoivent plus aucune notification.
       await tx.session.updateMany({
         where: { userId: targetId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      await tx.pushToken.deleteMany({ where: { userId: targetId } });
       await detachAsSiteManager(tx, targetId);
     }
     return updated;

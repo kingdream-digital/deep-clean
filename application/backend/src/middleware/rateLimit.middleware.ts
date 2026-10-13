@@ -40,28 +40,60 @@ export const generalRateLimiter = rateLimit({
   message: { error: { code: "TOO_MANY_REQUESTS", message: "Trop de requêtes, réessayez plus tard." } },
 });
 
-// Limite stricte et dédiée sur les routes d'authentification pour se protéger
-// du brute force sur les mots de passe. Volontairement gardée par IP (pas de
-// jeton d'accès disponible avant une connexion réussie — c'est justement ce
-// qu'on protège) : `/login` et `/change-password` uniquement. `/refresh` ne
-// doit PAS partager ce compteur : contrairement à un mot de passe, un jeton
-// de rafraîchissement (64 octets aléatoires) ne se devine pas par force
-// brute, et le rafraîchissement automatique et silencieux à chaque expiration
-// de session fait partie de l'usage normal — le compter ici revenait à
-// bloquer un utilisateur légitime, qui n'a jamais tapé un mauvais mot de
-// passe, uniquement parce que sa session avait expiré plusieurs fois (bug
-// trouvé en conditions réelles lors de l'audit web). `/refresh` reste
-// couvert par la limite générale ci-dessus, largement suffisante pour ce
-// trafic.
-export const authRateLimiter = rateLimit({
+// Protection anti-force-brute des mots de passe. BUG CORRIGÉ (test de charge,
+// 48 premières connexions simultanées depuis le Wi-Fi d'un même bureau) : un
+// compteur unique PAR IP plafonné à 10 bloquait tout le bureau — les
+// connexions simultanées dépassaient 10 avant que les réussites ne soient
+// décomptées, puis chaque refus « 429 » comptait lui-même comme un échec :
+// plus personne ne pouvait se connecter ni changer son mot de passe pendant
+// 15 minutes. Désormais :
+// - par COMPTE et par IP : 10 échecs (protège chaque compte du brute force) ;
+// - par IP seule : un plafond large d'échecs (bloque l'essai de nombreux
+//   comptes depuis une même machine) ;
+// les connexions réussies ne comptent jamais (skipSuccessfulRequests).
+function loginAccountKey(request: Request): string {
+  const username = typeof request.body?.username === "string" ? request.body.username.trim().toLowerCase().slice(0, 100) : "";
+  return `login:${request.ip ?? "unknown"}:${username}`;
+}
+
+const tooManyLogins = {
+  error: { code: "TOO_MANY_REQUESTS", message: "Trop de tentatives de connexion, réessayez plus tard." },
+};
+
+export const loginRateLimiters = [
+  rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+    max: env.AUTH_IP_RATE_LIMIT_MAX_REQUESTS,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    message: tooManyLogins,
+  }),
+  rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+    max: env.AUTH_RATE_LIMIT_MAX_REQUESTS,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    keyGenerator: loginAccountKey,
+    message: tooManyLogins,
+  }),
+];
+
+// Changement de mot de passe : l'utilisateur est déjà connecté (jeton
+// d'accès), on compte donc ses échecs à lui (mot de passe actuel erroné), et
+// non ceux de toute son IP. `/refresh` n'est volontairement soumis à aucune
+// de ces limites : un jeton de rafraîchissement (64 octets aléatoires) ne se
+// devine pas, et le rafraîchissement automatique fait partie de l'usage
+// normal — il reste couvert par la limite générale.
+export const changePasswordRateLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
   max: env.AUTH_RATE_LIMIT_MAX_REQUESTS,
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  message: {
-    error: { code: "TOO_MANY_REQUESTS", message: "Trop de tentatives de connexion, réessayez plus tard." },
-  },
+  keyGenerator: userAwareKeyGenerator,
+  message: tooManyLogins,
 });
 
 // Limite dédiée sur les routes RH sensibles (création de compte, activation/
@@ -76,7 +108,9 @@ export const authRateLimiter = rateLimit({
 // la même IP.
 export const hrSensitiveRateLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
-  max: 30,
+  // 30 bloquait la RH au 31e compte le jour de la mise en service (inscription
+  // de toute l'équipe, constaté en test de charge) : réglable, 100 par défaut.
+  max: env.HR_RATE_LIMIT_MAX_REQUESTS,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: userAwareKeyGenerator,

@@ -1,8 +1,12 @@
 import { env } from "../../config/env";
+import { DEEP_CLEAN_IDENTITY as ID } from "../../config/companyIdentity";
 
 // Identité légale de l'entreprise émettrice (devis, factures, facture
-// électronique), lue dans les variables d'environnement COMPANY_* — jamais
-// codée en dur. Une valeur vide ("") compte comme absente.
+// électronique) : variables d'environnement COMPANY_* en priorité, sinon
+// l'identité publique de Deep Clean (config/companyIdentity.ts — SIREN,
+// SIRET, RCS, TVA, forme juridique, capital). Une valeur vide ("") compte
+// comme absente. Adresse, téléphone, email et coordonnées bancaires viennent
+// uniquement des variables d'environnement.
 
 function clean(value: string | undefined): string | undefined {
   const v = value?.trim();
@@ -30,18 +34,18 @@ export interface CompanyProfile {
 }
 
 export function getCompanyProfile(): CompanyProfile {
-  const siret = clean(env.COMPANY_SIRET)?.replace(/\s/g, "");
+  const siret = (clean(env.COMPANY_SIRET) ?? ID.siret).replace(/\s/g, "");
   return {
-    name: clean(env.COMPANY_LEGAL_NAME) ?? "Deep Clean",
-    legalForm: clean(env.COMPANY_LEGAL_FORM),
-    shareCapital: clean(env.COMPANY_SHARE_CAPITAL),
+    name: clean(env.COMPANY_LEGAL_NAME) ?? ID.legalName,
+    legalForm: clean(env.COMPANY_LEGAL_FORM) ?? ID.legalForm,
+    shareCapital: clean(env.COMPANY_SHARE_CAPITAL) ?? ID.shareCapital,
     addressLine: clean(env.COMPANY_ADDRESS),
     postalCode: clean(env.COMPANY_POSTAL_CODE),
     city: clean(env.COMPANY_CITY),
-    siren: clean(env.COMPANY_SIREN)?.replace(/\s/g, "") ?? (siret ? siret.slice(0, 9) : undefined),
+    siren: clean(env.COMPANY_SIREN)?.replace(/\s/g, "") ?? siret.slice(0, 9),
     siret,
-    rcs: clean(env.COMPANY_RCS),
-    vatNumber: clean(env.COMPANY_VAT_NUMBER)?.replace(/\s/g, ""),
+    rcs: clean(env.COMPANY_RCS) ?? ID.rcs,
+    vatNumber: (clean(env.COMPANY_VAT_NUMBER) ?? ID.vatNumber).replace(/\s/g, ""),
     phone: clean(env.COMPANY_PHONE),
     email: clean(env.COMPANY_EMAIL),
     iban: clean(env.COMPANY_IBAN)?.replace(/\s/g, ""),

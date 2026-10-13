@@ -113,6 +113,7 @@ model User {
   createdQuotes                    Quote[]                   @relation("QuoteCreatedBy")
   acceptedQuotes                   Quote[]                   @relation("QuoteAcceptedBy")
   rejectedQuotes                   Quote[]                   @relation("QuoteRejectedBy")
+  handledQuoteReplies              QuoteReply[]              @relation("QuoteReplyHandledBy")
   quoteEvents                      QuoteEvent[]              @relation("QuoteEventUser")
   createdSiteTargets               SiteTarget[]              @relation("SiteTargetCreatedBy")
   createdInvoices                  Invoice[]                 @relation("InvoiceCreatedBy")
@@ -604,6 +605,10 @@ enum LeaveTransactionType {
   LEAVE_TAKEN // congé validé : jours déduits (days négatif)
   LEAVE_CANCELLED // congé annulé après validation : jours recrédités (days positif)
   ADJUSTMENT // correction manuelle RH (days positif ou négatif)
+  // Reprise du solde à l'arrivée dans l'application (bulletin de paie) :
+  // congés N-1 restants et congés N déjà acquis, chacun rangé dans sa période
+  // de référence (`periodYear`) pour être pris ou perdu à la bonne date.
+  OPENING_BALANCE
 }
 
 // Droits à congés acquis sur UN mois, calculés automatiquement à la fin du
@@ -645,6 +650,9 @@ model LeaveTransaction {
   // Signé : négatif = déduction, positif = crédit — permet un simple SUM()
   // pour retrouver l'impact net sur le solde d'une période donnée.
   days        Float
+  // Année de début de la période de référence (1er juin) à laquelle ces
+  // jours appartiennent — renseignée pour la reprise de solde uniquement.
+  periodYear  Int?
   occurredAt  DateTime             @default(now())
   absenceId   String?
   absence     Absence?             @relation(fields: [absenceId], references: [id], onDelete: SetNull)
@@ -1105,6 +1113,20 @@ model Quote {
   acceptedMethod  QuoteFollowUpMethod?
   acceptedComment String?
 
+  // Signature manuscrite du client, recueillie sur place sur l'écran de
+  // l'appareil (retour explicite du client). Signer fait passer le devis en
+  // « Accepté ». `signatureStrokes` contient les traits du tracé
+  // ({ width, height, strokes: number[][] }), redessinés en vectoriel dans le
+  // cadre « Bon pour accord » du PDF (voir quotes.pdf.ts).
+  signedAt         DateTime?
+  signedByName     String?
+  signatureStrokes Json?
+  // Consentement à la signature électronique (case obligatoire cochée par le
+  // client) : texte exact accepté, et empreinte SHA-256 du contenu signé,
+  // imprimée sur le PDF (voir signatureConsent.ts).
+  signatureConsentText String?
+  signatureFingerprint String?
+
   rejectedAt      DateTime?
   rejectedById    String?
   rejectedBy      User?     @relation("QuoteRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
@@ -1123,6 +1145,7 @@ model Quote {
 
   items    QuoteItem[]
   events   QuoteEvent[]
+  replies  QuoteReply[]
   // Chantier créé à partir de ce devis accepté (§19-21) — jamais rempli
   // automatiquement, uniquement via l'action humaine "Créer un chantier à
   // partir du devis" (voir sites.service.ts::createSite).
@@ -1317,4 +1340,68 @@ model AutomationEvent {
 
   @@index([createdAt])
   @@map("automation_events")
+}
+
+// ---------------------------------------------------------------------------
+// Réponses des clients aux devis, lues dans la boîte mail de l'entreprise
+// (voir modules/quoteReplies). La lecture par mots-clés n'est qu'une
+// suggestion : le passage en Accepté / Refusé est toujours confirmé par un
+// humain (handledBy / handledAt).
+// ---------------------------------------------------------------------------
+
+enum QuoteReplyIntent {
+  POSITIVE // semble accepter
+  NEGATIVE // semble refuser
+  UNCLEAR // à lire : question, négociation, réponse différée…
+}
+
+enum QuoteReplyStatus {
+  PENDING // à traiter
+  ACCEPTED // confirmé : devis accepté
+  REJECTED // confirmé : devis refusé
+  DISMISSED // ignoré (ne change rien au devis)
+}
+
+model QuoteReply {
+  id                   String           @id @default(uuid())
+  quoteId              String
+  quote                Quote            @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  // En-tête Message-ID de l'email : garantit qu'une même réponse n'est
+  // jamais enregistrée (ni notifiée) deux fois.
+  messageId            String           @unique
+  fromEmail            String
+  fromName             String?
+  subject              String?
+  receivedAt           DateTime
+  // Texte écrit par le client, sans le message cité en dessous.
+  replyText            String
+  intent               QuoteReplyIntent
+  positiveKeywords     String[]
+  negativeKeywords     String[]
+  doubtKeywords        String[]
+  // Faux si l'expéditeur n'est pas le contact du devis / du client : affiché
+  // comme avertissement avant de confirmer.
+  senderMatchesContact Boolean
+  status               QuoteReplyStatus @default(PENDING)
+  handledById          String?
+  handledBy            User?            @relation("QuoteReplyHandledBy", fields: [handledById], references: [id], onDelete: SetNull)
+  handledAt            DateTime?
+  createdAt            DateTime         @default(now())
+
+  @@index([quoteId])
+  @@index([status])
+  @@map("quote_replies")
+}
+
+// Où en est la lecture de la boîte mail : UID du dernier email traité, pour
+// ne relire que les nouveaux à chaque passage.
+model MailboxSyncState {
+  mailbox     String    @id
+  uidValidity String?
+  lastUid     Int       @default(0)
+  lastSyncAt  DateTime?
+  lastError   String?
+  updatedAt   DateTime  @updatedAt
+
+  @@map("mailbox_sync_state")
 }

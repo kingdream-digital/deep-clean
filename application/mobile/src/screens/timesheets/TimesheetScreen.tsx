@@ -20,6 +20,7 @@ import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { formatDuration } from "../../utils/duration";
 import { formatMissionTimeRange, todayKey } from "../../utils/missionFormat";
+import { PaySummaryCard } from "../../components/PaySummaryCard";
 import { useWeeklyTimesheetSummary } from "../../hooks/useWeeklyTimesheetSummary";
 import { formatHoursMinutes } from "../../utils/timesheetSummary";
 import { useClockStatus, elapsedLabel, REFERENCE_WORKDAY_MINUTES } from "../../hooks/useClockStatus";
@@ -287,26 +288,32 @@ export function TimesheetScreen() {
 
   const currentMonth = months[0];
   const monthSummaryCard = !!currentMonth && (
-    <Card style={{ marginBottom: spacing.lg }}>
-      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm }}>
-        <Text style={[type.overline, { color: colors.inkTertiary }]}>CE MOIS-CI</Text>
-        <Text style={[type.caption, { color: colors.inkTertiary }]}>Remis à zéro le 1er de chaque mois</Text>
-      </View>
-      <View style={{ flexDirection: "row" }}>
-        <View style={{ flex: 1 }}>
-          <Text style={[type.caption, { color: colors.inkTertiary }]}>Total travaillé</Text>
-          <Text style={[type.title2, { color: colors.ink, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.totalMinutes)}</Text>
+    <View style={{ marginBottom: spacing.lg }}>
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm }}>
+          <Text style={[type.overline, { color: colors.inkTertiary }]}>CE MOIS-CI</Text>
+          <Text style={[type.caption, { color: colors.inkTertiary }]}>Remis à zéro le 1er de chaque mois</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[type.caption, { color: colors.inkTertiary }]}>Validées</Text>
-          <Text style={[type.title2, { color: colors.success, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.validatedMinutes)}</Text>
+        <View style={{ flexDirection: "row" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={[type.caption, { color: colors.inkTertiary }]}>Total travaillé</Text>
+            <Text style={[type.title2, { color: colors.ink, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.totalMinutes)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[type.caption, { color: colors.inkTertiary }]}>Validées</Text>
+            <Text style={[type.title2, { color: colors.success, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.validatedMinutes)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[type.caption, { color: colors.inkTertiary }]}>En attente</Text>
+            <Text style={[type.title2, { color: colors.warning, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.pendingMinutes)}</Text>
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[type.caption, { color: colors.inkTertiary }]}>En attente</Text>
-          <Text style={[type.title2, { color: colors.warning, marginTop: 2 }]}>{formatHoursMinutes(currentMonth.pendingMinutes)}</Text>
-        </View>
-      </View>
-    </Card>
+      </Card>
+      {/* Retour explicite du client : « qu'on voie tout, sans complexité » —
+          heures de nuit, dimanche, férié et repos compensateur du mois, ici
+          directement plutôt que deux écrans plus loin. */}
+      <PaySummaryCard month={todayKey().slice(0, 7)} />
+    </View>
   );
 
   // Un dossier par mois : le mois en cours, puis chaque mois où il y a eu des

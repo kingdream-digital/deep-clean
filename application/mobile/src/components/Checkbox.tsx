@@ -35,13 +35,13 @@ export function Checkbox({ label, checked, onChange }: CheckboxProps) {
       >
         {!!checked && <Ionicons name="checkmark" size={14} color={colors.onAccent} />}
       </View>
-      <Text style={[type.callout, { color: colors.ink, marginLeft: spacing.sm }]}>{label}</Text>
+      <Text style={[type.callout, { color: colors.ink, marginLeft: spacing.sm, flexShrink: 1 }]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center" },
+  row: { flexDirection: "row", alignItems: "flex-start" },
   box: {
     width: 22,
     height: 22,

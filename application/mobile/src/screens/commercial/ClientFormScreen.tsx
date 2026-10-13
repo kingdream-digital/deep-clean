@@ -6,6 +6,7 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { useResponsive } from "../../hooks/useResponsive";
 import { StateView } from "../../components/StateView";
 import { TextField } from "../../components/TextField";
+import { CompanyLookupField } from "../../components/CompanyLookupField";
 import { Button } from "../../components/Button";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
@@ -77,6 +78,7 @@ export function ClientFormScreen() {
     }
 
     setSaving(true);
+    const siretDigits = siret.replace(/[\s.-]/g, "");
     try {
       const payload = {
         companyName: companyName.trim(),
@@ -88,8 +90,9 @@ export function ClientFormScreen() {
         billingAddress: billingAddress.trim() || undefined,
         postalCode: postalCode.trim() || undefined,
         city: city.trim() || undefined,
-        siret: siret.trim() || undefined,
-        siren: siren.replace(/\s/g, "") || undefined,
+        // Le champ unique accepte aussi un SIREN (9 chiffres).
+        siret: siretDigits.length === 9 ? undefined : siret.trim() || undefined,
+        siren: (siretDigits.length === 9 ? siretDigits : siren.replace(/\s/g, "")) || undefined,
         notes: notes.trim() || undefined,
       };
 
@@ -125,6 +128,18 @@ export function ClientFormScreen() {
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
+        <CompanyLookupField
+          value={siret}
+          onChangeText={setSiret}
+          onFound={(c) => {
+            setCompanyName(c.companyName);
+            if (c.address) setBillingAddress(c.address);
+            if (c.postalCode) setPostalCode(c.postalCode);
+            if (c.city) setCity(c.city);
+            setSiret(c.siret ?? c.siren);
+            setSiren(c.siren);
+          }}
+        />
         <TextField label="Entreprise" placeholder="Entreprise ABC" value={companyName} onChangeText={setCompanyName} />
         <TextField label="Prénom du contact" placeholder="Julie" value={contactFirstName} onChangeText={setContactFirstName} />
         <TextField label="Nom du contact" placeholder="Dupont" value={contactLastName} onChangeText={setContactLastName} />
@@ -134,7 +149,6 @@ export function ClientFormScreen() {
         <TextField label="Adresse de facturation" placeholder="12 rue Exemple" value={billingAddress} onChangeText={setBillingAddress} />
         <TextField label="Code postal" placeholder="75000" value={postalCode} onChangeText={setPostalCode} keyboardType="number-pad" />
         <TextField label="Ville" placeholder="Paris" value={city} onChangeText={setCity} />
-        <TextField label="SIRET" placeholder="123 456 789 00012" value={siret} onChangeText={setSiret} keyboardType="number-pad" />
         <TextField label="SIREN (si pas de SIRET)" placeholder="123 456 789" value={siren} onChangeText={setSiren} keyboardType="number-pad" />
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
           Obligatoire pour la facture électronique (déduit du SIRET s'il est rempli).
