@@ -44,6 +44,11 @@ export const upsertSiteTargetHandler = asyncHandler(async (req: Request, res: Re
   res.status(200).json({ target });
 });
 
+export const planSiteTargetsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const result = await sitesService.planSiteTargets(actorOf(req), req.params.id as string, req.body);
+  res.status(200).json(result);
+});
+
 export const listSiteTargetsHandler = asyncHandler(async (req: Request, res: Response) => {
   const items = await sitesService.listSiteTargets(actorOf(req), req.params.id as string);
   res.status(200).json({ items });

@@ -267,6 +267,48 @@ export async function runMonthlyBillingReminder(now = new Date()): Promise<numbe
   return remind(`billing:${period}`, await activeUsers([Role.HR, Role.DIRECTOR]), "Factures du mois à préparer", `${plural(toBill, "chantier")} à facturer pour ${monthLabel}.`, "InvoicesList", period);
 }
 
+// ---------------------------------------------------------------------------
+// Interventions du mois à programmer (le 1er à 8 h 05)
+// ---------------------------------------------------------------------------
+
+// Retour explicite du client : « chaque début de mois, on programme les
+// interventions ». Pour chaque chantier actif qui a un objectif ce mois-ci et
+// pas encore assez de missions programmées, le superviseur du chantier (à
+// défaut, tous les superviseurs) reçoit un rappel qui ouvre la fiche.
+export async function runMonthlySchedulingReminder(now = new Date()): Promise<number> {
+  const period = companyDateKey(now).slice(0, 7);
+  const start = calendarDay(`${period}-01`);
+  const end = calendarDay(`${addDaysToKey(`${period}-28`, 7).slice(0, 7)}-01`);
+  const targets = await prisma.siteTarget.findMany({
+    where: { period, plannedVisits: { gt: 0 }, site: { isActive: true } },
+    select: { siteId: true, plannedVisits: true, site: { select: { name: true, supervisorId: true } } },
+  });
+  if (targets.length === 0) return 0;
+  const scheduled = await prisma.mission.groupBy({
+    by: ["siteId"],
+    where: { siteId: { in: targets.map((t) => t.siteId) }, date: { gte: start, lt: end }, status: { not: MissionStatus.CANCELLED } },
+    _count: { _all: true },
+  });
+  const countBySite = new Map(scheduled.map((g) => [g.siteId, g._count._all]));
+  const supervisors = await activeUsers([Role.SUPERVISOR]);
+  const monthLabel = new Intl.DateTimeFormat("fr-FR", { month: "long", timeZone: "UTC" }).format(calendarDay(`${period}-15`));
+  let sent = 0;
+  for (const t of targets) {
+    const missing = t.plannedVisits - (countBySite.get(t.siteId) ?? 0);
+    if (missing <= 0) continue;
+    const recipients = t.site.supervisorId ? [t.site.supervisorId] : supervisors;
+    sent += await remind(
+      `scheduling:${period}:${t.siteId}`,
+      recipients,
+      "Interventions du mois à programmer",
+      `${t.site.name} : ${plural(missing, "intervention")} à programmer en ${monthLabel} (objectif ${t.plannedVisits}).`,
+      "Site",
+      t.siteId
+    );
+  }
+  return sent;
+}
+
 /** Lance une tâche en journalisant le résultat, sans jamais faire tomber le serveur. */
 export async function runAutomation(name: string, job: () => Promise<number>): Promise<void> {
   try {

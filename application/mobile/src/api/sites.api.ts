@@ -159,6 +159,24 @@ export async function upsertSiteTarget(
   return data.target;
 }
 
+export interface PlanSiteTargetsResult {
+  created: number;
+  updated: number;
+  kept: number;
+  from: string;
+  to: string;
+}
+
+// Objectif répété sur plusieurs mois (une année entière en une fois). Les
+// mois déjà réglés ne sont remplacés que si `overwrite` est vrai.
+export async function planSiteTargets(
+  siteId: string,
+  input: { period: string; months: number; plannedVisits: number; plannedHours?: number; plannedAmount?: number; billingMode?: SiteBillingMode; overwrite?: boolean }
+): Promise<PlanSiteTargetsResult> {
+  const { data } = await apiClient.post<PlanSiteTargetsResult>(`/sites/${siteId}/targets/plan`, input);
+  return data;
+}
+
 export async function listSiteTargets(siteId: string): Promise<SiteTarget[]> {
   const { data } = await apiClient.get<{ items: SiteTarget[] }>(`/sites/${siteId}/targets`);
   return data.items;

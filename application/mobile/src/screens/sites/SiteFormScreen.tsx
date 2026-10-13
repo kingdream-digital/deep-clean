@@ -93,14 +93,15 @@ export function SiteFormScreen() {
       setLoadState("loading");
       // Le chef d'équipe ne se choisit plus à la création (retour
       // explicite du client) : inutile de charger la liste hors édition.
-      if (isEdit) {
-        const [managersRes, supervisorsRes] = await Promise.all([
-          listUsers({ role: "SITE_MANAGER", isActive: true }),
-          listUsers({ role: "SUPERVISOR", isActive: true }),
-        ]);
-        setManagers(managersRes.items);
-        setSupervisors(supervisorsRes.items);
-      }
+      // Retour explicite du client : chef d'équipe et superviseur se
+      // choisissent dès la création du chantier (facultatifs, modifiables
+      // ensuite depuis la fiche).
+      const [managersRes, supervisorsRes] = await Promise.all([
+        listUsers({ role: "SITE_MANAGER", isActive: true }),
+        listUsers({ role: "SUPERVISOR", isActive: true }),
+      ]);
+      setManagers(managersRes.items);
+      setSupervisors(supervisorsRes.items);
 
       if (isEdit && siteId) {
         const site = await getSite(siteId);
@@ -384,41 +385,37 @@ export function SiteFormScreen() {
           numberOfLines={3}
         />
 
-        {!!isEdit && (
-          <View style={{ marginBottom: spacing.md }}>
-            <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Chef d'équipe</Text>
-            <Card padded={false}>
-              <Picker selectedValue={managerId} onValueChange={setManagerId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
-                <Picker.Item label="Aucun pour le moment" value={NONE} />
-                {managers.map((m) => (
-                  <Picker.Item key={m.id} label={`${m.firstName} ${m.lastName}`} value={m.id} />
-                ))}
-              </Picker>
-            </Card>
-            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
-              Peut varier d'une mission à l'autre (voir la fiche de chaque mission).
-            </Text>
-          </View>
-        )}
+        <View style={{ marginBottom: spacing.md }}>
+          <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Chef d'équipe</Text>
+          <Card padded={false}>
+            <Picker selectedValue={managerId} onValueChange={setManagerId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
+              <Picker.Item label="Aucun pour le moment" value={NONE} />
+              {managers.map((m) => (
+                <Picker.Item key={m.id} label={`${m.firstName} ${m.lastName}`} value={m.id} />
+              ))}
+            </Picker>
+          </Card>
+          <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
+            Peut varier d'une mission à l'autre (voir la fiche de chaque mission).
+          </Text>
+        </View>
 
-        {!!isEdit && (
-          <View style={{ marginBottom: spacing.md }}>
-            <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>
-              Superviseur du chantier
-            </Text>
-            <Card padded={false}>
-              <Picker selectedValue={supervisorId} onValueChange={setSupervisorId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
-                <Picker.Item label="Aucun pour le moment" value={NONE} />
-                {supervisors.map((s) => (
-                  <Picker.Item key={s.id} label={`${s.firstName} ${s.lastName}`} value={s.id} />
-                ))}
-              </Picker>
-            </Card>
-            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
-              L'interlocuteur fixe de ce chantier — contrairement au chef d'équipe, il ne change pas.
-            </Text>
-          </View>
-        )}
+        <View style={{ marginBottom: spacing.md }}>
+          <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>
+            Superviseur du chantier
+          </Text>
+          <Card padded={false}>
+            <Picker selectedValue={supervisorId} onValueChange={setSupervisorId} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
+              <Picker.Item label="Aucun pour le moment" value={NONE} />
+              {supervisors.map((s) => (
+                <Picker.Item key={s.id} label={`${s.firstName} ${s.lastName}`} value={s.id} />
+              ))}
+            </Picker>
+          </Card>
+          <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.xxs }]}>
+            L'interlocuteur fixe de ce chantier — contrairement au chef d'équipe, il ne change pas.
+          </Text>
+        </View>
 
         {!isEdit && (
           <View style={{ marginBottom: spacing.lg }}>

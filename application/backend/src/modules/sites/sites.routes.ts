@@ -13,6 +13,7 @@ import {
   siteProgressQuerySchema,
   updateSiteSchema,
   upsertSiteTargetSchema,
+  planSiteTargetsSchema,
 } from "./sites.validation";
 import * as sitesController from "./sites.controller";
 
@@ -46,5 +47,6 @@ sitesRouter.get("/:id/photo/file", validate(siteIdParamSchema), sitesController.
 // la fiche), la consultation du suivi suit les mêmes règles que la fiche
 // chantier elle-même (voir sites.service.ts).
 sitesRouter.post("/:id/targets", validate(upsertSiteTargetSchema), sitesController.upsertSiteTargetHandler);
+sitesRouter.post("/:id/targets/plan", validate(planSiteTargetsSchema), sitesController.planSiteTargetsHandler);
 sitesRouter.get("/:id/targets", validate(siteIdParamSchema), sitesController.listSiteTargetsHandler);
 sitesRouter.get("/:id/progress", validate(siteProgressQuerySchema), sitesController.getSiteProgressHandler);
