@@ -46,7 +46,7 @@ type Route = RouteProp<{ UserDetail: { userId: string; temporaryPassword?: strin
 const MANAGE_ROLES = ["HR", "DIRECTOR", "ADMIN"];
 // Qui peut consulter le dossier (pointages/absences/missions/journal) d'un
 // employé — même liste que backend/src/modules/users/users.service.ts::DOSSIER_VIEW_ROLES.
-const DOSSIER_VIEW_ROLES = ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR"];
+const DOSSIER_VIEW_ROLES = ["HR", "DIRECTOR", "ADMIN", "SUPERVISOR", "ACCOUNTANT"];
 // Qui peut valider/refuser une absence depuis cette fiche — même liste que
 // backend/src/modules/absences/absences.service.ts::MANAGE_ABSENCES_ROLES
 // (le superviseur en décide aussi : il reçoit les demandes — retour d'audit).
@@ -110,6 +110,7 @@ const ROLE_LABELS: Record<DirectoryUser["role"], string> = {
   HR: "RH",
   DIRECTOR: "Directeur",
   ADMIN: "Admin",
+  ACCOUNTANT: "Comptable",
 };
 
 function InfoRow({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
@@ -368,10 +369,10 @@ export function UserDetailScreen() {
           {account.phone ? <InfoRow icon="call-outline" label={account.phone} /> : null}
         </Card>
 
-        {!!canManage && (
+        {(!!canManage || me?.role === "ACCOUNTANT") && (
           <View style={{ marginTop: spacing.lg }}>
             <Button
-              label="Documents (contrat, attestations...)"
+              label="Documents (contrat, bulletins de paie...)"
               variant="secondary"
               icon="document-attach-outline"
               onPress={() => navigation.navigate("UserDocuments", { userId: account.id, fullName: `${account.firstName} ${account.lastName}` })}

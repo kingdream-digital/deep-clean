@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<Role, string> = {
   HR: "Ressources humaines",
   DIRECTOR: "Directeur",
   ADMIN: "Administrateur technique",
+  ACCOUNTANT: "Comptable",
 };
 
 interface SidebarLink {
@@ -75,7 +76,7 @@ export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps
     : undefined;
 
   const secondaryLinks: SidebarLink[] = [
-    ...PERSONAL_LINKS,
+    ...PERSONAL_LINKS.filter((l) => !(user.role === "ACCOUNTANT" && l.screen === "MyAbsences")),
     ...TOOL_ENTRIES[user.role].map((entry) => ({ icon: entry.icon, label: entry.label, screen: entry.screen })),
   ];
 

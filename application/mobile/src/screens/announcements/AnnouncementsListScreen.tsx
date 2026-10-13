@@ -26,6 +26,7 @@ const ROLE_LABELS: Record<Role, string> = {
   HR: "Ressources humaines",
   DIRECTOR: "Direction",
   ADMIN: "Administration",
+  ACCOUNTANT: "Comptabilité",
 };
 
 // Retour explicite du client : RH, superviseur, direction et admin peuvent

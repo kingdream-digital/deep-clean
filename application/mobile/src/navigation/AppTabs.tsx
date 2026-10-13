@@ -8,6 +8,7 @@ import { PlanningStack } from "./PlanningStack";
 import { MissionsStack } from "./MissionsStack";
 import { InboxStack } from "./InboxStack";
 import { MenuStack } from "./MenuStack";
+import { useAuth } from "../auth/AuthContext";
 import { ICONS } from "./appTabsShared";
 import type { AppTabsParamList } from "./appTabsShared";
 
@@ -15,9 +16,16 @@ export type { AppTabsParamList };
 
 const Tab = createBottomTabNavigator<AppTabsParamList>();
 
+// Comptable (cabinet externe) : l'accueil est l'Espace comptable ; ni
+// planning, ni missions, ni messagerie (voir backend accountantScope.ts).
+function AccountingTab() {
+  return <MenuStack initialRouteName="AccountingHome" />;
+}
+
 export function AppTabs() {
   const { colors } = useTheme();
   const unread = useUnreadInboxCount();
+  const accountant = useAuth().user?.role === "ACCOUNTANT";
 
   return (
     <Tab.Navigator
@@ -33,17 +41,23 @@ export function AppTabs() {
         tabBarIcon: ({ color, size }) => <Ionicons name={ICONS[route.name]} size={size} color={color} />,
       })}
     >
-      <Tab.Screen name="Accueil" component={HomeStack} />
-      <Tab.Screen name="Planning" component={PlanningStack} />
-      <Tab.Screen name="Missions" component={MissionsStack} />
-      <Tab.Screen
-        name="Messagerie"
-        component={InboxStack}
-        options={{
-          tabBarBadge: unread > 0 ? unread : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.danger },
-        }}
-      />
+      {accountant ? (
+        <Tab.Screen name="Accueil" component={AccountingTab} />
+      ) : (
+        <>
+          <Tab.Screen name="Accueil" component={HomeStack} />
+          <Tab.Screen name="Planning" component={PlanningStack} />
+          <Tab.Screen name="Missions" component={MissionsStack} />
+          <Tab.Screen
+            name="Messagerie"
+            component={InboxStack}
+            options={{
+              tabBarBadge: unread > 0 ? unread : undefined,
+              tabBarBadgeStyle: { backgroundColor: colors.danger },
+            }}
+          />
+        </>
+      )}
       <Tab.Screen name="Menu" component={MenuStack} />
     </Tab.Navigator>
   );

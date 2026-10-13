@@ -10,6 +10,7 @@ import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/TextField";
 import { PressableScale } from "../../components/PressableScale";
+import { useAuth } from "../../auth/AuthContext";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
 import { deleteDocument, downloadDocument, listUserDocuments, uploadDocument } from "../../api/documents.api";
@@ -28,12 +29,15 @@ const dayFmt = frenchDateFormat({ day: "numeric", month: "long", year: "numeric"
 // explicite du client) : déposer un document (contrat, avenant...) dans son
 // espace, le consulter, ou le retirer. Même schéma d'upload PDF que
 // StandardFormScreen/SiteFormScreen (DocumentPicker natif, pickWebFile sur web).
-const DOCUMENT_TITLES = ["Contrat de travail", "Convention collective", "Avenant", "Attestation"];
+const DOCUMENT_TITLES = ["Contrat de travail", "Bulletin de paie", "Convention collective", "Avenant", "Attestation"];
 
 export function UserDocumentsScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const route = useRoute<Route>();
   const { userId, fullName } = route.params;
+  // Le comptable dépose les bulletins de paie mais ne supprime jamais rien.
+  const { user } = useAuth();
+  const canDelete = user?.role !== "ACCOUNTANT";
 
   const [items, setItems] = useState<EmployeeDocument[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -122,7 +126,7 @@ export function UserDocumentsScreen() {
   return (
     <ScreenContainer style={{ paddingTop: spacing.lg }}>
       <Text style={[type.footnote, { color: colors.inkTertiary, marginBottom: spacing.md }]}>
-        Documents visibles uniquement par {fullName} et par la RH/direction — contrat, convention collective, avenant, attestation...
+        Documents visibles uniquement par {fullName}, la RH, la direction et le comptable — contrat, bulletins de paie, convention collective, avenant, attestation...
       </Text>
 
       <Card>
@@ -219,7 +223,7 @@ export function UserDocumentsScreen() {
                 <Button label="Ouvrir" variant="secondary" size="md" loading={busyId === doc.id} onPress={() => handleOpen(doc)} />
               </View>
               <View style={{ flex: 1 }}>
-                <Button label="Retirer" variant="destructive" size="md" loading={busyId === doc.id} onPress={() => handleDelete(doc)} />
+                {canDelete && <Button label="Retirer" variant="destructive" size="md" loading={busyId === doc.id} onPress={() => handleDelete(doc)} />}
               </View>
             </View>
           </Card>

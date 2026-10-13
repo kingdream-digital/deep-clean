@@ -231,6 +231,14 @@ const ROLE_STEPS: Record<Role, OnboardingStep[]> = {
       body: "Pour un problème de compte, la RH reste le premier contact. Retrouvez ce tutoriel à tout moment depuis Menu → Mon profil.",
     },
   ],
+  // Comptable : une seule carte d'accueil, sans visite des écrans de terrain.
+  ACCOUNTANT: [
+    {
+      icon: "calculator-outline",
+      title: "Bienvenue dans l'espace comptable",
+      body: "Chaque mois : téléchargez le dossier de paie (heures, nuits, dimanches, fériés, absences, congés), consultez les dossiers et documents des salariés, déposez les bulletins de paie et retrouvez les factures. Pour un problème de compte, contactez la RH.",
+    },
+  ],
 };
 
 export function getOnboardingSteps(role: Role): OnboardingStep[] {

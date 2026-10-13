@@ -1,7 +1,9 @@
+import { Role } from "@prisma/client";
 import { NextFunction, Request, Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { verifyAccessToken } from "../utils/tokens";
 import { prisma } from "../db/prisma";
+import { isAllowedForAccountant } from "./accountantScope";
 
 interface AuthenticateOptions {
   /**
@@ -55,6 +57,10 @@ export function authenticate(options: AuthenticateOptions = {}) {
       }
       if (session.user.mustChangePassword && !options.allowPasswordChangePending) {
         throw ApiError.forbidden("Vous devez d'abord définir votre propre mot de passe.");
+      }
+
+      if (session.user.role === Role.ACCOUNTANT && !isAllowedForAccountant(req.method, req.originalUrl)) {
+        throw ApiError.forbidden("Le compte comptable donne accès aux heures, absences, congés, documents des salariés et factures, en consultation.");
       }
 
       req.auth = {

@@ -10,6 +10,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   HR: "Ressources humaines",
   DIRECTOR: "Directeur",
   ADMIN: "Administrateur technique",
+  ACCOUNTANT: "Comptable",
 };
 
 // Variante courte, là où la place manque (sous un nom dans une liste).
@@ -28,6 +29,7 @@ export const ROLE_GROUP_TITLES: Record<Role, string> = {
   HR: "Ressources humaines",
   DIRECTOR: "Direction",
   ADMIN: "Administration technique",
+  ACCOUNTANT: "Comptabilité",
 };
 
 const ROLE_ORDER: Role[] = ["EMPLOYEE", "SITE_MANAGER", "SUPERVISOR", "HR", "DIRECTOR", "ADMIN"];

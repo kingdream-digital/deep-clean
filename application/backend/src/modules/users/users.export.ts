@@ -24,6 +24,7 @@ const ROLE_LABEL_FR: Record<Role, string> = {
   HR: "RH",
   DIRECTOR: "Directeur",
   ADMIN: "Admin",
+  ACCOUNTANT: "Comptable",
 };
 
 const TIME_STATUS_LABEL_FR: Record<string, string> = {

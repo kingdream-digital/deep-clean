@@ -168,6 +168,25 @@ Il peut notamment :
 
 Retour explicite du client (validé), nouvelle évolution majeure : le directeur n'était au départ qu'un rôle de consultation. Il dispose désormais de **toutes les permissions de gestion de l'application, à la seule et unique exception de la création de comptes utilisateurs** (« tout sauf créer les comptes »), qui reste réservée à la RH (et à l'admin technique). Il ne peut pas non plus agir sur le compte de l'admin technique — rôle de maintenance technique de l'application, volontairement hors de la hiérarchie métier — ni lui attribuer ce rôle.
 
+## COMPTABLE
+
+Retour explicite du client (validé, octobre 2026) : un compte **Comptable** (cabinet comptable externe), créé par la RH, pour préparer les fiches de paie et l'administratif sans passer par la RH.
+
+Il peut uniquement :
+
+- consulter les heures de tous les salariés (pointages, récapitulatif de paie : nuit, dimanche, férié, heures majorées, repos compensateur) et les exporter ;
+- télécharger le **dossier de paie du mois** (Excel : synthèse par salarié, absences, soldes de congés) depuis l'**Espace comptable** ;
+- consulter les absences et les soldes de congés ;
+- consulter le dossier et les documents de chaque salarié, et y **déposer les bulletins de paie** (jamais en supprimer) ;
+- consulter les factures et leur PDF ;
+- modifier son propre mot de passe.
+
+Il n'a accès ni au planning, ni aux missions, ni aux chantiers, ni à la messagerie, ni aux actualités, ni au commercial, et ne valide ni ne décide rien. Ces limites sont garanties côté serveur par une liste blanche (`backend/src/middleware/accountantScope.ts`) : toute route qui n'y figure pas lui est refusée.
+
+## SUIVI DES CHANTIERS (SUPERVISEUR)
+
+Retour explicite du client (validé, octobre 2026) : le superviseur dispose d'un écran **Suivi de mes chantiers** — tous les chantiers dont il est superviseur, avec le réalisé du mois par rapport à l'objectif et les problèmes repérables au premier coup d'œil (interventions prévues non réalisées, problèmes ouverts, missions à valider, interventions à programmer), chantiers à traiter en tête. La RH et la direction y voient tous les chantiers.
+
 ---
 
 # 3. CRÉATION DES COMPTES — IMPORTANT

@@ -4,6 +4,7 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import { ApiError } from "../../utils/ApiError";
 import { resolveStoragePath } from "../../utils/storage";
 import * as sitesService from "./sites.service";
+import { getSupervision } from "./supervision.service";
 
 function actorOf(req: Request) {
   return { userId: req.auth!.userId, role: req.auth!.role };
@@ -88,4 +89,9 @@ export const getSitePhotoFileHandler = asyncHandler(async (req: Request, res: Re
     else res.end();
   });
   stream.pipe(res);
+});
+
+export const supervisionHandler = asyncHandler(async (req: Request, res: Response) => {
+  const supervision = await getSupervision(actorOf(req), req.query.period as string);
+  res.status(200).json({ supervision });
 });

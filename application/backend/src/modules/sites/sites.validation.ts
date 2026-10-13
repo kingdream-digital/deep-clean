@@ -84,3 +84,7 @@ export const siteProgressQuerySchema = {
   params: z.object({ id: z.string().uuid() }),
   query: z.object({ period: periodSchema }),
 };
+
+export const supervisionQuerySchema = {
+  query: z.object({ period: periodSchema }),
+};

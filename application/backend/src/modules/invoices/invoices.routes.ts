@@ -21,7 +21,14 @@ export const invoicesRouter = Router();
 // appliquer côté service : ces rôles voient et gèrent toutes les factures.
 const INVOICE_ROLES = [Role.HR, Role.DIRECTOR, Role.ADMIN];
 
-invoicesRouter.use(authenticate(), requireRole(...INVOICE_ROLES));
+// Le comptable consulte les factures et leur PDF (lecture seule) ; tout le
+// reste reste réservé à RH / direction / admin.
+const INVOICE_READ_ROLES = [...INVOICE_ROLES, Role.ACCOUNTANT];
+invoicesRouter.use(authenticate());
+invoicesRouter.use((req, res, next) => {
+  const readOnly = req.method === "GET" && /^\/([0-9a-fA-F-]{36}(\/pdf)?)?$/.test(req.path);
+  return requireRole(...(readOnly ? INVOICE_READ_ROLES : INVOICE_ROLES))(req, res, next);
+});
 
 invoicesRouter.post("/", validate(createInvoiceSchema), invoicesController.createInvoiceHandler);
 invoicesRouter.get("/", validate(listInvoicesQuerySchema), invoicesController.listInvoicesHandler);

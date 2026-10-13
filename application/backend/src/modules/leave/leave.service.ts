@@ -34,6 +34,7 @@ async function resolveManagedTeamIds(managerId: string): Promise<string[]> {
 async function assertCanViewBalance(actor: Actor, targetUserId: string): Promise<void> {
   if (actor.userId === targetUserId) return;
   if (canManageLeave(actor)) return;
+  if (actor.role === Role.ACCOUNTANT) return; // consultation pour la paie
   if (actor.role === Role.SITE_MANAGER) {
     const team = await resolveManagedTeamIds(actor.userId);
     if (team.includes(targetUserId)) return;
@@ -165,7 +166,8 @@ export function computeMonthAccrual(
   return { month, monthDays, consideredDays, workedDays, assimilatedDays, sickDays, unpaidDays, rate, sickRate, rawDays, capped: false };
 }
 
-const ACCRUAL_EXCLUDED_ROLES: Role[] = [Role.ADMIN];
+// Ni l'admin technique ni le comptable (cabinet externe) n'acquièrent de congés.
+const ACCRUAL_EXCLUDED_ROLES: Role[] = [Role.ADMIN, Role.ACCOUNTANT];
 
 /**
  * Calcule les relevés des mois écoulés manquants (jusqu'au mois précédent
@@ -323,7 +325,7 @@ export async function remindPreviousYearLeave(now: Date = new Date()): Promise<n
 
 /** Relevés d'un mois (RH, direction, admin, superviseur en lecture). */
 export async function listAccruals(actor: Actor, filters: { month?: string; status?: LeaveAccrualStatus }) {
-  if (!canManageLeave(actor)) throw ApiError.forbidden();
+  if (!canManageLeave(actor) && actor.role !== Role.ACCOUNTANT) throw ApiError.forbidden();
   // Les mois écoulés manquants sont calculés à la demande : la RH voit
   // toujours un relevé à jour, même si la tâche mensuelle n'a pas encore tourné.
   await generateAccruals();

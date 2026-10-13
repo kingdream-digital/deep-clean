@@ -192,3 +192,48 @@ export function currentPeriod(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
+
+// Suivi de tous les chantiers du superviseur (tous pour RH / direction) —
+// chantiers à problème en tête (voir backend sites/supervision.service.ts).
+export type SiteHealth = "alert" | "attention" | "ok";
+
+export interface SupervisionSite {
+  id: string;
+  name: string;
+  address: string;
+  supervisor: { id: string; firstName: string; lastName: string } | null;
+  target: number | null;
+  scheduled: number;
+  completed: number;
+  completionRate: number | null;
+  missed: number;
+  toValidate: number;
+  openProblems: number;
+  oldestProblemDays: number | null;
+  toSchedule: number;
+  health: SiteHealth;
+  alerts: { kind: "missed" | "problem" | "toValidate" | "toSchedule"; count: number; label: string }[];
+}
+
+export interface Supervision {
+  period: string;
+  totals: {
+    sites: number;
+    sitesOk: number;
+    sitesWithAlert: number;
+    target: number;
+    scheduled: number;
+    completed: number;
+    completionRate: number | null;
+    previousCompleted: number;
+    missed: number;
+    openProblems: number;
+    toValidate: number;
+  };
+  sites: SupervisionSite[];
+}
+
+export async function getSupervision(period: string): Promise<Supervision> {
+  const { data } = await apiClient.get<{ supervision: Supervision }>("/sites/supervision", { params: { period } });
+  return data.supervision;
+}

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 
@@ -10,6 +10,7 @@ import { Button } from "../../components/Button";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { AbsenceStatusBadge } from "../../components/AbsenceStatusBadge";
 import { DataTable, DataTableColumn } from "../../components/DataTable";
+import { useAuth } from "../../auth/AuthContext";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
@@ -53,6 +54,13 @@ export function AbsencesManagementScreen() {
   const [items, setItems] = useState<Absence[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [decidingId, setDecidingId] = useState<string | null>(null);
+  // Comptable : consultation seule (pour la paie), jamais de décision.
+  const { user } = useAuth();
+  const readOnly = user?.role === "ACCOUNTANT";
+  // Le comptable arrive sur les absences validées (celles qui comptent pour la paie).
+  useEffect(() => {
+    if (readOnly) setFilter("APPROVED");
+  }, [readOnly]);
 
   const load = useCallback(async () => {
     const silent = isBackgroundRefresh();
@@ -161,7 +169,7 @@ export function AbsencesManagementScreen() {
       label: "",
       flex: 1.6,
       render: (item) =>
-        item.status === "PENDING" ? (
+        readOnly ? null : item.status === "PENDING" ? (
           <View style={{ flexDirection: "row", gap: spacing.xs }}>
             <View style={{ flex: 1 }}>
               <Button
@@ -246,7 +254,7 @@ export function AbsencesManagementScreen() {
                 </View>
               </View>
 
-              {item.status === "PENDING" && (
+              {!readOnly && item.status === "PENDING" && (
                 <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
                   <View style={{ flex: 1 }}>
                     <Button
@@ -267,7 +275,7 @@ export function AbsencesManagementScreen() {
                   </View>
                 </View>
               )}
-              {item.status === "APPROVED" && (
+              {!readOnly && item.status === "APPROVED" && (
                 <View style={{ marginTop: spacing.md }}>
                   <Button
                     label="Annuler ce congé"

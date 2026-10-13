@@ -14,6 +14,8 @@ import { UserDocumentsScreen } from "../screens/users/UserDocumentsScreen";
 import { MyDocumentsScreen } from "../screens/profile/MyDocumentsScreen";
 import { SitesListScreen } from "../screens/sites/SitesListScreen";
 import { SiteDetailScreen } from "../screens/sites/SiteDetailScreen";
+import { SupervisionScreen } from "../screens/sites/SupervisionScreen";
+import { AccountingHomeScreen } from "../screens/accounting/AccountingHomeScreen";
 import { SiteFormScreen } from "../screens/sites/SiteFormScreen";
 import { StandardsListScreen } from "../screens/sites/StandardsListScreen";
 import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
@@ -71,6 +73,8 @@ import { EinvoicingScreen } from "../screens/commercial/EinvoicingScreen";
 // l'onglet Accueil quand on ouvre un élément du Menu.
 export type MenuStackParamList = {
   MenuHome: undefined;
+  AccountingHome: undefined;
+  Supervision: undefined;
   Profile: undefined;
   UsersList: undefined;
   UserDetail: { userId: string; temporaryPassword?: string };
@@ -145,7 +149,7 @@ export type MenuStackParamList = {
 
 const Stack = createNativeStackNavigator<MenuStackParamList>();
 
-export function MenuStack() {
+export function MenuStack({ initialRouteName }: { initialRouteName?: keyof MenuStackParamList } = {}) {
   const screenOptions = useStackScreenOptions();
   const { isDesktopWeb } = useResponsive();
   const { user } = useAuth();
@@ -153,6 +157,7 @@ export function MenuStack() {
   return (
     <Stack.Navigator
       screenOptions={screenOptions}
+      initialRouteName={initialRouteName}
     >
       {/* Menu, Profil et Commercial affichent déjà leur propre grand titre :
           l'en-tête natif ne doit pas le répéter (il apparaissait deux fois sur
@@ -174,6 +179,8 @@ export function MenuStack() {
         })}
       />
 
+      <Stack.Screen name="AccountingHome" component={AccountingHomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Supervision" component={SupervisionScreen} options={{ title: user?.role === "SUPERVISOR" ? "Suivi de mes chantiers" : "Suivi des chantiers" }} />
       <Stack.Screen name="SitesList" component={SitesListScreen} options={{ title: sitesListTitle(user?.role), headerTitle: isDesktopWeb ? "" : undefined }} />
       <Stack.Screen name="SiteDetail" component={SiteDetailScreen} options={{ title: "Chantier" }} />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />

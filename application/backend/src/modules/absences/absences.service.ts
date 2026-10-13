@@ -362,6 +362,8 @@ export async function getAbsenceById(actor: Actor, id: string) {
   const absence = await findAbsenceOrThrow(id);
   if (absence.userId === actor.userId) return presentAbsence(absence);
   if (canManageAbsences(actor)) return presentAbsence(absence);
+  // Comptable : consultation (paie), jamais de décision.
+  if (actor.role === Role.ACCOUNTANT) return presentAbsence(absence);
   if (actor.role === Role.SITE_MANAGER) {
     const team = await resolveManagedTeamIds(actor.userId);
     if (team.includes(absence.userId)) return presentAbsence(absence);

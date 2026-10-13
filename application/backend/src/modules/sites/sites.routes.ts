@@ -14,6 +14,7 @@ import {
   updateSiteSchema,
   upsertSiteTargetSchema,
   planSiteTargetsSchema,
+  supervisionQuerySchema,
 } from "./sites.validation";
 import * as sitesController from "./sites.controller";
 
@@ -30,6 +31,8 @@ sitesRouter.use(authenticate());
 
 sitesRouter.post("/", requireRole(...CREATE_SITE_ROLES), validate(createSiteSchema), sitesController.createSiteHandler);
 sitesRouter.get("/", validate(listSitesQuerySchema), sitesController.listSitesHandler);
+// Suivi de tous les chantiers du superviseur (tous pour RH / direction).
+sitesRouter.get("/supervision", validate(supervisionQuerySchema), sitesController.supervisionHandler);
 sitesRouter.get("/:id", validate(siteIdParamSchema), sitesController.getSiteHandler);
 sitesRouter.patch("/:id", validate(updateSiteSchema), sitesController.updateSiteHandler);
 

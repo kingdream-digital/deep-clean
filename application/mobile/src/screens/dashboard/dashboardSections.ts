@@ -37,6 +37,7 @@ export const DASHBOARD_SECTIONS: Record<Role, DashboardSection[]> = {
     { icon: "warning-outline", label: "Problèmes", screen: "ProblemsList", tone: "danger" },
   ],
   SUPERVISOR: [
+    { icon: "pulse-outline", label: "Suivi de mes chantiers", screen: "Supervision", tone: "success" },
     { icon: "time-outline", label: "Mes heures", screen: "Timesheet", tone: "purple" },
     { icon: "checkmark-done-outline", label: "Validation des heures", screen: "TimesheetValidation", tone: "success" },
     { icon: "business-outline", label: "Chantiers", screen: "SitesList", tone: "warning" },
@@ -64,4 +65,6 @@ export const DASHBOARD_SECTIONS: Record<Role, DashboardSection[]> = {
     { icon: "business-outline", label: "Chantiers", screen: "SitesList", tone: "warning" },
     { icon: "megaphone-outline", label: "Actualités", screen: "AnnouncementsList", tone: "purple" },
   ],
+  // Le comptable a son propre accueil (Espace comptable).
+  ACCOUNTANT: [],
 };

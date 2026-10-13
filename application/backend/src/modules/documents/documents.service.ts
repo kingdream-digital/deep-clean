@@ -20,11 +20,17 @@ function assertCanManage(actor: Actor): void {
   if (!MANAGE_ROLES.includes(actor.role)) throw ApiError.forbidden();
 }
 
+// Le comptable consulte les documents de chaque salarié et y dépose les
+// bulletins de paie ; il ne supprime jamais rien.
+function assertCanUpload(actor: Actor): void {
+  if (!MANAGE_ROLES.includes(actor.role) && actor.role !== Role.ACCOUNTANT) throw ApiError.forbidden();
+}
+
 // Un employé consulte toujours son propre espace ; la RH/direction/admin
 // consultent celui de n'importe qui, pour le gérer.
 function assertCanView(actor: Actor, targetUserId: string): void {
   if (actor.userId === targetUserId) return;
-  if (!MANAGE_ROLES.includes(actor.role)) throw ApiError.forbidden();
+  if (!MANAGE_ROLES.includes(actor.role) && actor.role !== Role.ACCOUNTANT) throw ApiError.forbidden();
 }
 
 const documentSelect = {
@@ -53,7 +59,7 @@ export async function uploadDocument(
   fileBuffer: Buffer,
   originalName: string
 ) {
-  assertCanManage(actor);
+  assertCanUpload(actor);
   await findUserOrThrow(targetUserId);
 
   const stored = await storePdfDocument(fileBuffer);

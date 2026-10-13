@@ -28,6 +28,7 @@ const ROLE_LABELS: Record<Role, string> = {
   HR: "Ressources humaines",
   DIRECTOR: "Directeur",
   ADMIN: "Administrateur technique",
+  ACCOUNTANT: "Comptable",
 };
 
 export function ProfileScreen() {

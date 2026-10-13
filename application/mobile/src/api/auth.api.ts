@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 
-export type Role = "EMPLOYEE" | "SITE_MANAGER" | "SUPERVISOR" | "HR" | "DIRECTOR" | "ADMIN";
+export type Role = "EMPLOYEE" | "SITE_MANAGER" | "SUPERVISOR" | "HR" | "DIRECTOR" | "ADMIN" | "ACCOUNTANT";
 
 export interface AuthUser {
   id: string;
