@@ -78,7 +78,7 @@ personne physique (micro-entreprise). Pas besoin de numéro D-U-N-S.
      inscrits sans interruption.
    - Solution simple : inviter 12 salariés (ou plus) de Deep Clean comme
      testeurs, avec l'adresse Gmail de leur téléphone Android.
-3. **Expo** (gratuit) : le compte qui lance les builds (`eas login`).
+3. **Expo** (gratuit) : votre compte existant **`boby13`** (déjà utilisé avec Expo Go pour les tests du 26/09) lance les builds (`eas login`). Le projet n'est encore relié à aucun projet EAS : `eas init` le fera au premier build.
 4. **Firebase** (gratuit), pour les notifications Android : voir §8.
 
 ### Droits sur le nom et le logo « Deep Clean »
