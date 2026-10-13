@@ -4,9 +4,9 @@ import { DEEP_CLEAN_IDENTITY as ID } from "../../config/companyIdentity";
 // Identité légale de l'entreprise émettrice (devis, factures, facture
 // électronique) : variables d'environnement COMPANY_* en priorité, sinon
 // l'identité publique de Deep Clean (config/companyIdentity.ts — SIREN,
-// SIRET, RCS, TVA, forme juridique, capital). Une valeur vide ("") compte
-// comme absente. Adresse, téléphone, email et coordonnées bancaires viennent
-// uniquement des variables d'environnement.
+// SIRET, RCS, TVA, forme juridique, capital, siège, téléphone, email). Une valeur vide ("") compte
+// comme absente. Les coordonnées bancaires (IBAN, BIC) viennent uniquement
+// des variables d'environnement.
 
 function clean(value: string | undefined): string | undefined {
   const v = value?.trim();
@@ -39,15 +39,15 @@ export function getCompanyProfile(): CompanyProfile {
     name: clean(env.COMPANY_LEGAL_NAME) ?? ID.legalName,
     legalForm: clean(env.COMPANY_LEGAL_FORM) ?? ID.legalForm,
     shareCapital: clean(env.COMPANY_SHARE_CAPITAL) ?? ID.shareCapital,
-    addressLine: clean(env.COMPANY_ADDRESS),
-    postalCode: clean(env.COMPANY_POSTAL_CODE),
-    city: clean(env.COMPANY_CITY),
+    addressLine: clean(env.COMPANY_ADDRESS) ?? ID.address,
+    postalCode: clean(env.COMPANY_POSTAL_CODE) ?? ID.postalCode,
+    city: clean(env.COMPANY_CITY) ?? ID.city,
     siren: clean(env.COMPANY_SIREN)?.replace(/\s/g, "") ?? siret.slice(0, 9),
     siret,
     rcs: clean(env.COMPANY_RCS) ?? ID.rcs,
     vatNumber: (clean(env.COMPANY_VAT_NUMBER) ?? ID.vatNumber).replace(/\s/g, ""),
-    phone: clean(env.COMPANY_PHONE),
-    email: clean(env.COMPANY_EMAIL),
+    phone: clean(env.COMPANY_PHONE) ?? ID.phone,
+    email: clean(env.COMPANY_EMAIL) ?? ID.email,
     iban: clean(env.COMPANY_IBAN)?.replace(/\s/g, ""),
     bic: clean(env.COMPANY_BIC)?.replace(/\s/g, ""),
     vatOnDebits: env.COMPANY_VAT_ON_DEBITS,
