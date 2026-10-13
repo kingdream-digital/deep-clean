@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { pickerStyle } from "../../components/pickerStyle";
@@ -12,7 +12,7 @@ import { Checkbox } from "../../components/Checkbox";
 import { DateTimeField } from "../../components/DateTimeField";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
-import { markQuoteAccepted, markQuoteRejected, recordQuoteFollowUp, sendQuote, QUOTE_FOLLOW_UP_METHOD_LABELS } from "../../api/quotes.api";
+import { getFollowUpEmailDraft, markQuoteAccepted, markQuoteRejected, recordQuoteFollowUp, sendFollowUpEmail, sendQuote, QUOTE_FOLLOW_UP_METHOD_LABELS } from "../../api/quotes.api";
 import type { QuoteFollowUpMethod } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
@@ -33,6 +33,7 @@ const SCREEN_CONFIG: Record<
   send: { title: "Envoyer le devis", cta: "Envoyer par email", needsMethod: false, commentLabel: "Message personnalisé (optionnel)", commentPlaceholder: "Un mot pour accompagner le devis" },
   followUp: { title: "Enregistrer une relance", cta: "Enregistrer la relance", needsMethod: true, commentLabel: "Commentaire", commentPlaceholder: "Ex. : rappel prévu la semaine prochaine" },
   accept: { title: "Marquer comme accepté", cta: "Confirmer l'acceptation", needsMethod: true, commentLabel: "Commentaire", commentPlaceholder: "Ex. : client confirmé par téléphone le 09/10" },
+  remind: { title: "Relancer par email", cta: "Envoyer la relance", needsMethod: false, commentLabel: "Message de relance", commentPlaceholder: "" },
   reject: { title: "Marquer comme refusé", cta: "Confirmer le refus", needsMethod: false, commentLabel: "Motif du refus (optionnel)", commentPlaceholder: "Ex. : budget non validé côté client" },
 };
 
@@ -49,6 +50,20 @@ export function QuoteActionScreen() {
   const [nextFollowUpAt, setNextFollowUpAt] = useState<Date>(tomorrow());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Relance par email : mail déjà rédigé par le serveur, modifiable avant envoi.
+  const [recipient, setRecipient] = useState<string | null>(null);
+  const [draftLoading, setDraftLoading] = useState(action === "remind");
+
+  useEffect(() => {
+    if (action !== "remind") return;
+    getFollowUpEmailDraft(quoteId)
+      .then((draft) => {
+        setRecipient(draft.to);
+        setComment(draft.text);
+      })
+      .catch((err) => setError(extractErrorMessage(err, "Impossible de préparer la relance.")))
+      .finally(() => setDraftLoading(false));
+  }, [action, quoteId]);
 
   async function handleSubmit() {
     setError(null);
@@ -56,6 +71,8 @@ export function QuoteActionScreen() {
     try {
       if (action === "send") {
         await sendQuote(quoteId, comment.trim() || undefined);
+      } else if (action === "remind") {
+        await sendFollowUpEmail(quoteId, { text: comment.trim(), nextFollowUpAt: hasNextFollowUp ? nextFollowUpAt.toISOString() : undefined });
       } else if (action === "followUp") {
         await recordQuoteFollowUp(quoteId, { method, comment: comment.trim() || undefined, nextFollowUpAt: hasNextFollowUp ? nextFollowUpAt.toISOString() : undefined });
       } else if (action === "accept") {
@@ -87,9 +104,23 @@ export function QuoteActionScreen() {
           </View>
         )}
 
-        <TextField label={config.commentLabel} placeholder={config.commentPlaceholder} value={comment} onChangeText={setComment} multiline numberOfLines={3} />
+        {action === "remind" && !!recipient && (
+          <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.sm }]}>
+            À : <Text style={{ color: colors.ink, fontWeight: "600" }}>{recipient}</Text> · PDF du devis joint
+          </Text>
+        )}
 
-        {action === "followUp" && (
+        <TextField
+          label={config.commentLabel}
+          placeholder={config.commentPlaceholder}
+          value={comment}
+          onChangeText={setComment}
+          multiline
+          numberOfLines={action === "remind" ? 10 : 3}
+          editable={!draftLoading}
+        />
+
+        {(action === "followUp" || action === "remind") && (
           <View style={{ marginBottom: spacing.md }}>
             <Checkbox label="Programmer la prochaine relance" checked={hasNextFollowUp} onChange={setHasNextFollowUp} />
             {!!hasNextFollowUp && (
@@ -102,7 +133,7 @@ export function QuoteActionScreen() {
 
         {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
-        <Button label={config.cta} onPress={handleSubmit} loading={saving} />
+        <Button label={config.cta} onPress={handleSubmit} loading={saving} disabled={draftLoading || (action === "remind" && (!recipient || !comment.trim()))} />
       </ScrollView>
     </ScreenContainer>
   );

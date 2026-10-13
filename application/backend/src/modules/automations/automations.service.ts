@@ -1,4 +1,4 @@
-import { AbsenceStatus, InvoiceStatus, MissionStatus, Prisma, QuoteStatus, Role, TimeEntryStatus } from "@prisma/client";
+import { AbsenceStatus, InvoiceStatus, MissionStatus, Prisma, QuoteReplyStatus, QuoteStatus, Role, TimeEntryStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { logger } from "../../config/logger";
 import { addDaysToKey, calendarDay, companyDateKey, companyDayStart, companyLongDayLabel, companyTimeKey } from "../../utils/companyTime";
@@ -211,6 +211,9 @@ export async function runQuoteReminders(now = new Date()): Promise<number> {
       client: { select: { companyName: true } },
       createdBy: { select: { role: true, isActive: true } },
       events: { select: { action: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      // Une réponse du client attend une décision : pas de relance tant
+      // qu'elle n'est pas traitée (voir modules/quoteReplies).
+      replies: { where: { status: QuoteReplyStatus.PENDING }, select: { id: true }, take: 1 },
     },
   });
   const validators = await activeUsers([Role.DIRECTOR, Role.HR]);
@@ -232,14 +235,14 @@ export async function runQuoteReminders(now = new Date()): Promise<number> {
       sent += await remind(`quote-validate:${q.id}:${bucket(s.quoteReminderEveryDays)}`, validators, "Devis en attente de validation", `Le devis ${label} attend votre validation.`, "Quote", q.id);
     } else if (q.status === QuoteStatus.VALIDATED && due(s.quoteReminderEveryDays)) {
       sent += await remind(`quote-send:${q.id}:${bucket(s.quoteReminderEveryDays)}`, [owner], "Devis à envoyer", `Le devis ${label} est validé mais pas encore envoyé au client.`, "Quote", q.id);
-    } else if (q.status === QuoteStatus.SENT || q.status === QuoteStatus.FOLLOW_UP) {
+    } else if ((q.status === QuoteStatus.SENT || q.status === QuoteStatus.FOLLOW_UP) && q.replies.length === 0) {
       if (q.nextFollowUpAt && q.nextFollowUpAt <= now) {
-        sent += await remind(`quote-followup-date:${q.id}:${companyDateKey(q.nextFollowUpAt)}`, [owner], "Relance client prévue", `Relance prévue pour le devis ${label}.`, "Quote", q.id);
+        sent += await remind(`quote-followup-date:${q.id}:${companyDateKey(q.nextFollowUpAt)}`, [owner], "Relance client prévue", `Relance prévue pour le devis ${label} : le mail de relance est prêt, envoyez-le en un clic depuis le devis.`, "Quote", q.id);
       } else if (!q.nextFollowUpAt) {
         const step = s.quoteFollowUpAfterDays;
         const n = Math.floor(age / (step * DAY));
         if (n >= 1 && n <= s.maxReminders) {
-          sent += await remind(`quote-followup:${q.id}:${n}`, [owner], "Devis sans réponse", `Pas de réponse au devis ${label} depuis ${n * step} jours : pensez à relancer le client.`, "Quote", q.id);
+          sent += await remind(`quote-followup:${q.id}:${n}`, [owner], "Devis sans réponse", `Pas de réponse au devis ${label} depuis ${n * step} jours : le mail de relance est prêt, envoyez-le en un clic depuis le devis.`, "Quote", q.id);
         }
       }
     }

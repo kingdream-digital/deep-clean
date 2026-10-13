@@ -137,3 +137,16 @@ export const rejectQuoteSchema = {
   params: z.object({ id: z.string().uuid() }),
   body: z.object({ comment: z.string().trim().max(2000).optional() }),
 };
+
+export const quoteReplyDecisionSchema = {
+  params: z.object({ replyId: z.string().uuid() }),
+  body: z.object({ decision: z.enum(["ACCEPT", "REJECT", "DISMISS"]) }),
+};
+
+export const sendFollowUpEmailSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    text: z.string().trim().max(5000).optional(),
+    nextFollowUpAt: z.coerce.date().optional(),
+  }),
+};

@@ -8,6 +8,7 @@ import { runMessagesMigration } from "./db/migrateMessagesToConversations";
 import { COMPANY_TIME_ZONE } from "./utils/companyTime";
 import { runMonthlyAccrualJob } from "./modules/leave/leave.service";
 import { runEinvoiceStatusJob } from "./modules/einvoicing/einvoicing.service";
+import { syncQuoteInbox } from "./modules/quoteReplies/quoteInbox";
 import {
   pruneAutomationEvents,
   runAutomation,
@@ -70,6 +71,9 @@ if (!env.isTest) {
   cron.schedule("*/5 * * * *", () => void runAutomation("pointages", () => runFieldReminders()), paris);
   cron.schedule("0 8 * * *", () => void runAutomation("récap du matin", () => runMorningDigest()), paris);
   cron.schedule("0 9 * * *", () => void runAutomation("devis", () => runQuoteReminders()), paris);
+  // Réponses des clients aux devis, lues dans la boîte mail toutes les 5
+  // minutes (sans effet si IMAP n'est pas configuré).
+  cron.schedule("*/5 * * * *", () => void runAutomation("réponses aux devis", async () => (await syncQuoteInbox()).recorded), paris);
   cron.schedule("0 18 * * *", () => void runAutomation("veille", () => runEveReminders()), paris);
   cron.schedule("10 8 1 * *", () => void runAutomation("facturation du mois", () => runMonthlyBillingReminder()), paris);
   cron.schedule("30 4 * * 0", () => void pruneAutomationEvents().catch(() => undefined), paris);

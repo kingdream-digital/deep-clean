@@ -10,6 +10,7 @@ import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { QuoteStatusBadge } from "../../components/QuoteStatusBadge";
+import { InboxStatusBar } from "../../components/InboxStatusBar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { listQuotes } from "../../api/quotes.api";
 import type { Quote, QuoteStatus } from "../../api/quotes.api";
@@ -65,6 +66,7 @@ export function QuotesListScreen() {
       />
 
       <View style={{ height: spacing.md }} />
+      <InboxStatusBar onSynced={() => void load(tab)} />
 
       {state === "loading" && <StateView kind="loading" />}
       {state === "error" && <StateView kind="error" onRetry={() => load(tab)} />}
@@ -96,6 +98,15 @@ export function QuotesListScreen() {
                     <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]} numberOfLines={1}>
                       {item.subject}
                     </Text>
+                  )}
+
+                  {(item._count?.replies ?? 0) > 0 && (
+                    <View style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.accentSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginTop: spacing.xs }}>
+                      <Ionicons name="mail-unread-outline" size={13} color={colors.accentText} />
+                      <Text style={[type.footnote, { color: colors.accentText, fontWeight: "700", marginLeft: 5 }]}>
+                        {item._count!.replies > 1 ? `${item._count!.replies} réponses à traiter` : "Réponse à traiter"}
+                      </Text>
+                    </View>
                   )}
 
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm }}>

@@ -10,6 +10,7 @@ import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { QuoteStatusBadge } from "../../components/QuoteStatusBadge";
+import { QuoteReplyCard } from "../../components/QuoteReplyCard";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
@@ -25,7 +26,8 @@ import {
   QUOTE_ITEM_FREQUENCY_LABELS,
   formatQuantityWithUnit,
 } from "../../api/quotes.api";
-import type { Quote, QuoteEvent } from "../../api/quotes.api";
+import type { Quote, QuoteEvent, QuoteReply } from "../../api/quotes.api";
+import { decideQuoteReply, listQuoteReplies } from "../../api/quotes.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { frenchDateFormat } from "../../utils/frenchDate";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
@@ -72,6 +74,7 @@ export function QuoteDetailScreen() {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [events, setEvents] = useState<QuoteEvent[]>([]);
+  const [replies, setReplies] = useState<QuoteReply[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -79,9 +82,10 @@ export function QuoteDetailScreen() {
     const silent = isBackgroundRefresh();
     try {
       if (!silent) setState("loading");
-      const [q, ev] = await Promise.all([getQuote(quoteId), listQuoteEvents(quoteId)]);
+      const [q, ev, rep] = await Promise.all([getQuote(quoteId), listQuoteEvents(quoteId), listQuoteReplies(quoteId)]);
       setQuote(q);
       setEvents(ev);
+      setReplies(rep);
       setState("ready");
     } catch {
       if (!silent) setState("error");
@@ -104,6 +108,19 @@ export function QuoteDetailScreen() {
     } finally {
       setActionLoading(false);
     }
+  }
+
+  function handleReplyDecision(reply: QuoteReply, decision: "ACCEPT" | "REJECT" | "DISMISS") {
+    const run = () => runAction(() => decideQuoteReply(reply.id, decision), "Impossible de traiter cette réponse.");
+    if (decision === "DISMISS") return void run();
+    Alert.alert(
+      decision === "ACCEPT" ? "Marquer le devis comme accepté ?" : "Marquer le devis comme refusé ?",
+      `D'après la réponse de ${reply.fromName ?? reply.fromEmail} reçue par email.`,
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Confirmer", style: decision === "REJECT" ? "destructive" : "default", onPress: run },
+      ]
+    );
   }
 
   async function handleSharePdf() {
@@ -143,6 +160,8 @@ export function QuoteDetailScreen() {
       ]
     );
   }
+
+  const pendingReplies = replies.filter((r) => r.status === "PENDING");
 
   if (state === "loading") {
     return (
@@ -247,6 +266,23 @@ export function QuoteDetailScreen() {
           )}
         </Card>
 
+        {pendingReplies.length > 0 && (
+          <View style={{ marginBottom: spacing.md }}>
+            <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.sm }]}>
+              {pendingReplies.length > 1 ? `RÉPONSES DU CLIENT (${pendingReplies.length})` : "RÉPONSE DU CLIENT"}
+            </Text>
+            {pendingReplies.map((reply) => (
+              <QuoteReplyCard
+                key={reply.id}
+                reply={reply}
+                canDecide={quote.status === "SENT" || quote.status === "FOLLOW_UP"}
+                busy={actionLoading}
+                onDecide={(decision) => handleReplyDecision(reply, decision)}
+              />
+            ))}
+          </View>
+        )}
+
         <View style={{ gap: spacing.sm }}>
           <Button label="Voir / partager le PDF" variant="secondary" onPress={handleSharePdf} loading={actionLoading} />
 
@@ -281,9 +317,15 @@ export function QuoteDetailScreen() {
 
           {(quote.status === "SENT" || quote.status === "FOLLOW_UP") && (
             <>
-              <Button label="Faire signer le client sur place" icon="create-outline" onPress={() => navigation.navigate("QuoteSign", { quoteId })} />
+              <Button
+                label="Faire signer le client sur place"
+                icon="create-outline"
+                variant={pendingReplies.length > 0 ? "secondary" : "primary"}
+                onPress={() => navigation.navigate("QuoteSign", { quoteId })}
+              />
               <Button label="Marquer comme accepté" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "accept" })} />
-              <Button label="Enregistrer une relance" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "followUp" })} />
+              <Button label="Relancer par email" icon="mail-outline" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "remind" })} />
+              <Button label="Noter une relance (téléphone, rendez-vous…)" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "followUp" })} />
               <Button label="Marquer comme refusé" variant="secondary" onPress={() => navigation.navigate("QuoteAction", { quoteId, action: "reject" })} />
               <PressableScale onPress={confirmExpire} style={{ alignItems: "center", paddingVertical: spacing.sm }}>
                 <Text style={[type.footnote, { color: colors.inkTertiary, fontWeight: "600" }]}>Marquer comme expiré</Text>

@@ -99,10 +99,26 @@ const envSchema = z.object({
   // production réelle du module commercial.
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  // BUG CORRIGÉ : z.coerce.boolean() lisait SMTP_SECURE="false" comme VRAI
+  // (toute chaîne non vide vaut true), ce qui forçait TLS direct sur le port
+  // 587 et faisait échouer l'envoi. Même lecture que COMPANY_VAT_ON_DEBITS.
+  SMTP_SECURE: z
+    .string()
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+
+  // Réception des réponses aux devis (lecture de la boîte mail de
+  // l'entreprise en IMAP). Pour Gmail : IMAP_HOST="imap.gmail.com" et un
+  // « mot de passe d'application » Google (jamais le mot de passe du compte).
+  // Sans IMAP_USER / IMAP_PASSWORD, la lecture des réponses est désactivée.
+  IMAP_HOST: z.string().optional(),
+  IMAP_PORT: z.coerce.number().int().positive().default(993),
+  IMAP_USER: z.string().optional(),
+  IMAP_PASSWORD: z.string().optional(),
+  IMAP_MAILBOX: z.string().default("INBOX"),
 });
 
 const parsed = envSchema.safeParse(process.env);

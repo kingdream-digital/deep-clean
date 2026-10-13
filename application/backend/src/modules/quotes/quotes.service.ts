@@ -1,4 +1,4 @@
-import { Prisma, QuoteEventAction, QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit, QuoteStatus, Role } from "@prisma/client";
+import { Prisma, QuoteEventAction, QuoteFollowUpMethod, QuoteItemFrequency, QuoteItemUnit, QuoteReplyStatus, QuoteStatus, Role } from "@prisma/client";
 import { companyDateLabel } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
@@ -76,6 +76,9 @@ const quoteSelect = {
   createdAt: true,
   updatedAt: true,
   items: { select: quoteItemSelect, orderBy: { sortOrder: "asc" } },
+  // Réponses du client reçues par email et pas encore traitées (pastille
+  // « Réponse à traiter » dans la liste des devis).
+  _count: { select: { replies: { where: { status: QuoteReplyStatus.PENDING } } } },
 } satisfies Prisma.QuoteSelect;
 
 type QuoteRow = Prisma.QuoteGetPayload<{ select: typeof quoteSelect }>;
@@ -703,4 +706,136 @@ export async function createQuoteVersion(actor: Actor, id: string) {
 
   await logActivity({ userId: actor.userId, action: "QUOTE_NEW_VERSION", entityType: "Quote", entityId: newQuote.id, metadata: { previousVersionId: existing.id } });
   return presentQuote(newQuote);
+}
+
+// ---------------------------------------------------------------------------
+// Réponses du client reçues par email (voir modules/quoteReplies) et relance
+// prête à envoyer en un clic.
+// ---------------------------------------------------------------------------
+
+const quoteReplySelect = {
+  id: true,
+  quoteId: true,
+  fromEmail: true,
+  fromName: true,
+  subject: true,
+  receivedAt: true,
+  replyText: true,
+  intent: true,
+  positiveKeywords: true,
+  negativeKeywords: true,
+  doubtKeywords: true,
+  senderMatchesContact: true,
+  status: true,
+  handledAt: true,
+  handledBy: { select: userSummarySelect },
+} satisfies Prisma.QuoteReplySelect;
+
+export async function listQuoteReplies(actor: Actor, id: string) {
+  const quote = await findQuoteOrThrow(id);
+  assertCanAccessQuote(actor, quote);
+  const items = await prisma.quoteReply.findMany({ where: { quoteId: id }, select: quoteReplySelect, orderBy: { receivedAt: "desc" } });
+  return { items };
+}
+
+export type QuoteReplyDecision = "ACCEPT" | "REJECT" | "DISMISS";
+
+/**
+ * Confirmation humaine d'une réponse reçue par email : « Accepté », « Refusé »
+ * ou « Ignorer ». Accepter / refuser passe par les mêmes règles que les
+ * actions manuelles (devis envoyé, en attente de réponse).
+ */
+export async function decideQuoteReply(actor: Actor, replyId: string, decision: QuoteReplyDecision) {
+  const reply = await prisma.quoteReply.findUnique({ where: { id: replyId }, select: { id: true, quoteId: true, status: true, fromEmail: true, receivedAt: true } });
+  if (!reply) throw ApiError.notFound("Réponse introuvable.");
+  const quote = await findQuoteOrThrow(reply.quoteId);
+  assertCanAccessQuote(actor, quote);
+  if (reply.status !== QuoteReplyStatus.PENDING) {
+    throw ApiError.conflict("Cette réponse a déjà été traitée.");
+  }
+
+  const comment = `Réponse par email de ${reply.fromEmail} le ${companyDateLabel(reply.receivedAt)}`;
+  if (decision === "ACCEPT") {
+    await markQuoteAccepted(actor, quote.id, { method: QuoteFollowUpMethod.EMAIL, comment });
+  } else if (decision === "REJECT") {
+    await markQuoteRejected(actor, quote.id, { comment });
+  }
+
+  const status = decision === "ACCEPT" ? QuoteReplyStatus.ACCEPTED : decision === "REJECT" ? QuoteReplyStatus.REJECTED : QuoteReplyStatus.DISMISSED;
+  const handledAt = new Date();
+  await prisma.quoteReply.update({ where: { id: replyId }, data: { status, handledById: actor.userId, handledAt } });
+  // Le devis est tranché : les autres réponses encore en attente sur ce même
+  // devis n'appellent plus de décision.
+  if (decision !== "DISMISS") {
+    await prisma.quoteReply.updateMany({
+      where: { quoteId: quote.id, status: QuoteReplyStatus.PENDING },
+      data: { status: QuoteReplyStatus.DISMISSED, handledById: actor.userId, handledAt },
+    });
+  }
+  await logActivity({ userId: actor.userId, action: "QUOTE_REPLY_HANDLED", entityType: "Quote", entityId: quote.id, metadata: { replyId, decision } });
+
+  const updated = await prisma.quote.findUniqueOrThrow({ where: { id: quote.id }, select: quoteSelect });
+  return presentQuote(updated);
+}
+
+async function loadAwaitingQuoteForFollowUp(actor: Actor, id: string) {
+  const existing = await findQuoteOrThrow(id);
+  assertCanAccessQuote(actor, existing);
+  if (!AWAITING_RESPONSE_STATUSES.includes(existing.status)) {
+    throw ApiError.conflict("La relance n'est possible que pour un devis envoyé, en attente de réponse.");
+  }
+  const quote = await prisma.quote.findUniqueOrThrow({ where: { id }, select: quoteSelect });
+  const recipient = quote.contactEmail ?? quote.client.email;
+  if (!recipient) {
+    throw ApiError.badRequest("Aucune adresse email connue pour ce client — renseignez-en une avant la relance.");
+  }
+  const lastSent = await prisma.quoteEvent.findFirst({ where: { quoteId: id, action: QuoteEventAction.SENT }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+  return { quote, recipient, sentAt: lastSent?.createdAt ?? quote.issueDate };
+}
+
+function followUpSubject(quote: QuoteRow): string {
+  return `Relance — Devis ${quote.quoteNumber} — ${quote.client.companyName}`;
+}
+
+function defaultFollowUpText(quote: QuoteRow, sentAt: Date): string {
+  return [
+    quote.contactName ? `Bonjour ${quote.contactName},` : "Bonjour,",
+    "",
+    `Je me permets de revenir vers vous au sujet de notre devis ${quote.quoteNumber}${quote.subject ? ` concernant « ${quote.subject} »` : ""}, envoyé le ${companyDateLabel(sentAt)}. Vous le trouverez à nouveau en pièce jointe.`,
+    "",
+    "Avez-vous pu en prendre connaissance ? Je reste à votre disposition pour toute question ou adaptation.",
+    quote.validUntil ? `Pour rappel, cette offre est valable jusqu'au ${companyDateLabel(quote.validUntil)}.` : "",
+    "",
+    "Cordialement,",
+  ]
+    .filter((line, i, all) => line !== "" || all[i - 1] !== "")
+    .join("\n");
+}
+
+/** Mail de relance déjà rédigé, modifiable avant envoi. */
+export async function getFollowUpEmailDraft(actor: Actor, id: string) {
+  const { quote, recipient, sentAt } = await loadAwaitingQuoteForFollowUp(actor, id);
+  return { to: recipient, subject: followUpSubject(quote), text: defaultFollowUpText(quote, sentAt) };
+}
+
+/** Envoie la relance par email (PDF du devis joint) et l'inscrit dans le suivi. */
+export async function sendFollowUpEmail(actor: Actor, id: string, input: { text?: string; nextFollowUpAt?: Date }) {
+  const { quote, recipient, sentAt } = await loadAwaitingQuoteForFollowUp(actor, id);
+  const text = input.text?.trim() || defaultFollowUpText(quote, sentAt);
+  const pdf = await buildQuotePdf(quote);
+  await sendMail({
+    to: recipient,
+    subject: followUpSubject(quote),
+    text,
+    attachments: [{ filename: `${quote.quoteNumber}.pdf`, content: pdf, contentType: "application/pdf" }],
+  });
+
+  const updated = await prisma.quote.update({
+    where: { id },
+    data: { status: QuoteStatus.FOLLOW_UP, nextFollowUpAt: input.nextFollowUpAt ?? null },
+    select: quoteSelect,
+  });
+  await recordEvent(id, actor.userId, QuoteEventAction.FOLLOW_UP, { method: QuoteFollowUpMethod.EMAIL, comment: "Relance envoyée par email", metadata: { recipient } });
+  await logActivity({ userId: actor.userId, action: "QUOTE_FOLLOW_UP_SENT", entityType: "Quote", entityId: id, metadata: { recipient } });
+  return presentQuote(updated);
 }

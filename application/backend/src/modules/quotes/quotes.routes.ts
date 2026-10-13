@@ -11,6 +11,8 @@ import {
   recordFollowUpSchema,
   rejectQuoteSchema,
   sendQuoteSchema,
+  quoteReplyDecisionSchema,
+  sendFollowUpEmailSchema,
   signQuoteSchema,
   updateQuoteSchema,
 } from "./quotes.validation";
@@ -24,6 +26,11 @@ export const quotesRouter = Router();
 // quotes.service.ts.
 quotesRouter.use(authenticate(), requireRole(...COMMERCIAL_ROLES));
 
+// Réponses des clients lues dans la boîte mail (avant les routes /:id).
+quotesRouter.get("/inbox/status", quotesController.getInboxStatusHandler);
+quotesRouter.post("/inbox/sync", quotesController.syncInboxHandler);
+quotesRouter.post("/replies/:replyId/decision", validate(quoteReplyDecisionSchema), quotesController.decideQuoteReplyHandler);
+
 quotesRouter.post("/", validate(createQuoteSchema), quotesController.createQuoteHandler);
 quotesRouter.get("/", validate(listQuotesQuerySchema), quotesController.listQuotesHandler);
 quotesRouter.get("/:id", validate(quoteIdParamSchema), quotesController.getQuoteHandler);
@@ -34,6 +41,9 @@ quotesRouter.get("/:id/pdf", validate(quoteIdParamSchema), quotesController.getQ
 quotesRouter.post("/:id/submit", validate(quoteIdParamSchema), quotesController.submitQuoteForValidationHandler);
 quotesRouter.post("/:id/validate", validate(quoteIdParamSchema), quotesController.validateQuoteHandler);
 quotesRouter.post("/:id/send", validate(sendQuoteSchema), quotesController.sendQuoteHandler);
+quotesRouter.get("/:id/replies", validate(quoteIdParamSchema), quotesController.listQuoteRepliesHandler);
+quotesRouter.get("/:id/follow-up-email", validate(quoteIdParamSchema), quotesController.getFollowUpEmailDraftHandler);
+quotesRouter.post("/:id/follow-up-email", validate(sendFollowUpEmailSchema), quotesController.sendFollowUpEmailHandler);
 quotesRouter.post("/:id/follow-up", validate(recordFollowUpSchema), quotesController.recordQuoteFollowUpHandler);
 quotesRouter.post("/:id/accept", validate(acceptQuoteSchema), quotesController.markQuoteAcceptedHandler);
 quotesRouter.post("/:id/sign", validate(signQuoteSchema), quotesController.signQuoteHandler);

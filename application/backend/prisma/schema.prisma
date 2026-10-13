@@ -113,6 +113,7 @@ model User {
   createdQuotes                    Quote[]                   @relation("QuoteCreatedBy")
   acceptedQuotes                   Quote[]                   @relation("QuoteAcceptedBy")
   rejectedQuotes                   Quote[]                   @relation("QuoteRejectedBy")
+  handledQuoteReplies              QuoteReply[]              @relation("QuoteReplyHandledBy")
   quoteEvents                      QuoteEvent[]              @relation("QuoteEventUser")
   createdSiteTargets               SiteTarget[]              @relation("SiteTargetCreatedBy")
   createdInvoices                  Invoice[]                 @relation("InvoiceCreatedBy")
@@ -1132,6 +1133,7 @@ model Quote {
 
   items    QuoteItem[]
   events   QuoteEvent[]
+  replies  QuoteReply[]
   // Chantier créé à partir de ce devis accepté (§19-21) — jamais rempli
   // automatiquement, uniquement via l'action humaine "Créer un chantier à
   // partir du devis" (voir sites.service.ts::createSite).
@@ -1326,4 +1328,68 @@ model AutomationEvent {
 
   @@index([createdAt])
   @@map("automation_events")
+}
+
+// ---------------------------------------------------------------------------
+// Réponses des clients aux devis, lues dans la boîte mail de l'entreprise
+// (voir modules/quoteReplies). La lecture par mots-clés n'est qu'une
+// suggestion : le passage en Accepté / Refusé est toujours confirmé par un
+// humain (handledBy / handledAt).
+// ---------------------------------------------------------------------------
+
+enum QuoteReplyIntent {
+  POSITIVE // semble accepter
+  NEGATIVE // semble refuser
+  UNCLEAR // à lire : question, négociation, réponse différée…
+}
+
+enum QuoteReplyStatus {
+  PENDING // à traiter
+  ACCEPTED // confirmé : devis accepté
+  REJECTED // confirmé : devis refusé
+  DISMISSED // ignoré (ne change rien au devis)
+}
+
+model QuoteReply {
+  id                   String           @id @default(uuid())
+  quoteId              String
+  quote                Quote            @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  // En-tête Message-ID de l'email : garantit qu'une même réponse n'est
+  // jamais enregistrée (ni notifiée) deux fois.
+  messageId            String           @unique
+  fromEmail            String
+  fromName             String?
+  subject              String?
+  receivedAt           DateTime
+  // Texte écrit par le client, sans le message cité en dessous.
+  replyText            String
+  intent               QuoteReplyIntent
+  positiveKeywords     String[]
+  negativeKeywords     String[]
+  doubtKeywords        String[]
+  // Faux si l'expéditeur n'est pas le contact du devis / du client : affiché
+  // comme avertissement avant de confirmer.
+  senderMatchesContact Boolean
+  status               QuoteReplyStatus @default(PENDING)
+  handledById          String?
+  handledBy            User?            @relation("QuoteReplyHandledBy", fields: [handledById], references: [id], onDelete: SetNull)
+  handledAt            DateTime?
+  createdAt            DateTime         @default(now())
+
+  @@index([quoteId])
+  @@index([status])
+  @@map("quote_replies")
+}
+
+// Où en est la lecture de la boîte mail : UID du dernier email traité, pour
+// ne relire que les nouveaux à chaque passage.
+model MailboxSyncState {
+  mailbox     String    @id
+  uidValidity String?
+  lastUid     Int       @default(0)
+  lastSyncAt  DateTime?
+  lastError   String?
+  updatedAt   DateTime  @updatedAt
+
+  @@map("mailbox_sync_state")
 }

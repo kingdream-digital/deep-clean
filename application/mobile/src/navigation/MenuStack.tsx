@@ -132,7 +132,7 @@ export type MenuStackParamList = {
   QuotesList: undefined;
   QuoteDetail: { quoteId: string };
   QuoteForm: { quoteId?: string; clientId?: string } | undefined;
-  QuoteAction: { quoteId: string; action: "send" | "followUp" | "accept" | "reject" };
+  QuoteAction: { quoteId: string; action: "send" | "followUp" | "remind" | "accept" | "reject" };
   QuoteSign: { quoteId: string };
   InvoicesList: undefined;
   InvoiceDetail: { invoiceId: string };
@@ -300,7 +300,7 @@ export function MenuStack() {
         name="QuoteAction"
         component={QuoteActionScreen}
         options={({ route }) => ({
-          title: { send: "Envoyer le devis", followUp: "Relance", accept: "Marquer accepté", reject: "Marquer refusé" }[route.params.action],
+          title: { send: "Envoyer le devis", followUp: "Relance", remind: "Relancer par email", accept: "Marquer accepté", reject: "Marquer refusé" }[route.params.action],
           presentation: "modal",
         })}
       />
