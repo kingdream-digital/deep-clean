@@ -150,6 +150,6 @@ describe("Espace Super PDP", () => {
 
     expect(await screen.findByText("Non activée")).toBeTruthy();
     expect(screen.getByText("Site Super PDP")).toBeTruthy();
-    expect(screen.getByText(/SUPERPDP_CLIENT_ID/)).toBeTruthy();
+    expect(screen.getByText(/jamais saisis dans l.application/)).toBeTruthy();
   });
 });

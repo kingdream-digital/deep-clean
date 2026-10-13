@@ -319,8 +319,8 @@ export function EinvoicingScreen() {
           <StepRow index={1} done={configured} title="Compte Super PDP relié">
             <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
               {configured
-                ? `Identifiants présents sur le serveur · ${overview.connection.host}`
-                : "Créer un compte sur superpdp.tech, puis une application « client credentials ». Son identifiant et son secret se renseignent sur le serveur (SUPERPDP_CLIENT_ID, SUPERPDP_CLIENT_SECRET), jamais dans l'application."}
+                ? `Compte relié · ${overview.connection.host}`
+                : "Super PDP est la plateforme agréée par l'État qui transmet vos factures électroniques. Créez votre compte sur superpdp.tech : elle vous remet deux codes d'accès (un identifiant et un code secret). Transmettez-les à votre prestataire technique, qui les installe sur le serveur. Pour votre sécurité, ces codes ne sont jamais saisis dans l'application."}
             </Text>
           </StepRow>
           <StepRow index={2} done={companyReady} title="Identité légale de l'entreprise">
@@ -375,7 +375,7 @@ export function EinvoicingScreen() {
                 <Text style={[type.caption, { color: statusTint.fg, marginLeft: 4, fontWeight: "700" }]}>{status.label}</Text>
               </View>
               <Text style={[type.caption, { color: "rgba(255,255,255,0.85)", marginLeft: spacing.sm, flex: 1 }]} numberOfLines={1}>
-                {configured ? (overview.lastSyncAt ? `Statuts vérifiés ${timeAgo(overview.lastSyncAt)}` : overview.connection.host) : "À configurer sur le serveur"}
+                {configured ? (overview.lastSyncAt ? `Statuts vérifiés ${timeAgo(overview.lastSyncAt)}` : overview.connection.host) : "En attente du compte Super PDP"}
               </Text>
             </View>
           </LinearGradient>
