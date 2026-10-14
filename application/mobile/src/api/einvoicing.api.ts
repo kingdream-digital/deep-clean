@@ -7,8 +7,20 @@ import type { InvoiceStatus } from "./invoices.api";
 
 export type EinvoiceView = "toSend" | "inProgress" | "attention" | "done";
 
+/** État de la vérification de l'entreprise chez Super PDP (mode « Connecter Super PDP »). */
+export type SuperPdpVerification = "verified" | "needs_review" | "failed";
+
 export interface EinvoicingOverview {
-  connection: { configured: boolean; host: string };
+  connection: {
+    configured: boolean;
+    host: string;
+    // « oauth » : relié par le bouton « Connecter Super PDP » ; « credentials » :
+    // codes installés sur le serveur par le prestataire.
+    mode: "oauth" | "credentials" | null;
+    // Le bouton « Connecter Super PDP » est disponible sur ce serveur.
+    oauthAvailable: boolean;
+    account: { companyName: string | null; companyNumber: string | null; verificationStatus: SuperPdpVerification | null; connectedAt: string } | null;
+  };
   // `missing` : ce qui manque à l'identité légale de l'entreprise (COMPANY_*).
   company: { name: string; missing: string[] };
   counts: Record<EinvoiceView, number>;
@@ -57,6 +69,16 @@ export async function syncEinvoices(): Promise<EinvoiceSyncResult> {
 export async function testEinvoicingConnection(): Promise<{ ok: boolean; host: string; checkedAt: string }> {
   const { data } = await apiClient.post<{ result: { ok: boolean; host: string; checkedAt: string } }>("/einvoicing/test-connection");
   return data.result;
+}
+
+/** Adresse de la page Super PDP où le dirigeant se connecte et autorise l'application. */
+export async function startSuperPdpConnection(): Promise<string> {
+  const { data } = await apiClient.post<{ url: string }>("/einvoicing/superpdp/connect");
+  return data.url;
+}
+
+export async function disconnectSuperPdp(): Promise<void> {
+  await apiClient.delete("/einvoicing/superpdp/connection");
 }
 
 /** Jours restants avant une échéance (AAAA-MM-JJ) ; négatif si dépassée. */

@@ -293,7 +293,7 @@ describe("Espace Super PDP — vue d'ensemble, suivi groupé, test de connexion"
     mutableEnv.SUPERPDP_CLIENT_SECRET = "";
     const missing = await request(app).post("/api/v1/einvoicing/test-connection").set(auth);
     expect(missing.status).toBe(400);
-    expect(missing.body.error.message).toContain("Identifiants Super PDP absents");
+    expect(missing.body.error.message).toContain("Aucun compte Super PDP n'est relié");
     const overview = (await request(app).get("/api/v1/einvoicing/overview").set(auth)).body.overview;
     expect(overview.connection.configured).toBe(false);
     expect((await request(app).post("/api/v1/einvoicing/sync").set(auth)).status).toBe(400);

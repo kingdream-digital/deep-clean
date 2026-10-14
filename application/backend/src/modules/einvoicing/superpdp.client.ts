@@ -1,20 +1,41 @@
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
 import { ApiError } from "../../utils/ApiError";
+import { hasOAuthConnection, refreshAccessToken, refreshConnectionStatus } from "./superpdpOAuth";
 
 // Client de l'API Super PDP (plateforme agréée de facturation électronique,
-// https://www.superpdp.tech/openapi/). Authentification OAuth2
-// « client credentials » ; le jeton est gardé en mémoire jusqu'à expiration.
+// https://www.superpdp.tech/openapi/). Deux façons d'être relié :
+// - « oauth » : le dirigeant a cliqué sur « Connecter Super PDP » dans
+//   l'application (mode éditeur, voir superpdpOAuth.ts) — prioritaire ;
+// - « credentials » : codes de l'entreprise installés sur le serveur
+//   (SUPERPDP_CLIENT_ID / SUPERPDP_CLIENT_SECRET, OAuth2 « client credentials »).
+// Le jeton d'accès est gardé en mémoire jusqu'à expiration.
 
-export function superPdpConfigured(): boolean {
+export type SuperPdpMode = "oauth" | "credentials";
+
+function credentialsConfigured(): boolean {
   return !!env.SUPERPDP_CLIENT_ID?.trim() && !!env.SUPERPDP_CLIENT_SECRET?.trim();
 }
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
+export async function superPdpMode(): Promise<SuperPdpMode | null> {
+  if (await hasOAuthConnection()) return "oauth";
+  return credentialsConfigured() ? "credentials" : null;
+}
 
-/** Pour les tests : oublie le jeton en mémoire. */
+export async function superPdpConfigured(): Promise<boolean> {
+  return (await superPdpMode()) !== null;
+}
+
+let cachedToken: { value: string; expiresAt: number; mode: SuperPdpMode } | null = null;
+
+/** Oublie le jeton en mémoire (tests, connexion ou déconnexion du compte). */
 export function resetSuperPdpToken(): void {
   cachedToken = null;
+}
+
+/** Jeton obtenu au moment de la connexion : réutilisé tant qu'il est valable. */
+export function primeSuperPdpToken(accessToken: string, expiresIn: number): void {
+  cachedToken = { value: accessToken, expiresAt: Date.now() + expiresIn * 1000, mode: "oauth" };
 }
 
 /** Hôte de l'API utilisée (affiché dans l'espace Super PDP, jamais les identifiants). */
@@ -33,7 +54,10 @@ export function superPdpHost(): string {
 export async function testSuperPdpConnection(): Promise<void> {
   cachedToken = null;
   try {
-    await getToken();
+    const mode = await superPdpMode();
+    const token = await getToken();
+    // Mode éditeur : en profiter pour relire l'état de vérification de l'entreprise.
+    if (mode === "oauth") await refreshConnectionStatus(token);
   } catch (err) {
     if (err instanceof ApiError) throw err;
     logger.warn({ err }, "Super PDP : serveur injoignable");
@@ -46,8 +70,14 @@ function apiUrl(path: string): string {
 }
 
 async function getToken(): Promise<string> {
-  if (!superPdpConfigured()) throw ApiError.badRequest("La facture électronique n'est pas configurée (identifiants Super PDP manquants).");
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) return cachedToken.value;
+  const mode = await superPdpMode();
+  if (!mode) throw ApiError.badRequest("Aucun compte Super PDP n'est relié. Cliquez sur « Connecter Super PDP » dans l'espace Super PDP.");
+  if (cachedToken && cachedToken.mode === mode && cachedToken.expiresAt > Date.now() + 30_000) return cachedToken.value;
+  if (mode === "oauth") {
+    const { accessToken, expiresIn } = await refreshAccessToken();
+    cachedToken = { value: accessToken, expiresAt: Date.now() + expiresIn * 1000, mode };
+    return accessToken;
+  }
   const res = await fetch(apiUrl("/oauth2/token"), {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -62,7 +92,7 @@ async function getToken(): Promise<string> {
     throw ApiError.badRequest("Connexion à Super PDP refusée : vérifiez les identifiants SUPERPDP_CLIENT_ID / SUPERPDP_CLIENT_SECRET.");
   }
   const data = (await res.json()) as { access_token: string; expires_in?: number };
-  cachedToken = { value: data.access_token, expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000 };
+  cachedToken = { value: data.access_token, expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000, mode };
   return cachedToken.value;
 }
 

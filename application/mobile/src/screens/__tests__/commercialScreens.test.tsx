@@ -1,12 +1,13 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "../../theme/ThemeProvider";
 import { CommercialHomeScreen } from "../commercial/CommercialHomeScreen";
 import { EinvoicingScreen } from "../commercial/EinvoicingScreen";
 import { getCommercialDashboard } from "../../api/commercialDashboard.api";
 import type { CommercialDashboard } from "../../api/commercialDashboard.api";
-import { getEinvoicingOverview, listEinvoices, testEinvoicingConnection } from "../../api/einvoicing.api";
+import { Linking } from "react-native";
+import { getEinvoicingOverview, listEinvoices, startSuperPdpConnection, testEinvoicingConnection } from "../../api/einvoicing.api";
 import type { EinvoicingOverview } from "../../api/einvoicing.api";
 
 // Espace commercial refondu : actions rapides, cartes Devis/Factures et
@@ -40,6 +41,8 @@ jest.mock("../../api/einvoicing.api", () => ({
   listEinvoices: jest.fn(),
   syncEinvoices: jest.fn(),
   testEinvoicingConnection: jest.fn(),
+  startSuperPdpConnection: jest.fn(),
+  disconnectSuperPdp: jest.fn(),
 }));
 
 const dashboard = (withInvoicing: boolean): CommercialDashboard => ({
@@ -48,8 +51,8 @@ const dashboard = (withInvoicing: boolean): CommercialDashboard => ({
   invoicing: withInvoicing ? { toPrepare: 2, validated: 1, sent: 4, paid: 7, projectedMonthlyRevenueHt: 12500 } : null,
 });
 
-const overview = (configured: boolean): EinvoicingOverview => ({
-  connection: { configured, host: "api.superpdp.tech" },
+const overview = (configured: boolean, extra: Partial<EinvoicingOverview["connection"]> = {}): EinvoicingOverview => ({
+  connection: { configured, host: "api.superpdp.tech", mode: configured ? "credentials" : null, oauthAvailable: false, account: null, ...extra },
   company: { name: "Deep Clean", missing: [] },
   counts: { toSend: 3, inProgress: 1, attention: 0, done: 5 },
   lastSyncAt: null,
@@ -151,5 +154,37 @@ describe("Espace Super PDP", () => {
     expect(await screen.findByText("Non activée")).toBeTruthy();
     expect(screen.getByText("Site Super PDP")).toBeTruthy();
     expect(screen.getByText(/jamais saisis dans l.application/)).toBeTruthy();
+  });
+
+  it("bouton « Connecter Super PDP » : ouvre la page d'autorisation de Super PDP", async () => {
+    jest.mocked(getEinvoicingOverview).mockResolvedValue(overview(false, { oauthAvailable: true }));
+    jest.mocked(listEinvoices).mockResolvedValue({ total: 0, items: [] });
+    jest.mocked(startSuperPdpConnection).mockResolvedValue("https://api.superpdp.tech/oauth2/authorize?state=abc");
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+
+    renderScreen(<EinvoicingScreen />);
+
+    fireEvent.press(await screen.findByText("Connecter Super PDP"));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://api.superpdp.tech/oauth2/authorize?state=abc"));
+    expect(await screen.findByText(/cet écran se mettra à jour tout seul/)).toBeTruthy();
+    expect(screen.queryByText(/jamais saisis dans l.application/)).toBeNull();
+    open.mockRestore();
+  });
+
+  it("relié depuis l'application : entreprise, état de vérification et déconnexion", async () => {
+    jest.mocked(getEinvoicingOverview).mockResolvedValue(
+      overview(true, {
+        mode: "oauth",
+        oauthAvailable: true,
+        account: { companyName: "DEEP CLEAN", companyNumber: "942773375", verificationStatus: "needs_review", connectedAt: "2026-10-14T08:00:00.000Z" },
+      })
+    );
+    jest.mocked(listEinvoices).mockResolvedValue({ total: 0, items: [] });
+
+    renderScreen(<EinvoicingScreen />);
+
+    expect(await screen.findByText(/DEEP CLEAN · relié depuis l'application/)).toBeTruthy();
+    expect(screen.getByText(/Vérification de l'entreprise en cours chez Super PDP/)).toBeTruthy();
+    expect(screen.getByText("Déconnecter")).toBeTruthy();
   });
 });
