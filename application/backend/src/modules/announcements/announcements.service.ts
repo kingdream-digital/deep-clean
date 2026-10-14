@@ -86,7 +86,8 @@ export async function createAnnouncement(
   }
 
   const recipients = await prisma.user.findMany({
-    where: { isActive: true, id: { not: actor.userId } },
+    // Le comptable n'a pas accès aux actualités internes.
+    where: { isActive: true, id: { not: actor.userId }, role: { not: Role.ACCOUNTANT } },
     select: { id: true },
   });
 

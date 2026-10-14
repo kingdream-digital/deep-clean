@@ -12,12 +12,14 @@ import { TextField } from "../../components/TextField";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Checkbox } from "../../components/Checkbox";
+import { SegmentedControl } from "../../components/SegmentedControl";
+import { CompanyLookupField } from "../../components/CompanyLookupField";
 import { PressableScale } from "../../components/PressableScale";
 import { DateTimeField } from "../../components/DateTimeField";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
-import { listClients } from "../../api/clients.api";
+import { createClient, listClients } from "../../api/clients.api";
 import type { Client } from "../../api/clients.api";
 import { listUsers } from "../../api/users.api";
 import type { DirectoryUser } from "../../api/users.api";
@@ -87,6 +89,14 @@ export function QuoteFormScreen() {
   const [discount, setDiscount] = useState("0");
   const [vatRate, setVatRate] = useState("20");
   const [items, setItems] = useState<EditableItem[]>([blankItem()]);
+  // Retour explicite du client : créer le client directement depuis le
+  // nouveau devis, sans repasser par la fiche client. Le client est créé au
+  // moment d'enregistrer le devis, avec les coordonnées saisies ci-dessous.
+  const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [newPostalCode, setNewPostalCode] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [newSiren, setNewSiren] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -98,6 +108,7 @@ export function QuoteFormScreen() {
           : []),
       ]);
       setClients(clientsRes.items);
+      if (!isEdit && !route.params?.clientId && clientsRes.items.length === 0) setClientMode("new");
       // Devis lancé depuis la fiche client : coordonnées préremplies tout de
       // suite (avant, les champs restaient vides à l'écran).
       if (!isEdit && route.params?.clientId) {
@@ -179,7 +190,12 @@ export function QuoteFormScreen() {
 
   async function handleSave() {
     setError(null);
-    if (!clientId) {
+    const creatingClient = !isEdit && clientMode === "new";
+    if (creatingClient && !newCompanyName.trim()) {
+      setError("Indiquez le nom de l'entreprise du nouveau client.");
+      return;
+    }
+    if (!creatingClient && !clientId) {
       setError("Sélectionnez un client.");
       return;
     }
@@ -216,7 +232,33 @@ export function QuoteFormScreen() {
         await updateQuote(quoteId, payload);
         navigation.goBack();
       } else {
-        const created = await createQuote({ clientId, ...payload });
+        let targetClientId = clientId;
+        if (creatingClient) {
+          const [firstName, ...rest] = contactName.trim().split(/\s+/).filter(Boolean);
+          const siretDigits = siret.replace(/[\s.-]/g, "");
+          const client = await createClient({
+            companyName: newCompanyName.trim(),
+            contactFirstName: firstName || undefined,
+            contactLastName: rest.join(" ") || undefined,
+            email: contactEmail.trim() || undefined,
+            phone: contactPhone.trim() || undefined,
+            billingAddress: billingAddress.trim() || undefined,
+            postalCode: newPostalCode.trim() || undefined,
+            city: newCity.trim() || undefined,
+            siret: siretDigits.length === 14 ? siretDigits : undefined,
+            siren: (siretDigits.length === 9 ? siretDigits : newSiren) || undefined,
+          });
+          // Le client existe désormais : si l'enregistrement du devis échoue,
+          // un nouvel essai le réutilise au lieu de le créer en double.
+          setClients((prev) => [...prev, client]);
+          setClientId(client.id);
+          setClientMode("existing");
+          targetClientId = client.id;
+        }
+        const fullBillingAddress = creatingClient
+          ? [billingAddress.trim(), [newPostalCode.trim(), newCity.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ")
+          : payload.billingAddress;
+        const created = await createQuote({ clientId: targetClientId, ...payload, billingAddress: fullBillingAddress || undefined });
         navigation.replace("QuoteDetail", { quoteId: created.id });
       }
     } catch (err) {
@@ -244,17 +286,51 @@ export function QuoteFormScreen() {
   return (
     <ScreenContainer avoidKeyboard style={{ paddingTop: spacing.lg }}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[{ paddingBottom: spacing.xxxl }, isDesktopWeb && { maxWidth: 720, width: "100%", alignSelf: "center" }]}>
-        <View style={{ marginBottom: spacing.md }}>
-          <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Client</Text>
-          <Card padded={false}>
-            <Picker enabled={!isEdit} selectedValue={clientId} onValueChange={handlePickClient} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
-              <Picker.Item label="Sélectionner un client" value="" />
-              {clients.map((c) => (
-                <Picker.Item key={c.id} label={c.companyName} value={c.id} />
-              ))}
-            </Picker>
-          </Card>
-        </View>
+        {!isEdit && (
+          <View style={{ marginBottom: spacing.md }}>
+            <SegmentedControl
+              value={clientMode}
+              onChange={setClientMode}
+              options={[
+                { label: "Client existant", value: "existing" },
+                { label: "Nouveau client", value: "new" },
+              ]}
+            />
+          </View>
+        )}
+        {isEdit || clientMode === "existing" ? (
+          <View style={{ marginBottom: spacing.md }}>
+            <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Client</Text>
+            <Card padded={false}>
+              <Picker enabled={!isEdit} selectedValue={clientId} onValueChange={handlePickClient} style={pickerStyle(colors)} itemStyle={{ color: colors.ink }}>
+                <Picker.Item label="Sélectionner un client" value="" />
+                {clients.map((c) => (
+                  <Picker.Item key={c.id} label={c.companyName} value={c.id} />
+                ))}
+              </Picker>
+            </Card>
+          </View>
+        ) : (
+          <>
+            <CompanyLookupField
+              value={siret}
+              onChangeText={setSiret}
+              onFound={(c) => {
+                setNewCompanyName(c.companyName);
+                if (c.address) setBillingAddress(c.address);
+                if (c.postalCode) setNewPostalCode(c.postalCode);
+                if (c.city) setNewCity(c.city);
+                setSiret(c.siret ?? c.siren);
+                setNewSiren(c.siren);
+                if (!siteAddress.trim() && c.address) setSiteAddress([c.address, [c.postalCode, c.city].filter(Boolean).join(" ")].filter(Boolean).join(", "));
+              }}
+            />
+            <TextField label="Entreprise" placeholder="Entreprise ABC" value={newCompanyName} onChangeText={setNewCompanyName} />
+            <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: -spacing.xs, marginBottom: spacing.md }]}>
+              Le client est créé avec le devis, avec les coordonnées ci-dessous. Il apparaîtra ensuite dans la liste des clients.
+            </Text>
+          </>
+        )}
 
         <TextField label="Objet du devis" placeholder="Nettoyage des bureaux" value={subject} onChangeText={setSubject} />
         <TextField label="Adresse du chantier" placeholder="12 rue Exemple" value={siteAddress} onChangeText={setSiteAddress} />
@@ -266,7 +342,18 @@ export function QuoteFormScreen() {
         <TextField label="Email" placeholder="contact@entreprise.fr" value={contactEmail} onChangeText={setContactEmail} keyboardType="email-address" autoCapitalize="none" />
         <TextField label="Téléphone" placeholder="06 00 00 00 00" value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" />
         <TextField label="Adresse de facturation" placeholder="12 rue Exemple" value={billingAddress} onChangeText={setBillingAddress} />
-        <TextField label="SIRET" placeholder="123 456 789 00012" value={siret} onChangeText={setSiret} keyboardType="number-pad" />
+        {!isEdit && clientMode === "new" ? (
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <TextField label="Code postal" placeholder="75000" value={newPostalCode} onChangeText={setNewPostalCode} keyboardType="number-pad" />
+            </View>
+            <View style={{ flex: 2 }}>
+              <TextField label="Ville" placeholder="Paris" value={newCity} onChangeText={setNewCity} />
+            </View>
+          </View>
+        ) : (
+          <TextField label="SIRET" placeholder="123 456 789 00012" value={siret} onChangeText={setSiret} keyboardType="number-pad" />
+        )}
 
         <Text style={[type.overline, { color: colors.inkTertiary, marginTop: spacing.md, marginBottom: spacing.sm }]}>PRESTATIONS</Text>
         {items.map((item, index) => {

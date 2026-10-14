@@ -67,7 +67,24 @@ export const upsertSiteTargetSchema = {
   }),
 };
 
+export const planSiteTargetsSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    period: periodSchema,
+    months: z.number().int().min(1).max(24),
+    plannedVisits: z.number().int().min(0),
+    plannedHours: z.number().min(0).optional(),
+    plannedAmount: z.number().min(0).optional(),
+    billingMode: z.nativeEnum(SiteBillingMode).optional(),
+    overwrite: z.boolean().optional().default(false),
+  }),
+};
+
 export const siteProgressQuerySchema = {
   params: z.object({ id: z.string().uuid() }),
+  query: z.object({ period: periodSchema }),
+};
+
+export const supervisionQuerySchema = {
   query: z.object({ period: periodSchema }),
 };

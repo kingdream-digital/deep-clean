@@ -11,6 +11,7 @@ import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { InvoiceStatusBadge } from "../../components/InvoiceStatusBadge";
 import { EinvoiceCard } from "../../components/EinvoiceCard";
+import { useAuth } from "../../auth/AuthContext";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
 import { shareFile } from "../../utils/shareFile";
@@ -47,6 +48,8 @@ function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap;
 }
 
 export function InvoiceDetailScreen() {
+  // Comptable : consultation et PDF uniquement.
+  const readOnly = useAuth().user?.role === "ACCOUNTANT";
   const { colors, spacing, type } = useTheme();
   const route = useRoute<Route>();
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
@@ -193,26 +196,26 @@ export function InvoiceDetailScreen() {
           </View>
         </Card>
 
-        <EinvoiceCard invoice={invoice} onChanged={load} />
+        {!readOnly && <EinvoiceCard invoice={invoice} onChanged={load} />}
 
         <View style={{ gap: spacing.sm }}>
           <Button label="Voir / partager le PDF" variant="secondary" onPress={handleSharePdf} loading={actionLoading} />
 
-          {invoice.status === "DRAFT" && (
+          {!readOnly && invoice.status === "DRAFT" && (
             <>
               <Button label="Modifier la facture" variant="secondary" onPress={() => navigation.navigate("InvoiceForm", { invoiceId: invoice.id })} />
               <Button label="Valider la facture" onPress={() => runAction(() => validateInvoice(invoiceId), "Impossible de valider cette facture.")} loading={actionLoading} />
             </>
           )}
-          {invoice.status === "VALIDATED" && <Button label="Envoyer par email" onPress={confirmSend} loading={actionLoading} />}
-          {invoice.status === "SENT" && <Button label="Marquer comme payée" onPress={confirmMarkPaid} loading={actionLoading} />}
+          {!readOnly && invoice.status === "VALIDATED" && <Button label="Envoyer par email" onPress={confirmSend} loading={actionLoading} />}
+          {!readOnly && invoice.status === "SENT" && <Button label="Marquer comme payée" onPress={confirmMarkPaid} loading={actionLoading} />}
           {invoice.status === "PAID" && (
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm }}>
               <Ionicons name="checkmark-circle" size={16} color={colors.success} />
               <Text style={[type.footnote, { color: colors.success, marginLeft: 6, fontWeight: "600" }]}>Facture payée</Text>
             </View>
           )}
-          {(invoice.status === "DRAFT" || invoice.status === "VALIDATED" || invoice.status === "SENT") && (
+          {!readOnly && (invoice.status === "DRAFT" || invoice.status === "VALIDATED" || invoice.status === "SENT") && (
             <PressableScale onPress={confirmCancel} style={{ alignItems: "center", paddingVertical: spacing.sm }}>
               <Text style={[type.footnote, { color: colors.danger, fontWeight: "600" }]}>Annuler cette facture</Text>
             </PressableScale>

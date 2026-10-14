@@ -73,6 +73,14 @@ function streetOf(est: ApiEstablishment): string | null {
   return street || null;
 }
 
+// L'annuaire ajoute le sigle entre parenthèses au nom complet
+// (« DEEP CLEAN (DEEP CLEAN) ») : on retire la répétition.
+function displayName(name: string | null): string | null {
+  const m = name?.match(/^(.*\S)\s*\(([^()]+)\)$/);
+  if (m && m[1]!.trim().toUpperCase() === m[2]!.trim().toUpperCase()) return m[1]!.trim();
+  return name;
+}
+
 export function normalizeCompanyNumber(raw: string): string {
   return raw.replace(/[\s.-]/g, "");
 }
@@ -110,7 +118,7 @@ async function fetchCompany(number: string, siren: string): Promise<CompanyLooku
   // La recherche est plein texte : on ne retient que l'entreprise dont le
   // SIREN correspond exactement au numéro saisi.
   const company = data.results?.find((c) => c.siren === siren);
-  const name = company && (clean(company.nom_complet) ?? clean(company.nom_raison_sociale));
+  const name = company && displayName(clean(company.nom_complet) ?? clean(company.nom_raison_sociale));
   if (!company || !name) {
     throw ApiError.notFound("Aucune entreprise trouvée pour ce numéro. Vérifiez-le, ou remplissez la fiche à la main.");
   }

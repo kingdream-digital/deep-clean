@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import { isInboxMutation, notifyInboxChanged } from "../sync/inboxEvents";
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -46,7 +47,12 @@ interface RetriableConfig extends InternalAxiosRequestConfig {
 // Sur un 401 (token expiré), tente une unique fois de rafraîchir la session
 // puis rejoue la requête. Si le rafraîchissement échoue, l'utilisateur est déconnecté.
 apiClient.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Lecture, suppression ou envoi dans la messagerie / les notifications :
+    // le compteur de l'onglet se met à jour tout de suite.
+    if (isInboxMutation(res.config.method, res.config.url)) notifyInboxChanged();
+    return res;
+  },
   async (error: AxiosError) => {
     const original = error.config as RetriableConfig | undefined;
     const isAuthRoute = original?.url?.includes("/auth/login") || original?.url?.includes("/auth/refresh");

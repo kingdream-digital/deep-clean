@@ -17,7 +17,7 @@ import { countWorkableDays } from "../../utils/frenchCalendar";
 // qui a déjà une visibilité globale sur les pointages/validations ailleurs
 // dans l'application (voir timesheets.service.ts) — cohérent de la lui
 // donner aussi ici plutôt que de l'exclure d'un écran de synthèse.
-export const DOSSIER_VIEW_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN, Role.SUPERVISOR];
+export const DOSSIER_VIEW_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN, Role.SUPERVISOR, Role.ACCOUNTANT];
 
 // `avatarKey` n'est jamais exposé tel quel au client (même principe que
 // `documentKey` pour les standards PDF, voir standards.service.ts) — il est
@@ -67,7 +67,7 @@ const ACCOUNT_MANAGEMENT_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN];
 const plannerSelect = { ...contactSelect, weeklyHours: true } as const;
 
 function selectForViewer(viewerRole: Role) {
-  if (ACCOUNT_MANAGEMENT_ROLES.includes(viewerRole)) return publicSelect;
+  if (ACCOUNT_MANAGEMENT_ROLES.includes(viewerRole) || viewerRole === Role.ACCOUNTANT) return publicSelect;
   return viewerRole === Role.SUPERVISOR ? plannerSelect : contactSelect;
 }
 

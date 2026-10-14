@@ -24,6 +24,11 @@ enum Role {
   HR // RH
   DIRECTOR // Directeur
   ADMIN // Administrateur technique
+  // Comptable (cabinet externe) : consultation des heures, absences, congés,
+  // documents des salariés et factures, et dépôt des bulletins de paie.
+  // Aucun accès au planning, aux chantiers ni à la messagerie (voir
+  // middleware/accountantScope.ts).
+  ACCOUNTANT
 }
 
 model User {

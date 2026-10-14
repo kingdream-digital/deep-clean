@@ -31,6 +31,7 @@ import { commercialDashboardRouter } from "./modules/commercial/dashboard.routes
 import { einvoicingRouter } from "./modules/einvoicing/einvoicing.routes";
 import { authenticate } from "./middleware/auth.middleware";
 import { bumpChangeVersion, currentChangeVersion, isTrackedMutation } from "./utils/changeVersion";
+import { accountingRouter } from "./modules/accounting/accounting.routes";
 
 export function createApp() {
   const app = express();
@@ -98,6 +99,7 @@ export function createApp() {
   app.use("/api/v1/invoices", invoicesRouter);
   app.use("/api/v1/commercial-dashboard", commercialDashboardRouter);
   app.use("/api/v1/einvoicing", einvoicingRouter);
+  app.use("/api/v1/accounting", accountingRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

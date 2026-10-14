@@ -5,6 +5,7 @@ import { markNotificationAsRead, registerPushToken, unregisterPushToken } from "
 import type { AppNotification } from "../api/notifications.api";
 import { navigationRef } from "../navigation/navigationRef";
 import { resolveNotificationTarget } from "../utils/notificationTarget";
+import { notifyInboxChanged } from "../sync/inboxEvents";
 
 // Retenu en mémoire pour pouvoir désenregistrer le bon token à la déconnexion
 // (évite qu'un appareil partagé continue de recevoir les push d'un compte
@@ -115,5 +116,10 @@ export function listenToPushTaps(): () => void {
     if (last) void openPushTarget(last);
   });
   const sub = Notifications.addNotificationResponseReceivedListener((response) => void openPushTarget(response));
-  return () => sub.remove();
+  // Notification reçue pendant que l'app est ouverte : compteur à jour aussitôt.
+  const received = Notifications.addNotificationReceivedListener(() => notifyInboxChanged());
+  return () => {
+    sub.remove();
+    received.remove();
+  };
 }

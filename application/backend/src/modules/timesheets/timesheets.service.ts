@@ -805,6 +805,7 @@ async function assertCanViewEntry(actor: Actor, entry: { userId: string }): Prom
   return (
     actor.userId === entry.userId ||
     GLOBAL_VALIDATE_ROLES.includes(actor.role) ||
+    actor.role === Role.ACCOUNTANT ||
     (actor.role === Role.SITE_MANAGER && (await isTeamMemberOf(actor.userId, entry.userId)))
   );
 }

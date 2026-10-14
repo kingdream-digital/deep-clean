@@ -82,6 +82,15 @@ describe("Recherche d'une entreprise par SIRET / SIREN", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("retire le sigle répété entre parenthèses, mais garde un vrai nom commercial", async () => {
+    const token = await tokenFor(Role.HR, "rh-lookup-nom@deepclean.test");
+    annuaire([{ ...DANONE, nom_complet: "DANONE (DANONE)" }]);
+    expect((await request(app).get("/api/v1/clients/lookup/552032534").set("Authorization", `Bearer ${token}`)).body.company.companyName).toBe("DANONE");
+    clearCompanyLookupCache();
+    annuaire([{ ...DANONE, nom_complet: "JEAN DUPONT (NETTOYAGE PRO)" }]);
+    expect((await request(app).get("/api/v1/clients/lookup/552032534").set("Authorization", `Bearer ${token}`)).body.company.companyName).toBe("JEAN DUPONT (NETTOYAGE PRO)");
+  });
+
   it("SIREN : renvoie le siège social", async () => {
     const token = await tokenFor(Role.HR, "rh-lookup@deepclean.test");
     annuaire([DANONE]);

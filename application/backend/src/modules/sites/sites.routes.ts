@@ -13,6 +13,8 @@ import {
   siteProgressQuerySchema,
   updateSiteSchema,
   upsertSiteTargetSchema,
+  planSiteTargetsSchema,
+  supervisionQuerySchema,
 } from "./sites.validation";
 import * as sitesController from "./sites.controller";
 
@@ -29,6 +31,8 @@ sitesRouter.use(authenticate());
 
 sitesRouter.post("/", requireRole(...CREATE_SITE_ROLES), validate(createSiteSchema), sitesController.createSiteHandler);
 sitesRouter.get("/", validate(listSitesQuerySchema), sitesController.listSitesHandler);
+// Suivi de tous les chantiers du superviseur (tous pour RH / direction).
+sitesRouter.get("/supervision", validate(supervisionQuerySchema), sitesController.supervisionHandler);
 sitesRouter.get("/:id", validate(siteIdParamSchema), sitesController.getSiteHandler);
 sitesRouter.patch("/:id", validate(updateSiteSchema), sitesController.updateSiteHandler);
 
@@ -46,5 +50,6 @@ sitesRouter.get("/:id/photo/file", validate(siteIdParamSchema), sitesController.
 // la fiche), la consultation du suivi suit les mêmes règles que la fiche
 // chantier elle-même (voir sites.service.ts).
 sitesRouter.post("/:id/targets", validate(upsertSiteTargetSchema), sitesController.upsertSiteTargetHandler);
+sitesRouter.post("/:id/targets/plan", validate(planSiteTargetsSchema), sitesController.planSiteTargetsHandler);
 sitesRouter.get("/:id/targets", validate(siteIdParamSchema), sitesController.listSiteTargetsHandler);
 sitesRouter.get("/:id/progress", validate(siteProgressQuerySchema), sitesController.getSiteProgressHandler);

@@ -4,6 +4,7 @@ import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
 import { geocodeAddress } from "../../utils/geocoding";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
+import { createNotification } from "../notifications/notifications.service";
 
 interface Actor {
   userId: string;
@@ -139,6 +140,20 @@ async function assertValidQuoteForSite(quoteId: string, clientId: string | undef
   }
 }
 
+// La personne désignée chef d'équipe ou superviseur d'un chantier en est
+// toujours prévenue (règle « une personne concernée est toujours notifiée »,
+// quel que soit qui fait l'action).
+async function notifySiteAssignment(siteId: string, siteName: string, previous: { managerId: string | null; supervisorId: string | null }, next: { managerId?: string | null; supervisorId?: string | null }) {
+  const sends: Promise<unknown>[] = [];
+  if (next.managerId && next.managerId !== previous.managerId) {
+    sends.push(createNotification({ userId: next.managerId, type: "GENERAL", title: "Nouveau chantier", body: `Vous êtes chef d'équipe du chantier « ${siteName} ».`, relatedEntityType: "Site", relatedEntityId: siteId }));
+  }
+  if (next.supervisorId && next.supervisorId !== previous.supervisorId) {
+    sends.push(createNotification({ userId: next.supervisorId, type: "GENERAL", title: "Nouveau chantier", body: `Vous êtes superviseur du chantier « ${siteName} ».`, relatedEntityType: "Site", relatedEntityId: siteId }));
+  }
+  await Promise.all(sends);
+}
+
 export async function createSite(
   actorId: string,
   input: {
@@ -172,6 +187,7 @@ export async function createSite(
     select: siteSelect,
   });
   await logActivity({ userId: actorId, action: "SITE_CREATED", entityType: "Site", entityId: site.id, metadata: { quoteId: input.quoteId, clientId: input.clientId } });
+  await notifySiteAssignment(site.id, site.name, { managerId: null, supervisorId: null }, input);
   return presentSite(site);
 }
 
@@ -275,6 +291,7 @@ export async function updateSite(actor: Actor, id: string, input: UpdateSiteInpu
 
   const updated = await prisma.site.update({ where: { id }, data: { ...input, ...geo }, select: siteSelect });
   await logActivity({ userId: actor.userId, action: "SITE_UPDATED", entityType: "Site", entityId: id, metadata: input as Record<string, unknown> });
+  await notifySiteAssignment(id, updated.name, existing, input);
   return presentSite(updated);
 }
 
@@ -400,6 +417,50 @@ export async function upsertSiteTarget(actor: Actor, siteId: string, input: Site
   });
   await logActivity({ userId: actor.userId, action: "SITE_TARGET_SET", entityType: "Site", entityId: siteId, metadata: { ...input } });
   return target;
+}
+
+function shiftPeriod(period: string, months: number): string {
+  const [y, m] = period.split("-").map(Number);
+  const d = new Date(Date.UTC(y!, m! - 1 + months, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+// Objectif sur plusieurs mois en une fois (retour explicite du client :
+// « prévoir pour toute l'année », puis ajuster mois par mois). Par défaut,
+// les mois déjà réglés à la main ne sont PAS écrasés : on ne perd jamais un
+// ajustement. `overwrite` les remplace aussi.
+export async function planSiteTargets(
+  actor: Actor,
+  siteId: string,
+  input: SiteTargetInput & { months: number; overwrite?: boolean }
+) {
+  await findSiteOrThrow(siteId);
+  await assertCanManage(actor);
+
+  const periods = Array.from({ length: input.months }, (_, i) => shiftPeriod(input.period, i));
+  const existing = new Set(
+    (await prisma.siteTarget.findMany({ where: { siteId, period: { in: periods } }, select: { period: true } })).map((t) => t.period)
+  );
+  const toWrite = periods.filter((p) => input.overwrite || !existing.has(p));
+  const data = { plannedVisits: input.plannedVisits, plannedHours: input.plannedHours ?? null, plannedAmount: input.plannedAmount ?? null };
+  await prisma.$transaction(
+    toWrite.map((period) =>
+      prisma.siteTarget.upsert({
+        where: { siteId_period: { siteId, period } },
+        create: { siteId, period, ...data, billingMode: input.billingMode ?? SiteBillingMode.FLAT_RATE, createdById: actor.userId },
+        update: { ...data, ...(input.billingMode ? { billingMode: input.billingMode } : {}) },
+      })
+    )
+  );
+  const result = {
+    created: toWrite.filter((p) => !existing.has(p)).length,
+    updated: toWrite.filter((p) => existing.has(p)).length,
+    kept: periods.length - toWrite.length,
+    from: periods[0]!,
+    to: periods[periods.length - 1]!,
+  };
+  await logActivity({ userId: actor.userId, action: "SITE_TARGETS_PLANNED", entityType: "Site", entityId: siteId, metadata: { ...input, ...result } });
+  return result;
 }
 
 export async function listSiteTargets(actor: Actor, siteId: string) {

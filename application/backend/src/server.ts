@@ -15,6 +15,7 @@ import {
   runEveReminders,
   runFieldReminders,
   runMonthlyBillingReminder,
+  runMonthlySchedulingReminder,
   runMorningDigest,
   runQuoteReminders,
 } from "./modules/automations/automations.service";
@@ -76,6 +77,7 @@ if (!env.isTest) {
   cron.schedule("*/5 * * * *", () => void runAutomation("réponses aux devis", async () => (await syncQuoteInbox()).recorded), paris);
   cron.schedule("0 18 * * *", () => void runAutomation("veille", () => runEveReminders()), paris);
   cron.schedule("10 8 1 * *", () => void runAutomation("facturation du mois", () => runMonthlyBillingReminder()), paris);
+  cron.schedule("5 8 1 * *", () => void runAutomation("interventions du mois", () => runMonthlySchedulingReminder()), paris);
   cron.schedule("30 4 * * 0", () => void pruneAutomationEvents().catch(() => undefined), paris);
 }
 

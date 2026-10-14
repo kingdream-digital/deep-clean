@@ -15,6 +15,7 @@ import { ContactProfileScreen } from "../screens/inbox/ContactProfileScreen";
 import { StatsOverviewScreen } from "../screens/stats/StatsOverviewScreen";
 import { SitesListScreen } from "../screens/sites/SitesListScreen";
 import { SiteDetailScreen } from "../screens/sites/SiteDetailScreen";
+import { SupervisionScreen } from "../screens/sites/SupervisionScreen";
 import { SiteFormScreen } from "../screens/sites/SiteFormScreen";
 import { StandardsListScreen } from "../screens/sites/StandardsListScreen";
 import { StandardFormScreen } from "../screens/sites/StandardFormScreen";
@@ -54,6 +55,7 @@ export type HomeStackParamList = {
   AnnouncementForm: undefined;
   SitesList: undefined;
   SiteDetail: { siteId: string };
+  Supervision: undefined;
   SiteForm: { siteId?: string } | undefined;
   StandardsList: { siteId: string; siteName?: string };
   StandardForm: { siteId: string; standardId?: string };
@@ -114,6 +116,7 @@ export function HomeStack() {
 
       <Stack.Screen name="SitesList" component={SitesListScreen} options={{ title: sitesListTitle(user?.role), headerTitle: isDesktopWeb ? "" : undefined }} />
       <Stack.Screen name="SiteDetail" component={SiteDetailScreen} options={{ title: "Chantier" }} />
+      <Stack.Screen name="Supervision" component={SupervisionScreen} options={{ title: "Suivi de mes chantiers" }} />
       <Stack.Screen name="MissionDetail" component={MissionDetailScreen} options={{ title: "Mission" }} />
       <Stack.Screen
         name="MissionForm"

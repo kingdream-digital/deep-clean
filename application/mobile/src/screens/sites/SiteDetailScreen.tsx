@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Alert } from "../../utils/alert";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,8 +20,9 @@ import { ProgressRing } from "../../components/ProgressRing";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
-import { currentPeriod, getSite, getSiteProgress, sitePhotoUrl, upsertSiteTarget } from "../../api/sites.api";
-import type { Site, SiteBillingMode, SiteProgress } from "../../api/sites.api";
+import { currentPeriod, getSite, getSiteProgress, listSiteTargets, sitePhotoUrl, upsertSiteTarget } from "../../api/sites.api";
+import type { Site, SiteBillingMode, SiteProgress, SiteTarget } from "../../api/sites.api";
+import { MonthStrip, PlanYearCard, periodLabel } from "./SiteYearPlanner";
 import { listMissions } from "../../api/missions.api";
 import type { Mission } from "../../api/missions.api";
 import { listProblems } from "../../api/problems.api";
@@ -30,7 +31,6 @@ import { formatMissionDay, formatMissionTimeRange, isMissionOverdue, todayKey, i
 import type { HomeStackParamList } from "../../navigation/HomeStack";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
 
-const periodFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
 const BILLING_MODE_LABELS: Record<SiteBillingMode, string> = { FLAT_RATE: "Forfait (montant prévu au devis)", PER_SERVICE: "À la prestation" };
 
 type Route = RouteProp<{ SiteDetail: { siteId: string } }, "SiteDetail">;
@@ -61,19 +61,27 @@ export function SiteDetailScreen() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [viewerOpen, setViewerOpen] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
-
-  const period = currentPeriod();
+  const [planningYear, setPlanningYear] = useState(false);
+  const [targets, setTargets] = useState<SiteTarget[]>([]);
+  // Mois affiché dans « Objectifs & suivi » — on peut aller vers n'importe
+  // quel mois, passé ou à venir (retour explicite du client).
+  const [period, setPeriod] = useState(currentPeriod());
+  const loadedOnce = useRef(false);
 
   const load = useCallback(async () => {
     const silent = isBackgroundRefresh();
     try {
-      if (!silent) setState("loading");
-      const [siteRes, missionsRes, problemsRes, progressRes] = await Promise.all([
+      // Changement de mois : pas d'écran de chargement, seule la section se met à jour.
+      if (!silent && !loadedOnce.current) setState("loading");
+      const [siteRes, missionsRes, problemsRes, progressRes, targetsRes] = await Promise.all([
         getSite(siteId),
         listMissions({ siteId, from: todayKey(), pageSize: 5 }),
         listProblems({ siteId }),
         getSiteProgress(siteId, period),
+        listSiteTargets(siteId).catch(() => [] as SiteTarget[]),
       ]);
+      loadedOnce.current = true;
+      setTargets(targetsRes);
       setSite(siteRes);
       setUpcomingMissions(missionsRes.items.filter((m) => m.status !== "CANCELLED").slice(0, 5));
       setOpenProblems(problemsRes.items.filter((p) => p.status !== "VALIDATED").slice(0, 3));
@@ -241,12 +249,36 @@ export function SiteDetailScreen() {
             missions réelles du chantier : n'affiche jamais rien d'automatique,
             juste une information/alerte pour le responsable (§37). */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg, marginBottom: spacing.sm }}>
-          <Text style={[type.overline, { color: colors.inkTertiary }]}>
-            OBJECTIFS & SUIVI · {periodFmt.format(new Date(`${period}-01`))}
-          </Text>
+          <Text style={[type.overline, { color: colors.inkTertiary }]}>OBJECTIFS & SUIVI</Text>
+          {canManage && !planningYear && (
+            <PressableScale onPress={() => setPlanningYear(true)} accessibilityLabel="Prévoir sur plusieurs mois">
+              <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>Prévoir l'année</Text>
+            </PressableScale>
+          )}
         </View>
+        <MonthStrip
+          period={period}
+          targets={targets}
+          onChange={(p) => {
+            setEditingTarget(false);
+            setPeriod(p);
+          }}
+        />
+        {planningYear && (
+          <PlanYearCard
+            siteId={site.id}
+            fromPeriod={period}
+            defaults={progress?.target ?? progress?.suggestedTarget ?? null}
+            onCancel={() => setPlanningYear(false)}
+            onDone={async () => {
+              setPlanningYear(false);
+              await load();
+            }}
+          />
+        )}
         {!!progress && (
           <SiteTargetSection
+            key={period}
             siteId={site.id}
             period={period}
             progress={progress}
@@ -435,7 +467,7 @@ function SiteTargetSection({ siteId, period, progress, canManage, onSchedule, ed
   if (editing) {
     return (
       <Card>
-        <TextField label="Prestations prévues ce mois" keyboardType="number-pad" value={plannedVisits} onChangeText={setPlannedVisits} placeholder="6" />
+        <TextField label={`Prestations prévues en ${periodLabel(period).toLowerCase()}`} keyboardType="number-pad" value={plannedVisits} onChangeText={setPlannedVisits} placeholder="6" />
         <TextField label="Heures prévues (optionnel)" keyboardType="decimal-pad" value={plannedHours} onChangeText={setPlannedHours} placeholder="20" />
         <TextField label="Montant prévu HT (optionnel)" keyboardType="decimal-pad" value={plannedAmount} onChangeText={setPlannedAmount} placeholder="900" />
         <View style={{ marginBottom: spacing.md }}>
@@ -487,7 +519,7 @@ function SiteTargetSection({ siteId, period, progress, canManage, onSchedule, ed
           tone: colors.warning,
           bg: colors.warningSoft,
           icon: "alert-circle" as const,
-          text: `${plural(toSchedule, "prestation")} à programmer ce mois-ci.`,
+          text: `${plural(toSchedule, "prestation")} à programmer ${period === currentPeriod() ? "ce mois-ci" : `en ${periodLabel(period).toLowerCase()}`}.`,
         }
       : targetPlannedVisits > 0
         ? {

@@ -49,6 +49,7 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "warning-outline", label: "Problèmes", message: "Signalements sur vos chantiers", tone: "danger", screen: "ProblemsList" },
   ],
   SUPERVISOR: [
+    { icon: "pulse-outline", label: "Suivi de mes chantiers", message: "Réalisé du mois et problèmes, chantier par chantier", tone: "success", screen: "Supervision" },
     { icon: "time-outline", label: "Heures", message: "Valider, écarts, heures par personne", tone: "success", screen: "HoursHub" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Mes prospects, mes clients", tone: "accent", screen: "CommercialHome" },
@@ -59,6 +60,8 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   ],
   HR: [
     { icon: "time-outline", label: "Heures", message: "Valider, écarts, paie, mes heures", tone: "success", screen: "HoursHub" },
+    { icon: "pulse-outline", label: "Suivi des chantiers", message: "Réalisé du mois et problèmes, par chantier", tone: "success", screen: "Supervision" },
+    { icon: "calculator-outline", label: "Espace comptable", message: "Dossier de paie du mois, documents", tone: "accent", screen: "AccountingHome" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
     { icon: "person-add-outline", label: "Comptes utilisateurs", message: "Créer et gérer les accès", tone: "success", screen: "UsersList" },
@@ -69,6 +72,8 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   ],
   DIRECTOR: [
     { icon: "time-outline", label: "Heures", message: "Valider, écarts, paie, mes heures", tone: "success", screen: "HoursHub" },
+    { icon: "pulse-outline", label: "Suivi des chantiers", message: "Réalisé du mois et problèmes, par chantier", tone: "success", screen: "Supervision" },
+    { icon: "calculator-outline", label: "Espace comptable", message: "Dossier de paie du mois, documents", tone: "accent", screen: "AccountingHome" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
     { icon: "business-outline", label: "Chantiers", message: "Vue globale de tous les chantiers", tone: "warning", screen: "SitesList" },
@@ -86,6 +91,8 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
   ],
   ADMIN: [
     { icon: "time-outline", label: "Heures", message: "Valider, écarts, paie, mes heures", tone: "success", screen: "HoursHub" },
+    { icon: "pulse-outline", label: "Suivi des chantiers", message: "Réalisé du mois et problèmes, par chantier", tone: "success", screen: "Supervision" },
+    { icon: "calculator-outline", label: "Espace comptable", message: "Dossier de paie du mois, documents", tone: "accent", screen: "AccountingHome" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
     { icon: "people-outline", label: "Comptes", message: "Gestion technique des comptes", tone: "info", screen: "UsersList" },
@@ -94,7 +101,16 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "calendar-number-outline", label: "Compteurs de congés", message: "Congés acquis à valider chaque mois", tone: "success", screen: "LeaveAccruals" },
     { icon: "time-outline", label: "Journal d'activité", message: "Qui a fait quoi, et quand", tone: "neutral", screen: "ActivityLog" },
   ],
+  // Comptable (cabinet externe) : uniquement la paie et l'administratif.
+  ACCOUNTANT: [
+    { icon: "calculator-outline", label: "Espace comptable", message: "Dossier de paie du mois", tone: "accent", screen: "AccountingHome" },
+    { icon: "time-outline", label: "Heures par personne", message: "Détail du mois de chaque salarié", tone: "success", screen: "StaffHoursList" },
+    { icon: "folder-open-outline", label: "Salariés et documents", message: "Dossiers, contrats, bulletins de paie", tone: "info", screen: "UsersList" },
+    { icon: "calendar-outline", label: "Absences et congés", message: "Absences validées du mois", tone: "warning", screen: "AbsencesManagement" },
+    { icon: "receipt-outline", label: "Factures", message: "Factures émises", tone: "purple", screen: "InvoicesList" },
+  ],
 };
+
 
 export function MenuScreen() {
   const { colors, spacing, radius, type } = useTheme();
@@ -182,6 +198,8 @@ export function MenuScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
             </View>
           </PressableScale>
+          {/* Le comptable (cabinet externe) n'a pas d'absences à poser. */}
+          {user.role !== "ACCOUNTANT" && (
           <OnboardingTarget id="menu.MyAbsences" style={{ borderTopWidth: 1, borderTopColor: colors.border }}>
             <PressableScale onPress={() => navigation.navigate("MyAbsences")}>
               <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.lg }}>
@@ -193,6 +211,7 @@ export function MenuScreen() {
               </View>
             </PressableScale>
           </OnboardingTarget>
+          )}
         </Card>
 
         {tools.length > 0 && (

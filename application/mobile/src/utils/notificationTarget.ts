@@ -14,6 +14,9 @@ export type NotificationTarget =
   // créer le chantier, la facture… depuis la fiche).
   | { tab: "Menu"; screen: "QuoteDetail"; params: { quoteId: string } }
   | { tab: "Menu"; screen: "InvoiceDetail"; params: { invoiceId: string } }
+  // Chantier (affectation comme chef d'équipe ou superviseur, rappel des
+  // interventions du mois à programmer).
+  | { tab: "Menu"; screen: "SiteDetail"; params: { siteId: string } }
   // Rappels automatiques qui renvoient vers une liste à traiter.
   | { tab: "Menu"; screen: "TimesheetValidation" | "AbsencesManagement" | "InvoicesList"; params: undefined };
 
@@ -72,6 +75,8 @@ export async function resolveNotificationTarget(n: AppNotification): Promise<Not
       return { tab: "Menu", screen: "QuoteDetail", params: { quoteId: id } };
     case "Invoice":
       return { tab: "Menu", screen: "InvoiceDetail", params: { invoiceId: id } };
+    case "Site":
+      return { tab: "Menu", screen: "SiteDetail", params: { siteId: id } };
     case "TimesheetValidation":
     case "AbsencesManagement":
     case "InvoicesList":

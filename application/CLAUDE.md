@@ -57,7 +57,7 @@ Les rôles principaux sont :
 
 Prévoir également un **administrateur technique** si nécessaire pour la gestion technique de l'application.
 
-Renommage explicite du client (validé) : le rôle auparavant appelé « Chef de chantier » s'appelle désormais **Chef d'équipe** partout dans l'application (web et mobile) — même rôle, mêmes permissions, seul le nom change. Ne pas confondre avec le chef d'équipe d'UNE mission : ce dernier est un simple employé désigné (optionnel) à la création d'une mission pour encadrer les autres employés affectés à cette mission précise (voir section SUPERVISEUR ci-dessous et section MISSIONS) — un compte au rôle Chef d'équipe n'a besoin d'être renseigné nulle part à la création d'un chantier, seulement (et de façon optionnelle) via la fiche du chantier ensuite.
+Renommage explicite du client (validé) : le rôle auparavant appelé « Chef de chantier » s'appelle désormais **Chef d'équipe** partout dans l'application (web et mobile) — même rôle, mêmes permissions, seul le nom change. Ne pas confondre avec le chef d'équipe d'UNE mission : ce dernier est un simple employé désigné (optionnel) à la création d'une mission pour encadrer les autres employés affectés à cette mission précise (voir section SUPERVISEUR ci-dessous et section MISSIONS) — un compte au rôle Chef d'équipe se renseigne de façon optionnelle sur le chantier, dès sa création ou plus tard depuis sa fiche (retour explicite du client, octobre 2026 : chef d'équipe et superviseur du chantier se choisissent dès la création ; la personne désignée en est notifiée).
 
 Le rôle **Superviseur** a été ajouté en cours de développement (retour explicite du client, validé) : il vient s'intercaler entre le chef d'équipe et la RH/direction. Il gère le planning au quotidien (création, modification, annulation des missions) et valide les pointages avant transmission à la RH — deux responsabilités que le chef d'équipe n'exerce plus lui-même une fois ce rôle introduit (voir plus bas, section CHEF D'ÉQUIPE).
 
@@ -167,6 +167,25 @@ Il peut notamment :
 - modifier son propre mot de passe.
 
 Retour explicite du client (validé), nouvelle évolution majeure : le directeur n'était au départ qu'un rôle de consultation. Il dispose désormais de **toutes les permissions de gestion de l'application, à la seule et unique exception de la création de comptes utilisateurs** (« tout sauf créer les comptes »), qui reste réservée à la RH (et à l'admin technique). Il ne peut pas non plus agir sur le compte de l'admin technique — rôle de maintenance technique de l'application, volontairement hors de la hiérarchie métier — ni lui attribuer ce rôle.
+
+## COMPTABLE
+
+Retour explicite du client (validé, octobre 2026) : un compte **Comptable** (cabinet comptable externe), créé par la RH, pour préparer les fiches de paie et l'administratif sans passer par la RH.
+
+Il peut uniquement :
+
+- consulter les heures de tous les salariés (pointages, récapitulatif de paie : nuit, dimanche, férié, heures majorées, repos compensateur) et les exporter ;
+- télécharger le **dossier de paie du mois** (Excel : synthèse par salarié, absences, soldes de congés) depuis l'**Espace comptable** ;
+- consulter les absences et les soldes de congés ;
+- consulter le dossier et les documents de chaque salarié, et y **déposer les bulletins de paie** (jamais en supprimer) ;
+- consulter les factures et leur PDF ;
+- modifier son propre mot de passe.
+
+Il n'a accès ni au planning, ni aux missions, ni aux chantiers, ni à la messagerie, ni aux actualités, ni au commercial, et ne valide ni ne décide rien. Ces limites sont garanties côté serveur par une liste blanche (`backend/src/middleware/accountantScope.ts`) : toute route qui n'y figure pas lui est refusée.
+
+## SUIVI DES CHANTIERS (SUPERVISEUR)
+
+Retour explicite du client (validé, octobre 2026) : le superviseur dispose d'un écran **Suivi de mes chantiers** — tous les chantiers dont il est superviseur, avec le réalisé du mois par rapport à l'objectif et les problèmes repérables au premier coup d'œil (interventions prévues non réalisées, problèmes ouverts, missions à valider, interventions à programmer), chantiers à traiter en tête. La RH et la direction y voient tous les chantiers.
 
 ---
 

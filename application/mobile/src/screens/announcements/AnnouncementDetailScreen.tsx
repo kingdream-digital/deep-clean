@@ -36,6 +36,7 @@ const ROLE_LABELS: Record<Role, string> = {
   HR: "Ressources humaines",
   DIRECTOR: "Direction",
   ADMIN: "Administration",
+  ACCOUNTANT: "Comptabilité",
 };
 
 const dateFmt = frenchDateFormat({ weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });

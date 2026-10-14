@@ -37,6 +37,7 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "SUPERVISOR", label: "Superviseur" },
   { value: "HR", label: "RH" },
   { value: "DIRECTOR", label: "Directeur" },
+  { value: "ACCOUNTANT", label: "Comptable (accès paie en consultation)" },
   { value: "ADMIN", label: "Admin technique" },
 ];
 

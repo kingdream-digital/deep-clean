@@ -1,4 +1,4 @@
-import { NotificationType, Prisma } from "@prisma/client";
+import { NotificationType, Prisma, Role } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -68,7 +68,9 @@ function presentMessage(message: RawMessage) {
 // notion de contacts restreints à une équipe ou un chantier.
 export async function listContacts(actor: Actor) {
   const contacts = await prisma.user.findMany({
-    where: { isActive: true, id: { not: actor.userId } },
+    // Le comptable (cabinet externe) n'a pas accès à la messagerie : il
+    // n'apparaît pas dans les contacts.
+    where: { isActive: true, id: { not: actor.userId }, role: { not: Role.ACCOUNTANT } },
     select: contactSelect,
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
   });
@@ -76,7 +78,7 @@ export async function listContacts(actor: Actor) {
 }
 
 export async function getContactById(id: string) {
-  const contact = await prisma.user.findFirst({ where: { id, isActive: true }, select: contactSelect });
+  const contact = await prisma.user.findFirst({ where: { id, isActive: true, role: { not: Role.ACCOUNTANT } }, select: contactSelect });
   if (!contact) throw ApiError.notFound("Contact introuvable.");
   return presentContact(contact);
 }
@@ -94,7 +96,7 @@ async function getAnyUserById(id: string) {
 }
 
 async function assertActiveUsers(ids: string[]) {
-  const found = await prisma.user.count({ where: { id: { in: ids }, isActive: true } });
+  const found = await prisma.user.count({ where: { id: { in: ids }, isActive: true, role: { not: Role.ACCOUNTANT } } });
   if (found !== ids.length) {
     throw ApiError.badRequest("Un des comptes sélectionnés est introuvable ou désactivé.");
   }

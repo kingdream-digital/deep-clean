@@ -4,6 +4,7 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import { ApiError } from "../../utils/ApiError";
 import { resolveStoragePath } from "../../utils/storage";
 import * as sitesService from "./sites.service";
+import { getSupervision } from "./supervision.service";
 
 function actorOf(req: Request) {
   return { userId: req.auth!.userId, role: req.auth!.role };
@@ -42,6 +43,11 @@ export const removeSiteMemberHandler = asyncHandler(async (req: Request, res: Re
 export const upsertSiteTargetHandler = asyncHandler(async (req: Request, res: Response) => {
   const target = await sitesService.upsertSiteTarget(actorOf(req), req.params.id as string, req.body);
   res.status(200).json({ target });
+});
+
+export const planSiteTargetsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const result = await sitesService.planSiteTargets(actorOf(req), req.params.id as string, req.body);
+  res.status(200).json(result);
 });
 
 export const listSiteTargetsHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -83,4 +89,9 @@ export const getSitePhotoFileHandler = asyncHandler(async (req: Request, res: Re
     else res.end();
   });
   stream.pipe(res);
+});
+
+export const supervisionHandler = asyncHandler(async (req: Request, res: Response) => {
+  const supervision = await getSupervision(actorOf(req), req.query.period as string);
+  res.status(200).json({ supervision });
 });

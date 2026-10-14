@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { listNotifications } from "../api/notifications.api";
 import { getUnreadMessagesCount } from "../api/messages.api";
 import { subscribeToDataChanges } from "../sync/liveSync";
+import { subscribeToInboxChanges } from "../sync/inboxEvents";
+import { useAuth } from "../auth/AuthContext";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -17,6 +19,8 @@ const POLL_INTERVAL_MS = 60_000;
 // messages non lus.
 export function useUnreadInboxCount(): number {
   const [count, setCount] = useState(0);
+  // Le comptable n'a pas de messagerie : seules ses notifications comptent.
+  const withMessages = useAuth().user?.role !== "ACCOUNTANT";
 
   useEffect(() => {
     let cancelled = false;
@@ -25,7 +29,7 @@ export function useUnreadInboxCount(): number {
       try {
         const [notifRes, unreadMessages] = await Promise.all([
           listNotifications(1, 1),
-          getUnreadMessagesCount(),
+          withMessages ? getUnreadMessagesCount() : Promise.resolve(0),
         ]);
         if (!cancelled) setCount(notifRes.unreadCountExcludingMessages + unreadMessages);
       } catch {
@@ -37,12 +41,16 @@ export function useUnreadInboxCount(): number {
     const interval = setInterval(poll, POLL_INTERVAL_MS);
     // Nouvelle donnée quelque part (message, notification…) : badge à jour tout de suite.
     const unsubscribe = subscribeToDataChanges(() => void poll());
+    // Lecture / suppression / envoi sur cet appareil : le serveur ne le
+    // signale pas (voir sync/inboxEvents.ts), on recalcule tout de suite.
+    const unsubscribeInbox = subscribeToInboxChanges(() => void poll());
     return () => {
       cancelled = true;
       clearInterval(interval);
       unsubscribe();
+      unsubscribeInbox();
     };
-  }, []);
+  }, [withMessages]);
 
   return count;
 }

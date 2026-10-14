@@ -28,6 +28,7 @@ export type NotificationEntityType =
   | "LeaveAccruals"
   | "Quote"
   | "Invoice"
+  | "Site"
   // Listes à traiter (rappels automatiques).
   | "TimesheetValidation"
   | "AbsencesManagement"

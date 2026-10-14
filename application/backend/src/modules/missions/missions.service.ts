@@ -248,6 +248,9 @@ async function assertAssigneesValid(assigneeIds: string[]): Promise<void> {
   if (inactive) {
     throw ApiError.badRequest("Impossible d'affecter un employé dont le compte est désactivé.");
   }
+  if (users.some((u) => u.role === Role.ACCOUNTANT || u.role === Role.ADMIN)) {
+    throw ApiError.badRequest("Seuls les membres des équipes peuvent être affectés à une mission.");
+  }
 }
 
 // « « Remise en état salle de réunion », mercredi 7 octobre de 08:00 à 10:30 » :
