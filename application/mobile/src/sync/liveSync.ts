@@ -44,6 +44,11 @@ function emitChange(): void {
   }
 }
 
+/** Recharge discrètement tous les écrans affichés (ex. fin d'une maintenance). */
+export function refreshAllScreens(): void {
+  emitChange();
+}
+
 function appIsVisible(): boolean {
   if (Platform.OS === "web") return typeof document === "undefined" || document.visibilityState !== "hidden";
   return AppState.currentState === "active";

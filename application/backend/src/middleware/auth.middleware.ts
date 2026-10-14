@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError";
 import { verifyAccessToken } from "../utils/tokens";
 import { prisma } from "../db/prisma";
 import { isAllowedForAccountant } from "./accountantScope";
+import { assertNotInMaintenance } from "../config/maintenance";
 
 interface AuthenticateOptions {
   /**
@@ -55,6 +56,10 @@ export function authenticate(options: AuthenticateOptions = {}) {
           "Ce compte a été désactivé. Contactez la RH pour tout problème de connexion ou de compte."
         );
       }
+      // Mise à jour en cours : tout le monde est mis en attente (sauf l'admin
+      // technique), sessions conservées — chacun retrouve l'application
+      // connecté dès la fin de la maintenance.
+      assertNotInMaintenance(session.user.role);
       if (session.user.mustChangePassword && !options.allowPasswordChangePending) {
         throw ApiError.forbidden("Vous devez d'abord définir votre propre mot de passe.");
       }

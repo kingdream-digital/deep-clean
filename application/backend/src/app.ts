@@ -29,6 +29,7 @@ import { quotesRouter } from "./modules/quotes/quotes.routes";
 import { invoicesRouter } from "./modules/invoices/invoices.routes";
 import { commercialDashboardRouter } from "./modules/commercial/dashboard.routes";
 import { einvoicingRouter } from "./modules/einvoicing/einvoicing.routes";
+import { maintenanceStatus } from "./config/maintenance";
 import { authenticate } from "./middleware/auth.middleware";
 import { bumpChangeVersion, currentChangeVersion, isTrackedMutation } from "./utils/changeVersion";
 import { accountingRouter } from "./modules/accounting/accounting.routes";
@@ -72,6 +73,13 @@ export function createApp() {
       });
     }
     next();
+  });
+
+  // État public de l'application, consulté par l'app au démarrage et pendant
+  // l'écran de maintenance (aucune donnée sensible, aucune connexion requise).
+  app.get("/api/v1/status", (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json(maintenanceStatus());
   });
 
   app.get("/health", (_req, res) => {

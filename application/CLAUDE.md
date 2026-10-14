@@ -187,6 +187,10 @@ Il n'a accès ni au planning, ni aux missions, ni aux chantiers, ni à la messag
 
 Retour explicite du client (validé, octobre 2026) : le superviseur dispose d'un écran **Suivi de mes chantiers** — tous les chantiers dont il est superviseur, avec le réalisé du mois par rapport à l'objectif et les problèmes repérables au premier coup d'œil (interventions prévues non réalisées, problèmes ouverts, missions à valider, interventions à programmer), chantiers à traiter en tête. La RH et la direction y voient tous les chantiers.
 
+## MODE MAINTENANCE
+
+Retour explicite du client (validé, octobre 2026) : pendant une mise à jour, l'application peut être fermée à tout le monde depuis Coolify (`MAINTENANCE_MODE=true` sur le backend, puis Restart ; `MAINTENANCE_UNTIL` et `MAINTENANCE_MESSAGE` facultatifs). Le serveur refuse alors connexion et requêtes (503 `MAINTENANCE`) à tous sauf l'admin technique, sans fermer les sessions ; l'application affiche un écran d'excuse aux couleurs de la marque et se rouvre seule à la fin. Procédure : `docs/DEPLOYMENT.md` §3 quater.
+
 ---
 
 # 3. CRÉATION DES COMPTES — IMPORTANT
