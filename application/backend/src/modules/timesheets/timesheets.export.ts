@@ -6,7 +6,7 @@ import { logActivity } from "../../utils/activityLog";
 import { buildTimeEntriesWhere, exceptionalEntryIds, timeEntrySelect, type Actor, type ListFilters } from "./timesheets.service";
 import { computePayBreakdown } from "../payroll/workHours";
 import type { PayBreakdown } from "../payroll/workHours";
-import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawHeader, finalizePagination } from "../../utils/pdfBrand";
+import { BRAND, CONTENT_WIDTH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawBrandHeader, drawKpiCards, drawSectionTitle, drawTableHeaderBar, finalizePagination, generatedAtLabel } from "../../utils/pdfBrand";
 
 const STATUS_LABEL_FR: Record<string, string> = {
   PENDING: "En attente",
@@ -174,12 +174,12 @@ const COL_WIDTHS = { name: 230, num: 70 };
 const PCOL = { name: PAGE_LEFT, night: 230, sunday: 305, holiday: 380, premium: 475 };
 
 function drawTableHeaderRow(doc: PDFKit.PDFDocument, y: number): void {
-  doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 22).fill(BRAND.accentDeep);
-  doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(9.5);
-  doc.text("EMPLOYÉ", COL.name + 10, y + 7, { width: COL_WIDTHS.name });
-  doc.text("VALIDÉES", COL.validated, y + 7, { width: COL_WIDTHS.num, align: "right" });
-  doc.text("EN ATTENTE", COL.pending, y + 7, { width: COL_WIDTHS.num, align: "right" });
-  doc.text("REFUSÉES", COL.rejected, y + 7, { width: COL_WIDTHS.num, align: "right" });
+  drawTableHeaderBar(doc, y, [
+    { label: "SALARIÉ", x: COL.name + 10, width: COL_WIDTHS.name },
+    { label: "VALIDÉES", x: COL.validated, width: COL_WIDTHS.num, align: "right" },
+    { label: "EN ATTENTE", x: COL.pending, width: COL_WIDTHS.num, align: "right" },
+    { label: "REFUSÉES", x: COL.rejected, width: COL_WIDTHS.num, align: "right" },
+  ]);
 }
 
 /**
@@ -217,10 +217,9 @@ export async function exportTimeEntriesPdf(actor: Actor, filters: ListFilters): 
 
   const periodLabel =
     filters.from || filters.to
-      ? `Récapitulatif des heures · ${filters.from ? companyDateLabel(companyDayStart(filters.from)) : "…"} au ${
-          filters.to ? companyDateLabel(companyDayStart(filters.to)) : "…"
-        }`
-      : "Récapitulatif des heures · toutes dates confondues";
+      ? `Du ${filters.from ? companyDateLabel(companyDayStart(filters.from)) : "…"} au ${filters.to ? companyDateLabel(companyDayStart(filters.to)) : "…"}`
+      : "Toutes dates confondues";
+  const editedAt = generatedAtLabel();
 
   // `bufferPages: true` : le document entier est gardé en mémoire (nombre de
   // pages typique ici : quelques unités à quelques dizaines) pour pouvoir
@@ -236,8 +235,21 @@ export async function exportTimeEntriesPdf(actor: Actor, filters: ListFilters): 
   // Redessine l'en-tête sur CHAQUE page (y compris les suivantes générées
   // automatiquement par un tableau qui déborde) — sans ça, seule la première
   // page portait le logo/la marque, les suivantes commençaient nues.
-  doc.on("pageAdded", () => drawHeader(doc, "Deep Clean", periodLabel));
-  drawHeader(doc, "Deep Clean", periodLabel); // la première page existe déjà à la construction du document, avant qu'un listener ne puisse s'y accrocher
+  doc.on("pageAdded", () => drawBrandHeader(doc, "RELEVÉ D'HEURES", periodLabel, editedAt));
+  drawBrandHeader(doc, "RELEVÉ D'HEURES", periodLabel, editedAt); // la première page existe déjà à la construction du document, avant qu'un listener ne puisse s'y accrocher
+
+  // Chiffres clés de la période, lisibles d'un coup d'œil.
+  const sum = (f: (r: (typeof rows)[number]) => number) => rows.reduce((n, r) => n + f(r), 0);
+  const pendingTotal = sum((r) => r.pending);
+  const rejectedTotal = sum((r) => r.rejected);
+  drawKpiCards(doc, [
+    { label: "Validées", value: formatHours(sum((r) => r.validated)) },
+    { label: "En attente", value: formatHours(pendingTotal), tone: pendingTotal > 0 ? undefined : "muted" },
+    { label: "Refusées", value: formatHours(rejectedTotal), tone: rejectedTotal > 0 ? "danger" : "muted" },
+    { label: "Majorations", value: `+ ${formatHours(sum((r) => r.premium))}` },
+    { label: rows.length > 1 ? "Salariés" : "Salarié", value: String(rows.length) },
+  ]);
+  drawSectionTitle(doc, "Synthèse par salarié");
 
   let headerY = doc.y;
   drawTableHeaderRow(doc, headerY);
@@ -279,8 +291,8 @@ export async function exportTimeEntriesPdf(actor: Actor, filters: ListFilters): 
   if (rows.length === 0) {
     doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(10).text("Aucun pointage sur cette période.", PAGE_LEFT, doc.y + 10);
   } else {
-    doc.moveTo(PAGE_LEFT, doc.y + 2).lineTo(PAGE_RIGHT, doc.y + 2).strokeColor(BRAND.accentDeep).lineWidth(1.5).stroke();
-    const totalY = doc.y + 10;
+    doc.roundedRect(PAGE_LEFT, doc.y + 4, CONTENT_WIDTH, 24, 6).fill(BRAND.accentSoft);
+    const totalY = doc.y + 11;
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
     doc.text("TOTAL", COL.name + 10, totalY, { width: COL_WIDTHS.name });
     doc.fillColor(BRAND.accentDeep).text(formatHours(totalValidated), COL.validated, totalY, { width: COL_WIDTHS.num, align: "right" });
@@ -294,21 +306,17 @@ export async function exportTimeEntriesPdf(actor: Actor, filters: ListFilters): 
   // Second tableau : heures majorées (nuit, dimanche, férié) et majoration
   // totale, pour la fiche de paie (heures validées et en attente).
   if (rows.some((r) => r.night + r.sunday + r.holiday > 0)) {
-    doc.y += 40;
-    if (doc.y + 60 > FOOTER_Y) doc.addPage();
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11).text("Heures majorées", PAGE_LEFT, doc.y);
-    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(8.5)
-      .text("Nuit 21 h – 6 h, dimanche, jour férié : la majoration la plus favorable s'applique, sans cumul (convention collective de la propreté).", PAGE_LEFT, doc.y + 2, { width: CONTENT_WIDTH });
-    doc.y += 8;
-    const drawPremiumHeader = (y: number) => {
-      doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 22).fill(BRAND.accentDeep);
-      doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(9.5);
-      doc.text("EMPLOYÉ", PCOL.name + 10, y + 7, { width: 170 });
-      doc.text("NUIT", PCOL.night, y + 7, { width: 66, align: "right" });
-      doc.text("DIMANCHE", PCOL.sunday, y + 7, { width: 66, align: "right" });
-      doc.text("FÉRIÉ", PCOL.holiday, y + 7, { width: 66, align: "right" });
-      doc.text("MAJORATION", PCOL.premium, y + 7, { width: 70, align: "right" });
-    };
+    doc.y += 36;
+    if (doc.y + 80 > FOOTER_Y) doc.addPage();
+    drawSectionTitle(doc, "Heures majorées", "Nuit 21 h – 6 h, dimanche, jour férié : la majoration la plus favorable s'applique, sans cumul (convention collective de la propreté).");
+    const drawPremiumHeader = (y: number) =>
+      drawTableHeaderBar(doc, y, [
+        { label: "SALARIÉ", x: PCOL.name + 10, width: 170 },
+        { label: "NUIT", x: PCOL.night, width: 66, align: "right" },
+        { label: "DIMANCHE", x: PCOL.sunday, width: 66, align: "right" },
+        { label: "FÉRIÉ", x: PCOL.holiday, width: 66, align: "right" },
+        { label: "MAJORATION", x: PCOL.premium, width: 70, align: "right" },
+      ]);
     let py = doc.y;
     drawPremiumHeader(py);
     doc.y = py + 22;

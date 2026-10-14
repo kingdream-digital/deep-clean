@@ -14,7 +14,7 @@ import { einvoicingState, reformProgress, stateColors } from "../../components/S
 import { ProgressBar } from "../../components/ProgressBar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
-import { daysUntil, getEinvoicingOverview, listEinvoices, syncEinvoices, testEinvoicingConnection } from "../../api/einvoicing.api";
+import { daysUntil, disconnectSuperPdp, getEinvoicingOverview, listEinvoices, startSuperPdpConnection, syncEinvoices, testEinvoicingConnection } from "../../api/einvoicing.api";
 import type { EinvoiceRow, EinvoiceView, EinvoicingOverview } from "../../api/einvoicing.api";
 import type { MenuStackParamList } from "../../navigation/MenuStack";
 import { useLiveFocusEffect, isBackgroundRefresh } from "../../sync/liveSync";
@@ -153,6 +153,8 @@ export function EinvoicingScreen() {
   const [syncing, setSyncing] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [connectOpened, setConnectOpened] = useState(false);
 
   const loadOverview = useCallback(async () => {
     const silent = isBackgroundRefresh();
@@ -222,6 +224,44 @@ export function EinvoicingScreen() {
     } finally {
       setTesting(false);
     }
+  }
+
+  // « Connecter Super PDP » : le dirigeant se connecte à son compte Super
+  // PDP (ou le crée), fait vérifier l'entreprise et autorise l'application.
+  // Au retour, l'écran se met à jour tout seul (synchronisation en direct).
+  async function handleConnect() {
+    setConnecting(true);
+    try {
+      const url = await startSuperPdpConnection();
+      await Linking.openURL(url);
+      setConnectOpened(true);
+    } catch (err) {
+      Alert.alert("Super PDP", extractErrorMessage(err, "Impossible d'ouvrir la page de connexion Super PDP."));
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  function handleDisconnect() {
+    Alert.alert(
+      "Déconnecter Super PDP ?",
+      "Les factures ne pourront plus partir en facture électronique tant que le compte ne sera pas relié à nouveau. Les factures déjà envoyées ne sont pas touchées.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Déconnecter",
+          style: "destructive",
+          onPress: () =>
+            void disconnectSuperPdp()
+              .then(() => {
+                setTestResult(null);
+                setConnectOpened(false);
+                return loadOverview();
+              })
+              .catch((err) => Alert.alert("Super PDP", extractErrorMessage(err))),
+        },
+      ]
+    );
   }
 
   function openPortal() {
@@ -311,17 +351,66 @@ export function EinvoicingScreen() {
     </>
   );
 
+  const account = overview.connection.account;
+  const verification =
+    account?.verificationStatus === "verified"
+      ? { color: colors.success, icon: "shield-checkmark" as const, text: "Entreprise vérifiée par Super PDP : les factures peuvent partir." }
+      : account?.verificationStatus === "needs_review"
+        ? { color: colors.warning, icon: "time-outline" as const, text: "Vérification de l'entreprise en cours chez Super PDP : les envois seront possibles dès qu'elle sera validée." }
+        : account?.verificationStatus === "failed"
+          ? { color: colors.danger, icon: "alert-circle-outline" as const, text: "Super PDP n'a pas pu vérifier l'entreprise : contactez leur support depuis votre compte Super PDP." }
+          : null;
+
+  const connectionStep = configured ? (
+    overview.connection.mode === "oauth" ? (
+      <>
+        <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
+          {account?.companyName ? `${account.companyName} · ` : ""}relié depuis l'application
+          {account?.connectedAt ? ` le ${deadlineFmt.format(new Date(account.connectedAt))}` : ""}
+        </Text>
+        {verification && (
+          <View style={{ flexDirection: "row", alignItems: "flex-start", marginTop: spacing.xs }}>
+            <Ionicons name={verification.icon} size={15} color={verification.color} style={{ marginTop: 1 }} />
+            <Text style={[type.footnote, { color: verification.color, marginLeft: 6, flex: 1, fontWeight: "600" }]}>{verification.text}</Text>
+          </View>
+        )}
+        <View style={{ marginTop: spacing.sm, alignSelf: "flex-start" }}>
+          <Button label="Déconnecter" variant="ghost" size="md" icon="unlink-outline" fullWidth={false} onPress={handleDisconnect} />
+        </View>
+      </>
+    ) : (
+      <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>Compte relié · {overview.connection.host}</Text>
+    )
+  ) : overview.connection.oauthAvailable ? (
+    <>
+      <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
+        Super PDP est la plateforme agréée par l'État qui transmet vos factures électroniques. Reliez le compte de l'entreprise en un clic : connectez-vous chez Super
+        PDP (ou créez votre compte), faites vérifier l'entreprise, puis autorisez l'application. Aucun code à recopier.
+      </Text>
+      <View style={{ marginTop: spacing.sm }}>
+        <Button label="Connecter Super PDP" size="md" icon="link-outline" loading={connecting} onPress={handleConnect} />
+      </View>
+      {connectOpened && (
+        <Text style={[type.footnote, { color: colors.accentText, marginTop: spacing.xs }]}>
+          Terminez la connexion sur la page Super PDP qui vient de s'ouvrir : cet écran se mettra à jour tout seul.
+        </Text>
+      )}
+    </>
+  ) : (
+    <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
+      Super PDP est la plateforme agréée par l'État qui transmet vos factures électroniques. Créez votre compte sur superpdp.tech : elle vous remet deux codes d'accès (un
+      identifiant et un code secret). Transmettez-les à votre prestataire technique, qui les installe sur le serveur. Pour votre sécurité, ces codes ne sont jamais saisis
+      dans l'application.
+    </Text>
+  );
+
   const setupSection = (
     <>
         {/* Mise en service : chaque étape dit ce qui est fait et ce qui manque. */}
         <SectionTitle>MISE EN SERVICE</SectionTitle>
         <Card padded={false} style={{ paddingHorizontal: spacing.lg }}>
           <StepRow index={1} done={configured} title="Compte Super PDP relié">
-            <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>
-              {configured
-                ? `Compte relié · ${overview.connection.host}`
-                : "Super PDP est la plateforme agréée par l'État qui transmet vos factures électroniques. Créez votre compte sur superpdp.tech : elle vous remet deux codes d'accès (un identifiant et un code secret). Transmettez-les à votre prestataire technique, qui les installe sur le serveur. Pour votre sécurité, ces codes ne sont jamais saisis dans l'application."}
-            </Text>
+            {connectionStep}
           </StepRow>
           <StepRow index={2} done={companyReady} title="Identité légale de l'entreprise">
             {companyReady ? (
