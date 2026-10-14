@@ -4,7 +4,8 @@ import { Role } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
-import { BRAND, CONTENT_WIDTH, PAGE_LEFT, drawHeader, ensureSpace, finalizePagination } from "../../utils/pdfBrand";
+import { BRAND, CONTENT_WIDTH, PAGE_LEFT, drawBrandHeader, drawKpiCards, drawSectionTitle, drawTableHeaderBar, ensureSpace, finalizePagination, generatedAtLabel } from "../../utils/pdfBrand";
+import { countWorkableDays } from "../../utils/frenchCalendar";
 import { DOSSIER_VIEW_ROLES, getUserById } from "./users.service";
 
 interface Actor {
@@ -43,6 +44,9 @@ const ABSENCE_TYPE_LABEL_FR: Record<string, string> = {
   PAID_LEAVE: "Congé payé",
   SICK_LEAVE: "Arrêt maladie",
   UNPAID_LEAVE: "Congé sans solde",
+  WORK_ACCIDENT: "Accident du travail",
+  PARENTAL_LEAVE: "Congé parental",
+  COMPENSATORY_REST: "Repos compensateur",
   OTHER: "Autre",
 };
 
@@ -66,22 +70,32 @@ const ABS_COL = { type: PAGE_LEFT, period: 190, days: 370, status: 430 };
 const ABS_COL_WIDTHS = { type: 140, period: 170, days: 50, status: 120 };
 
 function drawTimeTableHeader(doc: PDFKit.PDFDocument, y: number): void {
-  doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 20).fill(BRAND.accentDeep);
-  doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(9);
-  doc.text("DATE", TIME_COL.date + 8, y + 6, { width: TIME_COL_WIDTHS.date });
-  doc.text("ARRIVÉE", TIME_COL.in, y + 6, { width: TIME_COL_WIDTHS.time });
-  doc.text("DÉPART", TIME_COL.out, y + 6, { width: TIME_COL_WIDTHS.time });
-  doc.text("DURÉE", TIME_COL.duration, y + 6, { width: TIME_COL_WIDTHS.time + 15 });
-  doc.text("STATUT", TIME_COL.status, y + 6, { width: TIME_COL_WIDTHS.status });
+  drawTableHeaderBar(
+    doc,
+    y,
+    [
+      { label: "DATE", x: TIME_COL.date + 10, width: TIME_COL_WIDTHS.date },
+      { label: "ARRIVÉE", x: TIME_COL.in, width: TIME_COL_WIDTHS.time },
+      { label: "DÉPART", x: TIME_COL.out, width: TIME_COL_WIDTHS.time },
+      { label: "DURÉE", x: TIME_COL.duration, width: TIME_COL_WIDTHS.time + 15 },
+      { label: "STATUT", x: TIME_COL.status, width: TIME_COL_WIDTHS.status },
+    ],
+    20
+  );
 }
 
 function drawAbsenceTableHeader(doc: PDFKit.PDFDocument, y: number): void {
-  doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 20).fill(BRAND.accentDeep);
-  doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(9);
-  doc.text("TYPE", ABS_COL.type + 8, y + 6, { width: ABS_COL_WIDTHS.type });
-  doc.text("PÉRIODE", ABS_COL.period, y + 6, { width: ABS_COL_WIDTHS.period });
-  doc.text("JOURS", ABS_COL.days, y + 6, { width: ABS_COL_WIDTHS.days, align: "right" });
-  doc.text("STATUT", ABS_COL.status, y + 6, { width: ABS_COL_WIDTHS.status });
+  drawTableHeaderBar(
+    doc,
+    y,
+    [
+      { label: "TYPE", x: ABS_COL.type + 10, width: ABS_COL_WIDTHS.type },
+      { label: "PÉRIODE", x: ABS_COL.period, width: ABS_COL_WIDTHS.period },
+      { label: "JOURS OUVR.", x: ABS_COL.days - 20, width: ABS_COL_WIDTHS.days + 20, align: "right" },
+      { label: "STATUT", x: ABS_COL.status, width: ABS_COL_WIDTHS.status },
+    ],
+    20
+  );
 }
 
 /**
@@ -117,7 +131,20 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
     }),
   ]);
 
-  const periodLabel = `Dossier employé · ${calendarDateFmt(periodStart)} au ${calendarDateFmt(periodEnd)}`;
+  const periodLabel = `Du ${calendarDateFmt(periodStart)} au ${calendarDateFmt(periodEnd)}`;
+  const editedAt = generatedAtLabel();
+
+  // Jours ouvrables (lundi–samedi hors fériés) de chaque absence, dernier
+  // jour inclus et limités à la période : même décompte que le dossier de
+  // paie du comptable (l'ancien calcul oubliait le dernier jour).
+  const lastDay = calendarDay(filters.to);
+  const absenceDays = (a: { startDate: Date; endDate: Date }) => {
+    const from = a.startDate < periodStart ? periodStart : a.startDate;
+    const to = a.endDate > lastDay ? lastDay : a.endDate;
+    return to < from ? 0 : countWorkableDays(from, to);
+  };
+  const workedMinutes = (status: string) =>
+    entries.filter((e) => e.clockOut && e.status === status).reduce((n, e) => n + (e.clockOut!.getTime() - e.clockIn.getTime()) / 60000, 0);
 
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const chunks: Buffer[] = [];
@@ -126,21 +153,37 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
     doc.on("end", () => resolve(Buffer.concat(chunks)));
   });
 
-  doc.on("pageAdded", () => drawHeader(doc, "Deep Clean", periodLabel));
-  drawHeader(doc, "Deep Clean", periodLabel);
+  doc.on("pageAdded", () => drawBrandHeader(doc, "DOSSIER SALARIÉ", periodLabel, editedAt));
+  drawBrandHeader(doc, "DOSSIER SALARIÉ", periodLabel, editedAt);
 
-  // Identité de l'employé
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(13).text(`${user.firstName} ${user.lastName}`, PAGE_LEFT, doc.y);
+  // Carte d'identité du salarié, initiales dans une pastille aux couleurs du logo.
+  const cardTop = doc.y;
+  doc.roundedRect(PAGE_LEFT, cardTop, CONTENT_WIDTH, 52, 8).fill(BRAND.rowAlt);
+  doc.rect(PAGE_LEFT, cardTop + 12, 3, 28).fill(BRAND.accent);
+  doc.circle(PAGE_LEFT + 34, cardTop + 26, 16).fill(BRAND.accentDeep);
+  const initials = `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
+  doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(11).text(initials, PAGE_LEFT + 18, cardTop + 21, { width: 32, align: "center", lineBreak: false });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(13).text(`${user.firstName} ${user.lastName}`, PAGE_LEFT + 60, cardTop + 12, { width: CONTENT_WIDTH - 70, lineBreak: false });
   doc
     .fillColor(BRAND.inkSecondary)
     .font("Helvetica")
-    .fontSize(9.5)
-    .text(`${ROLE_LABEL_FR[user.role]} · ${user.username}`, PAGE_LEFT, doc.y + 2);
-  doc.y += 24;
+    .fontSize(9)
+    .text([ROLE_LABEL_FR[user.role], `identifiant ${user.username}`, user.email].filter(Boolean).join("  ·  "), PAGE_LEFT + 60, cardTop + 30, { width: CONTENT_WIDTH - 70, lineBreak: false });
+  doc.y = cardTop + 52 + 16;
+
+  const approvedDays = absences.filter((a) => a.status === "APPROVED").reduce((n, a) => n + absenceDays(a), 0);
+  const pendingTotal = workedMinutes("PENDING");
+  const rejectedTotal = workedMinutes("REJECTED");
+  drawKpiCards(doc, [
+    { label: "Validées", value: formatMinutes(workedMinutes("VALIDATED")) },
+    { label: "En attente", value: formatMinutes(pendingTotal), tone: pendingTotal > 0 ? undefined : "muted" },
+    { label: "Refusées", value: formatMinutes(rejectedTotal), tone: rejectedTotal > 0 ? "danger" : "muted" },
+    { label: entries.length > 1 ? "Pointages" : "Pointage", value: String(entries.length) },
+    { label: "Absences", value: `${approvedDays} j`, tone: approvedDays > 0 ? undefined : "muted" },
+  ]);
 
   // --- Pointages ---
-  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(11).text("POINTAGES", PAGE_LEFT, doc.y);
-  doc.y += 16;
+  drawSectionTitle(doc, "Pointages");
   let timeHeaderY = doc.y;
   drawTimeTableHeader(doc, timeHeaderY);
   doc.y = timeHeaderY + 20;
@@ -150,7 +193,7 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
   let rejectedMinutes = 0;
 
   if (entries.length === 0) {
-    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(9.5).text("Aucun pointage sur cette période.", PAGE_LEFT + 8, doc.y + 4);
+    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(9.5).text("Aucun pointage sur cette période.", PAGE_LEFT + 10, doc.y + 6);
     doc.y += 20;
   } else {
     entries.forEach((entry, index) => {
@@ -170,7 +213,7 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
       const y = doc.y;
       if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 18).fill(BRAND.rowAlt);
       doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9);
-      doc.text(dateFmt(entry.clockIn) + (entry.isRetroactive ? " · différé" : ""), TIME_COL.date + 8, y + 4, {
+      doc.text(dateFmt(entry.clockIn) + (entry.isRetroactive ? " · différé" : ""), TIME_COL.date + 10, y + 4, {
         width: TIME_COL_WIDTHS.date,
       });
       doc.text(timeFmt(entry.clockIn), TIME_COL.in, y + 4, { width: TIME_COL_WIDTHS.time });
@@ -189,25 +232,24 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
       drawTimeTableHeader(doc, timeHeaderY);
       doc.y = timeHeaderY + 20;
     });
-    doc.moveTo(PAGE_LEFT, doc.y + 2).lineTo(PAGE_LEFT + CONTENT_WIDTH, doc.y + 2).strokeColor(BRAND.accentDeep).lineWidth(1).stroke();
-    doc.y += 8;
+    doc.roundedRect(PAGE_LEFT, doc.y + 4, CONTENT_WIDTH, 22, 6).fill(BRAND.accentSoft);
     doc
-      .fillColor(BRAND.ink)
+      .fillColor(BRAND.accentDeep)
       .font("Helvetica-Bold")
-      .fontSize(9.5)
+      .fontSize(9)
       .text(
         `Validées : ${formatMinutes(validatedMinutes)}   ·   En attente : ${formatMinutes(pendingMinutes)}   ·   Refusées : ${formatMinutes(rejectedMinutes)}`,
-        PAGE_LEFT,
-        doc.y
+        PAGE_LEFT + 10,
+        doc.y + 11,
+        { lineBreak: false }
       );
-    doc.y += 22;
+    doc.y += 34;
   }
 
   // --- Absences ---
-  ensureSpace(doc, 60, () => {});
-  doc.y += 12;
-  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(11).text("ABSENCES SUR LA PÉRIODE", PAGE_LEFT, doc.y);
-  doc.y += 16;
+  ensureSpace(doc, 70, () => {});
+  doc.y += 14;
+  drawSectionTitle(doc, "Absences sur la période");
   let absHeaderY = doc.y;
   drawAbsenceTableHeader(doc, absHeaderY);
   doc.y = absHeaderY + 20;
@@ -215,7 +257,7 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
   let totalApprovedDays = 0;
 
   if (absences.length === 0) {
-    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(9.5).text("Aucune absence sur cette période.", PAGE_LEFT + 8, doc.y + 4);
+    doc.fillColor(BRAND.inkTertiary).font("Helvetica").fontSize(9.5).text("Aucune absence sur cette période.", PAGE_LEFT + 10, doc.y + 6);
     doc.y += 20;
   } else {
     absences.forEach((absence, index) => {
@@ -225,13 +267,13 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
         doc.y = absHeaderY + 20;
       });
 
-      const days = Math.round((absence.endDate.getTime() - absence.startDate.getTime()) / 86_400_000);
+      const days = absenceDays(absence);
       if (absence.status === "APPROVED") totalApprovedDays += days;
 
       const y = doc.y;
       if (index % 2 === 1) doc.rect(PAGE_LEFT, y, CONTENT_WIDTH, 18).fill(BRAND.rowAlt);
       doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9);
-      doc.text(ABSENCE_TYPE_LABEL_FR[absence.type] ?? absence.type, ABS_COL.type + 8, y + 4, { width: ABS_COL_WIDTHS.type });
+      doc.text(ABSENCE_TYPE_LABEL_FR[absence.type] ?? absence.type, ABS_COL.type + 10, y + 4, { width: ABS_COL_WIDTHS.type });
       doc.text(`${calendarDateFmt(absence.startDate)} – ${calendarDateFmt(absence.endDate)}`, ABS_COL.period, y + 4, { width: ABS_COL_WIDTHS.period });
       doc.text(String(days), ABS_COL.days, y + 4, { width: ABS_COL_WIDTHS.days, align: "right" });
       const statusColor =
@@ -247,9 +289,9 @@ export async function exportEmployeeDossierPdf(actor: Actor, targetId: string, f
       drawAbsenceTableHeader(doc, absHeaderY);
       doc.y = absHeaderY + 20;
     });
-    doc.moveTo(PAGE_LEFT, doc.y + 2).lineTo(PAGE_LEFT + CONTENT_WIDTH, doc.y + 2).strokeColor(BRAND.accentDeep).lineWidth(1).stroke();
-    const totalY = doc.y + 8;
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9.5).text("TOTAL JOURS APPROUVÉS", ABS_COL.type + 8, totalY, {
+    doc.roundedRect(PAGE_LEFT, doc.y + 4, CONTENT_WIDTH, 22, 6).fill(BRAND.accentSoft);
+    const totalY = doc.y + 11;
+    doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(9).text("TOTAL JOURS APPROUVÉS", ABS_COL.type + 10, totalY, {
       width: ABS_COL_WIDTHS.type + ABS_COL_WIDTHS.period,
     });
     doc.fillColor(BRAND.accentDeep).text(String(totalApprovedDays), ABS_COL.days, totalY, { width: ABS_COL_WIDTHS.days, align: "right" });

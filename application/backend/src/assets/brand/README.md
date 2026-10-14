@@ -11,3 +11,7 @@ vectorielles sont dans `mobile/assets/brand/logo-*.svg`.
 
 Couleurs du logo : marine `#1F2D69`, bleu clair `#1E9CC6` (voir
 `src/utils/pdfBrand.ts`).
+- `emblem.png` : le médaillon (cercle, vagues, goutte), 480 × 480, ~12 Ko —
+  le logo de l'icône de l'app, en tête et en pied de chaque PDF. Généré avec
+  sharp à partir des tracés de `mobile/src/components/brandArtwork.ts`
+  (mêmes couleurs que `BrandEmblem`).
