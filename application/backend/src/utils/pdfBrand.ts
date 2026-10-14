@@ -55,9 +55,10 @@ export const DOC_TOP = 128; // début du contenu sous l'en-tête de marque
 export const FOOTER_Y = 770;
 
 /**
- * En-tête de marque, identique sur TOUS les PDF (relevés d'heures, dossiers,
- * devis, factures) — retour explicite du client : chaque document aux
- * couleurs de Deep Clean, avec le vrai logo. À gauche le logo officiel
+ * En-tête de marque des documents internes (relevé d'heures, dossier
+ * salarié) — retour explicite du client : aux couleurs de Deep Clean, avec
+ * le vrai logo. Les devis et factures gardent leur propre en-tête
+ * (utils/pdfCommercial.ts), validé tel quel par le client. À gauche le logo officiel
  * (médaillon + « DEEPCLEAN » + slogan), à droite le type de document, sa
  * référence (numéro ou période) et une ligne de détail ; dessous, le double
  * filet marine / bleu clair du logo. À redessiner sur chaque page (voir
@@ -131,6 +132,24 @@ export function drawTableHeaderBar(doc: PDFKit.PDFDocument, y: number, columns: 
 /** Pied de page — le libellé (ex. "Page 2 sur 3") est calculé par l'appelant, voir `finalizePagination`. */
 export const INTERNAL_FOOTER = "Deep Clean · document interne et confidentiel, généré automatiquement.";
 
+/**
+ * Pied de page des devis et factures, laissé tel quel (retour explicite du
+ * client : « le devis et la facture, c'est top ») — filet gris, texte gris.
+ */
+function drawCommercialFooter(doc: PDFKit.PDFDocument, pageLabel: string, footerText: string): void {
+  doc.moveTo(PAGE_LEFT, FOOTER_Y).lineTo(PAGE_RIGHT, FOOTER_Y).strokeColor(BRAND.border).lineWidth(1).stroke();
+  doc
+    .fillColor(BRAND.inkTertiary)
+    .font("Helvetica")
+    .fontSize(8)
+    .text(footerText.length > 105 ? `${footerText.slice(0, 104)}…` : footerText, PAGE_LEFT, FOOTER_Y + 8, {
+      width: CONTENT_WIDTH * 0.8,
+      lineBreak: false,
+    });
+  doc.text(pageLabel, PAGE_LEFT, FOOTER_Y + 8, { width: CONTENT_WIDTH, align: "right" });
+}
+
+/** Pied de page des documents internes (relevé d'heures, dossier salarié), aux couleurs du logo. */
 export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string, footerText: string = INTERNAL_FOOTER): void {
   // Filet fin aux deux couleurs du logo, rappel de l'en-tête.
   doc.rect(PAGE_LEFT, FOOTER_Y, CONTENT_WIDTH * 0.62, 0.8).fill(BRAND.accentDeep);
@@ -156,11 +175,15 @@ export function drawFooter(doc: PDFKit.PDFDocument, pageLabel: string, footerTex
  * (document construit avec `bufferPages: true`), donc appelé juste avant
  * `doc.end()`, jamais pendant l'écriture du contenu.
  */
-export function finalizePagination(doc: PDFKit.PDFDocument, footerText?: string): void {
+export function finalizePagination(doc: PDFKit.PDFDocument, commercialFooter?: string): void {
   const pageRange = doc.bufferedPageRange();
   for (let i = 0; i < pageRange.count; i++) {
     doc.switchToPage(i);
-    drawFooter(doc, `Page ${i + 1} sur ${pageRange.count}`, footerText);
+    const label = `Page ${i + 1} sur ${pageRange.count}`;
+    // Devis et factures (identité légale de l'entreprise en pied de page) :
+    // présentation d'origine ; documents internes : pied de page de marque.
+    if (commercialFooter) drawCommercialFooter(doc, label, commercialFooter);
+    else drawFooter(doc, label);
   }
 }
 
