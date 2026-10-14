@@ -21,6 +21,7 @@ import { BrandIntro } from "./src/components/BrandIntro";
 import { claimDailyIntro } from "./src/components/introStorage";
 import { AlertHost } from "./src/components/AlertHost";
 import { OnboardingOverlay } from "./src/components/OnboardingOverlay";
+import { MaintenanceGate } from "./src/components/MaintenanceGate";
 import { injectWebScrollbarStyle } from "./src/utils/webScrollbar";
 
 // Appelé au chargement du module (avant le premier rendu) — no-op sur
@@ -63,6 +64,7 @@ function AppContent() {
         </OnboardingProvider>
       </OnboardingTargetProvider>
       <AlertHost />
+      <MaintenanceGate />
     </AuthProvider>
     {intro === "play" && <BrandIntro onDone={() => setIntro("done")} />}
     </View>

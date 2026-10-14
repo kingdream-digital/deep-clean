@@ -191,6 +191,45 @@ démarrage, elle ne remonte que les 30 derniers jours.
 Les nouvelles tables (`quote_replies`, `mailbox_sync_state`) et les colonnes de
 signature des devis s'ajoutent avec le `npx prisma db push` habituel (section 3).
 
+## 3 quater. Mode maintenance : fermer l'app pendant une mise à jour
+
+Pendant une mise à jour, personne ne peut se connecter ni utiliser l'app :
+chacun (téléphone et ordinateur) voit un écran aux couleurs de Deep Clean,
+« Mise à jour en cours — Désolés pour la gêne occasionnée, réessayez dans
+quelques instants », avec un bouton **Réessayer**. L'app vérifie toute seule
+toutes les 15 secondes et **se rouvre d'elle-même** à la fin, sans que
+personne n'ait à se reconnecter (les sessions sont conservées).
+
+**Activer (Coolify → application Backend → Environment Variables) :**
+
+| Variable | Valeur | Obligatoire |
+| --- | --- | --- |
+| `MAINTENANCE_MODE` | `true` | oui |
+| `MAINTENANCE_UNTIL` | heure de retour prévue, ex. `15:30` (ou `15h30`) | non — affiche « Retour prévu vers 15 h 30 » |
+| `MAINTENANCE_MESSAGE` | texte personnalisé (300 caractères max) | non — sinon message d'excuse par défaut |
+
+Coller **uniquement la valeur** dans le champ Value (voir §5), sauvegarder,
+puis **Restart** du backend (pas besoin de Redeploy pour une variable ; si la
+valeur ne semble pas prise en compte, faire un Redeploy). Vérifier :
+`<URL de l'API>/api/v1/status` doit afficher `"maintenance":true`.
+
+**Faire la mise à jour** (Redeploy, `npx prisma db push`…, voir §3).
+⚠️ Un Redeploy du backend garde les variables : la maintenance reste active
+tant qu'on ne la retire pas.
+
+Pendant la maintenance, **seul l'admin technique** (`atechnique`) peut entrer,
+pour vérifier que tout fonctionne : lien discret « Accès administrateur
+technique » sous la carte. Tout autre compte qui tente de se connecter
+retombe sur l'écran de maintenance (refus fait par le serveur, pas
+seulement par l'app).
+
+**Rouvrir :** remettre `MAINTENANCE_MODE` à `false` (ou supprimer la
+variable) → sauvegarder → **Restart**. Les apps ouvertes se rouvrent seules
+dans les 15 secondes.
+
+Le contrôle de santé `/health` reste au vert pendant la maintenance : Coolify
+ne considère pas le backend comme en panne.
+
 ## 4. Pare-feu / accès réseau
 
 Deux couches de pare-feu à tenir synchronisées :

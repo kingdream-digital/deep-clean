@@ -16,9 +16,15 @@ function isNetworkFailure(err: unknown): boolean {
   return axios.isAxiosError(err) && !err.response;
 }
 
+// Mise à jour en cours (mode maintenance) : le serveur reviendra, l'action
+// reste en file sans compter comme une tentative ratée.
+function isMaintenance(err: unknown): boolean {
+  return axios.isAxiosError(err) && err.response?.status === 503 && (err.response.data as { error?: { code?: string } } | undefined)?.error?.code === "MAINTENANCE";
+}
+
 let syncing = false;
 
-async function processAction(action: OfflineAction): Promise<"done" | "retry" | "failed"> {
+async function processAction(action: OfflineAction): Promise<"done" | "retry" | "wait" | "failed"> {
   try {
     switch (action.type) {
       case "REPORT_PROBLEM":
@@ -29,6 +35,7 @@ async function processAction(action: OfflineAction): Promise<"done" | "retry" | 
     }
   } catch (err) {
     if (isNetworkFailure(err)) return "retry";
+    if (isMaintenance(err)) return "wait";
     Alert.alert(
       "Synchronisation impossible",
       describeAction(action) + " n'a pas pu être synchronisé : " + extractErrorMessage(err, "erreur inconnue") + ". L'action a été abandonnée."
@@ -64,6 +71,8 @@ export async function processQueue(): Promise<void> {
       const result = await processAction(action);
       if (result === "done" || result === "failed") {
         await removeFromQueue(action.id);
+      } else if (result === "wait") {
+        break;
       } else {
         await bumpAttempts(action.id);
         // Échec réseau sur cette action : inutile d'essayer les suivantes

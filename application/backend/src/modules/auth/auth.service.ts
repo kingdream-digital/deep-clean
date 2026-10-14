@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma";
+import { assertNotInMaintenance } from "../../config/maintenance";
 import { ApiError } from "../../utils/ApiError";
 import { checkPasswordPolicy, hashPassword, verifyPassword, verifyPasswordDummy } from "../../utils/password";
 import {
@@ -92,6 +93,10 @@ export async function login(
       "Ce compte est désactivé. Pour tout problème de connexion ou de compte, contactez la RH."
     );
   }
+
+  // Après la vérification du mot de passe : on n'indique pas à un inconnu
+  // qui est admin ; l'admin technique, lui, entre pour vérifier la mise à jour.
+  assertNotInMaintenance(user.role);
 
   const { token: refreshToken, hash } = generateRefreshToken();
   const session = await prisma.session.create({

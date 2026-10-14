@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { isInboxMutation, notifyInboxChanged } from "../sync/inboxEvents";
+import { reportMaintenance } from "../sync/maintenance";
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -55,6 +56,13 @@ apiClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const original = error.config as RetriableConfig | undefined;
+    // Mise à jour en cours côté serveur : l'écran de maintenance prend le
+    // relais par-dessus toute l'application (session conservée).
+    const body = error.response?.data as { error?: { code?: string; message?: string; details?: { until?: string | null } } } | undefined;
+    if (error.response?.status === 503 && body?.error?.code === "MAINTENANCE") {
+      reportMaintenance({ message: body.error.message ?? null, until: body.error.details?.until ?? null });
+    }
+
     const isAuthRoute = original?.url?.includes("/auth/login") || original?.url?.includes("/auth/refresh");
 
     if (error.response?.status === 401 && original && !original._retried && !isAuthRoute) {
