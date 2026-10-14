@@ -100,7 +100,7 @@ export function EinvoiceCard({ invoice, onChanged }: Props) {
         <Text style={[type.footnote, { color: colors.inkTertiary }]}>Vérification…</Text>
       ) : !readiness.configured ? (
         <Text style={[type.footnote, { color: colors.inkSecondary }]}>
-          Pas encore activée. Pour l'activer : créer un compte sur Super PDP, puis renseigner ses identifiants sur le serveur (SUPERPDP_CLIENT_ID et SUPERPDP_CLIENT_SECRET). La facture reste envoyable par email en attendant.
+          Pas encore activée. Pour l'activer : Menu → Commercial → Espace Super PDP, rubrique « Mise en service ». La facture reste envoyable par email en attendant.
         </Text>
       ) : readiness.blockers.length > 0 ? (
         <>

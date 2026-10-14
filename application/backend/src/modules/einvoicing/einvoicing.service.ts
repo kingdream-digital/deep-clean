@@ -8,7 +8,8 @@ import { buildInvoicePdf } from "../invoices/invoices.pdf";
 import { getCompanyProfile } from "./companyProfile";
 import { buildEnInvoice, companyEinvoiceBlockers, einvoiceBlockers } from "./enInvoice";
 import type { EinvoiceSource } from "./enInvoice";
-import { convertToFacturX, listInvoiceEvents, sendFacturX, superPdpConfigured, superPdpHost, testSuperPdpConnection } from "./superpdp.client";
+import { convertToFacturX, listInvoiceEvents, primeSuperPdpToken, resetSuperPdpToken, sendFacturX, superPdpConfigured, superPdpHost, superPdpMode, testSuperPdpConnection } from "./superpdp.client";
+import * as superPdpOAuth from "./superpdpOAuth";
 import type { SuperPdpEvent } from "./superpdp.client";
 
 interface Actor {
@@ -95,14 +96,14 @@ async function loadInvoice(id: string) {
 export async function getEinvoiceReadiness(id: string) {
   const invoice = await loadInvoice(id);
   return {
-    configured: superPdpConfigured(),
+    configured: await superPdpConfigured(),
     blockers: einvoiceBlockers(invoice as EinvoiceSource),
   };
 }
 
 export async function sendInvoiceElectronically(actor: Actor, id: string) {
-  if (!superPdpConfigured()) {
-    throw ApiError.badRequest("La facture électronique n'est pas encore activée : renseignez les identifiants Super PDP (SUPERPDP_CLIENT_ID et SUPERPDP_CLIENT_SECRET) sur le serveur.");
+  if (!(await superPdpConfigured())) {
+    throw ApiError.badRequest("La facture électronique n'est pas encore activée : reliez le compte Super PDP de l'entreprise depuis l'espace Super PDP (« Connecter Super PDP »).");
   }
   const invoice = await loadInvoice(id);
   if (invoice.status === InvoiceStatus.DRAFT) throw ApiError.conflict("Validez d'abord la facture avant de l'envoyer.");
@@ -225,7 +226,7 @@ function syncOnce(): Promise<EinvoiceSyncResult> {
 
 /** Tâche planifiée : met à jour les factures électroniques encore en cours. */
 export async function runEinvoiceStatusJob(): Promise<void> {
-  if (!superPdpConfigured()) return;
+  if (!(await superPdpConfigured())) return;
   await syncOnce();
 }
 
@@ -251,7 +252,9 @@ const VIEW_WHERE = {
 
 export async function getEinvoicingOverview() {
   const company = getCompanyProfile();
-  const [toSend, inProgress, attention, done, lastSync] = await Promise.all([
+  const [mode, oauth, toSend, inProgress, attention, done, lastSync] = await Promise.all([
+    superPdpMode(),
+    superPdpOAuth.getOAuthConnection(),
     prisma.invoice.count({ where: VIEW_WHERE.toSend }),
     prisma.invoice.count({ where: VIEW_WHERE.inProgress }),
     prisma.invoice.count({ where: VIEW_WHERE.attention }),
@@ -259,7 +262,16 @@ export async function getEinvoicingOverview() {
     prisma.invoice.aggregate({ where: { pdpInvoiceId: { not: null } }, _max: { pdpUpdatedAt: true } }),
   ]);
   return {
-    connection: { configured: superPdpConfigured(), host: superPdpHost() },
+    connection: {
+      configured: mode !== null,
+      host: superPdpHost(),
+      mode,
+      // Le bouton « Connecter Super PDP » est proposé quand le mode éditeur est installé.
+      oauthAvailable: superPdpOAuth.oauthAvailable(),
+      account: oauth
+        ? { companyName: oauth.companyName, companyNumber: oauth.companyNumber, verificationStatus: oauth.verificationStatus, connectedAt: oauth.connectedAt }
+        : null,
+    },
     company: { name: company.name, missing: companyEinvoiceBlockers(company) },
     counts: { toSend, inProgress, attention, done },
     lastSyncAt: lastSync._max.pdpUpdatedAt,
@@ -298,15 +310,44 @@ export async function listEinvoices(view: EinvoiceView, page: number, pageSize: 
 }
 
 export async function syncEinvoiceStatuses(actor: Actor): Promise<EinvoiceSyncResult> {
-  if (!superPdpConfigured()) throw ApiError.badRequest("La facture électronique n'est pas encore activée : identifiants Super PDP manquants sur le serveur.");
+  if (!(await superPdpConfigured())) throw ApiError.badRequest("La facture électronique n'est pas encore activée : aucun compte Super PDP relié.");
   const result = await syncOnce();
   await logActivity({ userId: actor.userId, action: "EINVOICE_STATUS_SYNC", entityType: "Invoice", metadata: { ...result } });
   return result;
 }
 
 export async function testEinvoicingConnection(actor: Actor) {
-  if (!superPdpConfigured()) throw ApiError.badRequest("Identifiants Super PDP absents : renseignez SUPERPDP_CLIENT_ID et SUPERPDP_CLIENT_SECRET sur le serveur.");
+  if (!(await superPdpConfigured())) throw ApiError.badRequest("Aucun compte Super PDP n'est relié. Cliquez sur « Connecter Super PDP ».");
   await testSuperPdpConnection();
   await logActivity({ userId: actor.userId, action: "EINVOICE_CONNECTION_TEST", entityType: "Invoice" });
   return { ok: true, host: superPdpHost(), checkedAt: new Date() };
+}
+
+// ─── Bouton « Connecter Super PDP » (mode éditeur) ────────────────────────
+
+export async function startSuperPdpConnection(actor: Actor) {
+  const url = await superPdpOAuth.startConnection(actor.userId);
+  await logActivity({ userId: actor.userId, action: "EINVOICE_CONNECT_STARTED", entityType: "Invoice" });
+  return { url };
+}
+
+/** Retour de Super PDP (page ouverte dans le navigateur, sans session de l'application). */
+export async function completeSuperPdpConnection(state: string, code: string) {
+  const done = await superPdpOAuth.completeConnection(state, code);
+  primeSuperPdpToken(done.accessToken, done.expiresIn);
+  await logActivity({
+    userId: done.userId,
+    action: "EINVOICE_CONNECTED",
+    entityType: "Invoice",
+    metadata: { companyName: done.companyName, verificationStatus: done.verificationStatus },
+  });
+  return { companyName: done.companyName, verificationStatus: done.verificationStatus };
+}
+
+export async function disconnectSuperPdp(actor: Actor) {
+  const removed = await superPdpOAuth.disconnect();
+  resetSuperPdpToken();
+  if (!removed) throw ApiError.notFound("Aucun compte Super PDP n'est relié depuis l'application.");
+  await logActivity({ userId: actor.userId, action: "EINVOICE_DISCONNECTED", entityType: "Invoice" });
+  return { ok: true };
 }

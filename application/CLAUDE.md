@@ -187,6 +187,10 @@ Il n'a accès ni au planning, ni aux missions, ni aux chantiers, ni à la messag
 
 Retour explicite du client (validé, octobre 2026) : le superviseur dispose d'un écran **Suivi de mes chantiers** — tous les chantiers dont il est superviseur, avec le réalisé du mois par rapport à l'objectif et les problèmes repérables au premier coup d'œil (interventions prévues non réalisées, problèmes ouverts, missions à valider, interventions à programmer), chantiers à traiter en tête. La RH et la direction y voient tous les chantiers.
 
+## FACTURE ÉLECTRONIQUE : « CONNECTER SUPER PDP »
+
+Retour explicite du client (validé, octobre 2026) : le compte Super PDP de l'entreprise se relie depuis l'application (Menu → Commercial → Espace Super PDP → **Connecter Super PDP**), sans aucun code à copier. Le dirigeant se connecte à son propre compte Super PDP, fait vérifier l'entreprise et autorise l'application de l'éditeur (KingDream Digital). Mode « éditeur » OAuth 2.1 côté serveur, jeton chiffré ; l'ancien mode (codes installés sur le serveur) reste possible. Voir `docs/FACTURATION_ELECTRONIQUE.md`.
+
 ---
 
 # 3. CRÉATION DES COMPTES — IMPORTANT

@@ -98,6 +98,16 @@ const envSchema = z.object({
   SUPERPDP_CLIENT_ID: z.string().optional(),
   SUPERPDP_CLIENT_SECRET: z.string().optional(),
   SUPERPDP_API_URL: z.string().url().default("https://api.superpdp.tech"),
+  // Mode éditeur (bouton « Connecter Super PDP » dans l'application) :
+  // l'application OAuth de l'éditeur (KingDream Digital), créée dans son
+  // propre compte Super PDP, et l'adresse de retour déclarée chez Super PDP
+  // (identique au caractère près), ex.
+  // https://api.deep-clean.fr/api/v1/einvoicing/superpdp/callback.
+  // Sans ces trois valeurs, seul le mode « codes installés sur le serveur »
+  // (SUPERPDP_CLIENT_ID / SUPERPDP_CLIENT_SECRET) reste disponible.
+  SUPERPDP_OAUTH_CLIENT_ID: z.string().optional(),
+  SUPERPDP_OAUTH_CLIENT_SECRET: z.string().optional(),
+  SUPERPDP_OAUTH_REDIRECT_URI: z.string().url().optional().or(z.literal("")),
 
   // Envoi d'email (devis/factures au client final, §16) — si non configuré,
   // le serveur reste fonctionnel (mode simulation journalisé) mais aucun

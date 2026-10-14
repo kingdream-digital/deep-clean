@@ -1123,9 +1123,9 @@ model Quote {
   // « Accepté ». `signatureStrokes` contient les traits du tracé
   // ({ width, height, strokes: number[][] }), redessinés en vectoriel dans le
   // cadre « Bon pour accord » du PDF (voir quotes.pdf.ts).
-  signedAt         DateTime?
-  signedByName     String?
-  signatureStrokes Json?
+  signedAt             DateTime?
+  signedByName         String?
+  signatureStrokes     Json?
   // Consentement à la signature électronique (case obligatoire cochée par le
   // client) : texte exact accepté, et empreinte SHA-256 du contenu signé,
   // imprimée sur le PDF (voir signatureConsent.ts).
@@ -1409,4 +1409,33 @@ model MailboxSyncState {
   updatedAt   DateTime  @updatedAt
 
   @@map("mailbox_sync_state")
+}
+
+// Connexion Super PDP en mode éditeur (retour explicite du client : bouton
+// « Connecter Super PDP » dans l'application, sans codes à copier). Une
+// seule ligne : l'entreprise qui utilise cette installation. Le jeton de
+// renouvellement (valable 1 an, remplacé à chaque usage) est chiffré
+// (AES-256-GCM, voir modules/einvoicing/superpdpOAuth.ts), jamais en clair.
+model SuperPdpConnection {
+  id                 String   @id @default("default")
+  refreshTokenEnc    String
+  companyName        String?
+  companyNumber      String?
+  verificationStatus String?
+  connectedById      String?
+  connectedAt        DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("superpdp_connections")
+}
+
+// Demande de connexion en cours (OAuth 2.1 : `state` à usage unique et
+// vérificateur PKCE), valable 15 minutes.
+model SuperPdpOAuthState {
+  state        String   @id
+  codeVerifier String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  @@map("superpdp_oauth_states")
 }
