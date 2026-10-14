@@ -1,37 +1,18 @@
-import fs from "node:fs";
-import { BRAND, CONTENT_WIDTH, DROP_PATH, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, TAGLINE_PATH, TITLE_PATH, formatEuroPdf } from "./pdfBrand";
+import { BRAND, CONTENT_WIDTH, DOC_TOP, FOOTER_Y, PAGE_LEFT, PAGE_RIGHT, drawBrandHeader, drawTableHeaderBar, formatEuroPdf } from "./pdfBrand";
 
 // Mise en page commune des devis et factures envoyés aux clients, aux couleurs
 // du logo Deep Clean (marine et bleu clair) : en-tête avec le logo complet,
 // cartes Émetteur / Client, bandeau d'informations, tableau, bloc de totaux.
 
-const hasDrop = fs.existsSync(DROP_PATH);
-const hasTitle = fs.existsSync(TITLE_PATH);
-const hasTagline = fs.existsSync(TAGLINE_PATH);
-
-export const DOC_TOP = 128; // début du contenu sous l'en-tête
+export { DOC_TOP };
 
 /** En-tête (à redessiner sur chaque page) : logo à gauche, type et numéro à droite. */
 export function drawCommercialHeader(doc: PDFKit.PDFDocument, kind: "FACTURE" | "DEVIS", number: string, subtitle?: string): void {
-  const top = 34;
-  if (hasDrop) doc.image(DROP_PATH, PAGE_LEFT, top, { height: 54 });
-  const textX = PAGE_LEFT + (hasDrop ? 46 : 0);
-  if (hasTitle) doc.image(TITLE_PATH, textX, top + 9, { width: 178 }); // ~25 pt de haut
-  else doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(22).text("DEEPCLEAN", textX, top + 8);
-  if (hasTagline) doc.image(TAGLINE_PATH, textX + 1, top + 40, { width: 176 });
-
-  doc.fillColor(BRAND.accentDeep).font("Helvetica-Bold").fontSize(22).text(kind, PAGE_LEFT, top + 4, { width: CONTENT_WIDTH, align: "right", characterSpacing: 2 });
-  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(11).text(`N° ${number}`, PAGE_LEFT, top + 32, { width: CONTENT_WIDTH, align: "right" });
-  if (subtitle) {
-    doc.fillColor(BRAND.inkSecondary).font("Helvetica").fontSize(8.5).text(subtitle, PAGE_RIGHT - 260, top + 48, { width: 260, align: "right", lineBreak: false });
-  }
-
-  // Double filet aux deux couleurs du logo.
-  const lineY = top + 70;
-  doc.rect(PAGE_LEFT, lineY, CONTENT_WIDTH * 0.62, 2.5).fill(BRAND.accentDeep);
-  doc.rect(PAGE_LEFT + CONTENT_WIDTH * 0.62, lineY, CONTENT_WIDTH * 0.38, 2.5).fill(BRAND.accent);
-  doc.y = DOC_TOP;
+  drawBrandHeader(doc, kind, `N° ${number}`, subtitle);
 }
+
+/** En-tête de tableau, marine, coins arrondis en haut. */
+export const drawTableHeader = drawTableHeaderBar;
 
 /** Deux cartes côte à côte : Émetteur et Client. Renvoie le bas des cartes. */
 export function drawParties(doc: PDFKit.PDFDocument, seller: string[], client: { name: string; lines: string[] }): number {
@@ -75,13 +56,6 @@ export function drawInfoStrip(doc: PDFKit.PDFDocument, items: { label: string; v
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9).text(item.value, x + 10, top + 20, { width: width - 16 });
   });
   doc.y = top + height + 16;
-}
-
-/** En-tête de tableau, marine, coins arrondis en haut. */
-export function drawTableHeader(doc: PDFKit.PDFDocument, y: number, columns: { label: string; x: number; width: number; align?: "left" | "right" }[]): void {
-  doc.roundedRect(PAGE_LEFT, y, CONTENT_WIDTH, 22, 6).fill(BRAND.accentDeep);
-  doc.fillColor(BRAND.white).font("Helvetica-Bold").fontSize(8);
-  for (const c of columns) doc.text(c.label, c.x, y + 7.5, { width: c.width, align: c.align ?? "left", characterSpacing: 0.5 });
 }
 
 /**
