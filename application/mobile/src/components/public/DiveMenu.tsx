@@ -101,6 +101,8 @@ export function DiveMenu(props: Props) {
       {!reduced && <Bubbles progress={progress} width={width} height={height} />}
       <Animated.View style={[StyleSheet.absoluteFill, contentStyle]}>
         <MenuContent {...props} topInset={topInset} progress={progress} />
+        {/* Le texte qui défile s'efface sous l'en-tête au lieu d'y passer net. */}
+        <LinearGradient colors={[DIVE.navy, "rgba(31,44,104,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: topInset + 84 }} pointerEvents="none" />
       </Animated.View>
     </View>
   );
