@@ -5,7 +5,7 @@ import { createNotification } from "../notifications/notifications.service";
 import { COMMERCIAL_FULL_ROLES } from "../commercial/roles";
 
 export interface QuoteRequestInput {
-  customerType: "INDIVIDUAL" | "BUSINESS";
+  customerType: "INDIVIDUAL" | "BUSINESS" | "OWNER";
   companyName?: string;
   firstName: string;
   lastName: string;
@@ -31,7 +31,8 @@ export async function submitQuoteRequest(input: QuoteRequestInput, ctx: { ipAddr
   if (input.website && input.website.trim() !== "") return;
 
   const contactName = `${input.firstName} ${input.lastName}`;
-  const companyName = input.customerType === "BUSINESS" && input.companyName ? input.companyName : `${contactName} (particulier)`;
+  const profile = { INDIVIDUAL: "particulier", BUSINESS: "professionnel", OWNER: "propriétaire, conciergerie" }[input.customerType];
+  const companyName = input.customerType === "BUSINESS" && input.companyName ? input.companyName : `${contactName} (${profile})`;
 
   const prospect = await prisma.prospect.create({
     data: {

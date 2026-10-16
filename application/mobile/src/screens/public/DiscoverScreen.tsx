@@ -17,59 +17,76 @@ import { COMPANY_CONTACT } from "../../config/links";
 import type { PublicStackParamList } from "../../navigation/RootNavigator";
 
 // Espace public de l'application, accessible sans compte depuis l'écran de
-// connexion : les particuliers et entreprises découvrent DEEP CLEAN et
-// demandent un devis. Textes et photos repris du site de l'entreprise
-// (deep-clean.fr) — rien d'inventé ; les comptes, eux, restent créés par la RH.
+// connexion : les particuliers, professionnels et propriétaires découvrent
+// DEEP CLEAN et demandent un devis. Textes et photos repris du site officiel
+// (deep-clean.fr, version « La Plongée » — dossier v2/ du dépôt ; photos
+// Pexels sous licence libre, voir v2/assets/photos/CREDITS.md). Rien
+// d'inventé ; les comptes des collaborateurs restent créés par la RH.
 
-const SERVICES: { title: string; text: string; image: ImageSourcePropType }[] = [
+const UNIVERSES: { title: string; text: string; tags: string[]; image: ImageSourcePropType }[] = [
   {
-    title: "Nettoyage approfondi",
-    text: "Une remise à neuf complète, pièce par pièce : sols, surfaces, vitres et recoins retrouvent un état impeccable.",
-    image: require("../../../assets/discover/nettoyage-approfondi.jpg"),
+    title: "Nettoyage en profondeur",
+    text: "Une remise à neuf complète, pièce par pièce : sols, surfaces, vitres et recoins retrouvent un état impeccable, digne d'un intérieur neuf.",
+    tags: ["Cuisine", "Salle de bain", "Avant une vente ou un état des lieux"],
+    image: require("../../../assets/discover/profondeur.jpg"),
   },
   {
-    title: "Nettoyage standard",
+    title: "Entretien régulier",
     text: "Un entretien régulier et fiable qui préserve, semaine après semaine, la qualité d'un intérieur déjà soigné.",
-    image: require("../../../assets/discover/nettoyage-standard.jpg"),
+    tags: ["Hebdomadaire", "Ponctuel", "Selon votre rythme"],
+    image: require("../../../assets/discover/entretien.jpg"),
   },
   {
     title: "Bureaux & espaces professionnels",
-    text: "Des locaux irréprochables du matin au soir, pour accueillir vos clients et vos équipes.",
+    text: "Des locaux irréprochables du matin au soir, pour accueillir vos clients et vos équipes dans un cadre à la hauteur de votre image.",
+    tags: ["Bureaux", "Accueil", "Horaires adaptés"],
     image: require("../../../assets/discover/bureaux.jpg"),
   },
   {
-    title: "Nettoyage d'ameublement",
-    text: "Canapés, fauteuils et assises traités en profondeur avec des méthodes respectueuses de chaque textile.",
-    image: require("../../../assets/discover/ameublement.jpg"),
+    title: "Conciergerie",
+    text: "Un bien impeccable entre deux séjours : suivi régulier, coordination des passages et vigilance sur l'état général du logement.",
+    tags: ["Entre deux séjours", "Clés & accès", "Suivi régulier"],
+    image: require("../../../assets/discover/conciergerie.jpg"),
   },
-  {
-    title: "Nettoyage de matelas",
-    text: "Un traitement en profondeur, respectueux des matières, pour un couchage plus sain nuit après nuit.",
-    image: require("../../../assets/discover/matelas.jpg"),
-  },
-  {
-    title: "Textiles, sols & vitres",
-    text: "Sols retrouvés, vitres parfaitement claires, textiles ravivés jusque dans les finitions.",
-    image: require("../../../assets/discover/sols-vitres.jpg"),
-  },
+];
+
+const SPECIFIC_CARE: { title: string; text: string; image: ImageSourcePropType }[] = [
+  { title: "Canapés & fauteuils", text: "Assises traitées en profondeur, dans le respect de chaque textile.", image: require("../../../assets/discover/canape.jpg") },
+  { title: "Matelas", text: "Un traitement respectueux des matières, pour un couchage plus sain.", image: require("../../../assets/discover/matelas.jpg") },
+  { title: "Textiles, sols & vitres", text: "Sols retrouvés, vitres parfaitement claires, textiles ravivés.", image: require("../../../assets/discover/vitres.jpg") },
+];
+
+const METHOD = [
+  { title: "Diagnostic", text: "Matériaux, textiles et points sensibles identifiés un à un avant d'intervenir." },
+  { title: "Protocole adapté", text: "Produits, méthodes et intensité choisis pour chaque surface, jamais standardisés." },
+  { title: "Exécution soignée", text: "Un travail méthodique, sans précipitation, du premier au dernier geste." },
+  { title: "Contrôle qualité", text: "Une vérification finale avant de considérer l'intervention terminée." },
 ];
 
 const COMMITMENTS: { icon: keyof typeof Ionicons.glyphMap; title: string; text: string }[] = [
   { icon: "ribbon-outline", title: "Qualité", text: "Un niveau d'exigence constant, du premier geste au contrôle final." },
   { icon: "time-outline", title: "Ponctualité", text: "Des créneaux tenus avec sérieux : votre organisation est respectée." },
-  { icon: "flask-outline", title: "Produits & matériel", text: "Des produits professionnels et un matériel entretenu, adaptés à chaque surface." },
+  { icon: "flask-outline", title: "Produits & matériel", text: "Des produits professionnels et un matériel entretenu." },
   { icon: "people-outline", title: "Professionnalisme", text: "Une équipe discrète, formée et soigneuse." },
   { icon: "swap-horizontal-outline", title: "Flexibilité", text: "Des interventions adaptées à votre rythme et à vos imprévus." },
 ];
 
-const METHOD = [
-  { title: "Diagnostic", text: "Matériaux, textiles et points sensibles identifiés avant d'intervenir." },
-  { title: "Protocole adapté", text: "Produits, méthodes et intensité choisis pour chaque surface." },
-  { title: "Exécution soignée", text: "Un travail méthodique, sans précipitation." },
-  { title: "Contrôle qualité", text: "Une vérification finale avant de considérer l'intervention terminée." },
+const FACTS = [
+  { value: "24–48 h", label: "pour vous proposer un créneau" },
+  { value: "100 %", label: "de produits professionnels" },
+  { value: "RC Pro", label: "activité assurée" },
 ];
 
-const TOWNS = ["Manosque", "Forcalquier", "Volx", "Pierrevert", "Gréoux-les-Bains", "Sainte-Tulle", "Villeneuve", "Corbières"];
+const TOWNS: { name: string; distance: string }[] = [
+  { name: "Manosque", distance: "Notre base" },
+  { name: "Pierrevert", distance: "3,6 km" },
+  { name: "Sainte-Tulle", distance: "5,6 km" },
+  { name: "Volx", distance: "6,8 km" },
+  { name: "Corbières", distance: "8,5 km" },
+  { name: "Villeneuve", distance: "9,3 km" },
+  { name: "Gréoux-les-Bains", distance: "11,7 km" },
+  { name: "Forcalquier", distance: "13,9 km" },
+];
 
 const FAQ = [
   {
@@ -77,11 +94,15 @@ const FAQ = [
     a: "Nous répondons à chaque demande sous 24 à 48 h avec une proposition de créneau, et nous nous adaptons aux besoins urgents (vente, état des lieux).",
   },
   {
+    q: "Le devis est-il gratuit ?",
+    a: "Oui. Décrivez votre besoin par téléphone ou via le formulaire : nous revenons vers vous avec une proposition adaptée.",
+  },
+  {
     q: "Êtes-vous assurés ?",
     a: "Oui, notre activité est couverte par une assurance responsabilité civile professionnelle.",
   },
   {
-    q: "En quoi consiste la conciergerie ?",
+    q: "En quoi consiste votre volet conciergerie ?",
     a: "Un suivi régulier de votre bien : coordination des passages, attention portée aux détails entre deux séjours, vigilance sur l'état général du logement.",
   },
 ];
@@ -101,9 +122,13 @@ export function DiscoverScreen() {
     await Linking.openURL(url);
   }
 
+  function write() {
+    void Linking.openURL(`mailto:${COMPANY_CONTACT.email}`).catch(() => Alert.alert("Deep Clean", COMPANY_CONTACT.email));
+  }
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: spacing.xxl + insets.bottom }}>
-      {/* En-tête : photo de l'entreprise, voile marine de la charte. */}
+      {/* En-tête : photo du site, voile marine de la charte. */}
       <View style={{ height: 300, overflow: "hidden" }}>
         <Image
           source={require("../../../assets/discover/hero.jpg")}
@@ -112,71 +137,74 @@ export function DiscoverScreen() {
           accessibilityIgnoresInvertColors
         />
         <LinearGradient
-          colors={["rgba(31,45,105,0.15)", "rgba(31,45,105,0.55)", "rgba(31,45,105,0.97)"]}
+          colors={["rgba(31,45,105,0.10)", "rgba(31,45,105,0.55)", "rgba(31,45,105,0.97)"]}
           style={StyleSheet.absoluteFill}
         />
         <View style={{ flex: 1, justifyContent: "flex-end", padding: spacing.lg }}>
-          <BrandEmblem size={58} />
-          <Text style={[type.largeTitle, { color: "#FFFFFF", marginTop: spacing.sm }]}>Deep Clean</Text>
-          <Text style={[type.overline, { color: "#BFE3F4", marginTop: spacing.xxs }]}>NETTOYAGE · CONCIERGERIE · ENTRETIEN</Text>
-          <Text style={[type.callout, { color: "#FFFFFF", marginTop: spacing.sm, opacity: 0.92 }]}>
-            Nettoyage haut de gamme et conciergerie à Manosque et alentours, pour les particuliers comme pour les professionnels.
+          <BrandEmblem size={54} />
+          <Text style={[type.overline, { color: "#BFE3F4", marginTop: spacing.sm }]}>MANOSQUE & ALENTOURS</Text>
+          <Text style={[type.largeTitle, { color: "#FFFFFF", marginTop: spacing.xxs }]}>Le propre, en profondeur.</Text>
+          <Text style={[type.callout, { color: "#FFFFFF", marginTop: spacing.xs, opacity: 0.92 }]}>
+            Nettoyage, entretien et conciergerie pour les particuliers, les professionnels et les propriétaires.
           </Text>
         </View>
       </View>
 
       <View style={{ paddingHorizontal: spacing.lg }}>
         <Animated.View entering={FadeInUp.duration(500)} style={{ marginTop: spacing.lg }}>
-          <Button label="Demander un devis" icon="document-text-outline" size="lg" onPress={() => navigation.navigate("QuoteRequest")} />
+          <Button label="Demander un devis gratuit" icon="document-text-outline" size="lg" onPress={() => navigation.navigate("QuoteRequest")} />
           <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
             <View style={{ flex: 1 }}>
               <Button label="Appeler" icon="call-outline" variant="secondary" onPress={() => void call()} />
             </View>
             <View style={{ flex: 1 }}>
-              <Button
-                label="Écrire"
-                icon="mail-outline"
-                variant="secondary"
-                onPress={() => void Linking.openURL(`mailto:${COMPANY_CONTACT.email}`).catch(() => Alert.alert("Deep Clean", COMPANY_CONTACT.email))}
-              />
+              <Button label="Écrire" icon="mail-outline" variant="secondary" onPress={write} />
             </View>
           </View>
         </Animated.View>
 
-        <SectionTitle overline="NOS PRESTATIONS" title="Un soin exigeant, pensé pour chaque surface" />
-        {SERVICES.map((service) => (
-          <Card key={service.title} padded={false} style={{ marginBottom: spacing.md, overflow: "hidden" }}>
-            <Image source={service.image} style={{ width: "100%", height: 150 }} resizeMode="cover" accessibilityIgnoresInvertColors />
+        <SectionTitle overline="NOTRE PROMESSE" title="On ne nettoie pas en surface." />
+        <Text style={[type.callout, { color: colors.inkSecondary }]}>
+          Un intérieur bien entretenu se remarque. Un intérieur entretenu avec exigence se ressent : des produits professionnels, des
+          gestes précis et un contrôle avant chaque départ.
+        </Text>
+        <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.md }}>
+          {FACTS.map((fact) => (
+            <View key={fact.value} style={{ flex: 1, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.accentSoft }}>
+              <Text style={[type.headline, { color: colors.accentText }]}>{fact.value}</Text>
+              <Text style={[type.caption, { color: colors.inkSecondary, marginTop: 2 }]}>{fact.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        <SectionTitle overline="NOS UNIVERS" title="Quatre façons de faire briller votre intérieur" />
+        {UNIVERSES.map((item) => (
+          <Card key={item.title} padded={false} style={{ marginBottom: spacing.md, overflow: "hidden" }}>
+            <Image source={item.image} style={{ width: "100%", height: 170 }} resizeMode="cover" accessibilityIgnoresInvertColors />
             <View style={{ padding: spacing.md }}>
-              <Text style={[type.headline, { color: colors.ink }]}>{service.title}</Text>
-              <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>{service.text}</Text>
+              <Text style={[type.headline, { color: colors.ink }]}>{item.title}</Text>
+              <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>{item.text}</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, marginTop: spacing.sm }}>
+                {item.tags.map((tag) => (
+                  <View key={tag} style={{ paddingHorizontal: spacing.xs, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.surface }}>
+                    <Text style={[type.caption, { color: colors.inkSecondary }]}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           </Card>
         ))}
 
-        <SectionTitle overline="NOS ENGAGEMENTS" title="Cinq engagements à chaque intervention" />
-        <Card>
-          {COMMITMENTS.map((item, index) => (
-            <View key={item.title} style={{ flexDirection: "row", alignItems: "flex-start", marginTop: index === 0 ? 0 : spacing.md }}>
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: radius.sm,
-                  backgroundColor: colors.accentSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name={item.icon} size={18} color={colors.accentText} />
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={[type.headline, { color: colors.ink }]}>{item.title}</Text>
-                <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>{item.text}</Text>
-              </View>
+        <Text style={[type.headline, { color: colors.ink, marginTop: spacing.sm, marginBottom: spacing.sm }]}>Et nos soins spécifiques</Text>
+        {SPECIFIC_CARE.map((item) => (
+          <Card key={item.title} style={{ marginBottom: spacing.sm, flexDirection: "row", alignItems: "center" }}>
+            <Image source={item.image} style={{ width: 64, height: 64, borderRadius: radius.md }} resizeMode="cover" accessibilityIgnoresInvertColors />
+            <View style={{ flex: 1, marginLeft: spacing.sm }}>
+              <Text style={[type.headline, { color: colors.ink }]}>{item.title}</Text>
+              <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>{item.text}</Text>
             </View>
-          ))}
-        </Card>
+          </Card>
+        ))}
 
         <SectionTitle overline="NOTRE MÉTHODE" title="Une méthode, pas une routine" />
         <Card>
@@ -191,19 +219,52 @@ export function DiscoverScreen() {
           ))}
         </Card>
 
-        <SectionTitle overline="ZONE D'INTERVENTION" title="Manosque et les communes alentour" />
-        <Text style={[type.subhead, { color: colors.inkSecondary }]}>
-          Basés à Manosque, nous intervenons chez les particuliers et les professionnels dans un rayon d'environ 20 minutes.
-        </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm }}>
-          {TOWNS.map((town) => (
-            <View key={town} style={{ paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.accentSoft }}>
-              <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>{town}</Text>
+        <SectionTitle overline="NOS ENGAGEMENTS" title="Cinq engagements qui ne changent jamais" />
+        <Card>
+          {COMMITMENTS.map((item, index) => (
+            <View key={item.title} style={{ flexDirection: "row", alignItems: "flex-start", marginTop: index === 0 ? 0 : spacing.md }}>
+              <View style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name={item.icon} size={18} color={colors.accentText} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Text style={[type.headline, { color: colors.ink }]}>{item.title}</Text>
+                <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: 2 }]}>{item.text}</Text>
+              </View>
             </View>
           ))}
-        </View>
+        </Card>
 
-        <SectionTitle overline="QUESTIONS FRÉQUENTES" title="Avant de nous confier votre intérieur" />
+        <SectionTitle overline="ZONE D'INTERVENTION" title="Manosque et alentours" />
+        <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.sm }]}>
+          Basés à Manosque, nous intervenons chez les particuliers et les professionnels dans un rayon d'environ 20 minutes.
+        </Text>
+        <Card padded={false}>
+          {TOWNS.map((town, index) => (
+            <View
+              key={town.name}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
+                borderTopColor: colors.border,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name={index === 0 ? "home-outline" : "location-outline"} size={16} color={colors.accentText} />
+                <Text style={[type.callout, { color: colors.ink, marginLeft: spacing.xs }]}>{town.name}</Text>
+              </View>
+              <Text style={[type.footnote, { color: colors.inkTertiary }]}>{town.distance}</Text>
+            </View>
+          ))}
+        </Card>
+        <Text style={[type.caption, { color: colors.inkTertiary, marginTop: spacing.xs }]}>
+          Distances à vol d'oiseau depuis Manosque. Votre commune n'apparaît pas ? Demandez-nous.
+        </Text>
+
+        <SectionTitle overline="QUESTIONS FRÉQUENTES" title="Tout savoir avant de plonger" />
         {FAQ.map((item) => (
           <Card key={item.q} style={{ marginBottom: spacing.sm }}>
             <Text style={[type.headline, { color: colors.ink }]}>{item.q}</Text>
@@ -211,25 +272,20 @@ export function DiscoverScreen() {
           </Card>
         ))}
 
-        <SectionTitle overline="CONTACT" title="Parlons de votre projet" />
+        <SectionTitle overline="CONTACT & DEVIS" title="Parlons de votre projet" />
         <Card padded={false}>
           <ContactRow icon="call-outline" label={COMPANY_CONTACT.phone} onPress={() => void call()} />
-          <ContactRow
-            icon="mail-outline"
-            label={COMPANY_CONTACT.email}
-            onPress={() => void Linking.openURL(`mailto:${COMPANY_CONTACT.email}`).catch(() => undefined)}
-          />
+          <ContactRow icon="mail-outline" label={COMPANY_CONTACT.email} onPress={write} />
           <ContactRow icon="location-outline" label={COMPANY_CONTACT.address} onPress={() => void openDirectionsTo(COMPANY_CONTACT.address)} last />
         </Card>
 
         <View style={{ marginTop: spacing.xl }}>
-          <Button label="Demander un devis" icon="document-text-outline" size="lg" onPress={() => navigation.navigate("QuoteRequest")} />
+          <Button label="Demander un devis gratuit" icon="document-text-outline" size="lg" onPress={() => navigation.navigate("QuoteRequest")} />
         </View>
 
         <PressableScale onPress={() => navigation.navigate("Login")} style={{ alignSelf: "center", marginTop: spacing.xl, padding: spacing.xs }} accessibilityRole="button">
           <Text style={[type.footnote, { color: colors.inkSecondary, textAlign: "center" }]}>
-            Vous faites partie de l'équipe Deep Clean ?{" "}
-            <Text style={{ color: colors.accentText, fontWeight: "600" }}>Se connecter</Text>
+            Vous faites partie de l'équipe Deep Clean ? <Text style={{ color: colors.accentText, fontWeight: "600" }}>Se connecter</Text>
           </Text>
         </PressableScale>
       </View>

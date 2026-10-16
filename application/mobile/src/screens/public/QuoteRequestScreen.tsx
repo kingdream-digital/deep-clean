@@ -23,7 +23,7 @@ export function QuoteRequestScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
 
-  const [customerType, setCustomerType] = useState<"INDIVIDUAL" | "BUSINESS">("INDIVIDUAL");
+  const [customerType, setCustomerType] = useState<"INDIVIDUAL" | "BUSINESS" | "OWNER">("INDIVIDUAL");
   const [companyName, setCompanyName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -110,14 +110,15 @@ export function QuoteRequestScreen() {
       >
         <Text style={[type.title2, { color: colors.ink }]}>Demander un devis</Text>
         <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs, marginBottom: spacing.lg }]}>
-          Décrivez votre besoin : nous revenons vers vous sous 24 à 48 h avec une proposition adaptée.
+          Le devis est gratuit. Décrivez votre besoin : nous revenons vers vous sous 24 à 48 h avec une proposition adaptée.
         </Text>
 
         <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Vous êtes</Text>
         <SegmentedControl
           options={[
-            { label: "Un particulier", value: "INDIVIDUAL" },
-            { label: "Une entreprise", value: "BUSINESS" },
+            { label: "Particulier", value: "INDIVIDUAL" },
+            { label: "Professionnel", value: "BUSINESS" },
+            { label: "Propriétaire", value: "OWNER" },
           ]}
           value={customerType}
           onChange={setCustomerType}
@@ -156,7 +157,7 @@ export function QuoteRequestScreen() {
           </View>
         </View>
 
-        <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xs }]}>Prestation souhaitée</Text>
+        <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xs }]}>Quel service vous intéresse ?</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.md }} accessibilityRole="radiogroup">
           {PUBLIC_SERVICES.map((item) => {
             const selected = service === item;
@@ -183,7 +184,7 @@ export function QuoteRequestScreen() {
 
         <TextField
           label="Votre besoin"
-          placeholder="Type de lieu, surface, fréquence souhaitée, date…"
+          placeholder="Surface, état, disponibilités…"
           value={message}
           onChangeText={setMessage}
           multiline

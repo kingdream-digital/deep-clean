@@ -4,20 +4,21 @@ import { apiClient } from "./client";
 // ou une entreprise — voir backend/src/modules/public.
 
 export const PUBLIC_SERVICES = [
-  "Nettoyage approfondi",
-  "Nettoyage standard",
-  "Bureaux & espaces professionnels",
-  "Nettoyage d'ameublement",
-  "Nettoyage de matelas",
-  "Textiles, sols & vitres",
+  "Nettoyage en profondeur",
+  "Entretien régulier",
+  "Bureaux & espaces pro",
   "Conciergerie",
+  "Canapés & fauteuils",
+  "Matelas",
+  "Textiles, sols & vitres",
+  "Remise en état",
   "Autre demande",
 ] as const;
 
 export type PublicService = (typeof PUBLIC_SERVICES)[number];
 
 export interface QuoteRequestInput {
-  customerType: "INDIVIDUAL" | "BUSINESS";
+  customerType: "INDIVIDUAL" | "BUSINESS" | "OWNER";
   companyName?: string;
   firstName: string;
   lastName: string;

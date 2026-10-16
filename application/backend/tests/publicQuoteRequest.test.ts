@@ -23,7 +23,7 @@ const VALID = {
   phone: "06 12 34 56 78",
   postalCode: "04100",
   city: "Manosque",
-  service: "Nettoyage approfondi",
+  service: "Nettoyage en profondeur",
   message: "Remise en état d'un appartement de 60 m² avant un état des lieux.",
   consent: true,
 };
@@ -52,13 +52,20 @@ describe("Demande de devis depuis l'espace public", () => {
       status: "NEW",
       createdById: null,
       assignedUserId: null,
-      serviceType: "Nettoyage approfondi",
+      serviceType: "Nettoyage en profondeur",
       source: "Application (demande en ligne)",
     });
 
     const notified = await prisma.notification.findMany({ where: { title: "Nouvelle demande de devis" } });
     expect(notified.map((n) => n.userId).sort()).toEqual([director.id, hr.id].sort());
     expect(notified[0]).toMatchObject({ relatedEntityType: "Prospect", relatedEntityId: prospects[0]!.id });
+  });
+
+  it("un propriétaire (conciergerie) est enregistré comme tel", async () => {
+    expect((await post({ ...VALID, customerType: "OWNER", service: "Conciergerie" }, "10.0.0.6")).status).toBe(201);
+    const prospect = await prisma.prospect.findFirstOrThrow();
+    expect(prospect.companyName).toBe("Claire Martin (propriétaire, conciergerie)");
+    expect(prospect.serviceType).toBe("Conciergerie");
   });
 
   it("exige le consentement, un moyen de contact et un message", async () => {

@@ -25,7 +25,7 @@ Les éléments encore à fournir sont repérés par **⚠️ À FOURNIR**.
 | Politique de confidentialité | `https://app.deep-clean.fr/confidentialite.html` |
 | Assistance | `https://app.deep-clean.fr/support.html` |
 | Suppression de compte | `https://app.deep-clean.fr/suppression-compte.html` |
-| Site de l'entreprise | `https://deep-clean.fr` — ⚠️ hors service au 16/10/2026 (certificat auto-signé, erreur 503) : voir §1 bis |
+| Site de l'entreprise | `https://deep-clean.fr` — site officiel « La Plongée » (dossier `v2/` de ce dépôt), **pas encore en ligne** : voir §1 bis |
 | Email de contact des stores (éditeur) | kingdreamdigital@gmail.com |
 | Contact de l'entreprise cliente | deepclean.contact.pro@gmail.com · 06 81 70 07 51 |
 
@@ -84,17 +84,20 @@ vérificateur tombe sur des erreurs (règle 2.1).
      de devis) ;
    - sur `https://app.deep-clean.fr`, le lien « Découvrir nos services et
      demander un devis » sous le bouton « Se connecter ».
-5. **Site `https://deep-clean.fr`** : au 16/10/2026 il répond par le
-   certificat par défaut de Traefik (auto-signé) et une erreur 503 : le nom
-   de domaine pointe bien vers le serveur, mais aucune application Coolify ne
-   le sert. Deux solutions :
-   - publier le site vitrine (dossier `site/` de ce dépôt) comme application
-     statique Coolify, avec les domaines `https://deep-clean.fr` et
-     `https://www.deep-clean.fr` (certificat automatique) ;
-   - ou, si le site est hébergé ailleurs, faire pointer les enregistrements
-     DNS `@` et `www` vers cet hébergeur.
-   Tant que ce n'est pas fait, **ne pas** renseigner d'URL marketing dans App
-   Store Connect (l'app et les pages légales n'y renvoient plus).
+5. **Site officiel `https://deep-clean.fr`** : c'est la version « La
+   Plongée » (dossier `v2/` de ce dépôt, celle dont l'espace « Découvrir » de
+   l'app reprend les textes et les photos). Il n'est **pas encore en ligne** :
+   le nom de domaine pointe déjà vers le serveur (on y voit pour l'instant le
+   certificat par défaut de Traefik et une erreur 503). Pour le publier :
+   dans Coolify, créer une application statique servant le dossier `v2/`,
+   avec les domaines `https://deep-clean.fr` et `https://www.deep-clean.fr`
+   (certificat automatique). Au passage, dans `v2/index.html`, les adresses
+   canonique et de partage (`rel="canonical"`, `og:url`) pointent encore vers
+   l'aperçu `https://kingdream-digital.github.io/deep-clean/v2/` : les
+   remplacer par `https://deep-clean.fr/`.
+   Une fois en ligne, ajouter `https://deep-clean.fr` comme URL marketing dans
+   App Store Connect ; d'ici là, laisser ce champ vide (l'app et les pages
+   légales n'y renvoient pas).
 
 ## 2. Comptes à créer (au nom de Boris Corsiez)
 
@@ -190,18 +193,18 @@ promesse de fonction future (règle 2.3.7 et 2.3.1).
 
 **Texte promotionnel** (170 max) :
 ```
-Nettoyage haut de gamme et conciergerie à Manosque : découvrez nos prestations et demandez un devis. Équipes Deep Clean : planning, missions et pointage.
+Le propre, en profondeur : nettoyage, entretien et conciergerie à Manosque. Devis gratuit en quelques instants. Équipes : planning, missions et pointage.
 ```
 
 **Description** (4000 max) :
 ```
-Deep Clean, c'est l'application officielle de DEEP CLEAN, entreprise de nettoyage haut de gamme et de conciergerie à Manosque et alentours.
+Deep Clean, c'est l'application officielle de DEEP CLEAN, entreprise de nettoyage, d'entretien et de conciergerie à Manosque et alentours. Le propre, en profondeur.
 
 POUR NOS CLIENTS — SANS COMPTE
-• Découvrez nos prestations : nettoyage approfondi, entretien régulier, bureaux et espaces professionnels, ameublement, matelas, textiles, sols et vitres, conciergerie
+• Découvrez nos prestations : nettoyage en profondeur, entretien régulier, bureaux et espaces professionnels, conciergerie, et nos soins spécifiques (canapés et fauteuils, matelas, textiles, sols et vitres)
 • Notre méthode et nos engagements : qualité, ponctualité, produits professionnels
 • Notre zone d'intervention : Manosque, Forcalquier, Volx, Pierrevert, Gréoux-les-Bains, Sainte-Tulle et alentours
-• Demandez un devis en quelques secondes : nous revenons vers vous sous 24 à 48 h
+• Demandez un devis gratuit en quelques instants (particulier, professionnel ou propriétaire) : nous revenons vers vous sous 24 à 48 h
 • Appelez-nous, écrivez-nous ou trouvez l'itinéraire en un geste
 
 POUR LES ÉQUIPES DEEP CLEAN

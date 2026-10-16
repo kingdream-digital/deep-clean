@@ -40,14 +40,14 @@ if (want("5")) {
   const { page, context } = await session(browser, null);
   await tapVisible(page, "Découvrir nos services et demander un devis");
   await page.waitForTimeout(1200);
-  await tapVisible(page, "Demander un devis");
+  await tapVisible(page, "Demander un devis gratuit");
   await page.waitForTimeout(1500);
-  await page.getByText("Une entreprise", { exact: true }).last().click({ force: true });
+  await page.getByText("Professionnel", { exact: true }).last().click({ force: true });
   await page.waitForTimeout(400);
   const inputs = page.locator("input:visible");
   const values = ["Cabinet Martin & Associés", "Claire", "Martin", "06 12 34 56 78", "c.martin@cabinet-martin.fr", "04100", "Manosque"];
   for (let i = 0; i < values.length; i++) await inputs.nth(i).fill(values[i]);
-  await page.getByText("Bureaux & espaces professionnels", { exact: true }).last().click({ force: true });
+  await page.getByText("Bureaux & espaces pro", { exact: true }).last().click({ force: true });
   await page.locator("textarea:visible").first().fill("Entretien de nos bureaux (180 m²) trois soirs par semaine, à partir de novembre.");
   await page.getByText(/J'accepte que DEEP CLEAN/).last().click({ force: true });
   await page.evaluate(() => {
@@ -55,7 +55,7 @@ if (want("5")) {
     // Cadre la capture du nom au bouton d'envoi.
     const scrollers = [...document.querySelectorAll("div")].filter((d) => d.scrollHeight > d.clientHeight + 50 && getComputedStyle(d).overflowY !== "visible");
     const main = scrollers.sort((a, b) => b.clientHeight - a.clientHeight)[0];
-    if (main) main.scrollTop = 96;
+    if (main) main.scrollTop = 122;
   });
   await page.waitForTimeout(800);
   await shot(page, "05-devis");

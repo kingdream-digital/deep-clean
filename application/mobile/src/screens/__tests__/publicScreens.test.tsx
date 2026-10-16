@@ -38,11 +38,13 @@ beforeEach(() => {
 describe("Découvrir Deep Clean", () => {
   it("présente les prestations, la zone et mène à la demande de devis ou à la connexion", () => {
     renderScreen(<DiscoverScreen />);
-    expect(screen.getByText("Nettoyage approfondi")).toBeTruthy();
+    expect(screen.getByText("Le propre, en profondeur.")).toBeTruthy();
+    expect(screen.getByText("Nettoyage en profondeur")).toBeTruthy();
+    expect(screen.getByText("Conciergerie")).toBeTruthy();
     expect(screen.getByText("Gréoux-les-Bains")).toBeTruthy();
     expect(screen.queryByText(/inscri|créer un compte/i)).toBeNull();
 
-    fireEvent.press(screen.getAllByText("Demander un devis")[0]!);
+    fireEvent.press(screen.getAllByText("Demander un devis gratuit")[0]!);
     expect(mockNavigate).toHaveBeenCalledWith("QuoteRequest");
     fireEvent.press(screen.getByText("Se connecter"));
     expect(mockNavigate).toHaveBeenCalledWith("Login");
@@ -62,8 +64,8 @@ describe("Demande de devis", () => {
     const [firstName, lastName] = screen.getAllByDisplayValue("");
     fireEvent.changeText(firstName!, "Claire");
     fireEvent.changeText(lastName!, "Martin");
-    fireEvent.press(screen.getByText("Nettoyage de matelas"));
-    fireEvent.changeText(screen.getByPlaceholderText("Type de lieu, surface, fréquence souhaitée, date…"), "Deux matelas à traiter en profondeur.");
+    fireEvent.press(screen.getByText("Matelas"));
+    fireEvent.changeText(screen.getByPlaceholderText("Surface, état, disponibilités…"), "Deux matelas à traiter en profondeur.");
 
     fireEvent.press(screen.getByText("Envoyer ma demande"));
     expect(await screen.findByText(/Votre accord est nécessaire/)).toBeTruthy();
@@ -77,7 +79,7 @@ describe("Demande de devis", () => {
       firstName: "Claire",
       lastName: "Martin",
       phone: "06 12 34 56 78",
-      service: "Nettoyage de matelas",
+      service: "Matelas",
       consent: true,
     });
     expect(await screen.findByText("Demande envoyée")).toBeTruthy();
