@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +13,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { biometricLabel, getAvailableBiometricKind } from "../../auth/biometrics";
+import { PRIVACY_URL, SUPPORT_URL } from "../../config/links";
 
 export function LoginScreen() {
   const { colors, spacing, type } = useTheme();
@@ -114,9 +115,12 @@ export function LoginScreen() {
   );
 
   const helpLine = (
-    <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
-      Pour tout problème de connexion ou de compte, contactez la RH.
-    </Text>
+    <>
+      <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
+        Pour tout problème de connexion ou de compte, contactez la RH.
+      </Text>
+      <LegalLinks />
+    </>
   );
 
   // Ordinateur : visuel de marque animé à gauche, formulaire dans une carte
@@ -242,9 +246,12 @@ function BiometricUnlockPanel() {
   );
 
   const helpLine = (
-    <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
-      Pour tout problème de connexion ou de compte, contactez la RH.
-    </Text>
+    <>
+      <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
+        Pour tout problème de connexion ou de compte, contactez la RH.
+      </Text>
+      <LegalLinks />
+    </>
   );
 
   if (isDesktopWeb) {
@@ -303,3 +310,25 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
 });
+
+// Confidentialité et assistance accessibles AVANT toute connexion (exigence
+// App Store, règle 5.1.1) : mêmes pages que celles déclarées sur les stores.
+function LegalLinks() {
+  const { colors, spacing, type } = useTheme();
+  const links = [
+    { label: "Confidentialité", url: PRIVACY_URL },
+    { label: "Assistance", url: SUPPORT_URL },
+  ];
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.xs }}>
+      {links.map((link, i) => (
+        <React.Fragment key={link.url}>
+          {i > 0 && <Text style={[type.footnote, { color: colors.inkTertiary, marginHorizontal: spacing.xs }]}>·</Text>}
+          <Pressable onPress={() => void Linking.openURL(link.url)} accessibilityRole="link" hitSlop={8}>
+            <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>{link.label}</Text>
+          </Pressable>
+        </React.Fragment>
+      ))}
+    </View>
+  );
+}

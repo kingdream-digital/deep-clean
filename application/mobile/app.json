@@ -12,7 +12,43 @@
       "supportsTablet": false,
       "bundleIdentifier": "fr.deepclean.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "tel",
+          "mailto"
+        ]
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1",
+              "0A2A.1",
+              "3B52.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1",
+              "85F4.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -27,7 +63,8 @@
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW"
-      ]
+      ],
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -42,7 +79,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Deep Clean a besoin de Face ID pour vous reconnecter rapidement et en toute sécurité."
+          "faceIDPermission": "Deep Clean utilise Face ID, si vous l'activez, pour vous reconnecter rapidement et en toute sécurité."
         }
       ],
       [
@@ -62,14 +99,19 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Deep Clean a besoin d'accéder à vos photos pour joindre une image à un signalement.",
-          "cameraPermission": "Deep Clean a besoin d'accéder à l'appareil photo pour prendre une photo à joindre à un signalement ou pour justifier un pointage."
+          "photosPermission": "Deep Clean accède à vos photos uniquement lorsque vous choisissez une image à joindre à un signalement, à un message, à une actualité, à une fiche chantier ou à votre photo de profil.",
+          "cameraPermission": "Deep Clean utilise l'appareil photo pour la photo justificative de vos pointages et pour les photos que vous joignez à un signalement, à un message, à une actualité, à une fiche chantier ou à votre profil.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Deep Clean a besoin de votre position au moment où vous pointez, pour justifier que vous étiez bien sur le lieu de la mission."
+          "locationWhenInUsePermission": "Deep Clean utilise votre position uniquement au moment où vous pointez (et quand vous enregistrez l'emplacement d'un chantier), pour justifier la présence sur le lieu de la mission. Elle n'est jamais suivie en arrière-plan.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false
         }
       ],
       [
