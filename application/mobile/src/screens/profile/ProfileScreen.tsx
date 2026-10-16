@@ -10,6 +10,8 @@ import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Switch } from "../../components/Switch";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
+import { DeleteAccountModal } from "../../components/DeleteAccountModal";
+import { requestAccountDeletion } from "../../api/auth.api";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useAuth } from "../../auth/AuthContext";
 import { extractErrorMessage } from "../../api/client";
@@ -41,6 +43,9 @@ export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MenuStackParamList>>();
   const { replay: replayOnboarding } = useOnboarding();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [biometricKind, setBiometricKind] = useState<BiometricKind | null>(null);
   const [biometricBusy, setBiometricBusy] = useState(false);
@@ -81,6 +86,21 @@ export function ProfileScreen() {
       await logout();
     } finally {
       setLoggingOut(false);
+    }
+  }
+
+  async function handleDeleteAccount(password: string) {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const message = await requestAccountDeletion(password);
+      setDeleteOpen(false);
+      Alert.alert("Compte supprimé", message);
+      await logout();
+    } catch (err) {
+      setDeleteError(extractErrorMessage(err, "La suppression n'a pas pu aboutir. Réessayez."));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -279,6 +299,26 @@ export function ProfileScreen() {
         <View style={{ marginTop: spacing.xxl }}>
           <Button label="Se déconnecter" variant="destructive" onPress={handleLogout} loading={loggingOut} />
         </View>
+
+        {user.role !== "ADMIN" && (
+          <Pressable
+            onPress={() => {
+              setDeleteError(null);
+              setDeleteOpen(true);
+            }}
+            accessibilityRole="button"
+            style={{ alignSelf: "center", marginTop: spacing.lg, padding: spacing.xs }}
+          >
+            <Text style={[type.footnote, { color: colors.danger, fontWeight: "600" }]}>Supprimer mon compte</Text>
+          </Pressable>
+        )}
+        <DeleteAccountModal
+          visible={deleteOpen}
+          loading={deleting}
+          error={deleteError}
+          onCancel={() => setDeleteOpen(false)}
+          onConfirm={(password) => void handleDeleteAccount(password)}
+        />
 
         <Text
           style={[

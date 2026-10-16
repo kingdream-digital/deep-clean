@@ -43,3 +43,10 @@ export async function fetchCurrentUser(): Promise<AuthUser> {
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await apiClient.post("/auth/change-password", { currentPassword, newPassword });
 }
+
+// Suppression de son propre compte (règle App Store 5.1.1(v)) : le compte est
+// désactivé aussitôt côté serveur, la RH efface ensuite les données.
+export async function requestAccountDeletion(password: string): Promise<string> {
+  const { data } = await apiClient.post<{ message: string }>("/auth/account-deletion", { password });
+  return data.message;
+}

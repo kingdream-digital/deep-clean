@@ -79,6 +79,12 @@ export function LegalScreen() {
           personnes habilitées (RH, superviseurs, direction) selon leur rôle.
         </Section>
 
+        <Section icon="chatbubbles-outline" title="Messagerie : signaler et bloquer">
+          Un message abusif se signale à la RH par un appui long sur le message : la RH est prévenue aussitôt et
+          peut désactiver le compte de son auteur. Depuis la fiche d'un collègue, « Bloquer ce contact » l'empêche
+          de vous écrire en message direct, coupe ses notifications de messagerie et masque ses messages de groupe.
+        </Section>
+
         <Section icon="time-outline" title="Durée de conservation">
           Les photos jointes à un signalement de problème sont supprimées automatiquement 14 jours après leur envoi.
           Les photos et positions prises lors d'un pointage sont conservées avec l'historique des heures, comme
@@ -88,8 +94,9 @@ export function LegalScreen() {
         <Section icon="person-outline" title="Vos droits">
           Pour toute question sur les informations vous concernant, ou pour demander leur accès, leur correction ou
           leur suppression, contactez votre service RH — c'est votre interlocuteur unique pour tout ce qui concerne
-          votre compte et vos données. La suppression d'un compte se demande aussi à la RH : le compte est
-          désactivé immédiatement, puis les données sont effacées sauf celles que la loi impose de conserver.
+          votre compte et vos données. La suppression de votre compte se fait directement depuis l'application (Profil → Supprimer mon
+          compte) ou auprès de la RH : le compte est désactivé immédiatement, puis les données sont effacées sous
+          un mois, sauf celles que la loi impose de conserver.
         </Section>
 
         <Section icon="document-text-outline" title="Propriété intellectuelle">

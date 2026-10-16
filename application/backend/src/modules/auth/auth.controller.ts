@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandler";
 import * as authService from "./auth.service";
+import { requestOwnAccountDeletion } from "../users/users.service";
 
 function requestContext(req: Request) {
   return { ipAddress: req.ip, userAgent: req.headers["user-agent"] };
@@ -33,4 +34,11 @@ export const changePasswordHandler = asyncHandler(async (req: Request, res: Resp
 export const meHandler = asyncHandler(async (req: Request, res: Response) => {
   const user = await authService.getCurrentUser(req.auth!.userId);
   res.status(200).json({ user });
+});
+
+export const accountDeletionHandler = asyncHandler(async (req: Request, res: Response) => {
+  await requestOwnAccountDeletion(req.auth!.userId, req.body.password as string);
+  res.status(200).json({
+    message: "Votre compte est désactivé. La RH effacera vos données dans un délai d'un mois, sauf celles que la loi impose de conserver.",
+  });
 });

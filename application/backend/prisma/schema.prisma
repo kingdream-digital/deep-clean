@@ -45,6 +45,10 @@ model User {
   // en fournir un à la création du compte.
   email              String?           @unique
   passwordHash       String
+  // Suppression demandée par la personne elle-même depuis l'application
+  // (règle App Store 5.1.1(v)) : le compte est désactivé aussitôt et la RH
+  // efface ensuite les données non soumises à conservation légale.
+  deletionRequestedAt DateTime?
   role               Role              @default(EMPLOYEE)
   firstName          String
   lastName           String

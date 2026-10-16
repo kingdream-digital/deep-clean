@@ -1,10 +1,11 @@
-import { NightWorkerStatus, Prisma, Role } from "@prisma/client";
+import { NightWorkerStatus, NotificationType, Prisma, Role } from "@prisma/client";
 import { calendarDay } from "../../utils/companyTime";
 import { prisma } from "../../db/prisma";
 import { setOpeningLeaveBalance } from "../leave/leave.service";
 import type { OpeningLeaveBalance } from "../leave/leave.service";
 import { ApiError } from "../../utils/ApiError";
-import { generateTemporaryPassword, hashPassword } from "../../utils/password";
+import { generateTemporaryPassword, hashPassword, verifyPassword } from "../../utils/password";
+import { createNotification } from "../notifications/notifications.service";
 import { generateUsername } from "../../utils/username";
 import { logActivity } from "../../utils/activityLog";
 import { deleteStoredImage, storeImage } from "../../utils/storage";
@@ -39,6 +40,7 @@ const publicSelect = {
   leaveAccrualRate: true,
   leaveAccrualCap: true,
   mustChangePassword: true,
+  deletionRequestedAt: true,
   lastLoginAt: true,
   avatarKey: true,
   createdAt: true,
@@ -356,7 +358,12 @@ export async function setUserActive(actorId: string, actorRole: Role, targetId: 
   assertCanActOnTarget(actorRole, target.role);
 
   const user = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({ where: { id: targetId }, data: { isActive }, select: publicSelect });
+    const updated = await tx.user.update({
+      where: { id: targetId },
+      // Réactivé par la RH : une éventuelle demande de suppression est close.
+      data: { isActive, ...(isActive ? { deletionRequestedAt: null } : {}) },
+      select: publicSelect,
+    });
     if (!isActive) {
       // Un compte désactivé perd immédiatement tout accès actif, et ses
       // téléphones ne reçoivent plus aucune notification.
@@ -378,6 +385,53 @@ export async function setUserActive(actorId: string, actorRole: Role, targetId: 
   });
 
   return presentUser(user);
+}
+
+/**
+ * Suppression de compte demandée par la personne elle-même, depuis
+ * l'application (règle App Store 5.1.1(v)) — mot de passe exigé. Le compte
+ * est désactivé sur-le-champ (sessions fermées, plus aucune notification sur
+ * ses téléphones) et la RH ainsi que l'admin technique sont prévenus pour
+ * effacer, sous un mois, les données qui ne relèvent d'aucune obligation
+ * légale de conservation (heures, paie, factures restent conservées pendant
+ * la durée légale). Le compte d'administration technique n'est pas concerné.
+ */
+export async function requestOwnAccountDeletion(userId: string, password: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, passwordHash: true, firstName: true, lastName: true },
+  });
+  if (!user) throw ApiError.unauthorized();
+  if (user.role === Role.ADMIN) {
+    throw ApiError.forbidden("Le compte d'administration technique ne peut pas être supprimé depuis l'application.");
+  }
+  if (!(await verifyPassword(password, user.passwordHash))) {
+    throw ApiError.badRequest("Mot de passe incorrect.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { isActive: false, deletionRequestedAt: new Date() } });
+    await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await tx.pushToken.deleteMany({ where: { userId } });
+    await detachAsSiteManager(tx, userId);
+  });
+
+  await logActivity({ userId, action: "ACCOUNT_DELETION_REQUESTED", entityType: "User", entityId: userId });
+
+  const managers = await prisma.user.findMany({
+    where: { isActive: true, role: { in: [Role.HR, Role.ADMIN] } },
+    select: { id: true },
+  });
+  for (const manager of managers) {
+    await createNotification({
+      userId: manager.id,
+      type: NotificationType.ACCOUNT_UPDATE,
+      title: "Demande de suppression de compte",
+      body: `${user.firstName} ${user.lastName} a demandé la suppression de son compte depuis l'application. Le compte est déjà désactivé : effacez sous un mois les données qui ne sont soumises à aucune obligation légale de conservation.`,
+      relatedEntityType: "User",
+      relatedEntityId: userId,
+    });
+  }
 }
 
 /**

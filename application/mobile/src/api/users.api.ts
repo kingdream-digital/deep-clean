@@ -29,6 +29,8 @@ export interface DirectoryUser {
   // l'état du compte n'est exposé qu'à la RH/direction/admin/superviseur.
   // Ne jamais traiter "absent" comme "désactivé".
   isActive?: boolean;
+  /** Suppression demandée par la personne depuis l'application (visible RH). */
+  deletionRequestedAt?: string | null;
   // Jamais la clé de stockage elle-même (voir backend/src/modules/users/users.service.ts::presentUser) —
   // juste de quoi savoir s'il faut appeler avatarUrl() ou afficher les initiales.
   hasAvatar: boolean;

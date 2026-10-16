@@ -10,6 +10,7 @@ const ACTION_LABELS: Record<string, string> = {
   USER_UPDATED: "Compte modifié",
   USER_ACTIVATED: "Compte activé",
   USER_DEACTIVATED: "Compte désactivé",
+  ACCOUNT_DELETION_REQUESTED: "Suppression du compte demandée",
   USER_ACCESS_RESET: "Accès réinitialisé",
   SITE_CREATED: "Chantier créé",
   SITE_UPDATED: "Chantier modifié",

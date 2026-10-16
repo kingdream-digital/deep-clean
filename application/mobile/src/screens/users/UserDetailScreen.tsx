@@ -323,6 +323,16 @@ export function UserDetailScreen() {
           </View>
         </View>
 
+        {!!account.deletionRequestedAt && (
+          <Card style={{ marginTop: spacing.lg, backgroundColor: colors.dangerSoft }}>
+            <Text style={[type.headline, { color: colors.danger }]}>Suppression du compte demandée</Text>
+            <Text style={[type.footnote, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>
+              Demandée depuis l'application le {new Date(account.deletionRequestedAt).toLocaleDateString("fr-FR")} : le compte est
+              désactivé. Effacez sous un mois les données qui ne sont soumises à aucune obligation légale de conservation.
+            </Text>
+          </Card>
+        )}
+
         {/* Juste après la création ou une réinitialisation : les identifiants
             en premier, impossibles à manquer. Ils ne s'affichent qu'une fois ;
             placés en bas de la fiche, sous le dossier, ils passaient inaperçus. */}
