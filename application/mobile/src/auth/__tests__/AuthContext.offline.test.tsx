@@ -86,7 +86,11 @@ async function boot() {
       <Probe />
     </AuthProvider>
   );
-  await waitFor(() => expect(JSON.parse(screen.getByTestId("probe").props.children).status).not.toBe("booting"));
+  // Délai large : le premier rendu (chargement des modules) peut dépasser
+  // la seconde par défaut quand toute la suite tourne en parallèle.
+  await waitFor(() => expect(JSON.parse(screen.getByTestId("probe").props.children).status).not.toBe("booting"), {
+    timeout: 10000,
+  });
   return JSON.parse(screen.getByTestId("probe").props.children) as {
     status: string;
     sessionExpired: boolean;
