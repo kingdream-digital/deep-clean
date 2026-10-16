@@ -100,6 +100,10 @@ model User {
   createdStandards                 CleaningStandard[]        @relation("StandardCreatedBy")
   sentMessages                     Message[]                 @relation("MessageSender")
   receivedMessages                 Message[]                 @relation("MessageRecipient")
+  // Messagerie : blocages et signalements (règle App Store 1.2).
+  blocksMade                       UserBlock[]               @relation("UserBlocksMade")
+  blocksReceived                   UserBlock[]               @relation("UserBlocksReceived")
+  messageReports                   MessageReport[]           @relation("MessageReportsMade")
   conversations                    ConversationParticipant[] @relation("ConversationParticipantUser")
   createdConversations             Conversation[]            @relation("ConversationCreatedBy")
   absences                         Absence[]                 @relation("AbsenceUser")
@@ -894,9 +898,54 @@ model Message {
   isRead      Boolean   @default(false)
   readAt      DateTime?
 
+  reports MessageReport[]
+
   @@index([conversationId, createdAt])
   @@index([senderId, createdAt])
   @@map("messages")
+}
+
+/// Blocage d'un collègue dans la messagerie (règle App Store 1.2 : pouvoir
+/// bloquer un utilisateur abusif). La personne bloquée ne peut plus écrire à
+/// celle qui l'a bloquée en message direct, celle-ci ne reçoit plus aucune
+/// notification de messagerie de sa part, et ses messages de groupe lui
+/// arrivent masqués. La RH garde la main sur les comptes (désactivation).
+model UserBlock {
+  id        String   @id @default(uuid())
+  blockerId String
+  blocker   User     @relation("UserBlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("UserBlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_blocks")
+}
+
+enum MessageReportReason {
+  HARASSMENT // Harcèlement ou menaces
+  INSULT // Propos injurieux ou discriminatoires
+  INAPPROPRIATE // Contenu inapproprié (image, propos)
+  SPAM // Message indésirable
+  OTHER
+}
+
+/// Signalement d'un message à la RH (règle App Store 1.2 : signaler un
+/// contenu choquant). Un seul signalement par message et par personne.
+model MessageReport {
+  id         String              @id @default(uuid())
+  messageId  String
+  message    Message             @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporterId String
+  reporter   User                @relation("MessageReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reason     MessageReportReason
+  comment    String?
+  createdAt  DateTime            @default(now())
+
+  @@unique([messageId, reporterId])
+  @@index([createdAt])
+  @@map("message_reports")
 }
 
 // ---------------------------------------------------------------------------

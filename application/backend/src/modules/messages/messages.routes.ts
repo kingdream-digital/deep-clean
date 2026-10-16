@@ -11,6 +11,9 @@ import {
   messageIdParamSchema,
   participantParamSchema,
   renameConversationSchema,
+  reportMessageSchema,
+  blockContactSchema,
+  blockedContactParamSchema,
   sendMessageSchema,
   threadQuerySchema,
 } from "./messages.validation";
@@ -69,6 +72,13 @@ messagesRouter.post(
 );
 
 messagesRouter.get("/unread-count", messagesController.unreadCountHandler);
+
+// Blocage d'un contact et signalement d'un message à la RH (règle App Store
+// 1.2) — chacun agit pour lui-même, contrôles dans messages.service.ts.
+messagesRouter.get("/blocks", messagesController.listBlockedContactsHandler);
+messagesRouter.post("/blocks", validate(blockContactSchema), messagesController.blockContactHandler);
+messagesRouter.delete("/blocks/:userId", validate(blockedContactParamSchema), messagesController.unblockContactHandler);
+messagesRouter.post("/:id/report", validate(reportMessageSchema), messagesController.reportMessageHandler);
 
 // `uploadMessageAttachment` (multer) avant `validate` : la pièce jointe est
 // facultative, mais si elle est présente multer doit parser le multipart pour

@@ -11,6 +11,7 @@ import { StateView } from "../../components/StateView";
 import { PressableScale } from "../../components/PressableScale";
 import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import { PhotoViewerModal } from "../../components/PhotoViewerModal";
+import { ReportMessageModal } from "../../components/ReportMessageModal";
 import { Avatar, GroupAvatar } from "../../components/Avatar";
 import { useTheme } from "../../theme/ThemeProvider";
 import { useResponsive } from "../../hooks/useResponsive";
@@ -22,9 +23,10 @@ import {
   markThreadRead,
   messagePhotoUrl,
   openDirectConversation,
+  reportMessage,
   sendMessage,
 } from "../../api/messages.api";
-import type { ChatMessage, Conversation, LocalDocumentAsset, Participant } from "../../api/messages.api";
+import type { ChatMessage, Conversation, LocalDocumentAsset, MessageReportReason, Participant } from "../../api/messages.api";
 import type { LocalPhotoAsset } from "../../api/problems.api";
 import { extractErrorMessage } from "../../api/client";
 import { Alert } from "../../utils/alert";
@@ -125,6 +127,28 @@ export function ConversationThreadScreen() {
   const [photo, setPhoto] = useState<LocalPhotoAsset | null>(null);
   const [document, setDocument] = useState<LocalDocumentAsset | null>(null);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
+  // Message en cours de signalement à la RH (appui long sur la bulle d'un autre).
+  const [reporting, setReporting] = useState<ChatMessage | null>(null);
+  const [reportSending, setReportSending] = useState(false);
+
+  async function submitReport(reason: MessageReportReason, comment: string) {
+    if (!reporting) return;
+    setReportSending(true);
+    try {
+      const result = await reportMessage(reporting.id, reason, comment || undefined);
+      setReporting(null);
+      Alert.alert(
+        "Message signalé",
+        result.alreadyReported
+          ? "Vous aviez déjà signalé ce message : la RH en est informée."
+          : "Merci. La RH a été prévenue et va examiner ce message. Vous pouvez aussi bloquer ce contact depuis sa fiche."
+      );
+    } catch (err) {
+      Alert.alert("Signalement impossible", extractErrorMessage(err, "Le signalement n'a pas pu être envoyé. Réessayez."));
+    } finally {
+      setReportSending(false);
+    }
+  }
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
 
@@ -496,7 +520,13 @@ export function ConversationThreadScreen() {
                         </View>
                       )}
 
-                      <View
+                      <Pressable
+                      // Appui long sur le message d'un autre : le signaler à
+                      // la RH (règle App Store 1.2).
+                      disabled={isMine || !!message.blockedSender}
+                      onLongPress={() => setReporting(message)}
+                      delayLongPress={350}
+                      accessibilityHint={isMine ? undefined : "Appui long pour signaler ce message à la RH"}
                       style={{
                         // `flexShrink` indispensable : dans une ligne flex, un
                         // enfant ne se contraint pas tout seul à la largeur
@@ -591,7 +621,13 @@ export function ConversationThreadScreen() {
                           {message.body}
                         </Text>
                       )}
-                    </View>
+
+                      {!!message.blockedSender && (
+                        <Text style={[type.footnote, { color: colors.inkTertiary, fontStyle: "italic" }]}>
+                          Message d'un contact bloqué
+                        </Text>
+                      )}
+                    </Pressable>
 
                     {/* Heure une seule fois par bloc, sous la dernière bulle —
                         répétée à chaque ligne, elle double le bruit visuel. */}
@@ -765,6 +801,13 @@ export function ConversationThreadScreen() {
       )}
 
       <PhotoViewerModal visible={!!viewerUri} uri={viewerUri ?? ""} onClose={() => setViewerUri(null)} />
+      <ReportMessageModal
+        visible={!!reporting}
+        senderName={reporting ? `${reporting.sender.firstName} ${reporting.sender.lastName}` : ""}
+        loading={reportSending}
+        onCancel={() => setReporting(null)}
+        onConfirm={(reason, comment) => void submitReport(reason, comment)}
+      />
     </ScreenContainer>
   );
 }

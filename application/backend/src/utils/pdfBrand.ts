@@ -202,5 +202,5 @@ export function ensureSpace(doc: PDFKit.PDFDocument, neededHeight: number, redra
 // classique, présente dans la police.
 const euroFormatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 export function formatEuroPdf(amount: number): string {
-  return euroFormatter.format(amount).replace(/[  ]/g, " ");
+  return euroFormatter.format(amount).replace(/[\u202f\u2009]/g, "\u00a0");
 }

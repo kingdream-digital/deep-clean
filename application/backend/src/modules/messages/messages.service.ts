@@ -1,4 +1,4 @@
-import { NotificationType, Prisma, Role } from "@prisma/client";
+import { MessageReportReason, NotificationType, Prisma, Role } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { logActivity } from "../../utils/activityLog";
@@ -44,6 +44,19 @@ function presentContact(contact: RawContact) {
 }
 
 export type PresentedContact = ReturnType<typeof presentContact>;
+
+// Message d'un contact que le lecteur a bloqué (règle App Store 1.2) : son
+// contenu n'est jamais renvoyé à ce lecteur, seule sa présence l'est, pour
+// que le fil reste compréhensible (« Message d'un contact bloqué »).
+function maskForBlocker<T extends { body: string | null; hasPhoto: boolean; document: unknown }>(message: T) {
+  return { ...message, body: null, hasPhoto: false, document: null, blockedSender: true as const };
+}
+
+/** Identifiants des comptes que `userId` a bloqués dans la messagerie. */
+async function blockedIdsOf(userId: string): Promise<Set<string>> {
+  const rows = await prisma.userBlock.findMany({ where: { blockerId: userId }, select: { blockedId: true } });
+  return new Set(rows.map((r) => r.blockedId));
+}
 
 // Retire les clés de stockage (jamais exposées, même principe que
 // `Announcement.coverPhotoKey`) au profit de booléens et métadonnées
@@ -256,6 +269,8 @@ export async function listConversations(actor: Actor) {
 
   if (memberships.length === 0) return [];
 
+  const blocked = await blockedIdsOf(actor.userId);
+
   // Un seul passage en base pour tous les compteurs de non-lus, plutôt qu'un
   // `count` par fil (la liste est rechargée à chaque retour sur l'onglet).
   const unreadGroups = await prisma.message.groupBy({
@@ -292,7 +307,10 @@ export async function listConversations(actor: Actor) {
           hasLeft: false,
         }),
         lastMessage: last
-          ? { ...presentMessage(last), senderName: `${last.sender.firstName} ${last.sender.lastName}` }
+          ? {
+              ...(blocked.has(last.senderId) && !last.systemEvent ? maskForBlocker(presentMessage(last)) : presentMessage(last)),
+              senderName: `${last.sender.firstName} ${last.sender.lastName}`,
+            }
           : null,
         unreadCount: unreadByConversation.get(conversation.id) ?? 0,
       };
@@ -555,6 +573,7 @@ interface ThreadFilters {
 
 export async function getThread(actor: Actor, conversationId: string, filters: ThreadFilters) {
   await requireParticipant(actor, conversationId);
+  const blocked = await blockedIdsOf(actor.userId);
 
   const where = { conversationId };
   const [items, total] = await Promise.all([
@@ -571,7 +590,13 @@ export async function getThread(actor: Actor, conversationId: string, filters: T
   // Ordre chronologique pour l'affichage (le plus récent en bas, comme une
   // conversation), alors que la pagination elle-même part du plus récent.
   return {
-    items: items.reverse().map((m) => ({ ...presentMessage(m), sender: presentContact(m.sender) })),
+    items: items.reverse().map((m) => {
+      const presented = presentMessage(m);
+      return {
+        ...(blocked.has(m.senderId) && !m.systemEvent ? maskForBlocker(presented) : presented),
+        sender: presentContact(m.sender),
+      };
+    }),
     total,
     page: filters.page,
     pageSize: filters.pageSize,
@@ -613,8 +638,13 @@ async function notifyParticipants(args: {
     where: { conversationId: args.conversationId, leftAt: null, userId: { not: args.actorId } },
     select: { userId: true },
   });
+  // Une personne qui a bloqué l'auteur ne reçoit plus aucune notification de
+  // messagerie de sa part (règle App Store 1.2) — seule exception, choisie par
+  // elle-même, à la règle « toute personne concernée est notifiée ».
+  const blockers = await prisma.userBlock.findMany({ where: { blockedId: args.actorId }, select: { blockerId: true } });
+  const muted = new Set(blockers.map((b) => b.blockerId));
   await notifyUsers(
-    participants.map((p) => p.userId),
+    participants.map((p) => p.userId).filter((id) => !muted.has(id)),
     { title: args.title, body: args.body, conversationId: args.conversationId }
   );
 }
@@ -644,7 +674,22 @@ export async function sendMessage(
   // destinataire capable de le lire : on le refuse, comme avant les groupes.
   if (!conversation.isGroup) {
     const otherId = conversation.participants.find((p) => p.userId !== actor.userId)?.userId;
-    if (otherId) await getContactById(otherId);
+    if (otherId) {
+      await getContactById(otherId);
+      const block = await prisma.userBlock.findFirst({
+        where: {
+          OR: [
+            { blockerId: actor.userId, blockedId: otherId },
+            { blockerId: otherId, blockedId: actor.userId },
+          ],
+        },
+        select: { blockerId: true },
+      });
+      if (block?.blockerId === actor.userId) {
+        throw ApiError.forbidden("Vous avez bloqué ce contact. Débloquez-le pour lui écrire.");
+      }
+      if (block) throw ApiError.forbidden("Ce contact ne reçoit pas vos messages.");
+    }
   }
 
   // Fichiers stockés HORS transaction comme partout ailleurs dans l'app — un
@@ -733,4 +778,121 @@ export async function markThreadRead(actor: Actor, conversationId: string) {
     where: { conversationId, userId: actor.userId },
     data: { lastReadAt: new Date() },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Blocages et signalements (règle App Store 1.2 — contenus des utilisateurs)
+// ---------------------------------------------------------------------------
+
+export async function listBlockedContacts(actor: Actor) {
+  const rows = await prisma.userBlock.findMany({
+    where: { blockerId: actor.userId },
+    select: { createdAt: true, blocked: { select: contactSelect } },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map((r) => ({ ...presentContact(r.blocked), blockedAt: r.createdAt }));
+}
+
+export async function blockContact(actor: Actor, userId: string) {
+  if (userId === actor.userId) throw ApiError.badRequest("Vous ne pouvez pas vous bloquer vous-même.");
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!target) throw ApiError.notFound("Contact introuvable.");
+  await prisma.userBlock.upsert({
+    where: { blockerId_blockedId: { blockerId: actor.userId, blockedId: userId } },
+    create: { blockerId: actor.userId, blockedId: userId },
+    update: {},
+  });
+  await logActivity({ userId: actor.userId, action: "MESSAGE_CONTACT_BLOCKED", entityType: "User", entityId: userId });
+}
+
+export async function unblockContact(actor: Actor, userId: string) {
+  const { count } = await prisma.userBlock.deleteMany({ where: { blockerId: actor.userId, blockedId: userId } });
+  if (count > 0) {
+    await logActivity({ userId: actor.userId, action: "MESSAGE_CONTACT_UNBLOCKED", entityType: "User", entityId: userId });
+  }
+}
+
+const REPORT_REASON_LABELS: Record<MessageReportReason, string> = {
+  HARASSMENT: "harcèlement ou menaces",
+  INSULT: "propos injurieux ou discriminatoires",
+  INAPPROPRIATE: "contenu inapproprié",
+  SPAM: "message indésirable",
+  OTHER: "autre motif",
+};
+
+function excerpt(text: string, max = 140): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+}
+
+/**
+ * Signale un message à la RH (règle App Store 1.2). Seul un participant du
+ * fil peut signaler, jamais son propre message ni un événement de groupe ;
+ * un second signalement du même message par la même personne ne renotifie
+ * pas. La RH et l'admin technique sont prévenus aussitôt (notification +
+ * push) et peuvent ouvrir le compte de l'auteur pour agir (désactivation).
+ */
+export async function reportMessage(
+  actor: Actor,
+  messageId: string,
+  input: { reason: MessageReportReason; comment?: string }
+) {
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: {
+      id: true,
+      conversationId: true,
+      senderId: true,
+      body: true,
+      photoKey: true,
+      documentName: true,
+      systemEvent: true,
+      sender: { select: { firstName: true, lastName: true } },
+    },
+  });
+  if (!message?.conversationId) throw ApiError.notFound("Message introuvable.");
+  await requireParticipant(actor, message.conversationId);
+  if (message.senderId === actor.userId) throw ApiError.badRequest("Vous ne pouvez pas signaler votre propre message.");
+  if (message.systemEvent) throw ApiError.badRequest("Ce message ne peut pas être signalé.");
+
+  const existing = await prisma.messageReport.findUnique({
+    where: { messageId_reporterId: { messageId, reporterId: actor.userId } },
+    select: { id: true },
+  });
+  if (existing) return { alreadyReported: true };
+
+  await prisma.messageReport.create({
+    data: { messageId, reporterId: actor.userId, reason: input.reason, comment: input.comment || null },
+  });
+  await logActivity({
+    userId: actor.userId,
+    action: "MESSAGE_REPORTED",
+    entityType: "Message",
+    entityId: messageId,
+    metadata: { reason: input.reason, senderId: message.senderId },
+  });
+
+  const reporter = await prisma.user.findUnique({ where: { id: actor.userId }, select: { firstName: true, lastName: true } });
+  const moderators = await prisma.user.findMany({
+    where: { isActive: true, role: { in: [Role.HR, Role.ADMIN] }, id: { notIn: [message.senderId, actor.userId] } },
+    select: { id: true },
+  });
+  const content = message.body
+    ? `« ${excerpt(message.body)} »`
+    : message.photoKey
+      ? "une photo"
+      : `le document « ${message.documentName ?? "PDF"} »`;
+  const comment = input.comment ? ` Commentaire : ${excerpt(input.comment, 200)}` : "";
+  for (const moderator of moderators) {
+    await createNotification({
+      userId: moderator.id,
+      type: NotificationType.GENERAL,
+      title: "Message signalé",
+      body: `${reporter?.firstName ?? ""} ${reporter?.lastName ?? ""} signale un message de ${message.sender.firstName} ${message.sender.lastName} (${REPORT_REASON_LABELS[input.reason]}) : ${content}.${comment}`.trim(),
+      // Ouvre le compte de l'auteur, d'où la RH peut agir (désactivation).
+      relatedEntityType: "User",
+      relatedEntityId: message.senderId,
+    });
+  }
+  return { alreadyReported: false };
 }

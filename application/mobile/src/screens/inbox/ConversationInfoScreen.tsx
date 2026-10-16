@@ -225,6 +225,25 @@ export function ConversationInfoScreen() {
           </Card>
         )}
 
+        {/* Fiche du contact : c'est là qu'on le bloque (règle App Store 1.2) ;
+            un message se signale à la RH par un appui long dans le fil. */}
+        {!conversation.isGroup && other && (
+          <Card style={{ marginTop: spacing.sm }}>
+            <PressableScale onPress={() => navigation.navigate("ContactProfile", { userId: other.id })} accessibilityRole="button">
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={colors.inkTertiary} />
+                <Text style={[type.callout, { color: colors.ink, marginLeft: spacing.sm, flex: 1 }]}>Profil, bloquer ce contact</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
+              </View>
+            </PressableScale>
+          </Card>
+        )}
+        {!conversation.isGroup && (
+          <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.sm, textAlign: "center" }]}>
+            Un message abusif ? Appui long sur le message pour le signaler à la RH.
+          </Text>
+        )}
+
         {!!conversation.isGroup && (
           <View style={{ marginTop: spacing.xl }}>
             <Text style={[type.overline, { color: colors.inkTertiary, marginBottom: spacing.xs }]}>
@@ -241,17 +260,25 @@ export function ConversationInfoScreen() {
                       paddingVertical: spacing.sm,
                     }}
                   >
-                    <Avatar user={person} size={38} />
-                    <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                      <Text style={[type.body, { color: colors.ink }]} numberOfLines={1}>
-                        {person.firstName} {person.lastName}
-                        {person.id === user?.id ? " (vous)" : ""}
-                      </Text>
-                      <Text style={[type.footnote, { color: colors.inkTertiary }]} numberOfLines={1}>
-                        {ROLE_LABELS_SHORT[person.role]}
-                        {person.isAdmin ? " · Administrateur" : ""}
-                      </Text>
-                    </View>
+                    <PressableScale
+                      onPress={() => navigation.navigate("ContactProfile", { userId: person.id })}
+                      disabled={person.id === user?.id}
+                      style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Profil de ${person.firstName} ${person.lastName}`}
+                    >
+                      <Avatar user={person} size={38} />
+                      <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                        <Text style={[type.body, { color: colors.ink }]} numberOfLines={1}>
+                          {person.firstName} {person.lastName}
+                          {person.id === user?.id ? " (vous)" : ""}
+                        </Text>
+                        <Text style={[type.footnote, { color: colors.inkTertiary }]} numberOfLines={1}>
+                          {ROLE_LABELS_SHORT[person.role]}
+                          {person.isAdmin ? " · Administrateur" : ""}
+                        </Text>
+                      </View>
+                    </PressableScale>
                     {person.id !== user?.id && (
                       <PressableScale onPress={() => call(person)} hitSlop={8} style={{ padding: 6 }}>
                         <Ionicons name="call-outline" size={19} color={colors.accent} />

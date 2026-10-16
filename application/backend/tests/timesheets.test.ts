@@ -388,7 +388,7 @@ describe("Export CSV des pointages (dossier RH pour la paie)", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/csv");
-    const text = res.text.replace(/^﻿/, "");
+    const text = res.text.replace(/^\ufeff/, "");
     const lines = text.split("\r\n");
     expect(lines[0]).toBe(
       "Employé;Date;Arrivée;Départ;Durée (h);Heures comptées (h);Dont nuit (h);Dont dimanche (h);Dont férié (h);Majoration (h);Statut;Différé;Commentaire"
@@ -411,7 +411,7 @@ describe("Export CSV des pointages (dossier RH pour la paie)", () => {
       .set("Authorization", `Bearer ${tokenA}`);
 
     expect(res.status).toBe(200);
-    const text = res.text.replace(/^﻿/, "");
+    const text = res.text.replace(/^\ufeff/, "");
     const lines = text.split("\r\n").filter(Boolean);
     expect(lines).toHaveLength(2); // en-tête + ligne de total, aucune ligne de données
     expect(lines[1]).toBe("TOTAL;;;;;0,00;0,00;0,00;0,00;0,00;;;");
@@ -435,7 +435,7 @@ describe("Export CSV des pointages (dossier RH pour la paie)", () => {
       .set("Authorization", `Bearer ${hrToken}`);
 
     expect(res.status).toBe(200);
-    const text = res.text.replace(/^﻿/, "");
+    const text = res.text.replace(/^\ufeff/, "");
     // Le commentaire commence par "=" : préfixé d'une apostrophe pour qu'Excel/LibreOffice
     // ne l'interprète jamais comme une formule, et entièrement entre guillemets
     // puisqu'il contient des ";" (le vrai délimiteur de ce fichier).

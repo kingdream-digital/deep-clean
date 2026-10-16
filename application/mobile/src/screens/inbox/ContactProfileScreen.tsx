@@ -9,9 +9,11 @@ import { Button } from "../../components/Button";
 import { PressableScale } from "../../components/PressableScale";
 import { Avatar } from "../../components/Avatar";
 import { useTheme } from "../../theme/ThemeProvider";
-import { getContact } from "../../api/messages.api";
+import { blockContact, getContact, listBlockedContacts, unblockContact } from "../../api/messages.api";
 import type { Contact } from "../../api/messages.api";
 import { Alert } from "../../utils/alert";
+import { extractErrorMessage } from "../../api/client";
+import { useAuth } from "../../auth/AuthContext";
 import { ROLE_LABELS_SHORT } from "../../utils/roleLabels";
 import type { AppTabsParamList } from "../../navigation/appTabsShared";
 import { isBackgroundRefresh, useReloadOnDataChange } from "../../sync/liveSync";
@@ -27,14 +29,21 @@ export function ContactProfileScreen() {
   const navigation = useNavigation<NavigationProp<AppTabsParamList>>();
   const { userId } = route.params;
 
+  const { user } = useAuth();
   const [contact, setContact] = useState<Contact | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  // Blocage dans la messagerie (règle App Store 1.2) : action personnelle,
+  // disponible sur la fiche de n'importe quel collègue.
+  const [blocked, setBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
 
   const load = useCallback(async () => {
     const silent = isBackgroundRefresh();
     try {
       if (!silent) setState("loading");
-      setContact(await getContact(userId));
+      const [fresh, blockedList] = await Promise.all([getContact(userId), listBlockedContacts().catch(() => [])]);
+      setContact(fresh);
+      setBlocked(blockedList.some((c) => c.id === userId));
       setState("ready");
     } catch {
       if (!silent) setState("error");
@@ -57,6 +66,35 @@ export function ContactProfileScreen() {
       return;
     }
     await Linking.openURL(url);
+  }
+
+  function toggleBlock() {
+    if (!contact) return;
+    const name = `${contact.firstName} ${contact.lastName}`;
+    const run = async () => {
+      setBlockBusy(true);
+      try {
+        if (blocked) await unblockContact(contact.id);
+        else await blockContact(contact.id);
+        setBlocked(!blocked);
+      } catch (err) {
+        Alert.alert("Action impossible", extractErrorMessage(err));
+      } finally {
+        setBlockBusy(false);
+      }
+    };
+    if (blocked) {
+      void run();
+      return;
+    }
+    Alert.alert(
+      `Bloquer ${name} ?`,
+      "Cette personne ne pourra plus vous écrire en message direct et vous ne recevrez plus ses notifications de messagerie. Ses messages de groupe vous seront masqués. Pour un comportement abusif, signalez aussi ses messages à la RH (appui long sur un message).",
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Bloquer", style: "destructive", onPress: () => void run() },
+      ]
+    );
   }
 
   if (state === "loading") {
@@ -123,6 +161,27 @@ export function ContactProfileScreen() {
           </View>
         )}
       </View>
+
+      {contact.id !== user?.id && (
+        <View style={{ marginTop: spacing.xl, alignItems: "center" }}>
+          <PressableScale
+            onPress={toggleBlock}
+            disabled={blockBusy}
+            accessibilityRole="button"
+            style={{ flexDirection: "row", alignItems: "center", padding: spacing.xs, opacity: blockBusy ? 0.5 : 1 }}
+          >
+            <Ionicons name={blocked ? "lock-open-outline" : "ban-outline"} size={17} color={blocked ? colors.accentText : colors.danger} />
+            <Text style={[type.callout, { color: blocked ? colors.accentText : colors.danger, fontWeight: "600", marginLeft: spacing.xs }]}>
+              {blocked ? "Débloquer ce contact" : "Bloquer ce contact"}
+            </Text>
+          </PressableScale>
+          {blocked && (
+            <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center", marginTop: spacing.xxs }]}>
+              Vous avez bloqué ce contact : il ne peut plus vous écrire en message direct.
+            </Text>
+          )}
+        </View>
+      )}
     </ScreenContainer>
   );
 }

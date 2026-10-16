@@ -37,6 +37,8 @@ export interface ChatMessage {
   /** Événement de vie du groupe (création, arrivée, départ, renommage). */
   systemEvent: string | null;
   createdAt: string;
+  /** Auteur bloqué par le lecteur : contenu masqué par le serveur. */
+  blockedSender?: boolean;
 }
 
 export interface Conversation {
@@ -199,4 +201,31 @@ export async function sendMessage(
 
 export async function markThreadRead(conversationId: string): Promise<void> {
   await apiClient.post(`/messages/conversations/${conversationId}/read`);
+}
+
+// ---------------------------------------------------------------------------
+// Blocage d'un contact et signalement d'un message (règle App Store 1.2)
+// ---------------------------------------------------------------------------
+
+export type MessageReportReason = "HARASSMENT" | "INSULT" | "INAPPROPRIATE" | "SPAM" | "OTHER";
+
+export async function reportMessage(messageId: string, reason: MessageReportReason, comment?: string): Promise<{ alreadyReported: boolean }> {
+  const { data } = await apiClient.post<{ alreadyReported: boolean }>(`/messages/${messageId}/report`, {
+    reason,
+    ...(comment ? { comment } : {}),
+  });
+  return data;
+}
+
+export async function listBlockedContacts(): Promise<Contact[]> {
+  const { data } = await apiClient.get<{ items: Contact[] }>("/messages/blocks");
+  return data.items;
+}
+
+export async function blockContact(userId: string): Promise<void> {
+  await apiClient.post("/messages/blocks", { userId });
+}
+
+export async function unblockContact(userId: string): Promise<void> {
+  await apiClient.delete(`/messages/blocks/${userId}`);
 }

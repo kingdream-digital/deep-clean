@@ -29,6 +29,9 @@ export type NotificationEntityType =
   | "Quote"
   | "Invoice"
   | "Site"
+  // Compte d'un utilisateur (ex. auteur d'un message signalé, demande de
+  // suppression de compte) : ouvre sa fiche côté RH.
+  | "User"
   // Listes à traiter (rappels automatiques).
   | "TimesheetValidation"
   | "AbsencesManagement"

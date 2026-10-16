@@ -77,6 +77,10 @@ export async function resolveNotificationTarget(n: AppNotification): Promise<Not
       return { tab: "Menu", screen: "InvoiceDetail", params: { invoiceId: id } };
     case "Site":
       return { tab: "Menu", screen: "SiteDetail", params: { siteId: id } };
+    // Auteur d'un message signalé, demande de suppression de compte : fiche
+    // du compte côté RH (présente dans les piles Accueil et Messagerie).
+    case "User":
+      return { screen: "UserDetail", params: { userId: id } };
     case "TimesheetValidation":
     case "AbsencesManagement":
     case "InvoicesList":
