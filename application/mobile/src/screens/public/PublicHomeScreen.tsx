@@ -93,7 +93,7 @@ export function PublicHomeScreen() {
             DEEP <Text style={{ color: "#7FD0EE" }}>CLEAN</Text>
           </Text>
           <View style={{ flex: 1 }} />
-          <PressableScale onPress={() => navigation.navigate("Login")} accessibilityRole="button" accessibilityLabel="Espace équipe : connexion des collaborateurs">
+          <PressableScale onPress={() => navigation.navigate("Login", undefined, { pop: true })} accessibilityRole="button" accessibilityLabel="Espace équipe : connexion des collaborateurs">
             <View
               style={{
                 flexDirection: "row",

@@ -128,7 +128,7 @@ export function PublicFooter() {
   const navigation = usePublicNavigation();
   return (
     <View style={{ marginTop: spacing.xxl, alignItems: "center" }}>
-      <PressableScale onPress={() => navigation.navigate("Login")} accessibilityRole="button" style={{ padding: spacing.xs }}>
+      <PressableScale onPress={() => navigation.navigate("Login", undefined, { pop: true })} accessibilityRole="button" style={{ padding: spacing.xs }}>
         <Text style={[type.footnote, { color: colors.inkSecondary, textAlign: "center" }]}>
           Vous faites partie de l'équipe Deep Clean ? <Text style={{ color: colors.accentText, fontWeight: "600" }}>Espace équipe</Text>
         </Text>

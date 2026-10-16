@@ -61,7 +61,9 @@ export function PublicTabs() {
         listeners={({ navigation }) => ({
           tabPress: (event) => {
             event.preventDefault();
-            navigation.getParent()?.navigate("Login");
+            // pop : revient à la connexion si elle est déjà dans la pile
+            // (React Navigation 7 en empilerait sinon une nouvelle).
+            navigation.getParent()?.navigate("Login", undefined, { pop: true });
           },
         })}
       />

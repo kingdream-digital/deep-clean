@@ -69,7 +69,7 @@ describe("Accueil public", () => {
     fireEvent.press(screen.getByText("Demander un devis gratuit"));
     expect(mockNavigate).toHaveBeenCalledWith("QuoteRequest");
     fireEvent.press(screen.getAllByText("Espace équipe")[0]!);
-    expect(mockNavigate).toHaveBeenCalledWith("Login");
+    expect(mockNavigate).toHaveBeenCalledWith("Login", undefined, { pop: true });
     fireEvent.press(screen.getByText("Mentions légales"));
     expect(mockNavigate).toHaveBeenCalledWith("Legal");
   });
