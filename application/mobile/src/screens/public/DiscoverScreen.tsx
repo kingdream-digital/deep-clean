@@ -148,6 +148,15 @@ export function DiscoverScreen() {
           colors={["rgba(31,45,105,0.10)", "rgba(31,45,105,0.55)", "rgba(31,45,105,0.97)"]}
           style={StyleSheet.absoluteFill}
         />
+        <View style={{ flex: 1, justifyContent: "flex-end", padding: spacing.lg }}>
+          <BrandEmblem size={54} />
+          <Text style={[type.overline, { color: "#BFE3F4", marginTop: spacing.sm }]}>MANOSQUE & ALENTOURS</Text>
+          <Text style={[type.largeTitle, { color: "#FFFFFF", marginTop: spacing.xxs }]}>Le propre, en profondeur.</Text>
+          <Text style={[type.callout, { color: "#FFFFFF", marginTop: spacing.xs, opacity: 0.92 }]}>
+            Nettoyage, entretien et conciergerie pour les particuliers, les professionnels et les propriétaires.
+          </Text>
+        </View>
+        {/* Après le texte du bandeau : posé au-dessus, il reçoit bien l'appui. */}
         <View style={{ position: "absolute", top: insets.top + spacing.xs, right: spacing.md }}>
           <PressableScale onPress={() => navigation.navigate("Login")} accessibilityRole="button" accessibilityLabel="Espace équipe : connexion des collaborateurs">
             <View
@@ -166,14 +175,6 @@ export function DiscoverScreen() {
               <Text style={[type.footnote, { color: "#FFFFFF", marginLeft: 5, fontFamily: "Inter_600SemiBold" }]}>Espace équipe</Text>
             </View>
           </PressableScale>
-        </View>
-        <View style={{ flex: 1, justifyContent: "flex-end", padding: spacing.lg }}>
-          <BrandEmblem size={54} />
-          <Text style={[type.overline, { color: "#BFE3F4", marginTop: spacing.sm }]}>MANOSQUE & ALENTOURS</Text>
-          <Text style={[type.largeTitle, { color: "#FFFFFF", marginTop: spacing.xxs }]}>Le propre, en profondeur.</Text>
-          <Text style={[type.callout, { color: "#FFFFFF", marginTop: spacing.xs, opacity: 0.92 }]}>
-            Nettoyage, entretien et conciergerie pour les particuliers, les professionnels et les propriétaires.
-          </Text>
         </View>
       </View>
 
