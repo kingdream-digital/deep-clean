@@ -21,6 +21,12 @@ export const ANNOUNCEMENT_AUTHOR_ROLES: Role[] = [Role.HR, Role.SUPERVISOR, Role
 // actions de nettoyage/maintenance de l'application.
 export const ANNOUNCEMENT_DELETE_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN];
 
+// Retour explicite du client (octobre 2026) : la Direction ou la RH alimente
+// l'accueil public de l'application (sans compte) depuis son espace. Mettre
+// une actualité à la une de l'accueil public — ou l'en retirer — leur est
+// réservé (et à l'admin technique) ; le superviseur publie en interne.
+export const ANNOUNCEMENT_PUBLIC_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN];
+
 const authorSelect = {
   id: true,
   firstName: true,
@@ -34,6 +40,7 @@ const announcementSelect = {
   title: true,
   body: true,
   coverPhotoKey: true,
+  isPublic: true,
   createdAt: true,
   author: { select: authorSelect },
 } as const;
@@ -62,11 +69,14 @@ function presentAnnouncement<
  */
 export async function createAnnouncement(
   actor: Actor,
-  input: { title: string; body: string },
+  input: { title: string; body: string; isPublic?: boolean },
   photoBuffer?: Buffer
 ) {
   if (!ANNOUNCEMENT_AUTHOR_ROLES.includes(actor.role)) {
     throw ApiError.forbidden("Vous n'êtes pas autorisé à publier une actualité.");
+  }
+  if (input.isPublic && !ANNOUNCEMENT_PUBLIC_ROLES.includes(actor.role)) {
+    throw ApiError.forbidden("Seules la RH et la direction publient sur l'accueil public de l'application.");
   }
 
   // Photo de couverture facultative (retour explicite du client : "un vrai
@@ -77,7 +87,13 @@ export async function createAnnouncement(
   let announcement;
   try {
     announcement = await prisma.announcement.create({
-      data: { authorId: actor.userId, title: input.title, body: input.body, coverPhotoKey: stored?.storageKey },
+      data: {
+        authorId: actor.userId,
+        title: input.title,
+        body: input.body,
+        coverPhotoKey: stored?.storageKey,
+        isPublic: input.isPublic ?? false,
+      },
       select: announcementSelect,
     });
   } catch (err) {
@@ -109,7 +125,7 @@ export async function createAnnouncement(
     action: "ANNOUNCEMENT_POSTED",
     entityType: "Announcement",
     entityId: announcement.id,
-    metadata: { title: announcement.title, recipients: recipients.length },
+    metadata: { title: announcement.title, recipients: recipients.length, isPublic: announcement.isPublic },
   });
 
   return presentAnnouncement(announcement);
@@ -156,6 +172,56 @@ export async function deleteAnnouncement(actor: Actor, id: string) {
     entityId: announcement.id,
     metadata: { title: announcement.title },
   });
+}
+
+/** Met une actualité sur l'accueil public de l'application, ou l'en retire. */
+export async function setAnnouncementVisibility(actor: Actor, id: string, isPublic: boolean) {
+  if (!ANNOUNCEMENT_PUBLIC_ROLES.includes(actor.role)) {
+    throw ApiError.forbidden("Seules la RH et la direction gèrent l'accueil public de l'application.");
+  }
+  const existing = await prisma.announcement.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) throw ApiError.notFound("Actualité introuvable.");
+
+  const announcement = await prisma.announcement.update({ where: { id }, data: { isPublic }, select: announcementSelect });
+  await logActivity({
+    userId: actor.userId,
+    action: isPublic ? "ANNOUNCEMENT_MADE_PUBLIC" : "ANNOUNCEMENT_MADE_INTERNAL",
+    entityType: "Announcement",
+    entityId: id,
+    metadata: { title: announcement.title },
+  });
+  return presentAnnouncement(announcement);
+}
+
+// Accueil public (sans compte) : seules les actualités marquées publiques,
+// sans rien sur leur auteur (ni nom, ni rôle, ni photo) — elles sont signées
+// « DEEP CLEAN ».
+const publicNewsSelect = { id: true, title: true, body: true, coverPhotoKey: true, createdAt: true } as const;
+
+function presentPublicNews(news: { id: string; title: string; body: string; coverPhotoKey: string | null; createdAt: Date }) {
+  const { coverPhotoKey, createdAt, ...rest } = news;
+  return { ...rest, publishedAt: createdAt, hasCoverPhoto: Boolean(coverPhotoKey) };
+}
+
+export async function listPublicNews(page: number, pageSize: number) {
+  const where = { isPublic: true };
+  const [items, total] = await Promise.all([
+    prisma.announcement.findMany({ where, select: publicNewsSelect, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.announcement.count({ where }),
+  ]);
+  return { items: items.map(presentPublicNews), total, page, pageSize };
+}
+
+export async function getPublicNews(id: string) {
+  const news = await prisma.announcement.findFirst({ where: { id, isPublic: true }, select: publicNewsSelect });
+  if (!news) throw ApiError.notFound("Actualité introuvable.");
+  return presentPublicNews(news);
+}
+
+export async function getPublicNewsCoverPhoto(id: string) {
+  const news = await prisma.announcement.findFirst({ where: { id, isPublic: true }, select: { coverPhotoKey: true } });
+  if (!news?.coverPhotoKey) throw ApiError.notFound("Aucune photo pour cette actualité.");
+  return { storageKey: news.coverPhotoKey };
 }
 
 // Sert la photo de couverture d'une actualité — jamais d'URL publique, même

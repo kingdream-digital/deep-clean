@@ -381,7 +381,7 @@ function DiscoverLink() {
   const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
   return (
     <Pressable
-      onPress={() => navigation.navigate("Discover")}
+      onPress={() => navigation.navigate("PublicTabs")}
       accessibilityRole="button"
       style={({ pressed }) => ({
         flexDirection: "row",

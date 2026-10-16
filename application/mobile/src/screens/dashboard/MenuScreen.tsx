@@ -76,7 +76,6 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "calculator-outline", label: "Espace comptable", message: "Dossier de paie du mois, documents", tone: "accent", screen: "AccountingHome" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
-    { icon: "pricetag-outline", label: "Offre de bienvenue", message: "Remise affichée dans l'espace public", tone: "accent", screen: "WelcomeOfferSettings" },
     { icon: "business-outline", label: "Chantiers", message: "Vue globale de tous les chantiers", tone: "warning", screen: "SitesList" },
     {
       icon: "people-outline",
@@ -96,7 +95,6 @@ export const TOOL_ENTRIES: Record<Role, MenuEntry[]> = {
     { icon: "calculator-outline", label: "Espace comptable", message: "Dossier de paie du mois, documents", tone: "accent", screen: "AccountingHome" },
     { icon: "megaphone-outline", label: "Actualités", message: "Annonces de l'entreprise", tone: "purple", screen: "AnnouncementsList" },
     { icon: "briefcase-outline", label: "Commercial", message: "Devis, factures, Super PDP", tone: "accent", screen: "CommercialHome" },
-    { icon: "pricetag-outline", label: "Offre de bienvenue", message: "Remise affichée dans l'espace public", tone: "accent", screen: "WelcomeOfferSettings" },
     { icon: "people-outline", label: "Comptes", message: "Gestion technique des comptes", tone: "info", screen: "UsersList" },
     { icon: "business-outline", label: "Chantiers", message: "Gestion technique des chantiers", tone: "warning", screen: "SitesList" },
     { icon: "calendar-outline", label: ABSENCES_MANAGEMENT_TITLE, message: "Vue d'ensemble des absences", tone: "info", screen: "AbsencesManagement" },

@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, API_URL } from "./client";
 
 // Espace public (sans compte) : demande de devis envoyée par un particulier
 // ou une entreprise — voir backend/src/modules/public.
@@ -36,20 +36,27 @@ export async function submitQuoteRequest(input: QuoteRequestInput): Promise<stri
   return data.message;
 }
 
-// Offre de bienvenue en cours (null si aucune offre active dans ses dates) :
-// réglée par la Direction, elle ne débloque rien dans l'application — la
-// remise s'applique sur le devis de la première prestation.
-export interface WelcomeOffer {
+// Actualités de l'accueil public : celles que la RH ou la direction a choisi
+// d'afficher pour tout le monde (signées « DEEP CLEAN », sans auteur).
+export interface PublicNews {
   id: string;
-  rate: number;
   title: string;
-  summary: string;
-  conditions: string;
-  startsAt: string;
-  endsAt: string;
+  body: string;
+  publishedAt: string;
+  hasCoverPhoto: boolean;
 }
 
-export async function getWelcomeOffer(): Promise<WelcomeOffer | null> {
-  const { data } = await apiClient.get<{ offer: WelcomeOffer | null }>("/public/welcome-offer");
-  return data.offer;
+export async function listPublicNews(page = 1, pageSize = 20): Promise<{ items: PublicNews[]; total: number }> {
+  const { data } = await apiClient.get<{ items: PublicNews[]; total: number }>("/public/news", { params: { page, pageSize } });
+  return data;
 }
+
+export async function getPublicNews(id: string): Promise<PublicNews> {
+  const { data } = await apiClient.get<{ news: PublicNews }>(`/public/news/${id}`);
+  return data.news;
+}
+
+export function publicNewsCoverUrl(id: string): string {
+  return `${API_URL}/public/news/${id}/cover-photo`;
+}
+

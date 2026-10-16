@@ -34,7 +34,6 @@ import { MyAbsencesScreen } from "../screens/absences/MyAbsencesScreen";
 import { AbsenceFormScreen } from "../screens/absences/AbsenceFormScreen";
 import { AbsencesManagementScreen } from "../screens/absences/AbsencesManagementScreen";
 import { ActivityLogScreen } from "../screens/activity/ActivityLogScreen";
-import { WelcomeOfferSettingsScreen } from "../screens/commercial/WelcomeOfferSettingsScreen";
 import { ProblemsListScreen } from "../screens/problems/ProblemsListScreen";
 import { ProblemDetailScreen } from "../screens/missions/ProblemDetailScreen";
 import { MissionDetailScreen } from "../screens/missions/MissionDetailScreen";
@@ -114,7 +113,6 @@ export type MenuStackParamList = {
   AbsenceForm: { userId?: string; fullName?: string; initialDate?: string } | undefined;
   AbsencesManagement: undefined;
   ActivityLog: undefined;
-  WelcomeOfferSettings: undefined;
   ProblemsList: undefined;
   ProblemDetail: { problemId: string };
   MissionDetail: { missionId: string };
@@ -263,7 +261,6 @@ export function MenuStack({ initialRouteName }: { initialRouteName?: keyof MenuS
       />
       <Stack.Screen name="AbsencesManagement" component={AbsencesManagementScreen} options={{ title: ABSENCES_MANAGEMENT_TITLE }} />
       <Stack.Screen name="ActivityLog" component={ActivityLogScreen} options={{ title: "Journal d'activité" }} />
-      <Stack.Screen name="WelcomeOfferSettings" component={WelcomeOfferSettingsScreen} options={{ title: "Offre de bienvenue" }} />
 
       <Stack.Screen name="ProblemsList" component={ProblemsListScreen} options={{ title: "Problèmes" }} />
       <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} options={{ title: "Signalement" }} />

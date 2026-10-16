@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn } from "react-native-reanimated";
@@ -11,8 +11,7 @@ import { Button } from "../../components/Button";
 import { Checkbox } from "../../components/Checkbox";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { extractErrorMessage } from "../../api/client";
-import { getWelcomeOffer, PUBLIC_SERVICES, submitQuoteRequest, type PublicService, type WelcomeOffer } from "../../api/public.api";
-import { WelcomeOfferCard } from "../../components/WelcomeOfferCard";
+import { PUBLIC_SERVICES, submitQuoteRequest, type PublicService } from "../../api/public.api";
 import { COMPANY_CONTACT, PRIVACY_URL } from "../../config/links";
 import type { PublicStackParamList } from "../../navigation/RootNavigator";
 
@@ -23,6 +22,7 @@ export function QuoteRequestScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
+  const route = useRoute<RouteProp<PublicStackParamList, "QuoteRequest">>();
 
   const [customerType, setCustomerType] = useState<"INDIVIDUAL" | "BUSINESS" | "OWNER">("INDIVIDUAL");
   const [companyName, setCompanyName] = useState("");
@@ -32,25 +32,13 @@ export function QuoteRequestScreen() {
   const [email, setEmail] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
-  const [service, setService] = useState<PublicService | null>(null);
+  // Prestation déjà choisie quand on vient de l'onglet « Services ».
+  const [service, setService] = useState<PublicService | null>(route.params?.service ?? null);
   const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
-  const [offer, setOffer] = useState<WelcomeOffer | null>(null);
-
-  // Offre de bienvenue en cours : ses conditions complètes sont affichées
-  // AVANT l'envoi (le serveur la rattache lui-même à la demande).
-  useEffect(() => {
-    let alive = true;
-    getWelcomeOffer()
-      .then((current) => alive && setOffer(current))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   function validate(): string | null {
     if (customerType === "BUSINESS" && !companyName.trim()) return "Indiquez le nom de votre entreprise.";
@@ -106,7 +94,7 @@ export function QuoteRequestScreen() {
         <Text style={[type.title2, { color: colors.ink, marginTop: spacing.lg, textAlign: "center" }]}>Demande envoyée</Text>
         <Text style={[type.callout, { color: colors.inkSecondary, marginTop: spacing.sm, textAlign: "center" }]}>{sent}</Text>
         <View style={{ alignSelf: "stretch", marginTop: spacing.xl }}>
-          <Button label="Retour à la présentation" onPress={() => navigation.navigate("Discover")} />
+          <Button label="Retour à l'accueil" onPress={() => navigation.navigate("PublicTabs")} />
         </View>
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.lg, textAlign: "center" }]}>
           Une urgence ? Appelez-nous au {COMPANY_CONTACT.phone}.
@@ -126,12 +114,6 @@ export function QuoteRequestScreen() {
         <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs, marginBottom: spacing.lg }]}>
           Le devis est gratuit. Décrivez votre besoin : nous revenons vers vous sous 24 à 48 h avec une proposition adaptée.
         </Text>
-
-        {offer && (
-          <View style={{ marginBottom: spacing.lg }}>
-            <WelcomeOfferCard offer={offer} conditionsOpen />
-          </View>
-        )}
 
         <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Vous êtes</Text>
         <SegmentedControl

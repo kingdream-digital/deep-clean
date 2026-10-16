@@ -6,10 +6,12 @@ import { ApiError } from "../../utils/ApiError";
 import { maintenanceStatus } from "../../config/maintenance";
 import { quoteRequestSchema } from "./public.validation";
 import { submitQuoteRequest } from "./public.service";
-import { getCurrentWelcomeOffer } from "../welcomeOffer/welcomeOffer.service";
+import { announcementIdParamSchema, listAnnouncementsQuerySchema } from "../announcements/announcements.validation";
+import { getPublicNewsCoverPhotoHandler, getPublicNewsHandler, listPublicNewsHandler } from "../announcements/announcements.controller";
 
 // Espace public de l'application (sans compte) : seule la demande de devis
-// écrit en base ; l'offre de bienvenue en cours est en lecture seule. Limite stricte par adresse IP, en plus de la limite générale.
+// écrit en base ; les actualités publiques (choisies par la RH ou la
+// direction) sont en lecture seule. Limite stricte par adresse IP, en plus de la limite générale.
 export const publicRouter = Router();
 
 const quoteRequestLimiter = rateLimit({
@@ -34,9 +36,6 @@ publicRouter.post(
   })
 );
 
-publicRouter.get(
-  "/welcome-offer",
-  asyncHandler(async (_req, res) => {
-    res.json({ offer: await getCurrentWelcomeOffer() });
-  })
-);
+publicRouter.get("/news", validate(listAnnouncementsQuerySchema), listPublicNewsHandler);
+publicRouter.get("/news/:id", validate(announcementIdParamSchema), getPublicNewsHandler);
+publicRouter.get("/news/:id/cover-photo", validate(announcementIdParamSchema), getPublicNewsCoverPhotoHandler);

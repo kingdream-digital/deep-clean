@@ -44,7 +44,6 @@ export async function resetDatabase() {
   await prisma.quote.deleteMany();
   await prisma.client.deleteMany();
   await prisma.prospect.deleteMany();
-  await prisma.welcomeOffer.deleteMany();
   await prisma.superPdpOAuthState.deleteMany();
   await prisma.superPdpConnection.deleteMany();
   await prisma.user.deleteMany();
