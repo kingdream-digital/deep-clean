@@ -33,6 +33,7 @@ import { maintenanceStatus } from "./config/maintenance";
 import { authenticate } from "./middleware/auth.middleware";
 import { bumpChangeVersion, currentChangeVersion, isTrackedMutation } from "./utils/changeVersion";
 import { accountingRouter } from "./modules/accounting/accounting.routes";
+import { welcomeOfferRouter } from "./modules/welcomeOffer/welcomeOffer.routes";
 import { publicRouter } from "./modules/public/public.routes";
 
 export function createApp() {
@@ -90,6 +91,7 @@ export function createApp() {
   // Espace public de l'application (sans compte) : découverte de
   // l'entreprise et demande de devis — voir modules/public.
   app.use("/api/v1/public", publicRouter);
+  app.use("/api/v1/welcome-offer", welcomeOfferRouter);
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/users", usersRouter);
   app.use("/api/v1/notifications", notificationsRouter);

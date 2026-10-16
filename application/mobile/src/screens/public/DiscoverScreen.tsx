@@ -1,5 +1,5 @@
-import React from "react";
-import { Image, ImageSourcePropType, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Image, ImageSourcePropType, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -13,12 +13,18 @@ import { PressableScale } from "../../components/PressableScale";
 import { BrandEmblem } from "../../components/BrandEmblem";
 import { openDirectionsTo } from "../../utils/openMaps";
 import { Alert } from "../../utils/alert";
-import { COMPANY_CONTACT } from "../../config/links";
+import { COMPANY_CONTACT, PRIVACY_URL } from "../../config/links";
+import { SERVICE_TOWNS } from "../../config/serviceArea";
+import { getWelcomeOffer, type WelcomeOffer } from "../../api/public.api";
+import { WelcomeOfferCard } from "../../components/WelcomeOfferCard";
+import { ServiceAreaChecker } from "../../components/ServiceAreaChecker";
 import type { PublicStackParamList } from "../../navigation/RootNavigator";
 
-// Espace public de l'application, accessible sans compte depuis l'écran de
-// connexion : les particuliers, professionnels et propriétaires découvrent
-// DEEP CLEAN et demandent un devis. Textes et photos repris du site officiel
+// Accueil public de l'application — premier écran à l'ouverture, sans compte
+// (règle App Store 3.2) : les particuliers, professionnels et propriétaires
+// découvrent DEEP CLEAN, vérifient la zone d'intervention, profitent de
+// l'offre de bienvenue en cours et demandent un devis. Les collaborateurs
+// passent par « Espace équipe ». Textes et photos repris du site officiel
 // (deep-clean.fr, version « La Plongée » — dossier v2/ du dépôt ; photos
 // Pexels sous licence libre, voir v2/assets/photos/CREDITS.md). Rien
 // d'inventé ; les comptes des collaborateurs restent créés par la RH.
@@ -77,17 +83,6 @@ const FACTS = [
   { value: "RC Pro", label: "activité assurée" },
 ];
 
-const TOWNS: { name: string; distance: string }[] = [
-  { name: "Manosque", distance: "Notre base" },
-  { name: "Pierrevert", distance: "3,6 km" },
-  { name: "Sainte-Tulle", distance: "5,6 km" },
-  { name: "Volx", distance: "6,8 km" },
-  { name: "Corbières", distance: "8,5 km" },
-  { name: "Villeneuve", distance: "9,3 km" },
-  { name: "Gréoux-les-Bains", distance: "11,7 km" },
-  { name: "Forcalquier", distance: "13,9 km" },
-];
-
 const FAQ = [
   {
     q: "Sous quel délai pouvez-vous intervenir ?",
@@ -111,6 +106,19 @@ export function DiscoverScreen() {
   const { colors, spacing, radius, type } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
+  const [offer, setOffer] = useState<WelcomeOffer | null>(null);
+
+  // Offre de bienvenue réglée par la Direction : absente (ou hors ligne), la
+  // carte ne s'affiche simplement pas.
+  useEffect(() => {
+    let alive = true;
+    getWelcomeOffer()
+      .then((current) => alive && setOffer(current))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function call() {
     const url = `tel:${COMPANY_CONTACT.phoneE164}`;
@@ -129,7 +137,7 @@ export function DiscoverScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: spacing.xxl + insets.bottom }}>
       {/* En-tête : photo du site, voile marine de la charte. */}
-      <View style={{ height: 300, overflow: "hidden" }}>
+      <View style={{ height: 300 + insets.top, overflow: "hidden" }}>
         <Image
           source={require("../../../assets/discover/hero.jpg")}
           style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
@@ -140,6 +148,25 @@ export function DiscoverScreen() {
           colors={["rgba(31,45,105,0.10)", "rgba(31,45,105,0.55)", "rgba(31,45,105,0.97)"]}
           style={StyleSheet.absoluteFill}
         />
+        <View style={{ position: "absolute", top: insets.top + spacing.xs, right: spacing.md }}>
+          <PressableScale onPress={() => navigation.navigate("Login")} accessibilityRole="button" accessibilityLabel="Espace équipe : connexion des collaborateurs">
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: spacing.sm,
+                paddingVertical: 7,
+                borderRadius: radius.pill,
+                backgroundColor: "rgba(255,255,255,0.18)",
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: "rgba(255,255,255,0.45)",
+              }}
+            >
+              <Ionicons name="person-circle-outline" size={17} color="#FFFFFF" />
+              <Text style={[type.footnote, { color: "#FFFFFF", marginLeft: 5, fontFamily: "Inter_600SemiBold" }]}>Espace équipe</Text>
+            </View>
+          </PressableScale>
+        </View>
         <View style={{ flex: 1, justifyContent: "flex-end", padding: spacing.lg }}>
           <BrandEmblem size={54} />
           <Text style={[type.overline, { color: "#BFE3F4", marginTop: spacing.sm }]}>MANOSQUE & ALENTOURS</Text>
@@ -162,6 +189,16 @@ export function DiscoverScreen() {
             </View>
           </View>
         </Animated.View>
+
+        {offer && (
+          <Animated.View entering={FadeInUp.duration(500)} style={{ marginTop: spacing.lg }}>
+            <WelcomeOfferCard offer={offer} onRequestQuote={() => navigation.navigate("QuoteRequest")} />
+          </Animated.View>
+        )}
+
+        <View style={{ marginTop: spacing.lg }}>
+          <ServiceAreaChecker onRequestQuote={() => navigation.navigate("QuoteRequest")} />
+        </View>
 
         <SectionTitle overline="NOTRE PROMESSE" title="On ne nettoie pas en surface." />
         <Text style={[type.callout, { color: colors.inkSecondary }]}>
@@ -239,7 +276,7 @@ export function DiscoverScreen() {
           Basés à Manosque, nous intervenons chez les particuliers et les professionnels dans un rayon d'environ 20 minutes.
         </Text>
         <Card padded={false}>
-          {TOWNS.map((town, index) => (
+          {SERVICE_TOWNS.map((town, index) => (
             <View
               key={town.name}
               style={{
@@ -285,9 +322,18 @@ export function DiscoverScreen() {
 
         <PressableScale onPress={() => navigation.navigate("Login")} style={{ alignSelf: "center", marginTop: spacing.xl, padding: spacing.xs }} accessibilityRole="button">
           <Text style={[type.footnote, { color: colors.inkSecondary, textAlign: "center" }]}>
-            Vous faites partie de l'équipe Deep Clean ? <Text style={{ color: colors.accentText, fontWeight: "600" }}>Se connecter</Text>
+            Vous faites partie de l'équipe Deep Clean ? <Text style={{ color: colors.accentText, fontWeight: "600" }}>Espace équipe</Text>
           </Text>
         </PressableScale>
+        <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.xs }}>
+          <Pressable onPress={() => navigation.navigate("Legal")} accessibilityRole="link" hitSlop={8}>
+            <Text style={[type.caption, { color: colors.inkTertiary, textDecorationLine: "underline" }]}>Mentions légales</Text>
+          </Pressable>
+          <Text style={[type.caption, { color: colors.inkTertiary, marginHorizontal: spacing.xs }]}>·</Text>
+          <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} accessibilityRole="link" hitSlop={8}>
+            <Text style={[type.caption, { color: colors.inkTertiary, textDecorationLine: "underline" }]}>Confidentialité</Text>
+          </Pressable>
+        </View>
       </View>
     </ScrollView>
   );

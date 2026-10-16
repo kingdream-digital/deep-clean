@@ -45,6 +45,7 @@ const ACTION_LABELS: Record<string, string> = {
   ABSENCE_MISSION_CONFLICT_DETECTED: "Conflit absence/mission détecté",
   MESSAGE_SENT: "Message envoyé",
   MESSAGE_REPORTED: "Message signalé à la RH",
+  WELCOME_OFFER_UPDATED: "Offre de bienvenue modifiée",
   MESSAGE_CONTACT_BLOCKED: "Contact bloqué dans la messagerie",
   MESSAGE_CONTACT_UNBLOCKED: "Contact débloqué dans la messagerie",
   ABSENCE_CANCELLED: "Absence annulée",

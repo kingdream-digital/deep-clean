@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -11,7 +11,8 @@ import { Button } from "../../components/Button";
 import { Checkbox } from "../../components/Checkbox";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { extractErrorMessage } from "../../api/client";
-import { PUBLIC_SERVICES, submitQuoteRequest, type PublicService } from "../../api/public.api";
+import { getWelcomeOffer, PUBLIC_SERVICES, submitQuoteRequest, type PublicService, type WelcomeOffer } from "../../api/public.api";
+import { WelcomeOfferCard } from "../../components/WelcomeOfferCard";
 import { COMPANY_CONTACT, PRIVACY_URL } from "../../config/links";
 import type { PublicStackParamList } from "../../navigation/RootNavigator";
 
@@ -37,6 +38,19 @@ export function QuoteRequestScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
+  const [offer, setOffer] = useState<WelcomeOffer | null>(null);
+
+  // Offre de bienvenue en cours : ses conditions complètes sont affichées
+  // AVANT l'envoi (le serveur la rattache lui-même à la demande).
+  useEffect(() => {
+    let alive = true;
+    getWelcomeOffer()
+      .then((current) => alive && setOffer(current))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function validate(): string | null {
     if (customerType === "BUSINESS" && !companyName.trim()) return "Indiquez le nom de votre entreprise.";
@@ -112,6 +126,12 @@ export function QuoteRequestScreen() {
         <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs, marginBottom: spacing.lg }]}>
           Le devis est gratuit. Décrivez votre besoin : nous revenons vers vous sous 24 à 48 h avec une proposition adaptée.
         </Text>
+
+        {offer && (
+          <View style={{ marginBottom: spacing.lg }}>
+            <WelcomeOfferCard offer={offer} conditionsOpen />
+          </View>
+        )}
 
         <Text style={[type.subhead, { color: colors.inkSecondary, marginBottom: spacing.xxs }]}>Vous êtes</Text>
         <SegmentedControl
@@ -199,9 +219,14 @@ export function QuoteRequestScreen() {
             onChange={setConsent}
           />
         </View>
-        <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} accessibilityRole="link" style={{ marginTop: spacing.xs, marginBottom: spacing.md }}>
-          <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>Politique de confidentialité</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", marginTop: spacing.xs, marginBottom: spacing.md, gap: spacing.md }}>
+          <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} accessibilityRole="link" hitSlop={6}>
+            <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>Politique de confidentialité</Text>
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate("Legal")} accessibilityRole="link" hitSlop={6}>
+            <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>Mentions légales</Text>
+          </Pressable>
+        </View>
 
         {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 

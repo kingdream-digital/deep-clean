@@ -35,3 +35,21 @@ export async function submitQuoteRequest(input: QuoteRequestInput): Promise<stri
   const { data } = await apiClient.post<{ message: string }>("/public/quote-requests", input);
   return data.message;
 }
+
+// Offre de bienvenue en cours (null si aucune offre active dans ses dates) :
+// réglée par la Direction, elle ne débloque rien dans l'application — la
+// remise s'applique sur le devis de la première prestation.
+export interface WelcomeOffer {
+  id: string;
+  rate: number;
+  title: string;
+  summary: string;
+  conditions: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export async function getWelcomeOffer(): Promise<WelcomeOffer | null> {
+  const { data } = await apiClient.get<{ offer: WelcomeOffer | null }>("/public/welcome-offer");
+  return data.offer;
+}

@@ -13,6 +13,7 @@ import { listenToPushTaps } from "../notifications/push";
 import { startLiveSync } from "../sync/liveSync";
 import { DiscoverScreen } from "../screens/public/DiscoverScreen";
 import { QuoteRequestScreen } from "../screens/public/QuoteRequestScreen";
+import { LegalScreen } from "../screens/profile/LegalScreen";
 import { useStackScreenOptions } from "./stackScreenOptions";
 
 export type RootStackParamList = {
@@ -20,19 +21,21 @@ export type RootStackParamList = {
   ChangePassword: undefined;
 };
 
-// Hors connexion : l'écran de connexion, et l'espace public de découverte de
-// DEEP CLEAN avec la demande de devis (sans compte, aucune inscription).
+// Hors connexion : l'accueil public de DEEP CLEAN (premier écran, sans
+// compte, aucune inscription — règle App Store 3.2), la demande de devis, les
+// mentions légales, et l'« Espace équipe » (connexion des collaborateurs).
 export type PublicStackParamList = {
   Login: undefined;
   Discover: undefined;
   QuoteRequest: undefined;
+  Legal: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const PublicStack = createNativeStackNavigator<PublicStackParamList>();
 
 export function RootNavigator() {
-  const { status, user } = useAuth();
+  const { status, user, sessionExpired, endMessage } = useAuth();
   const { colors, isDark } = useTheme();
   const stackOptions = useStackScreenOptions();
 
@@ -61,20 +64,17 @@ export function RootNavigator() {
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
       {status === "unauthenticated" || !user ? (
-        <PublicStack.Navigator screenOptions={stackOptions}>
-          <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: "Connexion" }} />
-          <PublicStack.Screen
-            name="Discover"
-            component={DiscoverScreen}
-            // En-tête marine de la charte, prolongé par la photo de l'écran.
-            options={{
-              title: "Découvrir Deep Clean",
-              headerStyle: { backgroundColor: "#1F2D69" },
-              headerTintColor: "#FFFFFF",
-              headerTitleStyle: { ...stackOptions.headerTitleStyle as object, color: "#FFFFFF" },
-            }}
-          />
+        // L'accueil public s'ouvre en premier ; la connexion directement quand
+        // il faut la reprendre (Face ID/Touch ID, session expirée, compte
+        // désactivé, hors connexion…), pour que le message reste visible.
+        <PublicStack.Navigator
+          screenOptions={stackOptions}
+          initialRouteName={status === "locked" || sessionExpired || !!endMessage ? "Login" : "Discover"}
+        >
+          <PublicStack.Screen name="Discover" component={DiscoverScreen} options={{ headerShown: false, title: "Deep Clean" }} />
+          <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: "Espace équipe" }} />
           <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />
+          <PublicStack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
         </PublicStack.Navigator>
       ) : user.mustChangePassword ? (
         // Mot de passe temporaire : blocage jusqu'à la définition d'un mot de passe personnel.

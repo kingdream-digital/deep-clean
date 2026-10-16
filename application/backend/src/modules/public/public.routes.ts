@@ -6,9 +6,10 @@ import { ApiError } from "../../utils/ApiError";
 import { maintenanceStatus } from "../../config/maintenance";
 import { quoteRequestSchema } from "./public.validation";
 import { submitQuoteRequest } from "./public.service";
+import { getCurrentWelcomeOffer } from "../welcomeOffer/welcomeOffer.service";
 
 // Espace public de l'application (sans compte) : seule la demande de devis
-// écrit en base. Limite stricte par adresse IP, en plus de la limite générale.
+// écrit en base ; l'offre de bienvenue en cours est en lecture seule. Limite stricte par adresse IP, en plus de la limite générale.
 export const publicRouter = Router();
 
 const quoteRequestLimiter = rateLimit({
@@ -30,5 +31,12 @@ publicRouter.post(
     }
     await submitQuoteRequest(req.body, { ipAddress: req.ip });
     res.status(201).json({ message: "Votre demande a bien été envoyée. Nous revenons vers vous sous 24 à 48 h." });
+  })
+);
+
+publicRouter.get(
+  "/welcome-offer",
+  asyncHandler(async (_req, res) => {
+    res.json({ offer: await getCurrentWelcomeOffer() });
   })
 );

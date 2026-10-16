@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { logActivity } from "../../utils/activityLog";
 import { createNotification } from "../notifications/notifications.service";
 import { COMMERCIAL_FULL_ROLES } from "../commercial/roles";
+import { getCurrentWelcomeOffer } from "../welcomeOffer/welcomeOffer.service";
 
 export interface QuoteRequestInput {
   customerType: "INDIVIDUAL" | "BUSINESS" | "OWNER";
@@ -34,6 +35,14 @@ export async function submitQuoteRequest(input: QuoteRequestInput, ctx: { ipAddr
   const profile = { INDIVIDUAL: "particulier", BUSINESS: "professionnel", OWNER: "propriétaire, conciergerie" }[input.customerType];
   const companyName = input.customerType === "BUSINESS" && input.companyName ? input.companyName : `${contactName} (${profile})`;
 
+  // Offre de bienvenue en cours : rattachée à la demande pour que le
+  // commercial applique la remise sur le devis (nouveau client uniquement,
+  // vérifié par lui selon les conditions affichées).
+  const offer = await getCurrentWelcomeOffer();
+  const offerNote = offer
+    ? ` Offre de bienvenue de l'application en cours à cette date : « ${offer.title} » (-${offer.rate} % sur la première prestation, réf. ${offer.id.slice(0, 8)}), à appliquer sur le devis si les conditions sont remplies.`
+    : "";
+
   const prospect = await prisma.prospect.create({
     data: {
       companyName,
@@ -46,7 +55,8 @@ export async function submitQuoteRequest(input: QuoteRequestInput, ctx: { ipAddr
       source: "Application (demande en ligne)",
       serviceType: input.service,
       need: input.message,
-      notes: `Demande envoyée depuis l'espace public de l'application le ${new Date().toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}. Le demandeur a accepté d'être recontacté au sujet de sa demande.`,
+      notes: `Demande envoyée depuis l'espace public de l'application le ${new Date().toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}. Le demandeur a accepté d'être recontacté au sujet de sa demande.${offerNote}`,
+      welcomeOfferId: offer?.id,
     },
     select: { id: true },
   });
@@ -69,7 +79,7 @@ export async function submitQuoteRequest(input: QuoteRequestInput, ctx: { ipAddr
       userId: recipient.id,
       type: NotificationType.COMMERCIAL_UPDATE,
       title: "Nouvelle demande de devis",
-      body: `${companyName} — ${input.service}${where ? ` à ${where}` : ""}. À recontacter (${input.phone ?? input.email}).`,
+      body: `${companyName} — ${input.service}${where ? ` à ${where}` : ""}. À recontacter (${input.phone ?? input.email}).${offer ? ` Offre de bienvenue -${offer.rate} % à appliquer.` : ""}`,
       relatedEntityType: "Prospect",
       relatedEntityId: prospect.id,
     });
