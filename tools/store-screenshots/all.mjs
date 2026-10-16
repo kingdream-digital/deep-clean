@@ -28,18 +28,21 @@ if (want("1") || want("2") || want("3") || want("6")) {
   await context.close();
 }
 
+// Volet public : l'accueil public est le premier écran de l'application.
+// Offre de bienvenue DÉSACTIVÉE pendant ces captures : ni prix ni remise dans
+// les captures de la fiche (App Store, règle 2.3.7).
 if (want("4")) {
   const { page, context } = await session(browser, null);
-  await tapVisible(page, "Découvrir nos services et demander un devis");
-  await page.waitForTimeout(2000);
+  await page.getByPlaceholder("Code postal").fill("04100");
+  await page.getByText("Vérifier", { exact: true }).click();
+  await page.evaluate(() => document.querySelectorAll("input").forEach((e) => e.blur()));
+  await page.waitForTimeout(1200);
   await shot(page, "04-decouvrir");
   await context.close();
 }
 
 if (want("5")) {
   const { page, context } = await session(browser, null);
-  await tapVisible(page, "Découvrir nos services et demander un devis");
-  await page.waitForTimeout(1200);
   await tapVisible(page, "Demander un devis gratuit");
   await page.waitForTimeout(1500);
   await page.getByText("Professionnel", { exact: true }).last().click({ force: true });
