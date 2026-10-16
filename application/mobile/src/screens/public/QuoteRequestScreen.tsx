@@ -94,7 +94,7 @@ export function QuoteRequestScreen() {
         <Text style={[type.title2, { color: colors.ink, marginTop: spacing.lg, textAlign: "center" }]}>Demande envoyée</Text>
         <Text style={[type.callout, { color: colors.inkSecondary, marginTop: spacing.sm, textAlign: "center" }]}>{sent}</Text>
         <View style={{ alignSelf: "stretch", marginTop: spacing.xl }}>
-          <Button label="Retour à l'accueil" onPress={() => navigation.navigate("PublicTabs", undefined, { pop: true })} />
+          <Button label="Retour à l'accueil" onPress={() => navigation.navigate("PublicHome", undefined, { pop: true })} />
         </View>
         <Text style={[type.footnote, { color: colors.inkTertiary, marginTop: spacing.lg, textAlign: "center" }]}>
           Une urgence ? Appelez-nous au {COMPANY_CONTACT.phone}.

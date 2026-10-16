@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { NavigationContainer, DarkTheme, DefaultTheme, type NavigatorScreenParams } from "@react-navigation/native";
+import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../theme/ThemeProvider";
@@ -13,7 +13,8 @@ import { listenToPushTaps } from "../notifications/push";
 import { startLiveSync } from "../sync/liveSync";
 import { QuoteRequestScreen } from "../screens/public/QuoteRequestScreen";
 import { PublicNewsDetailScreen } from "../screens/public/PublicNewsDetailScreen";
-import { PublicTabs, type PublicTabsParamList } from "./PublicTabs";
+import { PublicHomeScreen } from "../screens/public/PublicHomeScreen";
+import { PublicNewsScreen } from "../screens/public/PublicNewsScreen";
 import type { PublicService } from "../api/public.api";
 import { LegalScreen } from "../screens/profile/LegalScreen";
 import { useStackScreenOptions } from "./stackScreenOptions";
@@ -23,12 +24,13 @@ export type RootStackParamList = {
   ChangePassword: undefined;
 };
 
-// Hors connexion : l'accueil public de DEEP CLEAN en onglets (premier écran,
-// sans compte, aucune inscription — règle App Store 3.2), la demande de
-// devis, les actualités, les mentions légales, et l'« Espace équipe »
-// (connexion des collaborateurs).
+// Hors connexion : l'accueil public de DEEP CLEAN (premier écran, sans
+// compte, aucune inscription — règle App Store 3.2), la demande de devis, les
+// actualités, les mentions légales, et l'« Espace équipe » (connexion des
+// collaborateurs, en bas du menu).
 export type PublicStackParamList = {
-  PublicTabs: NavigatorScreenParams<PublicTabsParamList> | undefined;
+  PublicHome: undefined;
+  PublicNews: undefined;
   Login: undefined;
   QuoteRequest: { service?: PublicService } | undefined;
   PublicNewsDetail: { newsId: string };
@@ -73,9 +75,10 @@ export function RootNavigator() {
         // désactivé, hors connexion…), pour que le message reste visible.
         <PublicStack.Navigator
           screenOptions={stackOptions}
-          initialRouteName={status === "locked" || sessionExpired || !!endMessage ? "Login" : "PublicTabs"}
+          initialRouteName={status === "locked" || sessionExpired || !!endMessage ? "Login" : "PublicHome"}
         >
-          <PublicStack.Screen name="PublicTabs" component={PublicTabs} options={{ headerShown: false, title: "Deep Clean" }} />
+          <PublicStack.Screen name="PublicHome" component={PublicHomeScreen} options={{ headerShown: false, title: "Deep Clean" }} />
+          <PublicStack.Screen name="PublicNews" component={PublicNewsScreen} options={{ title: "Actualités" }} />
           <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: "Espace équipe" }} />
           <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />
           <PublicStack.Screen name="PublicNewsDetail" component={PublicNewsDetailScreen} options={{ title: "Actualité" }} />

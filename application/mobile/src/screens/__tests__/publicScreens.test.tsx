@@ -3,15 +3,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react-nativ
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "../../theme/ThemeProvider";
 import { PublicHomeScreen } from "../public/PublicHomeScreen";
-import { PublicServicesScreen } from "../public/PublicServicesScreen";
 import { PublicNewsScreen } from "../public/PublicNewsScreen";
-import { PublicContactScreen } from "../public/PublicContactScreen";
 import { QuoteRequestScreen } from "../public/QuoteRequestScreen";
 import { listPublicNews, submitQuoteRequest } from "../../api/public.api";
 import { checkServiceArea } from "../../config/serviceArea";
 
-// Accueil public (sans compte) : onglets Accueil, Services, Actualités,
-// Contact, et demande de devis.
+// Accueil public (sans compte) : la « plongée » avec son menu, les actualités
+// et la demande de devis.
 
 const mockNavigate = jest.fn();
 let mockRouteParams: Record<string, unknown> | undefined;
@@ -24,6 +22,7 @@ jest.mock("@react-navigation/native", () => {
     useNavigation: () => ({ navigate: mockNavigate, goBack: jest.fn(), setOptions: jest.fn() }),
     useRoute: () => ({ params: mockRouteParams }),
     useFocusEffect: (effect: () => void) => useEffect(effect, [effect]),
+    useIsFocused: () => true,
   };
 });
 
@@ -56,22 +55,48 @@ beforeEach(() => {
 });
 
 describe("Accueil public", () => {
-  it("présente Deep Clean et mène au devis ou à l'espace équipe, sans inscription", async () => {
+  it("présente Deep Clean de la surface au fond, sans inscription", async () => {
     renderScreen(<PublicHomeScreen />);
     await waitFor(() => expect(listPublicNews).toHaveBeenCalled());
-    expect(screen.getByText("Le propre, en profondeur.")).toBeTruthy();
-    expect(screen.getByText("Une entreprise de Manosque")).toBeTruthy();
-    expect(screen.getByText("Conciergerie")).toBeTruthy();
+    expect(screen.getByLabelText("Deep Clean — Service de nettoyage")).toBeTruthy();
+    expect(screen.getByText("On ne nettoie pas en surface.")).toBeTruthy();
+    expect(screen.getByText("Nettoyage en profondeur")).toBeTruthy();
+    expect(screen.getByText("Une méthode, pas une routine")).toBeTruthy();
+    expect(screen.getByText("Parlons de votre projet")).toBeTruthy();
     expect(screen.queryByText(/inscri|créer un compte/i)).toBeNull();
-    // Aucune actualité publiée : pas de section vide.
+    // Aucune actualité publiée : pas de partie vide.
     expect(screen.queryByText("Les nouvelles de Deep Clean")).toBeNull();
 
-    fireEvent.press(screen.getByText("Demander un devis gratuit"));
-    expect(mockNavigate).toHaveBeenCalledWith("QuoteRequest");
-    fireEvent.press(screen.getAllByText("Espace équipe")[0]!);
+    fireEvent.press(screen.getAllByText("Demander un devis gratuit")[0]!);
+    expect(mockNavigate).toHaveBeenCalledWith("QuoteRequest", undefined);
+    fireEvent.press(screen.getByText("Conciergerie"));
+    expect(mockNavigate).toHaveBeenCalledWith("QuoteRequest", { service: "Conciergerie" });
+  });
+
+  it("ouvre le menu « plongée » : parties, services, puis Espace équipe", async () => {
+    renderScreen(<PublicHomeScreen />);
+    await waitFor(() => expect(listPublicNews).toHaveBeenCalled());
+    expect(screen.queryByText("−14 m")).toBeNull();
+
+    fireEvent.press(screen.getByLabelText("Ouvrir le menu"));
+    expect(screen.getByText("−14 m")).toBeTruthy();
+    expect(screen.getByText("Contact & devis")).toBeTruthy();
+    expect(screen.getByText("VOS SERVICES — DEVIS GRATUIT")).toBeTruthy();
+
+    fireEvent.press(screen.getByText("Remise en état"));
+    expect(mockNavigate).toHaveBeenCalledWith("QuoteRequest", { service: "Remise en état" });
+
+    fireEvent.press(screen.getByLabelText("Ouvrir le menu"));
+    fireEvent.press(screen.getByText("Connexion des collaborateurs Deep Clean"));
     expect(mockNavigate).toHaveBeenCalledWith("Login", undefined, { pop: true });
-    fireEvent.press(screen.getByText("Mentions légales"));
-    expect(mockNavigate).toHaveBeenCalledWith("Legal");
+  });
+
+  it("mène à la liste des actualités depuis le menu quand aucune n'est à la une", async () => {
+    renderScreen(<PublicHomeScreen />);
+    await waitFor(() => expect(listPublicNews).toHaveBeenCalled());
+    fireEvent.press(screen.getByLabelText("Ouvrir le menu"));
+    fireEvent.press(screen.getByText("Actualités"));
+    expect(mockNavigate).toHaveBeenCalledWith("PublicNews");
   });
 
   it("affiche les actualités publiées par la RH ou la direction", async () => {
@@ -81,19 +106,27 @@ describe("Accueil public", () => {
     fireEvent.press(screen.getByText("Nous recrutons à Manosque"));
     expect(mockNavigate).toHaveBeenCalledWith("PublicNewsDetail", { newsId: NEWS.id });
     fireEvent.press(screen.getByText("Tout voir"));
-    expect(mockNavigate).toHaveBeenCalledWith("PublicTabs", { screen: "PublicNews" });
+    expect(mockNavigate).toHaveBeenCalledWith("PublicNews");
   });
-});
 
-describe("Services", () => {
-  it("détaille les prestations et ouvre un devis déjà présélectionné", () => {
-    renderScreen(<PublicServicesScreen />);
+  it("détaille pièce par pièce et répond à « Intervenez-vous chez moi ? »", async () => {
+    renderScreen(<PublicHomeScreen />);
+    await waitFor(() => expect(listPublicNews).toHaveBeenCalled());
     expect(screen.getByText("Plans de travail & crédence")).toBeTruthy();
     fireEvent.press(screen.getByText("Chambre"));
     expect(screen.getByText("Dépoussiérage complet")).toBeTruthy();
-    // « Matelas » : la carte de soin spécifique (avant le détail pièce par pièce).
-    fireEvent.press(screen.getAllByText("Matelas")[0]!);
-    expect(mockNavigate).toHaveBeenCalledWith("QuoteRequest", { service: "Matelas" });
+
+    fireEvent.changeText(screen.getByPlaceholderText("Code postal"), "04800");
+    fireEvent.press(screen.getByText("Vérifier"));
+    expect(screen.getByText(/nous intervenons à Gréoux-les-Bains/)).toBeTruthy();
+  });
+
+  it("distingue communes desservies, voisines, éloignées et saisies invalides", () => {
+    expect(checkServiceArea("04 100")).toEqual({ kind: "served", towns: ["Manosque"] });
+    expect(checkServiceArea("04220")).toEqual({ kind: "served", towns: ["Sainte-Tulle", "Corbières"] });
+    expect(checkServiceArea("84120")).toEqual({ kind: "maybe" });
+    expect(checkServiceArea("75011")).toEqual({ kind: "outside" });
+    expect(checkServiceArea("041")).toEqual({ kind: "invalid" });
   });
 });
 
@@ -107,23 +140,6 @@ describe("Actualités", () => {
     jest.mocked(listPublicNews).mockResolvedValue({ items: [NEWS], total: 1 });
     renderScreen(<PublicNewsScreen />);
     expect(await screen.findByText("Nous recrutons à Manosque")).toBeTruthy();
-  });
-});
-
-describe("Contact et zone d'intervention", () => {
-  it("répond tout de suite à « Intervenez-vous chez moi ? »", () => {
-    renderScreen(<PublicContactScreen />);
-    fireEvent.changeText(screen.getByPlaceholderText("Code postal"), "04800");
-    fireEvent.press(screen.getByText("Vérifier"));
-    expect(screen.getByText(/nous intervenons à Gréoux-les-Bains/)).toBeTruthy();
-  });
-
-  it("distingue communes desservies, voisines, éloignées et saisies invalides", () => {
-    expect(checkServiceArea("04 100")).toEqual({ kind: "served", towns: ["Manosque"] });
-    expect(checkServiceArea("04220")).toEqual({ kind: "served", towns: ["Sainte-Tulle", "Corbières"] });
-    expect(checkServiceArea("84120")).toEqual({ kind: "maybe" });
-    expect(checkServiceArea("75011")).toEqual({ kind: "outside" });
-    expect(checkServiceArea("041")).toEqual({ kind: "invalid" });
   });
 });
 
@@ -161,7 +177,7 @@ describe("Demande de devis", () => {
     expect(await screen.findByText("Demande envoyée")).toBeTruthy();
   });
 
-  it("reprend la prestation choisie dans l'onglet Services", async () => {
+  it("reprend la prestation choisie depuis l'accueil", async () => {
     jest.mocked(submitQuoteRequest).mockResolvedValue("ok");
     mockRouteParams = { service: "Conciergerie" };
     renderScreen(<QuoteRequestScreen />);

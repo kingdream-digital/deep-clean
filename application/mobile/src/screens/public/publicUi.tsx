@@ -1,11 +1,9 @@
 import React from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "../../theme/ThemeProvider";
-import { PressableScale } from "../../components/PressableScale";
 import { BrandEmblem } from "../../components/BrandEmblem";
 import { Alert } from "../../utils/alert";
 import { openDirectionsTo } from "../../utils/openMaps";
@@ -14,8 +12,7 @@ import { COMPANY_CONTACT, PRIVACY_URL, SUPPORT_URL } from "../../config/links";
 import { publicNewsCoverUrl, type PublicNews } from "../../api/public.api";
 import type { PublicStackParamList } from "../../navigation/RootNavigator";
 
-// Briques communes de l'accueil public (onglets Accueil, Services,
-// Actualités, Contact).
+// Briques communes de l'accueil public et des actualités publiques.
 
 export const NAVY = "#1F2D69";
 export const newsDate = frenchDateFormat({ day: "numeric", month: "long", year: "numeric" });
@@ -44,64 +41,10 @@ export function useContactActions() {
   return { call: () => void call(), write, directions };
 }
 
-/** Grand titre d'un onglet (style iOS), sous la barre d'état. */
-export function TabTitle({ title, subtitle, top }: { title: string; subtitle?: string; top: number }) {
-  const { colors, spacing, type } = useTheme();
-  return (
-    <View style={{ paddingTop: top + spacing.md, paddingBottom: spacing.sm }}>
-      <Text style={[type.largeTitle, { color: colors.ink }]}>{title}</Text>
-      {!!subtitle && <Text style={[type.subhead, { color: colors.inkSecondary, marginTop: spacing.xxs }]}>{subtitle}</Text>}
-    </View>
-  );
-}
-
-export function SectionTitle({ overline, title, action, onAction }: { overline: string; title: string; action?: string; onAction?: () => void }) {
-  const { colors, spacing, type } = useTheme();
-  return (
-    <View style={{ marginTop: spacing.xxl, marginBottom: spacing.md, flexDirection: "row", alignItems: "flex-end" }}>
-      <View style={{ flex: 1 }}>
-        <Text style={[type.overline, { color: colors.inkTertiary }]}>{overline}</Text>
-        <Text style={[type.title2, { color: colors.ink, marginTop: spacing.xxs }]}>{title}</Text>
-      </View>
-      {!!action && !!onAction && (
-        <Pressable onPress={onAction} accessibilityRole="button" hitSlop={8} style={{ marginLeft: spacing.sm, marginBottom: 3 }}>
-          <Text style={[type.callout, { color: colors.accentText, fontFamily: "Inter_600SemiBold" }]}>{action}</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-export function ContactRow({ icon, label, detail, onPress, last }: { icon: keyof typeof Ionicons.glyphMap; label: string; detail?: string; onPress: () => void; last?: boolean }) {
-  const { colors, spacing, radius, type } = useTheme();
-  return (
-    <PressableScale onPress={onPress} accessibilityRole="button">
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.md,
-          borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
-          borderBottomColor: colors.border,
-        }}
-      >
-        <View style={{ width: 34, height: 34, borderRadius: radius.sm, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" }}>
-          <Ionicons name={icon} size={17} color={colors.accentText} />
-        </View>
-        <View style={{ flex: 1, marginLeft: spacing.sm }}>
-          <Text style={[type.callout, { color: colors.ink }]}>{label}</Text>
-          {!!detail && <Text style={[type.footnote, { color: colors.inkTertiary }]}>{detail}</Text>}
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={colors.inkTertiary} />
-      </View>
-    </PressableScale>
-  );
-}
-
 /** Mentions légales, confidentialité, assistance — accessibles sans compte. */
-export function PublicLegalLinks() {
+export function PublicLegalLinks({ tone = "light" }: { tone?: "light" | "dark" }) {
   const { colors, spacing, type } = useTheme();
+  const ink = tone === "dark" ? "rgba(234,246,251,0.7)" : colors.inkTertiary;
   const navigation = usePublicNavigation();
   const links = [
     { label: "Mentions légales", open: () => navigation.navigate("Legal") },
@@ -112,28 +55,12 @@ export function PublicLegalLinks() {
     <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", marginTop: spacing.sm }}>
       {links.map((link, i) => (
         <React.Fragment key={link.label}>
-          {i > 0 && <Text style={[type.caption, { color: colors.inkTertiary, marginHorizontal: spacing.xs }]}>·</Text>}
+          {i > 0 && <Text style={[type.caption, { color: ink, marginHorizontal: spacing.xs }]}>·</Text>}
           <Pressable onPress={link.open} accessibilityRole="link" hitSlop={8}>
-            <Text style={[type.caption, { color: colors.inkTertiary, textDecorationLine: "underline" }]}>{link.label}</Text>
+            <Text style={[type.caption, { color: ink, textDecorationLine: "underline" }]}>{link.label}</Text>
           </Pressable>
         </React.Fragment>
       ))}
-    </View>
-  );
-}
-
-/** Bas de page des onglets publics : accès des collaborateurs + mentions. */
-export function PublicFooter() {
-  const { colors, spacing, type } = useTheme();
-  const navigation = usePublicNavigation();
-  return (
-    <View style={{ marginTop: spacing.xxl, alignItems: "center" }}>
-      <PressableScale onPress={() => navigation.navigate("Login", undefined, { pop: true })} accessibilityRole="button" style={{ padding: spacing.xs }}>
-        <Text style={[type.footnote, { color: colors.inkSecondary, textAlign: "center" }]}>
-          Vous faites partie de l'équipe Deep Clean ? <Text style={{ color: colors.accentText, fontWeight: "600" }}>Espace équipe</Text>
-        </Text>
-      </PressableScale>
-      <PublicLegalLinks />
     </View>
   );
 }

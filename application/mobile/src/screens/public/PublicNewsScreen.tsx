@@ -1,21 +1,19 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
 import { StateView } from "../../components/StateView";
 import { listPublicNews, type PublicNews } from "../../api/public.api";
-import { NewsCover, TabTitle, newsDate, usePublicNavigation } from "./publicUi";
+import { NewsCover, newsDate, usePublicNavigation } from "./publicUi";
 
-// Onglet « Actualités » de l'accueil public : les actualités que la RH ou la
+// « Actualités » de l'accueil public : les actualités que la RH ou la
 // direction a choisi d'afficher pour tout le monde, depuis leur espace
 // (Actualités → « Afficher aussi sur l'accueil public »).
 export function PublicNewsScreen() {
   const { colors, spacing, type } = useTheme();
-  const insets = useSafeAreaInsets();
   const navigation = usePublicNavigation();
   const [items, setItems] = useState<PublicNews[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -43,7 +41,7 @@ export function PublicNewsScreen() {
     setRefreshing(false);
   }
 
-  const header = <TabTitle title="Actualités" subtitle="Les nouvelles de Deep Clean." top={insets.top} />;
+  const header = <Text style={[type.subhead, { color: colors.inkSecondary, paddingTop: spacing.md, paddingBottom: spacing.md }]}>Les nouvelles de Deep Clean.</Text>;
 
   if (state !== "ready") {
     return (
