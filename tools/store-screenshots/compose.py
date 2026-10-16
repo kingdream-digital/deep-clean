@@ -24,7 +24,7 @@ SKY = (191, 227, 244)
 
 # Ordre de la fiche : le volet public d'abord (clients), puis les équipes.
 SHOTS = [
-    ("04-decouvrir", "decouvrir", "Le propre, en profondeur", "Nettoyage, entretien, conciergerie à Manosque"),
+    ("04-decouvrir", "decouvrir", "Le propre, en profondeur", "Qui nous sommes, nos services, nos actualités"),
     ("05-devis", "devis", "Un devis gratuit, sans compte", "Réponse sous 24 à 48 h"),
     ("01-accueil-employe", "accueil-employe", "Votre journée en un coup d'œil", "Mission en cours, pointage, heures"),
     ("02-planning", "planning", "Le planning de la semaine", "Chaque mission, son lieu, son équipe"),

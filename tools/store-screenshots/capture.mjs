@@ -31,6 +31,9 @@ export async function session(browser, username) {
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);
   if (username) {
+    // L'app s'ouvre sur l'accueil public : la connexion est dans « Espace équipe ».
+    await page.getByText("Espace équipe", { exact: true }).first().click();
+    await page.waitForTimeout(1500);
     await page.getByPlaceholder("jdupont").fill(username);
     await page.getByPlaceholder("••••••••••").fill(PASSWORD);
     await page.getByText("Se connecter", { exact: true }).click();

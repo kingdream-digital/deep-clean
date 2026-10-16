@@ -77,15 +77,15 @@ vérificateur tombe sur des erreurs (règle 2.1).
    tables `user_blocks` et `message_reports` (messagerie : blocage et
    signalement), colonne `users.deletionRequestedAt` (suppression de compte
    depuis l'app), `prospects.createdById` facultatif (demandes de devis de
-   l'espace public), table `welcome_offers` et colonne
-   `prospects.welcomeOfferId` (offre de bienvenue de l'espace public).
+   l'espace public), colonne `announcements.isPublic` (actualités affichées
+   sur l'accueil public).
 3. **Web** : Redeploy (pages légales mises à jour, espace public).
 4. Vérifier dans un navigateur :
    - `https://app.deep-clean.fr/confidentialite.html` (mentionne les demandes
      de devis) ;
    - sur `https://app.deep-clean.fr`, l'accueil public s'affiche en premier
-     (devis, « Intervenez-vous chez moi ? ») et « Espace équipe », en haut
-     à droite, mène à la connexion.
+     (onglets Accueil, Services, Actualités, Contact) et « Espace équipe »
+     mène à la connexion.
 5. **Site officiel `https://deep-clean.fr`** : c'est la version « La
    Plongée » (dossier `v2/` de ce dépôt, celle dont l'espace « Découvrir » de
    l'app reprend les textes et les photos). Il n'est **pas encore en ligne** :
@@ -147,12 +147,15 @@ listé, pas d'Apple Business Manager.
 nettoyage et de conciergerie de Manosque. Elle a deux publics :
 
 1. **Le grand public** (particuliers et entreprises de la région), **sans
-   compte** : l'app **s'ouvre sur l'accueil public**. Il présente l'entreprise
-   et ses prestations, répond tout de suite à « Intervenez-vous chez moi ? »
-   (code postal), affiche l'offre de bienvenue quand la Direction en propose
-   une, et permet d'envoyer une demande de devis, d'appeler ou d'écrire. Les
-   demandes arrivent dans l'espace commercial de l'entreprise. Les salariés
-   passent par « Espace équipe » (en haut à droite).
+   compte** : l'app **s'ouvre sur l'accueil public**, en quatre onglets.
+   *Accueil* : qui est DEEP CLEAN, raccourcis (devis, appel, services,
+   itinéraire), dernières actualités, univers, « Intervenez-vous chez moi ? ».
+   *Services* : prestations, soins spécifiques, détail pièce par pièce,
+   méthode, engagements, devis déjà présélectionné. *Actualités* : publiées
+   par la RH ou la direction depuis leur espace. *Contact* : devis,
+   téléphone, e-mail, itinéraire, zone d'intervention, questions fréquentes.
+   Les demandes de devis arrivent dans l'espace commercial de l'entreprise.
+   Les salariés passent par l'onglet « Espace équipe ».
 2. **Les équipes de DEEP CLEAN** (salariés, chefs d'équipe, superviseurs, RH,
    direction), avec les identifiants remis par la RH : planning, missions,
    pointage, signalements, messagerie, RH, devis et factures.
@@ -167,7 +170,7 @@ l'autorise par écrit (§2 et annexe).
 |---|---|---|
 | **5.2.1** Propriété intellectuelle | « Apps should be submitted by the person or legal entity that owns **or has licensed** the intellectual property. » | Boris Corsiez publie **sous licence** de DEEP CLEAN : autorisation écrite signée, jointe dans App Store Connect. |
 | **4.2.6** Applis générées par un service | Les prestataires ne doivent pas soumettre, au nom de leurs clients, des applis issues d'un modèle commercialisé. | L'app n'est **pas** un modèle en marque blanche : elle est développée sur mesure pour DEEP CLEAN, avec son contenu. **Ne jamais écrire** dans la fiche ni la note « louée à des entreprises clientes », « premier client », « plateforme pour toutes les entreprises de nettoyage ». |
-| **3.2** Audience | Apple oriente les applis réservées aux salariés d'une seule entreprise vers la distribution privée. | L'app **s'ouvre sur un accueil public utilisable sans compte** (devis, zone d'intervention, contact, offre de bienvenue) ; la connexion du personnel n'est qu'un bouton « Espace équipe ». C'est l'app d'une entreprise locale pour ses clients **et** ses équipes. |
+| **3.2** Audience | Apple oriente les applis réservées aux salariés d'une seule entreprise vers la distribution privée. | L'app **s'ouvre sur un accueil public utilisable sans compte** (présentation, services, actualités, devis, zone d'intervention, contact) ; la connexion du personnel n'est qu'un onglet « Espace équipe ». C'est l'app d'une entreprise locale pour ses clients **et** ses équipes. |
 
 **Risque résiduel, dit franchement :** la décision reste celle du
 vérificateur. Si Apple propose malgré tout la distribution privée (règle 3.2),
@@ -280,8 +283,7 @@ Règles suivies pour les captures (règle 2.3.3) :
 - la première capture n'est **pas** l'écran de connexion : c'est l'accueil
   public, premier écran de l'app ;
 - **aucun prix ni aucune remise** dans les captures, le nom ou le sous-titre
-  (règle 2.3.7) : refaire les captures avec l'offre de bienvenue
-  **désactivée** ;
+  (règle 2.3.7) ;
 - chaque écran montré est accessible avec les comptes de démo du §6 ;
 - fond et titres aux couleurs de la charte (marine `#1F2D69`, bleu
   `#2A4F8E`, bleu goutte `#1E9CC6`).
@@ -318,8 +320,8 @@ remplaçant les identifiants) :
 Deep Clean is the official app of DEEP CLEAN, a cleaning and concierge company in Manosque, France. The app is in French.
 
 It has two audiences:
-1) The general public, WITHOUT any account: the app opens on a public home screen. Anyone can browse the company's services and FAQ, check whether their town is in the service area ("Intervenez-vous chez moi ?", e.g. postal code 04100), call or email the company, and send a quote request (it goes to the company's sales team; feel free to send a test request). When the company runs a welcome offer (a discount on the first cleaning service requested through the app), it is shown with its full terms; the discount applies only to the cleaning service, quoted and paid outside the app, and unlocks nothing in the app.
-Staff sign in through "Espace équipe" (top right of the home screen).
+1) The general public, WITHOUT any account: the app opens on a public area with four tabs. "Accueil" presents the company (who we are, shortcuts, latest news, services, service-area check: "Intervenez-vous chez moi ?", e.g. postal code 04100). "Services" details each service room by room and opens a quote request for it. "Actualités" shows the company's news, published by its HR or management from the staff area. "Contact" lets anyone call, email, get directions, check the service area, read the FAQ and send a quote request (it goes to the company's sales team; feel free to send a test request).
+Staff sign in through the "Espace équipe" tab.
 2) DEEP CLEAN's staff (employees, team leaders, supervisors, HR, management), with credentials provided by the company's HR department. There is no public sign-up by design: staff accounts are created by HR. Employees use the app on their personal iPhones.
 
 The app was custom-built for DEEP CLEAN and is published by Boris Corsiez (KingDream Digital) under a license from DEEP CLEAN SAS (SIREN 942 773 375), which owns the "Deep Clean" name and logo. The written authorization signed by the company's president is attached.
@@ -327,7 +329,7 @@ The app was custom-built for DEEP CLEAN and is published by Boris Corsiez (KingD
 Demo accounts (staff area):
 - Employee: <identifiant> / <mot de passe> — today's missions, schedule, clock-in/out, problem reporting, notifications, messaging.
 - Supervisor: <identifiant> / <mot de passe> — schedule management, validation of missions and timesheets.
-- Management: <identifiant> / <mot de passe> — company overview, statistics, quotes and invoices, welcome offer settings (Menu > "Offre de bienvenue").
+- Management: <identifiant> / <mot de passe> — company overview, statistics, quotes and invoices, news (Menu > "Actualités": a switch shows a news item on the public area).
 
 Privacy and safety:
 - Camera and location are requested only when the user clocks in or out, as proof of presence on the job site (and when a manager records a job site's location). Location is never used in the background.
@@ -337,28 +339,16 @@ Privacy and safety:
 - Privacy policy: https://app.deep-clean.fr/confidentialite.html
 ```
 
-## 6 bis. Offre de bienvenue (facultative)
+## 6 bis. Actualités de l'accueil public
 
-Réglée dans l'app par la Direction (Menu → Offre de bienvenue) : taux, dates,
-phrase d'accroche, conditions complètes (« Rédiger les conditions types »
-propose un texte à relire), bouton d'affichage. Elle n'apparaît au public que
-si elle est activée **et** dans ses dates, et disparaît seule à la date de
-fin, sans nouvelle version de l'app. Chaque demande de devis envoyée pendant
-l'offre porte sa mention (fiche prospect et notification) : le commercial
-applique la remise **sur le devis**, au tarif habituel, si le client n'a
-jamais fait appel à DEEP CLEAN.
-
-Règles à respecter :
-- **accord écrit de DEEP CLEAN** avant de l'activer (taux, dates, public,
-  plafond éventuel) ; l'offre doit être réellement appliquée (règle Apple
-  2.3.1 et droit de la consommation) ;
-- jamais de « -10 % » dans le nom, le sous-titre ni les captures de la fiche
-  (règle 2.3.7) : l'annoncer au besoin dans le **texte promotionnel** (170
-  caractères, modifiable à tout moment sans nouvelle vérification) ;
-- jamais conditionnée à l'activation des notifications, à une note ou un
-  avis, ni à une newsletter (règles 5.1.2 et 3.2.2) ;
-- aucune mention de crédit d'impôt ou de « services à la personne » tant que
-  DEEP CLEAN n'a pas fourni son numéro de déclaration.
+La RH, la direction (et l'admin technique) alimentent l'accueil public depuis
+leur espace : Menu → Actualités → nouvelle actualité → « Afficher aussi sur
+l'accueil public », ou plus tard depuis l'actualité elle-même (interrupteur
+« Sur l'accueil public », qui permet aussi de la retirer). Le superviseur
+publie en interne seulement. Une actualité publique est visible par tout le
+monde sans compte, signée « DEEP CLEAN » (ni nom, ni rôle, ni photo de son
+auteur) : n'y mettre ni information interne, ni photo d'une personne sans son
+accord. Avant l'envoi à Apple, en publier 2 ou 3 vraies.
 
 ## 7. Questionnaires de confidentialité
 
@@ -517,7 +507,7 @@ Répondre en anglais, poliment, sans jamais contredire la fiche ni la note.
 
 **Règle 3.2 — « app intended for a limited audience / internal use »**
 ```
-Thank you for your review. Deep Clean is not limited to a company's employees: it is the official app of DEEP CLEAN, a cleaning and concierge company in Manosque, France, and it serves the general public without any account. The app opens on a public home screen where anyone can browse the company's services and FAQ, check instantly whether their town is in the service area, contact the company, see the current welcome offer and request a quote; requests reach the company's sales team directly. Staff sign in separately through "Espace équipe".
+Thank you for your review. Deep Clean is not limited to a company's employees: it is the official app of DEEP CLEAN, a cleaning and concierge company in Manosque, France, and it serves the general public without any account. The app opens on a public area with four tabs (home, services, news, contact) where anyone can learn who the company is, browse its services room by room, read its news, check instantly whether their town is in the service area, contact the company and request a quote; requests reach the company's sales team directly. Staff sign in separately through the "Espace équipe" tab.
 The staff area is used by the company's employees on their own personal iPhones (not company-managed devices), alongside seasonal and part-time staff who need to find the app by name on the App Store.
 We would be grateful if you could reconsider the app for public distribution on the App Store.
 ```
@@ -551,7 +541,7 @@ Account deletion is available in the app: Menu > Profil > "Supprimer mon compte"
 - [ ] Comptes de démo Employé, Superviseur et Direction créés, mots de passe changés, missions planifiées pendant 10 jours (§6)
 - [ ] L'app s'ouvre sur l'accueil public ; « Espace équipe » mène à la connexion
 - [ ] Une demande de devis de test envoyée depuis l'app arrive bien dans Commercial → Prospects
-- [ ] Offre de bienvenue : soit désactivée, soit validée **par écrit** par DEEP CLEAN (taux, dates, conditions) et réellement appliquée sur les devis (§6 bis)
+- [ ] 2 ou 3 **vraies** actualités publiées sur l'accueil public par la RH ou la direction (Menu → Actualités → « Afficher aussi sur l'accueil public »), pour que l'onglet Actualités ne soit pas vide pendant la vérification
 - [ ] Autorisation signée de DEEP CLEAN jointe (annexe)
 - [ ] Fiche, mots-clés, catégories, URL et classification renseignés (§4) — aucune mention « interne » ou « louée à des entreprises »
 - [ ] Captures iPhone 6,9" importées dans l'ordre (§5)

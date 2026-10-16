@@ -53,6 +53,10 @@ export const getPublicNewsHandler = asyncHandler(async (req: Request, res: Respo
 
 export const getPublicNewsCoverPhotoHandler = asyncHandler(async (req: Request, res: Response) => {
   const photo = await announcementsService.getPublicNewsCoverPhoto(req.params.id as string);
+  // Image publique affichée telle quelle par l'app web (app.deep-clean.fr,
+  // autre origine que l'API) : helmet impose sinon « same-origin », qui
+  // bloque son affichage dans le navigateur.
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   sendCoverPhoto(res, photo.storageKey, "public, max-age=3600");
 });
 

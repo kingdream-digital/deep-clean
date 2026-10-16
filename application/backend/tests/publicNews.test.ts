@@ -63,6 +63,8 @@ describe("Actualités de l'accueil public", () => {
     const photo = await request(app).get(`/api/v1/public/news/${id}/cover-photo`);
     expect(photo.status).toBe(200);
     expect(photo.headers["content-type"]).toBe("image/jpeg");
+    // Affichable par l'app web, hébergée sur une autre origine que l'API.
+    expect(photo.headers["cross-origin-resource-policy"]).toBe("cross-origin");
 
     await request(app).patch(`/api/v1/announcements/${id}/visibility`).set("Authorization", `Bearer ${director}`).send({ isPublic: false });
     expect((await request(app).get(`/api/v1/public/news/${id}/cover-photo`)).status).toBe(404);
