@@ -12,18 +12,18 @@ export const apiClient = axios.create({
 // État d'authentification injecté par AuthContext au démarrage de l'app —
 // évite une dépendance circulaire entre le client HTTP et le contexte React.
 let getAccessToken: () => string | null = () => null;
-let onUnauthorized: () => void = () => {};
 let refreshInFlight: Promise<string | null> | null = null;
 let performRefresh: () => Promise<string | null> = async () => null;
 
 export function configureApiClient(handlers: {
   getAccessToken: () => string | null;
+  // Renvoie le nouveau jeton d'accès, ou null. C'est AuthContext qui décide
+  // de fermer la session (refus réel du serveur) ou de la garder (pas de
+  // réseau, serveur indisponible) : l'intercepteur ne déconnecte jamais seul.
   refreshAccessToken: () => Promise<string | null>;
-  onUnauthorized: () => void;
 }) {
   getAccessToken = handlers.getAccessToken;
   performRefresh = handlers.refreshAccessToken;
-  onUnauthorized = handlers.onUnauthorized;
 }
 
 // Exposé pour les cas où un composant a besoin du token brut plutôt que de
@@ -46,7 +46,8 @@ interface RetriableConfig extends InternalAxiosRequestConfig {
 }
 
 // Sur un 401 (token expiré), tente une unique fois de rafraîchir la session
-// puis rejoue la requête. Si le rafraîchissement échoue, l'utilisateur est déconnecté.
+// puis rejoue la requête. Si le serveur refuse réellement la session,
+// AuthContext déconnecte l'utilisateur ; sans réseau, la session est gardée.
 apiClient.interceptors.response.use(
   (res) => {
     // Lecture, suppression ou envoi dans la messagerie / les notifications :
@@ -79,8 +80,6 @@ apiClient.interceptors.response.use(
         original.headers.set("Authorization", `Bearer ${newToken}`);
         return apiClient(original);
       }
-
-      onUnauthorized();
     }
 
     return Promise.reject(error);

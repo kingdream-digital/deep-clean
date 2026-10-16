@@ -1,18 +1,23 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
+import NetInfo from "@react-native-community/netinfo";
 import * as authApi from "../api/auth.api";
 import { configureApiClient } from "../api/client";
 import {
   clearPersistedRefreshToken,
+  clearSessionUser,
   isBiometricLoginEnabled,
   persistLastUsername,
   persistRefreshToken,
+  persistSessionUser,
   readLastUsername,
   readPersistedRefreshToken,
+  readSessionUser,
   setBiometricLoginEnabled,
 } from "./secureStorage";
 import { authenticateWithBiometrics, getAvailableBiometricKind, type BiometricKind } from "./biometrics";
 import { clearCache } from "../offline/cache";
-import { clearQueue } from "../offline/queue";
+import { clearQueue, dropUnownedActions, setQueueOwner } from "../offline/queue";
 import { startSyncManager, stopSyncManager } from "../offline/syncManager";
 import { registerForPushNotificationsAsync, unregisterCurrentPushToken } from "../notifications/push";
 import { subscribeToDataChanges } from "../sync/liveSync";
@@ -22,6 +27,27 @@ import { subscribeToDataChanges } from "../sync/liveSync";
 // lancement de l'app — l'écran de connexion propose alors Face ID/Touch ID
 // au lieu du formulaire mot de passe (voir unlockWithBiometrics ci-dessous).
 type Status = "booting" | "authenticated" | "unauthenticated" | "locked";
+
+const OFFLINE_LOGIN_MESSAGE =
+  "Pas de connexion internet. Vous serez reconnecté automatiquement dès le retour du réseau.";
+
+// Refus RÉEL de la session par le serveur (jeton expiré/révoqué, compte
+// désactivé). Tout le reste — pas de réseau, délai dépassé, serveur
+// indisponible, maintenance — laisse la session intacte : un salarié sur un
+// chantier sans couverture ne doit ni être déconnecté ni perdre ses actions
+// en attente (bug corrigé : toute erreur effaçait la session au démarrage).
+function sessionRejection(err: unknown): { expired: boolean; message?: string } | null {
+  const response = (err as { response?: { status?: number; data?: { error?: { message?: string } } } } | null)?.response;
+  if (!response) return null;
+  if (response.status === 401) return { expired: true };
+  if (response.status === 403) {
+    return {
+      expired: false,
+      message: response.data?.error?.message ?? "Ce compte est désactivé. Pour tout problème de connexion ou de compte, contactez la RH.",
+    };
+  }
+  return null;
+}
 
 interface AuthState {
   status: Status;
@@ -43,6 +69,10 @@ interface AuthState {
   biometricKind: BiometricKind | null;
   // Identifiant à afficher sur l'écran de déverrouillage quand status === "locked".
   lockedUsername: string | null;
+  // Session conservée mais pas encore revalidée par le serveur (démarrage ou
+  // renouvellement sans réseau) : les écrans servent leurs données en cache,
+  // la reconnexion est retentée au retour du réseau ou au premier plan.
+  offline: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -74,6 +104,7 @@ const initialState: AuthState = {
   biometricEnabled: false,
   biometricKind: null,
   lockedUsername: null,
+  offline: false,
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -85,6 +116,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshTokenRef = useRef<string | null>(null);
   const rememberMeRef = useRef(false);
   const biometricEnabledRef = useRef(false);
+  // Un seul renouvellement à la fois : le serveur fait tourner le refresh
+  // token à chaque appel, deux appels simultanés avec le même jeton feraient
+  // refuser le second — et fermer la session à tort.
+  const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
 
   const applySession = useCallback((session: authApi.AuthResponse, rememberMe: boolean, biometricEnabled: boolean) => {
     accessTokenRef.current = session.accessToken;
@@ -99,7 +134,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       rememberMe,
       biometricEnabled,
       lockedUsername: null,
+      offline: false,
     }));
+    setQueueOwner(session.user.id);
   }, []);
 
   const clearSession = useCallback(async (reason?: "expired", endMessage?: string) => {
@@ -107,7 +144,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshTokenRef.current = null;
     rememberMeRef.current = false;
     biometricEnabledRef.current = false;
+    setQueueOwner(null);
     await clearPersistedRefreshToken();
+    await clearSessionUser();
     // Le déverrouillage biométrique n'a de sens que tant qu'une session
     // persistée existe : on l'éteint avec elle (déconnexion, session expirée).
     await setBiometricLoginEnabled(false);
@@ -121,8 +160,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // (processQueue() s'authentifie avec la session active au moment du
     // rejeu, pas avec celle qui a créé l'action) — usurpation d'identité pour
     // le pointage. On vide donc la file à chaque fin de session, comme le
-    // cache.
-    await clearQueue();
+    // cache. Chaque action porte désormais aussi le compte qui l'a créée
+    // (offline/queue.ts) et n'est jamais rejouée au nom d'un autre : une
+    // session simplement EXPIRÉE garde donc ses signalements en attente, qui
+    // partiront dès que la même personne se reconnecte.
+    if (reason === "expired") await dropUnownedActions();
+    else await clearQueue();
     setState({
       status: "unauthenticated",
       user: null,
@@ -132,35 +175,107 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       biometricEnabled: false,
       biometricKind: null,
       lockedUsername: null,
+      offline: false,
     });
   }, []);
 
-  const refreshAccessToken = useCallback(async (): Promise<string | null> => {
-    const current = refreshTokenRef.current;
-    if (!current) return null;
-    try {
-      const session = await authApi.refreshSession(current);
-      applySession(session, rememberMeRef.current, biometricEnabledRef.current);
-      if (rememberMeRef.current) {
-        await persistRefreshToken(session.refreshToken);
+  // Renouvellement impossible faute de réseau (ou serveur indisponible) : la
+  // session et le jeton persistant sont gardés. Si le profil du compte est
+  // connu, l'application s'ouvre normalement sur les données en cache ;
+  // sinon l'écran de connexion l'explique, sans rien effacer.
+  const enterOfflineSession = useCallback(async () => {
+    const cachedUser = await readSessionUser();
+    setState((prev) => {
+      if (prev.status === "authenticated") return { ...prev, offline: true };
+      if (cachedUser) {
+        setQueueOwner(cachedUser.id);
+        return {
+          ...prev,
+          status: "authenticated",
+          user: cachedUser,
+          sessionExpired: false,
+          endMessage: undefined,
+          rememberMe: rememberMeRef.current,
+          biometricEnabled: biometricEnabledRef.current,
+          lockedUsername: null,
+          offline: true,
+        };
       }
-      return session.accessToken;
-    } catch {
-      await clearSession("expired");
-      return null;
-    }
-  }, [applySession, clearSession]);
+      return {
+        ...prev,
+        status: "unauthenticated",
+        user: null,
+        sessionExpired: false,
+        endMessage: OFFLINE_LOGIN_MESSAGE,
+        lockedUsername: null,
+        offline: true,
+      };
+    });
+  }, []);
+
+  const refreshAccessToken = useCallback((): Promise<string | null> => {
+    if (refreshPromiseRef.current) return refreshPromiseRef.current;
+    const run = (async (): Promise<string | null> => {
+      const current = refreshTokenRef.current;
+      if (!current) {
+        await clearSession("expired");
+        return null;
+      }
+      try {
+        const session = await authApi.refreshSession(current);
+        // Déconnexion volontaire pendant l'appel : on ne rouvre pas la session.
+        if (refreshTokenRef.current !== current) return null;
+        applySession(session, rememberMeRef.current, biometricEnabledRef.current);
+        if (rememberMeRef.current) {
+          await persistRefreshToken(session.refreshToken);
+          await persistSessionUser(session.user);
+        }
+        return session.accessToken;
+      } catch (err) {
+        const rejection = sessionRejection(err);
+        if (rejection) {
+          await clearSession(rejection.expired ? "expired" : undefined, rejection.message);
+        } else {
+          await enterOfflineSession();
+        }
+        return null;
+      }
+    })();
+    refreshPromiseRef.current = run;
+    run
+      .finally(() => {
+        refreshPromiseRef.current = null;
+      })
+      .catch(() => undefined);
+    return run;
+  }, [applySession, clearSession, enterOfflineSession]);
 
   // Connecte le client HTTP au contexte d'authentification une seule fois.
   useEffect(() => {
     configureApiClient({
       getAccessToken: () => accessTokenRef.current,
       refreshAccessToken,
-      onUnauthorized: () => {
-        void clearSession("expired");
-      },
     });
-  }, [refreshAccessToken, clearSession]);
+  }, [refreshAccessToken]);
+
+  // Session gardée hors ligne : nouvelle tentative dès que le réseau revient
+  // et à chaque retour de l'application au premier plan.
+  useEffect(() => {
+    if (!state.offline || !refreshTokenRef.current) return undefined;
+    const retry = () => {
+      void refreshAccessToken();
+    };
+    const netSub = NetInfo.addEventListener((net) => {
+      if (net.isConnected && net.isInternetReachable !== false) retry();
+    });
+    const appSub = AppState.addEventListener("change", (next) => {
+      if (next === "active") retry();
+    });
+    return () => {
+      netSub();
+      appSub.remove();
+    };
+  }, [state.offline, refreshAccessToken]);
 
   // Compte modifié ailleurs (rôle, nom, désactivation par la RH) : appliqué
   // tout de suite sur cet appareil, sans attendre une reconnexion (retour
@@ -170,13 +285,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return subscribeToDataChanges(() => {
       authApi
         .fetchCurrentUser()
-        .then((fresh) =>
+        .then((fresh) => {
+          if (rememberMeRef.current) void persistSessionUser(fresh);
           setState((prev) =>
             prev.status === "authenticated" && prev.user && JSON.stringify({ ...prev.user, ...fresh }) !== JSON.stringify(prev.user)
               ? { ...prev, user: { ...prev.user, ...fresh } }
               : prev
-          )
-        )
+          );
+        })
         .catch((err: unknown) => {
           const status = (err as { response?: { status?: number } })?.response?.status;
           const message = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
@@ -252,8 +368,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (rememberMe) {
         await persistRefreshToken(session.refreshToken);
         await persistLastUsername(session.user.username);
+        await persistSessionUser(session.user);
       } else {
         await clearPersistedRefreshToken();
+        await clearSessionUser();
       }
     },
     [applySession]

@@ -17,9 +17,24 @@ export type OfflineActionType = "REPORT_PROBLEM";
 export interface OfflineAction<TPayload = unknown> {
   id: string;
   type: OfflineActionType;
+  // Compte qui a créé l'action : elle n'est jamais rejouée au nom d'un autre
+  // compte connecté ensuite sur le même appareil (absent sur les actions
+  // enregistrées avant l'ajout de ce champ).
+  ownerId?: string | null;
   payload: TPayload;
   createdAt: string;
   attempts: number;
+}
+
+// Compte actuellement connecté, renseigné par AuthContext.
+let currentOwnerId: string | null = null;
+
+export function setQueueOwner(userId: string | null): void {
+  currentOwnerId = userId;
+}
+
+export function getQueueOwner(): string | null {
+  return currentOwnerId;
 }
 
 async function readQueue(): Promise<OfflineAction[]> {
@@ -45,6 +60,7 @@ export async function enqueueAction<TPayload>(type: OfflineActionType, payload: 
   const action: OfflineAction<TPayload> = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     type,
+    ownerId: currentOwnerId,
     payload,
     createdAt: new Date().toISOString(),
     attempts: 0,
@@ -72,6 +88,18 @@ export async function bumpAttempts(id: string): Promise<void> {
   await writeQueue(queue.map((a) => (a.id === id ? { ...a, attempts: a.attempts + 1 } : a)));
 }
 
+// Actions enregistrées avant l'ajout du propriétaire : on ne sait pas à qui
+// elles appartiennent, elles ne survivent donc pas à une fin de session.
+export async function dropUnownedActions(): Promise<void> {
+  const queue = await readQueue();
+  const owned = queue.filter((a) => !!a.ownerId);
+  if (owned.length !== queue.length) await writeQueue(owned);
+}
+
 export async function clearQueue(): Promise<void> {
-  await AsyncStorage.removeItem(QUEUE_KEY);
+  try {
+    await AsyncStorage.removeItem(QUEUE_KEY);
+  } catch {
+    // Best-effort, comme le reste du cache hors ligne.
+  }
 }

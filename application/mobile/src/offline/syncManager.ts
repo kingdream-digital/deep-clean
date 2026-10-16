@@ -3,7 +3,7 @@ import { Alert } from "../utils/alert";
 import axios from "axios";
 import { createProblem, type CreateProblemInput } from "../api/problems.api";
 import { extractErrorMessage } from "../api/client";
-import { bumpAttempts, getQueue, removeFromQueue, type OfflineAction } from "./queue";
+import { bumpAttempts, getQueue, getQueueOwner, removeFromQueue, type OfflineAction } from "./queue";
 
 const MAX_ATTEMPTS = 5;
 
@@ -62,7 +62,11 @@ export async function processQueue(): Promise<void> {
   syncing = true;
   try {
     const queue = await getQueue();
+    const owner = getQueueOwner();
     for (const action of queue) {
+      // Action d'un autre compte (appareil partagé) : jamais rejouée au nom
+      // du compte actuellement connecté, laissée en attente pour son auteur.
+      if (action.ownerId && action.ownerId !== owner) continue;
       if (action.attempts >= MAX_ATTEMPTS) {
         await removeFromQueue(action.id);
         Alert.alert("Synchronisation abandonnée", describeAction(action) + " n'a pas pu être synchronisé après plusieurs tentatives.");
