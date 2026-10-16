@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#0B0B0F",
+    "backgroundColor": "#FFFFFF",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "fr.deepclean.app",
@@ -70,8 +70,8 @@
       "favicon": "./assets/favicon.png",
       "lang": "fr",
       "shortName": "Deep Clean",
-      "themeColor": "#0E7490",
-      "backgroundColor": "#0B0B0F",
+      "themeColor": "#1F2D69",
+      "backgroundColor": "#FFFFFF",
       "display": "standalone"
     },
     "plugins": [
@@ -86,11 +86,12 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0B0B0F",
+          "backgroundColor": "#FFFFFF",
           "dark": {
-            "backgroundColor": "#0B0B0F"
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#FFFFFF"
           }
         }
       ],
@@ -117,8 +118,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/brand/mark-white.png",
-          "color": "#0E7490"
+          "icon": "./assets/brand/notification-icon.png",
+          "color": "#2A4F8E"
         }
       ],
       "expo-font",
