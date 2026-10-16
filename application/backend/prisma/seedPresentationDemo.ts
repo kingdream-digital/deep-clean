@@ -10,8 +10,8 @@
  * mélanger de faux comptes, au mot de passe public, avec de vraies données.
  *
  * Contrairement à seedDemo.ts (données minimales pour développer), ce script
- * vise un rendu "vivant" pour les captures d'écran : photos de profil
- * réalistes, semaine de planning bien remplie, et un jeu complet de données
+ * vise un rendu "vivant" pour les captures d'écran : initiales (photos de
+ * profil seulement avec DEMO_PHOTO_AVATARS=1), semaine de planning bien remplie, et un jeu complet de données
  * du module commercial (prospect → client → devis → chantier → facturation)
  * parcouru via les VRAIS services métier (jamais des lignes SQL à la main),
  * pour que chaque montant, numéro de devis/facture et statut soit calculé
@@ -148,10 +148,11 @@ function addDays(base: Date, days: number): Date {
 const combineDateTime = companyDateTime;
 const dayOnly = calendarDay;
 
-// Photos de démo (jamais de vraies personnes) : pravatar.cc fournit des
-// portraits explicitement libres pour cet usage ("free to use in personal or
-// commercial projects, incl. as placeholder avatars"), picsum.photos pour les
-// photos de chantier/signalement. Best-effort : une image manquante ne doit
+// Photos de démo. ATTENTION : pravatar.cc sert des photos de VRAIES
+// personnes — jamais utilisées par défaut (captures App Store/Google Play,
+// supports commerciaux : droit à l'image). Les comptes de démo s'affichent
+// donc avec leurs initiales, sauf DEMO_PHOTO_AVATARS=1 pour une démo privée.
+// picsum.photos fournit les photos de chantier/signalement (paysages, objets). Best-effort : une image manquante ne doit
 // jamais faire échouer tout le script.
 async function fetchBuffer(url: string): Promise<Buffer | null> {
   try {
@@ -222,20 +223,22 @@ async function main() {
   ];
   for (const [u, date] of hireDates) await prisma.user.update({ where: { id: u.id }, data: { hireDate: dayOnly(date) } });
 
-  console.log("Photos de profil...");
-  await Promise.all([
-    setAvatar(rh.id, 47),
-    setAvatar(directeur.id, 13),
-    setAvatar(superviseur.id, 25),
-    setAvatar(karim.id, 33),
-    setAvatar(sophie.id, 44),
-    setAvatar(lucas.id, 12),
-    setAvatar(emma.id, 5),
-    setAvatar(nathan.id, 51),
-    setAvatar(chloe.id, 9),
-    setAvatar(ines.id, 20),
-    setAvatar(thomas.id, 60),
-  ]);
+  if (process.env.DEMO_PHOTO_AVATARS === "1") {
+    console.log("Photos de profil...");
+    await Promise.all([
+      setAvatar(rh.id, 47),
+      setAvatar(directeur.id, 13),
+      setAvatar(superviseur.id, 25),
+      setAvatar(karim.id, 33),
+      setAvatar(sophie.id, 44),
+      setAvatar(lucas.id, 12),
+      setAvatar(emma.id, 5),
+      setAvatar(nathan.id, 51),
+      setAvatar(chloe.id, 9),
+      setAvatar(ines.id, 20),
+      setAvatar(thomas.id, 60),
+    ]);
+  }
 
   console.log("Comptes démo prêts (mot de passe commun : " + DEMO_PASSWORD + ") :");
   for (const u of [rh, directeur, superviseur, karim, sophie, lucas, emma, nathan, chloe, ines, thomas]) {

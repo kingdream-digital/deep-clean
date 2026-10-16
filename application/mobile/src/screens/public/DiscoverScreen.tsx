@@ -104,10 +104,15 @@ export function DiscoverScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: spacing.xxl + insets.bottom }}>
       {/* En-tête : photo de l'entreprise, voile marine de la charte. */}
-      <View style={{ height: 340 + insets.top }}>
-        <Image source={require("../../../assets/discover/hero.jpg")} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
+      <View style={{ height: 300, overflow: "hidden" }}>
+        <Image
+          source={require("../../../assets/discover/hero.jpg")}
+          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
         <LinearGradient
-          colors={["rgba(31,45,105,0.35)", "rgba(31,45,105,0.55)", "rgba(31,45,105,0.95)"]}
+          colors={["rgba(31,45,105,0.15)", "rgba(31,45,105,0.55)", "rgba(31,45,105,0.97)"]}
           style={StyleSheet.absoluteFill}
         />
         <View style={{ flex: 1, justifyContent: "flex-end", padding: spacing.lg }}>

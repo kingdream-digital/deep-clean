@@ -256,6 +256,17 @@ blocage) ; « Accès web non restreint » : Non ; publicité : Non.
 | `application/presentation/store/google-banniere-1024x500.png` | Bannière Google Play (l'App Store n'a pas de bannière) |
 | `application/presentation/store/google-icone-512.png` | Icône Google Play |
 
+Ordre d'import (identique sur les deux stores) :
+1. `01-decouvrir` — Découvrez nos prestations (espace public)
+2. `02-devis` — Votre devis en quelques instants (espace public)
+3. `03-accueil-employe` — Votre journée en un coup d'œil
+4. `04-planning` — Le planning de la semaine
+5. `05-mission` — Consignes et fiche de poste
+6. `06-messagerie` — Toute l'équipe, au même endroit
+7. `07-statistiques` — Pilotez l'activité (compte Direction)
+
+Elles se refont à l'identique avec `tools/store-screenshots/` (README).
+
 Règles suivies pour les captures (règle 2.3.3) :
 - elles montrent l'app **en usage**, sur des données de démonstration
   cohérentes — jamais de vraies données, jamais de vraies personnes ;

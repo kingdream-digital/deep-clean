@@ -66,7 +66,13 @@ export function RootNavigator() {
           <PublicStack.Screen
             name="Discover"
             component={DiscoverScreen}
-            options={{ title: "Découvrir Deep Clean", headerTransparent: true, headerTitle: "", headerTintColor: "#FFFFFF" }}
+            // En-tête marine de la charte, prolongé par la photo de l'écran.
+            options={{
+              title: "Découvrir Deep Clean",
+              headerStyle: { backgroundColor: "#1F2D69" },
+              headerTintColor: "#FFFFFF",
+              headerTitleStyle: { ...stackOptions.headerTitleStyle as object, color: "#FFFFFF" },
+            }}
           />
           <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />
         </PublicStack.Navigator>
