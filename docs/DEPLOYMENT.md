@@ -268,7 +268,7 @@ Adresses retenues (déjà intégrées dans l'app mobile, voir
 |---|---|
 | `https://api.deep-clean.fr` | Backend (API) |
 | `https://app.deep-clean.fr` | Application web, et pages légales exigées par les stores (`/confidentialite.html`, `/support.html`, `/suppression-compte.html`, servies depuis `application/mobile/public/`) |
-| `https://deep-clean.fr` | Site de l'entreprise (hors de ce dépôt) |
+| `https://deep-clean.fr` | Site de l'entreprise — ⚠️ au 16/10/2026, le domaine pointe vers le serveur mais aucune application Coolify ne le sert (certificat Traefik par défaut + 503) : publier le site vitrine `site/` comme application statique avec les domaines `deep-clean.fr` et `www.deep-clean.fr`, ou faire pointer le DNS vers son hébergeur (voir `docs/PUBLICATION-STORES.md` §1 bis) |
 
 Mise en place :
 1. **DNS**, chez **BookMyName** (espace client → le domaine `deep-clean.fr`

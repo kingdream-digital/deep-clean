@@ -14,7 +14,7 @@ Les éléments encore à fournir sont repérés par **⚠️ À FOURNIR**.
 |---|---|
 | Nom de l'app | **Deep Clean** |
 | Éditeur (compte développeur) | **Boris Corsiez** — KingDream Digital, micro-entreprise, SIRET 102 486 677 00010 (compte développeur **personnel**, déjà créé chez Apple). Nom affiché sur les stores : celui du compte. |
-| Client utilisateur | **DEEP CLEAN**, SAS au capital de 600 € — 21 boulevard de la Plaine, 04100 Manosque — SIREN 942 773 375 — RCS Manosque — TVA FR54942773375 — président : Romain Chris Kada-Junior FEDI — deepclean.contact.pro@gmail.com, 06 81 70 07 51. L'application lui est **louée** ; elle reste la propriété de l'éditeur. |
+| Titulaire du nom et du logo | **DEEP CLEAN**, SAS au capital de 600 € — 21 boulevard de la Plaine, 04100 Manosque — SIREN 942 773 375 — RCS Manosque — TVA FR54942773375 — président : Romain Chris Kada-Junior FEDI — deepclean.contact.pro@gmail.com, 06 81 70 07 51. L'application, développée sur mesure pour elle, lui est mise à disposition sous licence ; elle reste la propriété de l'éditeur. |
 | Identifiant iOS (Bundle ID) | `fr.deepclean.app` |
 | Nom de paquet Android | `fr.deepclean.app` |
 | Version | 1.0.0 (le numéro de build s'incrémente tout seul) |
@@ -25,7 +25,7 @@ Les éléments encore à fournir sont repérés par **⚠️ À FOURNIR**.
 | Politique de confidentialité | `https://app.deep-clean.fr/confidentialite.html` |
 | Assistance | `https://app.deep-clean.fr/support.html` |
 | Suppression de compte | `https://app.deep-clean.fr/suppression-compte.html` |
-| Site de l'entreprise | `https://deep-clean.fr` |
+| Site de l'entreprise | `https://deep-clean.fr` — ⚠️ hors service au 16/10/2026 (certificat auto-signé, erreur 503) : voir §1 bis |
 | Email de contact des stores (éditeur) | kingdreamdigital@gmail.com |
 | Contact de l'entreprise cliente | deepclean.contact.pro@gmail.com · 06 81 70 07 51 |
 
@@ -61,6 +61,41 @@ Détail dans `docs/DEPLOYMENT.md`, section « Nom de domaine ».
 
 ---
 
+## 1 bis. Avant l'envoi de CETTE version : serveur à jour et site réparé
+
+Les apps iPhone/Android appellent le serveur de production : ce qui est
+nouveau dans l'app doit y être **avant** l'envoi à Apple, sinon le
+vérificateur tombe sur des erreurs (règle 2.1).
+
+1. **Fusionner** la branche `claude/deep-clean-app-store-audit-fc4cfh` dans
+   `master` (Coolify déploie `master`).
+2. **Backend** : Coolify → Redeploy, puis dans son Terminal :
+   ```
+   npx prisma db push
+   ```
+   Changements de schéma de cette version, **tous sans perte de données** :
+   tables `user_blocks` et `message_reports` (messagerie : blocage et
+   signalement), colonne `users.deletionRequestedAt` (suppression de compte
+   depuis l'app), `prospects.createdById` facultatif (demandes de devis de
+   l'espace public).
+3. **Web** : Redeploy (pages légales mises à jour, espace public).
+4. Vérifier dans un navigateur :
+   - `https://app.deep-clean.fr/confidentialite.html` (mentionne les demandes
+     de devis) ;
+   - sur `https://app.deep-clean.fr`, le lien « Découvrir nos services et
+     demander un devis » sous le bouton « Se connecter ».
+5. **Site `https://deep-clean.fr`** : au 16/10/2026 il répond par le
+   certificat par défaut de Traefik (auto-signé) et une erreur 503 : le nom
+   de domaine pointe bien vers le serveur, mais aucune application Coolify ne
+   le sert. Deux solutions :
+   - publier le site vitrine (dossier `site/` de ce dépôt) comme application
+     statique Coolify, avec les domaines `https://deep-clean.fr` et
+     `https://www.deep-clean.fr` (certificat automatique) ;
+   - ou, si le site est hébergé ailleurs, faire pointer les enregistrements
+     DNS `@` et `www` vers cet hébergeur.
+   Tant que ce n'est pas fait, **ne pas** renseigner d'URL marketing dans App
+   Store Connect (l'app et les pages légales n'y renvoient plus).
+
 ## 2. Comptes à créer (au nom de Boris Corsiez)
 
 L'application est publiée sur **votre** compte développeur, en tant que
@@ -91,42 +126,47 @@ demander une preuve que vous avez le droit de les utiliser.
 Préparez avant l'envoi une **autorisation écrite signée par le président de
 DEEP CLEAN** :
 - elle vous autorise, vous et KingDream Digital, à publier l'application
-  sous le nom et le logo Deep Clean, dans le cadre du contrat de location ;
+  sous le nom et le logo Deep Clean, dans le cadre du contrat de licence ;
 - elle est à joindre en pièce jointe dans App Store Connect
   (« Informations de vérification ») et à garder sous la main pour Google.
 
-## 3. Distribution : publique, sur l'App Store et Google Play
+## 3. Positionnement et distribution : publique, sur l'App Store
 
-Objectif : l'app est trouvable et téléchargeable par tout le monde, en
-cherchant « Deep Clean » dans les stores.
+Objectif : l'app est trouvable et téléchargeable par tout le monde en
+cherchant « Deep Clean » dans l'App Store (et Google Play). Pas de lien non
+listé, pas d'Apple Business Manager.
 
-### Pourquoi Apple pourrait poser une question
+### Ce que l'app est, et comment la présenter (honnêtement)
 
-Apple vérifie chaque app à la main. Deux réactions sont fréquentes pour une
-app où l'on ne peut pas créer de compte :
-- **« App réservée à une seule entreprise »** (règle 3.2) : Apple peut
-  proposer la distribution privée à la place de l'App Store public.
-- **« Droits sur la marque »** (règle 5.2.1) : le nom « Deep Clean »
-  appartient à une société, le compte est à votre nom. D'où l'autorisation
-  écrite du §2.
+**Deep Clean est l'application officielle de DEEP CLEAN**, entreprise de
+nettoyage et de conciergerie de Manosque. Elle a deux publics :
 
-Ces deux points sont prévus à l'avance dans la fiche et la note aux
-vérificateurs :
-- **Fiche** : la description présente l'app pour ce qu'elle est, un outil
-  de gestion d'équipe pour entreprise de nettoyage, édité par vous et loué
-  à l'entreprise, dont les salariés reçoivent leurs identifiants.
-- **Note aux vérificateurs (§6)** : elle dit clairement qui édite l'app,
-  qui l'utilise, et pourquoi il n'y a pas d'inscription. Elle fournit les
-  comptes de démonstration.
-- **Pas de promesse de fonctions futures** : Apple juge l'app telle
-  qu'elle est. Annoncer un accès élargi « dans une future mise à jour »
-  n'aide pas, et la règle 2.3 interdit les descriptions qui ne
-  correspondent pas à l'app livrée.
+1. **Le grand public** (particuliers et entreprises de la région), **sans
+   compte** : depuis l'écran de connexion, « Découvrir nos services et
+   demander un devis » présente l'entreprise, ses prestations, sa zone
+   d'intervention, et permet d'envoyer une demande de devis, d'appeler ou
+   d'écrire. Les demandes arrivent dans l'espace commercial de l'entreprise.
+2. **Les équipes de DEEP CLEAN** (salariés, chefs d'équipe, superviseurs, RH,
+   direction), avec les identifiants remis par la RH : planning, missions,
+   pointage, signalements, messagerie, RH, devis et factures.
 
-Si Apple refuse malgré tout la publication publique, on répond au
-vérificateur dans App Store Connect (le « Resolution Center ») avec le
-contrat de location et l'autorisation. Une demande d'appel est possible. La
-distribution par lien direct ne reste qu'une solution de repli.
+Elle est **développée sur mesure et publiée par Boris Corsiez (KingDream
+Digital)**, sous licence de DEEP CLEAN, titulaire du nom et du logo, qui
+l'autorise par écrit (§2 et annexe).
+
+### Les trois règles Apple qui comptent ici, et comment le dossier y répond
+
+| Règle | Ce qu'elle dit | Réponse du dossier |
+|---|---|---|
+| **5.2.1** Propriété intellectuelle | « Apps should be submitted by the person or legal entity that owns **or has licensed** the intellectual property. » | Boris Corsiez publie **sous licence** de DEEP CLEAN : autorisation écrite signée, jointe dans App Store Connect. |
+| **4.2.6** Applis générées par un service | Les prestataires ne doivent pas soumettre, au nom de leurs clients, des applis issues d'un modèle commercialisé. | L'app n'est **pas** un modèle en marque blanche : elle est développée sur mesure pour DEEP CLEAN, avec son contenu. **Ne jamais écrire** dans la fiche ni la note « louée à des entreprises clientes », « premier client », « plateforme pour toutes les entreprises de nettoyage ». |
+| **3.2** Audience | Apple oriente les applis réservées aux salariés d'une seule entreprise vers la distribution privée. | L'app sert aussi le **grand public sans compte** (découverte, devis, contact) : c'est l'app d'une entreprise locale pour ses clients **et** ses équipes, comme beaucoup d'applis d'entreprise publiées publiquement. |
+
+**Risque résiduel, dit franchement :** la décision reste celle du
+vérificateur. Si Apple propose malgré tout la distribution privée (règle 3.2),
+répondre dans le Resolution Center avec le texte du §12 (le volet public,
+l'utilisation sur les téléphones personnels des salariés, la licence). En
+cas de refus maintenu, un appel est possible auprès de l'App Review Board.
 
 ### Google Play
 
@@ -136,126 +176,142 @@ pour un compte personnel (§2).
 ### Nom de l'app
 
 Le nom doit être unique sur chaque store. Si « Deep Clean » est déjà pris,
-utiliser **« Deep Clean – Équipes »**. Le nom affiché sous l'icône du
-téléphone reste « Deep Clean ».
+utiliser **« Deep Clean Manosque »** (sans tiret ni mot générique). Le nom
+affiché sous l'icône du téléphone reste « Deep Clean ».
 
-## 4. Textes de la fiche (à copier-coller)
+## 4. Textes de la fiche App Store (à copier-coller)
 
-**Nom** (30 caractères max) : `Deep Clean`
+Aucun de ces textes ne contient « interne », « réservé », « location » ni de
+promesse de fonction future (règle 2.3.7 et 2.3.1).
 
-**Sous-titre Apple** (30 max) : `Planning, missions et pointage`
+**Nom** (30 max) : `Deep Clean`
 
-**Texte promotionnel Apple** (170 max) :
+**Sous-titre** (30 max) : `Nettoyage, devis et planning`
+
+**Texte promotionnel** (170 max) :
 ```
-Votre journée en un coup d'œil : où aller, à quelle heure, quoi faire. Planning, missions, pointage et messages de l'équipe Deep Clean, au même endroit.
-```
-
-**Description courte Google** (80 max) :
-```
-Planning, missions et pointage de l'équipe Deep Clean, au même endroit.
+Nettoyage haut de gamme et conciergerie à Manosque : découvrez nos prestations et demandez un devis. Équipes Deep Clean : planning, missions et pointage.
 ```
 
-**Description complète** (Apple et Google, 4000 max) :
+**Description** (4000 max) :
 ```
-Deep Clean réunit toute l'équipe d'une entreprise de nettoyage — employés, chefs d'équipe, superviseurs, RH et direction — dans une seule application.
+Deep Clean, c'est l'application officielle de DEEP CLEAN, entreprise de nettoyage haut de gamme et de conciergerie à Manosque et alentours.
 
-En ouvrant l'application, chacun sait immédiatement où aller, quand, et ce qu'il doit faire.
+POUR NOS CLIENTS — SANS COMPTE
+• Découvrez nos prestations : nettoyage approfondi, entretien régulier, bureaux et espaces professionnels, ameublement, matelas, textiles, sols et vitres, conciergerie
+• Notre méthode et nos engagements : qualité, ponctualité, produits professionnels
+• Notre zone d'intervention : Manosque, Forcalquier, Volx, Pierrevert, Gréoux-les-Bains, Sainte-Tulle et alentours
+• Demandez un devis en quelques secondes : nous revenons vers vous sous 24 à 48 h
+• Appelez-nous, écrivez-nous ou trouvez l'itinéraire en un geste
 
-Accès réservé aux équipes : votre compte est créé par le service RH de votre entreprise, qui vous remet vos identifiants. Il n'y a pas d'inscription publique.
-
-POUR LES ÉQUIPES SUR LE TERRAIN
+POUR LES ÉQUIPES DEEP CLEAN
+Votre compte est créé par le service RH, qui vous remet vos identifiants (pas d'inscription dans l'application).
 • Planning du jour et de la semaine, missions à venir et terminées
-• Adresse du chantier et itinéraire en un geste
-• Consignes et fiche de poste de chaque mission
+• Adresse du chantier et itinéraire, consignes et fiche de poste de chaque mission
 • Pointage de l'arrivée et du départ, avec photo et position comme justificatif
 • Signalement d'un problème sur chantier, avec photos
 • Notification dès qu'une mission est créée, modifiée ou annulée
-• Messagerie interne avec l'équipe
-• Heures du mois, congés et absences
+• Messagerie d'équipe, avec signalement d'un message à la RH et blocage d'un contact
+• Heures du mois, congés, absences et documents
 
 POUR LES RESPONSABLES
-• Création et modification du planning, affectation des équipes
-• Suivi des missions et validation des missions terminées
-• Validation des pointages et des heures (nuit, dimanche, jours fériés)
+• Planning et affectation des équipes, validation des missions et des heures
 • Fiches chantier : équipe, consignes, photos, problèmes, historique
-• Devis avec signature du client sur place, et factures
+• Devis avec signature du client sur place, factures, demandes de devis reçues
+• Gestion des comptes, statistiques et vue d'ensemble de l'activité
 
-POUR LA RH ET LA DIRECTION
-• Gestion des comptes, des rôles et des accès
-• Congés, absences et documents des salariés
-• Vue d'ensemble de l'activité et statistiques
+SÉCURITÉ ET CONFIDENTIALITÉ
+Chacun ne voit que ce qui le concerne, contrôlé par le serveur. Mots de passe chiffrés, connexions sécurisées, reconnexion par Face ID. La position n'est utilisée qu'au moment du pointage, jamais en arrière-plan. Suppression du compte possible directement depuis l'application.
 
-SÉCURITÉ
-Chacun ne voit que ce qui le concerne, contrôlé par le serveur. Mots de passe chiffrés, connexions sécurisées, reconnexion par Face ID ou empreinte digitale.
-
-Un problème de connexion ? Contactez le service RH de votre entreprise.
+Un problème de connexion ? Contactez le service RH de DEEP CLEAN.
 ```
 
-**Mots-clés Apple** (100 max) :
-`nettoyage,propreté,planning,missions,pointage,chantier,équipe,heures,congés,RH,entreprise`
+**Mots-clés** (100 max, séparés par des virgules, sans espace) :
+`nettoyage,ménage,conciergerie,manosque,devis,planning,pointage,chantier,équipe,entretien,vitres`
 
 **Nouveautés de la version** : `Première version de Deep Clean.`
 
-**Catégories** :
-- Apple : Économie et entreprise (principale), Productivité (secondaire).
-- Google : Entreprise.
+**Catégories** : Économie et entreprise (principale), Style de vie
+(secondaire — le volet public s'adresse aux particuliers).
 
-**URL** : assistance, confidentialité et site, voir le tableau §0.
+**URL** :
+- Assistance : `https://app.deep-clean.fr/support.html`
+- Confidentialité : `https://app.deep-clean.fr/confidentialite.html`
+- Marketing (facultative) : `https://deep-clean.fr` **seulement une fois le
+  site réparé** (§1 bis) — sinon laisser vide.
 
----
+**Copyright** : `2026 Boris Corsiez — KingDream Digital`
 
-## 5. Visuels (prêts dans `application/presentation/store/`)
+**Classification par âge** : aucun contenu sensible ; « Messagerie ou
+discussion entre utilisateurs » : Oui (collègues, avec signalement et
+blocage) ; « Accès web non restreint » : Non ; publicité : Non.
+
+## 5. Visuels App Store
 
 | Fichier | Usage |
 |---|---|
-| `ios-01` à `ios-07` (1290 × 2796) | Captures iPhone 6,9" — App Store |
-| `android-01` à `android-07` (1080 × 2160) | Captures téléphone — Google Play |
-| `google-icone-512.png` | Icône de la fiche Google Play (512 × 512) |
-| `google-banniere-1024x500.png` | Bannière de la fiche Google Play |
+| `application/mobile/assets/icon.png` | Icône (1024 × 1024, sans transparence) — médaillon officiel |
+| `application/presentation/store/ios-*.png` | Captures iPhone 6,9" (1290 × 2796) |
+| `application/presentation/store/android-*.png` | Captures Google Play (1080 × 2160) |
+| `application/presentation/store/google-banniere-1024x500.png` | Bannière Google Play (l'App Store n'a pas de bannière) |
+| `application/presentation/store/google-icone-512.png` | Icône Google Play |
 
-Ordre conseillé : connexion, accueil employé, planning, missions,
-notifications, accueil direction, commercial. Toutes les captures sont
-prises sur les **données de démonstration**, jamais sur de vraies données.
+Règles suivies pour les captures (règle 2.3.3) :
+- elles montrent l'app **en usage**, sur des données de démonstration
+  cohérentes — jamais de vraies données, jamais de vraies personnes ;
+- la première capture n'est **pas** l'écran de connexion ;
+- chaque écran montré est accessible avec les comptes de démo du §6 ;
+- fond et titres aux couleurs de la charte (marine `#1F2D69`, bleu
+  `#2A4F8E`, bleu goutte `#1E9CC6`).
 
-L'icône de l'app vient de `application/mobile/assets/icon.png`.
+L'app iPhone est configurée **sans version iPad dédiée**
+(`supportsTablet: false`) : Apple n'exige pas de captures iPad.
 
-> L'app iPhone est configurée **sans version iPad dédiée**
-> (`supportsTablet: false`) : Apple n'exige donc pas de captures iPad. Sur
-> iPad, l'app iPhone s'installe quand même, et l'application web reste
-> disponible.
+## 6. Comptes de démonstration pour la vérification
 
----
+Apple et Google doivent pouvoir tout tester. Sur le **serveur de
+production**, la RH crée :
 
-## 6. Compte de démonstration pour la vérification
+1. Un chantier « Chantier de démonstration », à une adresse de bureau (pas
+   chez un vrai client), avec une position de référence.
+2. Un compte **Employé** « Revue Stores », affecté à des missions sur ce
+   chantier **chaque jour de la période de vérification** (aujourd'hui et
+   les 10 jours suivants, dont une mission en cours aux heures de bureau
+   américaines, soit l'après-midi et le soir en France).
+3. Un compte **Superviseur** « Revue Stores Superviseur ».
+4. Un compte **Direction** « Revue Stores Direction » (pour l'accueil
+   direction, les statistiques et les factures montrés dans les captures).
 
-Apple comme Google doivent pouvoir se connecter. Comme il n'y a pas
-d'inscription, la RH crée, **sur le serveur de production** :
+Pour chacun : changer le mot de passe temporaire (sinon l'app demande d'en
+définir un), puis noter identifiant et mot de passe dans App Store Connect →
+« Informations de vérification de l'app » (et Play Console → « Accès aux
+applications »). Ces comptes restent actifs tant que l'app est publiée.
 
-1. Un chantier « Chantier de démonstration », à une adresse de bureau
-   (pas chez un vrai client).
-2. Un compte **Employé** « Revue Stores », affecté à 2 ou 3 missions sur ce
-   chantier (aujourd'hui et les jours suivants).
-3. Un compte **Superviseur** « Revue Stores Responsable ».
+Le jour de l'envoi : **mode maintenance désactivé** (`MAINTENANCE_MODE=false`)
+et serveur à jour (§1 bis), sinon la vérification échoue (règle 2.1).
 
-Changer les mots de passe temporaires, puis noter identifiants et mots de
-passe dans les deux consoles :
-- Apple : App Store Connect → « Informations de vérification de l'app ».
-- Google : Play Console → « Accès aux applications ».
-
-Ces comptes restent actifs tant que l'app est publiée : Apple et Google
-re-vérifient chaque mise à jour.
-
-**Note pour les vérificateurs** (en anglais, à coller telle quelle) :
+**Note pour les vérificateurs** (en anglais, à coller telle quelle, en
+remplaçant les identifiants) :
 ```
-Deep Clean is a workforce management app for cleaning companies: schedules, job-site missions, clock-in/clock-out, problem reporting with photos, notifications and team messaging.
+Deep Clean is the official app of DEEP CLEAN, a cleaning and concierge company in Manosque, France. The app is in French.
 
-It is developed and published by Boris Corsiez (KingDream Digital) and licensed to client companies. The first client is DEEP CLEAN SAS (French cleaning company, SIREN 942 773 375). It authorizes the use of its name and logo; the written authorization is attached.
+It has two audiences:
+1) The general public, WITHOUT any account: on the sign-in screen, tap "Découvrir nos services et demander un devis" to browse the company's services, service area and FAQ, call or email the company, and send a quote request (the request goes to the company's sales team; feel free to send a test request).
+2) DEEP CLEAN's staff (employees, team leaders, supervisors, HR, management), with credentials provided by the company's HR department. There is no public sign-up by design: staff accounts are created by HR. Employees use the app on their personal iPhones.
 
-Accounts are created by each client company's HR department, which gives employees their credentials. There is no public sign-up, by design, as in other employer-provided workforce apps. Please use the demo accounts provided:
-- Employee account: today's missions, schedule, clock-in/out, problem reporting, notifications, messaging.
-- Manager account: schedule management, validation of completed missions and timesheets.
+The app was custom-built for DEEP CLEAN and is published by Boris Corsiez (KingDream Digital) under a license from DEEP CLEAN SAS (SIREN 942 773 375), which owns the "Deep Clean" name and logo. The written authorization signed by the company's president is attached.
 
-Camera and location are used only when the user clocks in or out, as proof of presence on the job site. Location is never used in the background. Face ID is optional, for quick re-login. The app is in French.
+Demo accounts (staff area):
+- Employee: <identifiant> / <mot de passe> — today's missions, schedule, clock-in/out, problem reporting, notifications, messaging.
+- Supervisor: <identifiant> / <mot de passe> — schedule management, validation of missions and timesheets.
+- Management: <identifiant> / <mot de passe> — company overview, statistics, quotes and invoices.
+
+Privacy and safety:
+- Camera and location are requested only when the user clocks in or out, as proof of presence on the job site (and when a manager records a job site's location). Location is never used in the background.
+- Face ID is optional, for quick re-login.
+- Messaging: long-press any message to report it to HR (HR and the admin are notified immediately and can deactivate the author's account); any user can block a contact from the contact's profile.
+- Account deletion: Menu > Profil > "Supprimer mon compte" (password confirmation; the account is deactivated immediately and HR deletes the data within one month, except data the employer must legally retain).
+- Privacy policy: https://app.deep-clean.fr/confidentialite.html
 ```
 
 ## 7. Questionnaires de confidentialité
@@ -266,52 +322,54 @@ politique de confidentialité).
 ### Apple — « Confidentialité de l'app »
 
 - **Suivi (tracking)** : **Non**. Aucune publicité, aucun outil d'analyse
-  tiers.
-- Données collectées, toutes **liées à l'identité** de l'utilisateur et
-  utilisées pour les **fonctionnalités de l'app** :
-  - Coordonnées : nom, adresse email, numéro de téléphone.
-  - Localisation : localisation précise (au pointage uniquement).
-  - Contenu utilisateur : photos, autre contenu (messages, signalements).
-  - Identifiants : identifiant utilisateur.
-- **Non collectées** : données de santé, financières, de navigation,
-  d'historique de recherche, de diagnostic ou d'usage.
+  tiers, aucune donnée partagée avec des courtiers.
+- Toutes les données ci-dessous sont **liées à l'identité** de la personne
+  et utilisées pour les **fonctionnalités de l'app** uniquement :
+
+| Catégorie Apple | Donnée | Pourquoi |
+|---|---|---|
+| Coordonnées | Nom, adresse email, numéro de téléphone, adresse physique | Comptes des collaborateurs ; demandes de devis (code postal, commune) |
+| Santé et forme | Santé | Absences pour arrêt maladie ou accident du travail (gestion RH) |
+| Informations financières | Autres informations financières | Bulletins de paie déposés dans les documents du salarié |
+| Localisation | Localisation précise | Au pointage uniquement |
+| Contenu de l'utilisateur | Photos ou vidéos ; Autre contenu de l'utilisateur | Photos de pointage, signalements, messages, documents, signalements de messages |
+| Identifiants | Identifiant de l'utilisateur ; Identifiant de l'appareil | Compte ; jeton de notification push |
+| Données d'utilisation | Interactions avec le produit | Journal de sécurité des actions importantes |
+
+- **Non collectées** : contacts, historique de navigation, historique de
+  recherche, achats, données de diagnostic, informations sensibles.
 
 ### Google — « Sécurité des données »
 
-- Collecte ou partage de données : **Oui** (collecte). Partage avec des
-  tiers : **Non** (les prestataires techniques ne comptent pas comme un
-  partage).
-- Données chiffrées en transit : **Oui**.
-- Possibilité de demander la suppression : **Oui**, URL
+- Collecte de données : **Oui**. Partage avec des tiers : **Non** (les
+  prestataires techniques — hébergement, notifications — ne comptent pas
+  comme un partage).
+- Chiffrement en transit : **Oui**. Suppression possible : **Oui**, dans
+  l'app (Profil → Supprimer mon compte) et à
   `https://app.deep-clean.fr/suppression-compte.html`.
 - Données collectées, toutes pour les **fonctionnalités de l'app** et la
   **gestion du compte** :
 
 | Type | Obligatoire ? |
 |---|---|
-| Infos personnelles : nom, adresse email, ID utilisateur, numéro de téléphone | Oui |
+| Infos personnelles : nom, email, ID utilisateur, téléphone, adresse | Oui |
+| Infos financières : autres (bulletins de paie) | Facultatif |
+| Santé et remise en forme : infos de santé (arrêts, accidents du travail) | Facultatif |
 | Position : position exacte | Oui (pointage) |
 | Photos et vidéos : photos | Oui (pointage), facultatif sinon |
 | Fichiers et documents | Facultatif |
 | Messages : autres messages intégrés à l'appli | Facultatif |
+| Activité dans l'appli : autres actions | Oui (journal de sécurité) |
 | Identifiants de l'appareil (notifications) | Facultatif |
 
 ### Autres réponses
 
-- **Chiffrement (Apple, export)** : l'app n'utilise que le chiffrement
-  standard (HTTPS). C'est déjà déclaré dans l'app
-  (`ITSAppUsesNonExemptEncryption: false`), Apple ne posera plus la
-  question.
-- **Classification par âge** :
-  - Apple : aucun contenu sensible. Messagerie entre utilisateurs : Oui
-    (interne, entre collègues). Accès web libre : Non.
-  - Google (questionnaire IARC) : catégorie « Utilitaires, productivité,
-    communication ». Les utilisateurs peuvent communiquer : Oui. La
-    position est partagée avec d'autres utilisateurs (les responsables) :
-    Oui.
-- **Public cible (Google)** : 18 ans et plus uniquement.
-- **Publicités** : Non.
-- **Application gouvernementale / santé / finance** : Non.
+- **Chiffrement (export)** : chiffrement standard (HTTPS) uniquement, déjà
+  déclaré dans l'app (`ITSAppUsesNonExemptEncryption: false`).
+- **Manifeste de confidentialité iOS** : généré au build depuis `app.json`
+  (`ios.privacyManifests`) ; les modules natifs fournissent le leur.
+- **Public cible (Google)** : 18 ans et plus.
+- **Publicités** : Non. **Appli gouvernementale / santé / finance** : Non.
 
 ---
 
@@ -370,7 +428,7 @@ eas submit --platform android --profile production   # vers la Play Console
 1. Créer l'app (nom, Bundle ID `fr.deepclean.app`, langue française).
 2. Remplir la fiche (§4), les captures (§5), la confidentialité (§7) et la
    classification par âge.
-3. Indiquer les comptes de démonstration (§6).
+3. Indiquer les comptes de démonstration (§6) et coller la note du §6.
 4. Sélectionner le build envoyé par `eas submit`.
 5. Joindre l'autorisation de DEEP CLEAN (§2).
 6. Envoyer en vérification (généralement 24 à 48 h). Choisir la
@@ -407,6 +465,51 @@ eas submit --platform android --profile production   # vers la Play Console
 
 ---
 
+## 12. Si Apple pose une question : réponses prêtes (Resolution Center)
+
+Répondre en anglais, poliment, sans jamais contredire la fiche ni la note.
+
+**Règle 3.2 — « app intended for a limited audience / internal use »**
+```
+Thank you for your review. Deep Clean is not limited to a company's employees: it is the official app of DEEP CLEAN, a cleaning and concierge company in Manosque, France, and it serves the general public without any account. On the sign-in screen, "Découvrir nos services et demander un devis" lets anyone browse the company's services, service area and FAQ, contact the company and request a quote; requests reach the company's sales team directly.
+The staff area is used by the company's employees on their own personal iPhones (not company-managed devices), alongside seasonal and part-time staff who need to find the app by name on the App Store.
+We would be grateful if you could reconsider the app for public distribution on the App Store.
+```
+
+**Règle 4.2.6 — « app created from a template or app generation service »**
+```
+Deep Clean is not created from a template or an app generation service. It is a custom app built specifically for DEEP CLEAN (its services, job sites, staff workflows and branding), developed and maintained by Boris Corsiez (KingDream Digital) under a license agreement with DEEP CLEAN. There is no other client version of this app.
+```
+
+**Règle 5.2.1 — « trademark / third-party brand »**
+```
+DEEP CLEAN SAS, which owns the "Deep Clean" name and logo, has licensed the app to be published by Boris Corsiez (KingDream Digital). The written authorization signed by the company's president, Romain Chris Kada-Junior FEDI, is attached to the App Review Information and can be provided again on request.
+```
+
+**Règle 1.2 — « user-generated content »**
+```
+The in-app messaging is limited to verified staff accounts created by the company's HR department. Any message can be reported to HR with a long press (HR and the administrator are notified immediately and can deactivate the author's account), and any user can block a contact from that contact's profile: a blocked person can no longer send direct messages or trigger notifications, and their group messages are hidden. Contact information is published on the support page: https://app.deep-clean.fr/support.html
+```
+
+**Règle 5.1.1(v) — « account deletion »**
+```
+Account deletion is available in the app: Menu > Profil > "Supprimer mon compte". After password confirmation, the account is deactivated immediately (all sessions closed) and HR deletes the user's data within one month, except data the employer is legally required to retain (working hours, payroll). Details: https://app.deep-clean.fr/suppression-compte.html
+```
+
+## 13. Liste de contrôle avant de cliquer sur « Envoyer pour vérification »
+
+- [ ] Branche fusionnée, backend redéployé + `npx prisma db push`, web redéployé (§1 bis)
+- [ ] `https://api.deep-clean.fr/health` répond `{"status":"ok"}`
+- [ ] Pages confidentialité, assistance et suppression de compte en ligne
+- [ ] Mode maintenance désactivé
+- [ ] Comptes de démo Employé, Superviseur et Direction créés, mots de passe changés, missions planifiées pendant 10 jours (§6)
+- [ ] Une demande de devis de test envoyée depuis l'app arrive bien dans Commercial → Prospects
+- [ ] Autorisation signée de DEEP CLEAN jointe (annexe)
+- [ ] Fiche, mots-clés, catégories, URL et classification renseignés (§4) — aucune mention « interne » ou « louée à des entreprises »
+- [ ] Captures iPhone 6,9" importées dans l'ordre (§5)
+- [ ] Questionnaire « Confidentialité de l'app » rempli comme au §7
+- [ ] Build envoyé par `eas submit` sélectionné, chiffrement « standard uniquement »
+
 ## Annexe — Modèle d'autorisation d'usage du nom et du logo
 
 À imprimer sur papier à en-tête de DEEP CLEAN, signer, scanner en PDF, puis
@@ -426,9 +529,10 @@ sur l'App Store d'Apple et sur Google Play l'application mobile « Deep
 Clean », en utilisant le nom « Deep Clean » et le logo de la société DEEP
 CLEAN.
 
-Cette application est louée par Monsieur Boris Corsiez à la société DEEP
-CLEAN, pour la gestion de ses équipes. La présente autorisation vaut pour
-toute la durée du contrat de location.
+Cette application, développée sur mesure pour la société DEEP CLEAN, est
+son application officielle, destinée à ses clients et à ses équipes. Elle lui
+est mise à disposition par Monsieur Boris Corsiez dans le cadre d'un contrat
+de licence. La présente autorisation vaut pour toute la durée de ce contrat.
 
 Fait à Manosque, le [date].
 
@@ -442,7 +546,8 @@ I, the undersigned Romain Chris Kada-Junior FEDI, President of DEEP CLEAN SAS
 (registered in Manosque, France, under number 942 773 375), authorize
 Mr Boris Corsiez (KingDream Digital) to publish and distribute the
 "Deep Clean" mobile app on the Apple App Store and Google Play, using the
-DEEP CLEAN name and logo. The app is licensed by Mr Corsiez to DEEP CLEAN
-for its workforce management. This authorization is valid for the whole
-term of the license agreement.
+DEEP CLEAN name and logo. The app was custom-built for DEEP CLEAN and is
+its official app, for its customers and its staff; it is provided to DEEP
+CLEAN by Mr Corsiez under a license agreement. This authorization is valid
+for the whole term of that agreement.
 ```
