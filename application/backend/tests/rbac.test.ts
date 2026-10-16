@@ -333,3 +333,31 @@ describe("Heures par semaine au contrat — saisies par la RH, visibles pour le 
     if (seen) expect(seen.weeklyHours).toBeUndefined();
   });
 });
+
+describe("Annuaire vu par un employé (identifiant de connexion protégé)", () => {
+  it("ne révèle pas l'identifiant de connexion des collègues et ne cherche que par nom", async () => {
+    const { accessToken } = await loginAs(Role.EMPLOYEE);
+    const colleague = await createTestUser({ role: Role.EMPLOYEE, email: "collegue-annuaire@deepclean.test" });
+
+    const list = await request(app).get("/api/v1/users").set("Authorization", `Bearer ${accessToken}`);
+    expect(list.status).toBe(200);
+    const seen = list.body.items.find((u: { id: string }) => u.id === colleague.id);
+    expect(seen).toBeDefined();
+    expect(seen.username).toBeUndefined();
+
+    const one = await request(app).get(`/api/v1/users/${colleague.id}`).set("Authorization", `Bearer ${accessToken}`);
+    expect(one.body.user.username).toBeUndefined();
+
+    const byUsername = await request(app)
+      .get(`/api/v1/users?search=${encodeURIComponent(colleague.username)}`)
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(byUsername.body.total).toBe(0);
+  });
+
+  it("l'encadrement voit toujours l'identifiant (gestion des équipes)", async () => {
+    const { accessToken } = await loginAs(Role.SUPERVISOR);
+    const colleague = await createTestUser({ role: Role.EMPLOYEE, email: "equipe-annuaire@deepclean.test" });
+    const one = await request(app).get(`/api/v1/users/${colleague.id}`).set("Authorization", `Bearer ${accessToken}`);
+    expect(one.body.user.username).toBe(colleague.username);
+  });
+});

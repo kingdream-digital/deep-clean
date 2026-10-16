@@ -68,8 +68,22 @@ const ACCOUNT_MANAGEMENT_ROLES: Role[] = [Role.HR, Role.DIRECTOR, Role.ADMIN];
 // prévues au contrat (compteur « reste à planifier »), jamais le reste.
 const plannerSelect = { ...contactSelect, weeklyHours: true } as const;
 
+// Employé : l'annuaire sert à reconnaître et joindre un collègue, jamais à
+// connaître son identifiant de connexion (réservé à l'encadrement, qui gère
+// les équipes) — limite ce qu'un compte compromis peut cibler.
+const colleagueSelect = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  phone: true,
+  role: true,
+  avatarKey: true,
+} as const;
+
 function selectForViewer(viewerRole: Role) {
   if (ACCOUNT_MANAGEMENT_ROLES.includes(viewerRole) || viewerRole === Role.ACCOUNTANT) return publicSelect;
+  if (viewerRole === Role.EMPLOYEE) return colleagueSelect;
   return viewerRole === Role.SUPERVISOR ? plannerSelect : contactSelect;
 }
 
@@ -223,8 +237,14 @@ export async function listUsers(viewerRole: Role, filters: ListUsersFilters, vie
           // joker SQL (même protection que les modules commerciaux, via
           // escapeLikePattern).
           OR: [
-            { username: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
-            { email: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
+            // Un employé ne cherche que par nom : la recherche par identifiant
+            // ou email permettrait de deviner l'identifiant d'un collègue.
+            ...(viewerRole === Role.EMPLOYEE
+              ? []
+              : [
+                  { username: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
+                  { email: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
+                ]),
             { firstName: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
             { lastName: { contains: escapeLikePattern(filters.search), mode: "insensitive" as const } },
           ],
