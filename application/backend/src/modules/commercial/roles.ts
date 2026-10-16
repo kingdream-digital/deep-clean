@@ -17,7 +17,7 @@ export const COMMERCIAL_FULL_ROLES: Role[] = [Role.DIRECTOR, Role.HR, Role.ADMIN
 // restreint à ses propres prospects/devis (voir isOwnRecord ci-dessous).
 export const COMMERCIAL_ROLES: Role[] = [Role.SUPERVISOR, ...COMMERCIAL_FULL_ROLES];
 
-export function isOwnRecord(actor: Actor, record: { assignedUserId?: string | null; createdById: string }): boolean {
+export function isOwnRecord(actor: Actor, record: { assignedUserId?: string | null; createdById: string | null }): boolean {
   return actor.role === Role.SUPERVISOR && (record.assignedUserId === actor.userId || record.createdById === actor.userId);
 }
 

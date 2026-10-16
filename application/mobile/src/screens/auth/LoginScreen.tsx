@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { PublicStackParamList } from "../../navigation/RootNavigator";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../../utils/alert";
@@ -111,6 +114,7 @@ export function LoginScreen() {
       {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
       <Button label="Se connecter" onPress={handleSubmit} loading={loading} />
+      <DiscoverLink />
     </>
   );
 
@@ -330,5 +334,35 @@ function LegalLinks() {
         </React.Fragment>
       ))}
     </View>
+  );
+}
+
+// Espace public : les particuliers et entreprises découvrent DEEP CLEAN et
+// demandent un devis, sans compte (aucune inscription : les comptes des
+// collaborateurs restent créés par la RH).
+function DiscoverLink() {
+  const { colors, spacing, radius, type } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
+  return (
+    <Pressable
+      onPress={() => navigation.navigate("Discover")}
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: spacing.lg,
+        padding: spacing.md,
+        borderRadius: radius.lg,
+        backgroundColor: colors.accentSoft,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <Ionicons name="sparkles-outline" size={20} color={colors.accentText} />
+      <View style={{ flex: 1, marginLeft: spacing.sm }}>
+        <Text style={[type.footnote, { color: colors.inkSecondary }]}>Particulier ou entreprise ?</Text>
+        <Text style={[type.callout, { color: colors.accentText, fontWeight: "600" }]}>Découvrir nos services et demander un devis</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.accentText} />
+    </Pressable>
   );
 }

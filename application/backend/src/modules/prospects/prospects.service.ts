@@ -54,7 +54,7 @@ async function findProspectOrThrow(id: string) {
 // superviseur ne voit et ne gère que "ses" prospects (assignés à lui, ou
 // créés par lui s'ils ne sont pas encore assignés) — RH/Direction/Admin
 // voient et gèrent tout (cahier des charges §2-3).
-function assertCanAccessProspect(actor: Actor, prospect: { assignedUserId: string | null; createdById: string }): void {
+function assertCanAccessProspect(actor: Actor, prospect: { assignedUserId: string | null; createdById: string | null }): void {
   if (COMMERCIAL_FULL_ROLES.includes(actor.role) || isOwnRecord(actor, prospect)) return;
   throw ApiError.notFound("Prospect introuvable.");
 }

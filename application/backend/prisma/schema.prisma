@@ -1000,8 +1000,10 @@ model Prospect {
   // autre commercial (voir prospects.service.ts::resolveAssignedUserId).
   assignedUserId   String?
   assignedUser     User?          @relation("ProspectAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  createdById      String
-  createdBy        User           @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  // Vide pour une demande de devis reçue depuis l'espace public de
+  // l'application (aucun compte à l'origine, voir modules/public).
+  createdById      String?
+  createdBy        User?          @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 

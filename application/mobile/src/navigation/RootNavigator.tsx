@@ -11,17 +11,30 @@ import { SplashGate } from "../components/SplashGate";
 import { navigationRef } from "./navigationRef";
 import { listenToPushTaps } from "../notifications/push";
 import { startLiveSync } from "../sync/liveSync";
+import { DiscoverScreen } from "../screens/public/DiscoverScreen";
+import { QuoteRequestScreen } from "../screens/public/QuoteRequestScreen";
+import { useStackScreenOptions } from "./stackScreenOptions";
 
 export type RootStackParamList = {
   AppTabs: undefined;
   ChangePassword: undefined;
 };
 
+// Hors connexion : l'écran de connexion, et l'espace public de découverte de
+// DEEP CLEAN avec la demande de devis (sans compte, aucune inscription).
+export type PublicStackParamList = {
+  Login: undefined;
+  Discover: undefined;
+  QuoteRequest: undefined;
+};
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const PublicStack = createNativeStackNavigator<PublicStackParamList>();
 
 export function RootNavigator() {
   const { status, user } = useAuth();
   const { colors, isDark } = useTheme();
+  const stackOptions = useStackScreenOptions();
 
   const navTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
@@ -48,7 +61,15 @@ export function RootNavigator() {
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
       {status === "unauthenticated" || !user ? (
-        <LoginScreen />
+        <PublicStack.Navigator screenOptions={stackOptions}>
+          <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: "Connexion" }} />
+          <PublicStack.Screen
+            name="Discover"
+            component={DiscoverScreen}
+            options={{ title: "Découvrir Deep Clean", headerTransparent: true, headerTitle: "", headerTintColor: "#FFFFFF" }}
+          />
+          <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />
+        </PublicStack.Navigator>
       ) : user.mustChangePassword ? (
         // Mot de passe temporaire : blocage jusqu'à la définition d'un mot de passe personnel.
         <ForcePasswordChangeScreen />

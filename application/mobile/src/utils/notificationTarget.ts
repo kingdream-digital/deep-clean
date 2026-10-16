@@ -17,6 +17,7 @@ export type NotificationTarget =
   // Chantier (affectation comme chef d'équipe ou superviseur, rappel des
   // interventions du mois à programmer).
   | { tab: "Menu"; screen: "SiteDetail"; params: { siteId: string } }
+  | { tab: "Menu"; screen: "ProspectDetail"; params: { prospectId: string } }
   // Rappels automatiques qui renvoient vers une liste à traiter.
   | { tab: "Menu"; screen: "TimesheetValidation" | "AbsencesManagement" | "InvoicesList"; params: undefined };
 
@@ -81,6 +82,9 @@ export async function resolveNotificationTarget(n: AppNotification): Promise<Not
     // du compte côté RH (présente dans les piles Accueil et Messagerie).
     case "User":
       return { screen: "UserDetail", params: { userId: id } };
+    // Demande de devis reçue depuis l'espace public de l'application.
+    case "Prospect":
+      return { tab: "Menu", screen: "ProspectDetail", params: { prospectId: id } };
     case "TimesheetValidation":
     case "AbsencesManagement":
     case "InvoicesList":

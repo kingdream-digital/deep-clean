@@ -32,6 +32,8 @@ export type NotificationEntityType =
   // Compte d'un utilisateur (ex. auteur d'un message signalé, demande de
   // suppression de compte) : ouvre sa fiche côté RH.
   | "User"
+  // Demande de devis reçue depuis l'espace public : ouvre la fiche prospect.
+  | "Prospect"
   // Listes à traiter (rappels automatiques).
   | "TimesheetValidation"
   | "AbsencesManagement"
