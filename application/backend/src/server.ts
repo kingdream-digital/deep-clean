@@ -4,6 +4,7 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { prisma } from "./db/prisma";
 import { runPhotoRetentionJob } from "./jobs/photoRetention";
+import { prepareReviewDemoAccount } from "./jobs/reviewDemoAccount";
 import { runMessagesMigration } from "./db/migrateMessagesToConversations";
 import { COMPANY_TIME_ZONE } from "./utils/companyTime";
 import { runMonthlyAccrualJob } from "./modules/leave/leave.service";
@@ -79,6 +80,14 @@ if (!env.isTest) {
   cron.schedule("10 8 1 * *", () => void runAutomation("facturation du mois", () => runMonthlyBillingReminder()), paris);
   cron.schedule("5 8 1 * *", () => void runAutomation("interventions du mois", () => runMonthlySchedulingReminder()), paris);
   cron.schedule("30 4 * * 0", () => void pruneAutomationEvents().catch(() => undefined), paris);
+
+  // Compte employé de démo des vérificateurs Apple / Google : planning
+  // toujours rempli jusqu'à J+14, au démarrage puis chaque nuit. Sans effet
+  // une fois la démo vidée (voir jobs/reviewDemoAccount.ts).
+  const prepareReviewDemo = () =>
+    void prepareReviewDemoAccount(prisma).catch((err) => logger.error({ err }, "Échec de la préparation du compte de démo"));
+  prepareReviewDemo();
+  cron.schedule("15 4 * * *", prepareReviewDemo, paris);
 }
 
 async function shutdown(signal: string) {
