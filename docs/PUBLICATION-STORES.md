@@ -78,13 +78,15 @@ vérificateur tombe sur des erreurs (règle 2.1).
    signalement), colonne `users.deletionRequestedAt` (suppression de compte
    depuis l'app), `prospects.createdById` facultatif (demandes de devis de
    l'espace public).
-3. **Web** : Redeploy (pages légales mises à jour, espace public).
+3. **Web** : Redeploy (pages légales mises à jour).
 4. Vérifier dans un navigateur :
    - `https://app.deep-clean.fr/confidentialite.html` (mentionne les demandes
      de devis) ;
-   - sur `https://app.deep-clean.fr`, l'accueil public s'affiche en premier
-     (logo, services, « Demander un devis gratuit ») et « Espace équipe »,
-     en bas du menu et de la page, mène à la connexion.
+   - `https://app.deep-clean.fr` s'ouvre directement sur la connexion de
+     l'espace salarié. L'accueil public (logo, services, « Demander un devis
+     gratuit », « Espace équipe » en bas du menu) n'existe que dans
+     l'application iPhone/Android : dans un navigateur, le site de
+     l'entreprise, c'est `deep-clean.fr`.
 5. **Site officiel `https://deep-clean.fr`** : c'est la version « La
    Plongée » (dossier `v2/` de ce dépôt, celle dont l'accueil public de
    l'app reprend les textes et les photos). Il n'est **pas encore en ligne** :
@@ -556,7 +558,7 @@ Account deletion is available in the app: Menu > Profil > "Supprimer mon compte"
 - [ ] Pages confidentialité, assistance et suppression de compte en ligne
 - [ ] Mode maintenance désactivé
 - [ ] Comptes de démo Employé, Superviseur et Direction créés, mots de passe changés, missions planifiées pendant 10 jours (§6)
-- [ ] L'app s'ouvre sur l'accueil public ; « Espace équipe » mène à la connexion
+- [ ] L'app iPhone/Android s'ouvre sur l'accueil public ; « Espace équipe » mène à la connexion (le navigateur, lui, ouvre directement la connexion)
 - [ ] Une demande de devis de test envoyée depuis l'app arrive bien dans Commercial → Prospects
 - [ ] Autorisation signée de DEEP CLEAN jointe (annexe)
 - [ ] Fiche, mots-clés, catégories, URL et classification renseignés (§4) — aucune mention « interne » ou « louée à des entreprises »

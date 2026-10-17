@@ -11,6 +11,14 @@ function identity(value) {
   return value;
 }
 
+// Animations d'entrée/sortie (FadeInUp.duration(600).delay(300)…) : chaque
+// réglage renvoie la même animation, sans effet.
+function layoutAnimation() {
+  const animation = {};
+  for (const setting of ["duration", "delay", "springify", "damping", "easing"]) animation[setting] = () => animation;
+  return animation;
+}
+
 const Animated = {
   View: React.forwardRef((props, ref) => React.createElement(View, { ...props, ref })),
   createAnimatedComponent: (Component) => Component,
@@ -44,7 +52,9 @@ module.exports = {
     out: identity,
     cubic: identity,
   },
-  FadeIn: { duration: () => ({}) },
-  FadeOut: { duration: () => ({}) },
-  FadeInUp: { duration: () => ({}), delay: () => ({ duration: () => ({}) }) },
+  FadeIn: layoutAnimation(),
+  FadeOut: layoutAnimation(),
+  FadeInUp: layoutAnimation(),
+  FadeInDown: layoutAnimation(),
+  ZoomIn: layoutAnimation(),
 };

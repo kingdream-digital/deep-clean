@@ -16,6 +16,7 @@ import { PublicHomeScreen } from "../screens/public/PublicHomeScreen";
 import { PublicServiceScreen } from "../screens/public/PublicServiceScreen";
 import type { PublicService, QuoteRequestInput } from "../api/public.api";
 import { LegalScreen } from "../screens/profile/LegalScreen";
+import { HAS_PUBLIC_SPACE } from "../config/publicSpace";
 import { useStackScreenOptions } from "./stackScreenOptions";
 
 export type RootStackParamList = {
@@ -26,7 +27,8 @@ export type RootStackParamList = {
 // Hors connexion : l'accueil public de DEEP CLEAN (premier écran, sans
 // compte, aucune inscription — règle App Store 3.2), la demande de devis, les
 // mentions légales, et l'« Espace équipe » (connexion des collaborateurs, en
-// bas du menu).
+// bas du menu). Dans un navigateur, seulement la connexion et les mentions
+// légales (voir config/publicSpace).
 export type PublicStackParamList = {
   PublicHome: undefined;
   PublicService: { service: PublicService };
@@ -73,12 +75,16 @@ export function RootNavigator() {
         // désactivé, hors connexion…), pour que le message reste visible.
         <PublicStack.Navigator
           screenOptions={stackOptions}
-          initialRouteName={status === "locked" || sessionExpired || !!endMessage ? "Login" : "PublicHome"}
+          initialRouteName={HAS_PUBLIC_SPACE && !(status === "locked" || sessionExpired || !!endMessage) ? "PublicHome" : "Login"}
         >
-          <PublicStack.Screen name="PublicHome" component={PublicHomeScreen} options={{ headerShown: false, title: "Deep Clean" }} />
-          <PublicStack.Screen name="PublicService" component={PublicServiceScreen} options={{ headerShown: false, title: "Service" }} />
-          <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: "Espace équipe" }} />
-          <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />
+          {HAS_PUBLIC_SPACE && (
+            <>
+              <PublicStack.Screen name="PublicHome" component={PublicHomeScreen} options={{ headerShown: false, title: "Deep Clean" }} />
+              <PublicStack.Screen name="PublicService" component={PublicServiceScreen} options={{ headerShown: false, title: "Service" }} />
+            </>
+          )}
+          <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: HAS_PUBLIC_SPACE ? "Espace équipe" : "Connexion" }} />
+          {HAS_PUBLIC_SPACE && <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />}
           <PublicStack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
         </PublicStack.Navigator>
       ) : user.mustChangePassword ? (
