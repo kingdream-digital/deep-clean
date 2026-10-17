@@ -2,7 +2,7 @@ import { Router } from "express";
 import { changePasswordRateLimiter, loginRateLimiters } from "../../middleware/rateLimit.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import { authenticate } from "../../middleware/auth.middleware";
-import { changePasswordSchema, loginSchema, logoutSchema, refreshSchema } from "./auth.validation";
+import { accountDeletionSchema, changePasswordSchema, loginSchema, logoutSchema, refreshSchema } from "./auth.validation";
 import * as authController from "./auth.controller";
 
 export const authRouter = Router();
@@ -27,4 +27,15 @@ authRouter.post(
   changePasswordRateLimiter,
   validate(changePasswordSchema),
   authController.changePasswordHandler
+);
+
+// Suppression de son propre compte depuis l'application (règle App Store
+// 5.1.1(v)). Même limite d'essais que le changement de mot de passe : le mot
+// de passe saisi est vérifié.
+authRouter.post(
+  "/account-deletion",
+  authenticate(),
+  changePasswordRateLimiter,
+  validate(accountDeletionSchema),
+  authController.accountDeletionHandler
 );

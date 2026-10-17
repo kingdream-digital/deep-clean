@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import type { AuthUser } from "../api/auth.api";
 
 // Stockage chiffré (Keychain iOS / Keystore Android) — utilisé uniquement pour
 // persister le refresh token quand l'utilisateur a coché "Rester connecté".
@@ -14,6 +15,11 @@ const BIOMETRIC_ENABLED_KEY = "deepclean.biometricEnabled";
 // non sensible (déjà visible en clair dans le champ du formulaire de
 // connexion), stocké seulement pour le confort visuel.
 const LAST_USERNAME_KEY = "deepclean.lastUsername";
+// Profil du compte connecté (nom, rôle… — aucun secret), conservé avec la
+// session persistée pour que l'application s'ouvre même sans réseau : un
+// salarié sur un chantier sans couverture retrouve son planning en cache au
+// lieu d'être renvoyé à l'écran de connexion (voir AuthContext).
+const SESSION_USER_KEY = "deepclean.sessionUser";
 
 // expo-secure-store n'a AUCUNE implémentation web (voir
 // node_modules/expo-secure-store/src/ExpoSecureStore.web.ts, qui exporte un
@@ -107,5 +113,43 @@ export async function readLastUsername(): Promise<string | null> {
     return await SecureStore.getItemAsync(LAST_USERNAME_KEY);
   } catch {
     return null;
+  }
+}
+
+export async function persistSessionUser(user: AuthUser): Promise<void> {
+  try {
+    const value = JSON.stringify(user);
+    if (isWeb) {
+      localStorage.setItem(SESSION_USER_KEY, value);
+      return;
+    }
+    await SecureStore.setItemAsync(SESSION_USER_KEY, value, {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
+  } catch {
+    // Ignoré volontairement : seul le démarrage hors ligne en dépend.
+  }
+}
+
+export async function readSessionUser(): Promise<AuthUser | null> {
+  try {
+    const raw = isWeb ? localStorage.getItem(SESSION_USER_KEY) : await SecureStore.getItemAsync(SESSION_USER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AuthUser;
+    return parsed && typeof parsed.id === "string" && typeof parsed.role === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearSessionUser(): Promise<void> {
+  try {
+    if (isWeb) {
+      localStorage.removeItem(SESSION_USER_KEY);
+      return;
+    }
+    await SecureStore.deleteItemAsync(SESSION_USER_KEY);
+  } catch {
+    // Ignoré volontairement.
   }
 }

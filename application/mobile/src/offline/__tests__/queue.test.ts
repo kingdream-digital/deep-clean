@@ -58,3 +58,25 @@ describe("offline queue", () => {
     expect(await getQueue()).toEqual([]);
   });
 });
+
+describe("propriétaire des actions hors ligne (appareil partagé)", () => {
+  it("chaque action porte le compte connecté au moment de sa création", async () => {
+    const { setQueueOwner } = jest.requireActual("../queue") as typeof import("../queue");
+    setQueueOwner("u-1");
+    const action = await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "x" });
+    expect(action.ownerId).toBe("u-1");
+    setQueueOwner(null);
+  });
+
+  it("les actions sans propriétaire connu sont écartées en fin de session", async () => {
+    const { setQueueOwner, dropUnownedActions } = jest.requireActual("../queue") as typeof import("../queue");
+    setQueueOwner(null);
+    await enqueueAction("REPORT_PROBLEM", { missionId: "m1", type: "ISSUE", description: "ancienne" });
+    setQueueOwner("u-2");
+    await enqueueAction("REPORT_PROBLEM", { missionId: "m2", type: "ISSUE", description: "à garder" });
+    await dropUnownedActions();
+    const queue = await getQueue();
+    expect(queue.map((a) => (a.payload as { description: string }).description)).toEqual(["à garder"]);
+    setQueueOwner(null);
+  });
+});

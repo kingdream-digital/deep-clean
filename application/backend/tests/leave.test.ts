@@ -211,7 +211,7 @@ describe("Date d'entrée dans l'entreprise (base des congés acquis)", () => {
 
 describe("Moteur de congés — règles d'acquisition selon les absences", () => {
   // Fonction pure : aucun accès base.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
   const { computeMonthAccrual } = require("../src/modules/leave/leave.service") as typeof import("../src/modules/leave/leave.service");
   const day = (s: string) => new Date(`${s}T00:00:00.000Z`);
   const user = { hireDate: day("2025-01-01"), leaveAccrualRate: null };

@@ -1,16 +1,24 @@
-// Palette Deep Clean — dérivée du logo (goutte monochrome) : un accent teal
-// décliné en rampe (jamais en valeur plate), sur un système de surfaces à
+// Palette Deep Clean — tirée de la charte officielle (logo médaillon : marine
+// #1F2D69, bleu #2A4F8E, bleu vagues #5A9CC4, bleu goutte #1E9CC6). L'accent
+// est décliné en rampe (jamais en valeur plate), sur un système de surfaces à
 // plusieurs paliers d'élévation. Le mode sombre n'utilise jamais de noir pur
 // (#000000) : sur un fond totalement noir, aucune ombre ne peut se voir et
 // toutes les cartes se confondent avec le fond — d'où un anthracite bleu-nuit
 // profond comme base, chaque palier suivant légèrement plus clair.
 
+// Contrastes vérifiés (WCAG) : base sur blanc 8,0:1 et texte blanc sur base
+// 8,0:1 ; deep 12,8:1 ; bright (goutte) réservé aux décors, anneaux et
+// accents graphiques — jamais à du texte sur fond clair (3,2:1).
 const accent = {
-  50: "#EAF6F8",
-  100: "#CDEAEF",
-  deep: "#0B5A70",
-  base: "#0E7490",
-  bright: "#22D3EE",
+  50: "#E8F3FA",
+  100: "#CDE5F3",
+  deep: "#1F2D69",
+  base: "#2A4F8E",
+  bright: "#1E9CC6",
+  // Mode sombre : texte/icône accent (7,9:1 sur les cartes) et aplats des
+  // boutons (texte blanc 5,7:1, bouton visible sur le fond à 3,4:1).
+  nightText: "#6FB6DE",
+  nightFill: "#3366B0",
 };
 
 export type ThemeMode = "light" | "dark";
@@ -130,16 +138,16 @@ const dark: PaletteShape = {
   // ne sert JAMAIS de fond plein sous du texte (contraste ~1.8:1, illisible) —
   // les remplissages (boutons, pastille sélectionnée, case cochée) utilisent
   // le dégradé deep→base, plus sombre, avec onAccent clair par-dessus.
-  accent: accent.bright,
-  // Jamais `accent.bright` ici : voir le commentaire de `accentFill` plus haut
-  // (contraste ~1.8:1 avec `onAccent`, contre ~7:1 avec cette valeur).
-  accentFill: accent.base,
+  accent: accent.nightText,
+  // Un aplat plus lumineux que `base` : le marine se confondrait avec le fond
+  // anthracite, et le texte clair reste lisible dessus (5,7:1).
+  accentFill: accent.nightFill,
   accentDeep: accent.deep,
-  accentText: "#67D4E6",
+  accentText: "#8CCDEB",
   accentBright: accent.bright,
-  accentGradient: [accent.deep, accent.base],
-  accentPressed: accent.deep,
-  accentSoft: "rgba(14,116,144,0.18)",
+  accentGradient: [accent.base, accent.nightFill],
+  accentPressed: accent.base,
+  accentSoft: "rgba(30,156,198,0.18)",
   onAccent: "#F2FBFD",
   neutral: "#94A3B8",
   neutralSoft: "rgba(148,163,184,0.14)",

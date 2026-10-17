@@ -11,17 +11,37 @@ import { SplashGate } from "../components/SplashGate";
 import { navigationRef } from "./navigationRef";
 import { listenToPushTaps } from "../notifications/push";
 import { startLiveSync } from "../sync/liveSync";
+import { QuoteRequestScreen } from "../screens/public/QuoteRequestScreen";
+import { PublicHomeScreen } from "../screens/public/PublicHomeScreen";
+import { PublicServiceScreen } from "../screens/public/PublicServiceScreen";
+import type { PublicService, QuoteRequestInput } from "../api/public.api";
+import { LegalScreen } from "../screens/profile/LegalScreen";
+import { useStackScreenOptions } from "./stackScreenOptions";
 
 export type RootStackParamList = {
   AppTabs: undefined;
   ChangePassword: undefined;
 };
 
+// Hors connexion : l'accueil public de DEEP CLEAN (premier écran, sans
+// compte, aucune inscription — règle App Store 3.2), la demande de devis, les
+// mentions légales, et l'« Espace équipe » (connexion des collaborateurs, en
+// bas du menu).
+export type PublicStackParamList = {
+  PublicHome: undefined;
+  PublicService: { service: PublicService };
+  Login: undefined;
+  QuoteRequest: { service?: PublicService; customerType?: QuoteRequestInput["customerType"] } | undefined;
+  Legal: undefined;
+};
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const PublicStack = createNativeStackNavigator<PublicStackParamList>();
 
 export function RootNavigator() {
-  const { status, user } = useAuth();
+  const { status, user, sessionExpired, endMessage } = useAuth();
   const { colors, isDark } = useTheme();
+  const stackOptions = useStackScreenOptions();
 
   const navTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
@@ -48,7 +68,19 @@ export function RootNavigator() {
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
       {status === "unauthenticated" || !user ? (
-        <LoginScreen />
+        // L'accueil public s'ouvre en premier ; la connexion directement quand
+        // il faut la reprendre (Face ID/Touch ID, session expirée, compte
+        // désactivé, hors connexion…), pour que le message reste visible.
+        <PublicStack.Navigator
+          screenOptions={stackOptions}
+          initialRouteName={status === "locked" || sessionExpired || !!endMessage ? "Login" : "PublicHome"}
+        >
+          <PublicStack.Screen name="PublicHome" component={PublicHomeScreen} options={{ headerShown: false, title: "Deep Clean" }} />
+          <PublicStack.Screen name="PublicService" component={PublicServiceScreen} options={{ headerShown: false, title: "Service" }} />
+          <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: "Espace équipe" }} />
+          <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />
+          <PublicStack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
+        </PublicStack.Navigator>
       ) : user.mustChangePassword ? (
         // Mot de passe temporaire : blocage jusqu'à la définition d'un mot de passe personnel.
         <ForcePasswordChangeScreen />

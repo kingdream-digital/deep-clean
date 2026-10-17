@@ -22,14 +22,27 @@ module.exports = {
   useAnimatedStyle: (factory) => (typeof factory === "function" ? factory() : {}),
   useSharedValue: (initial) => ({ value: initial }),
   withSpring: identity,
-  withTiming: identity,
+  // Animation terminée aussitôt : le rappel de fin est appelé tout de suite.
+  withTiming: (value, _config, callback) => {
+    if (typeof callback === "function") callback(true);
+    return value;
+  },
   withRepeat: identity,
+  withDelay: (_delay, value) => value,
+  runOnJS: (fn) => fn,
+  // Animations réduites : pas de bulles ni de boucles dans les tests.
+  useReducedMotion: () => true,
+  interpolate: (value, input, output) => {
+    const t = Math.min(1, Math.max(0, (value - input[0]) / (input[input.length - 1] - input[0] || 1)));
+    return output[0] + (output[output.length - 1] - output[0]) * t;
+  },
   interpolateColor: () => "transparent",
   Easing: {
     linear: identity,
     ease: identity,
     inOut: identity,
     out: identity,
+    cubic: identity,
   },
   FadeIn: { duration: () => ({}) },
   FadeOut: { duration: () => ({}) },

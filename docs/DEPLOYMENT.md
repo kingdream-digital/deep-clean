@@ -268,7 +268,7 @@ Adresses retenues (déjà intégrées dans l'app mobile, voir
 |---|---|
 | `https://api.deep-clean.fr` | Backend (API) |
 | `https://app.deep-clean.fr` | Application web, et pages légales exigées par les stores (`/confidentialite.html`, `/support.html`, `/suppression-compte.html`, servies depuis `application/mobile/public/`) |
-| `https://deep-clean.fr` | Site de l'entreprise (hors de ce dépôt) |
+| `https://deep-clean.fr` | Site officiel de l'entreprise, version « La Plongée » (dossier `v2/` de ce dépôt) — **pas encore en ligne** : le domaine pointe déjà vers le serveur ; le publier comme application statique Coolify avec les domaines `deep-clean.fr` et `www.deep-clean.fr` (voir `docs/PUBLICATION-STORES.md` §1 bis) |
 
 Mise en place :
 1. **DNS**, chez **BookMyName** (espace client → le domaine `deep-clean.fr`

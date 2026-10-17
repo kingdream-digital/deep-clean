@@ -10,6 +10,7 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
+  Inter_700Bold_Italic,
 } from "@expo-google-fonts/inter";
 import { ThemeProvider, useTheme } from "./src/theme/ThemeProvider";
 import { AuthProvider } from "./src/auth/AuthContext";
@@ -40,6 +41,8 @@ function AppContent() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    // Mots en italique des titres de l'accueil public, comme sur le site.
+    Inter_700Bold_Italic,
   });
 
   // Animation du logo, une fois par jour : décidée avant le premier rendu de

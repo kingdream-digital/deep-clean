@@ -54,7 +54,12 @@ export function AppTabs() {
         tabBarPosition: useSidebar ? "left" : "bottom",
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.inkTertiary,
-        tabBarStyle: { backgroundColor: colors.backgroundElevated, borderTopColor: colors.border },
+        tabBarStyle: { backgroundColor: colors.backgroundElevated, borderTopColor: colors.border, height: 60, paddingBottom: 6 },
+        // Bug corrigé (téléphone, navigateur) : le libellé de 10 px tenait dans
+        // une boîte écrasée à 11 px qui masque le dépassement — le bas des lettres
+        // (« Planning », « Messagerie ») était rogné. Hauteur de ligne explicite,
+        // libellé qui ne rétrécit plus, barre un peu plus haute.
+        tabBarLabelStyle: { fontSize: 10, lineHeight: 14, flexShrink: 0 },
         tabBarIcon: ({ color, size }: { color: string; size: number }) => (
           <Ionicons name={ICONS[route.name]} size={size} color={color} />
         ),

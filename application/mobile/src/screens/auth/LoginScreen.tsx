@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { PublicStackParamList } from "../../navigation/RootNavigator";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../../utils/alert";
@@ -13,6 +16,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { biometricLabel, getAvailableBiometricKind } from "../../auth/biometrics";
+import { PRIVACY_URL, SUPPORT_URL } from "../../config/links";
 
 export function LoginScreen() {
   const { colors, spacing, type } = useTheme();
@@ -110,13 +114,17 @@ export function LoginScreen() {
       {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
       <Button label="Se connecter" onPress={handleSubmit} loading={loading} />
+      <DiscoverLink />
     </>
   );
 
   const helpLine = (
-    <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
-      Pour tout problème de connexion ou de compte, contactez la RH.
-    </Text>
+    <>
+      <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
+        Pour tout problème de connexion ou de compte, contactez la RH.
+      </Text>
+      <LegalLinks />
+    </>
   );
 
   // Ordinateur : visuel de marque animé à gauche, formulaire dans une carte
@@ -125,6 +133,7 @@ export function LoginScreen() {
   if (isDesktopWeb) {
     return (
       <View style={[styles.desktopWrap, { backgroundColor: colors.background }]}>
+        <BackToHome top={spacing.md} />
         <View style={{ flex: 1.1 }}>
           <LoginHero emblemSize={230} titleWidth={380} pageColor={colors.background} fill />
         </View>
@@ -151,6 +160,7 @@ export function LoginScreen() {
         <View style={{ paddingTop: insets.top }}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: "#1F2D69", bottom: "50%" }]} />
           <LoginHero emblemSize={Math.min(width * 0.4, height * 0.17, 170)} titleWidth={Math.min(width * 0.7, height * 0.36, 290)} pageColor={colors.background} />
+          <BackToHome top={insets.top + spacing.xs} />
         </View>
         <Animated.View entering={FadeInUp.duration(600).delay(300)} style={{ flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg + insets.bottom }}>
           <Text style={[type.title2, { color: colors.ink }]}>Connexion</Text>
@@ -242,9 +252,12 @@ function BiometricUnlockPanel() {
   );
 
   const helpLine = (
-    <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
-      Pour tout problème de connexion ou de compte, contactez la RH.
-    </Text>
+    <>
+      <Text style={[type.footnote, { color: colors.inkTertiary, textAlign: "center" }]}>
+        Pour tout problème de connexion ou de compte, contactez la RH.
+      </Text>
+      <LegalLinks />
+    </>
   );
 
   if (isDesktopWeb) {
@@ -303,3 +316,89 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
 });
+
+// Confidentialité et assistance accessibles AVANT toute connexion (exigence
+// App Store, règle 5.1.1) : mêmes pages que celles déclarées sur les stores.
+function LegalLinks() {
+  const { colors, spacing, type } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
+  const links = [
+    { label: "Mentions légales", open: () => navigation.navigate("Legal") },
+    { label: "Confidentialité", open: () => void Linking.openURL(PRIVACY_URL) },
+    { label: "Assistance", open: () => void Linking.openURL(SUPPORT_URL) },
+  ];
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", marginTop: spacing.xs }}>
+      {links.map((link, i) => (
+        <React.Fragment key={link.label}>
+          {i > 0 && <Text style={[type.footnote, { color: colors.inkTertiary, marginHorizontal: spacing.xs }]}>·</Text>}
+          <Pressable onPress={link.open} accessibilityRole="link" hitSlop={8}>
+            <Text style={[type.footnote, { color: colors.accentText, fontWeight: "600" }]}>{link.label}</Text>
+          </Pressable>
+        </React.Fragment>
+      ))}
+    </View>
+  );
+}
+
+// Retour à l'accueil public (premier écran de l'application), quand la
+// connexion a été ouverte depuis « Espace équipe ».
+function BackToHome({ top }: { top: number }) {
+  const { spacing, radius, type } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
+  if (!navigation.canGoBack()) return null;
+  return (
+    <Pressable
+      onPress={() => navigation.goBack()}
+      accessibilityRole="button"
+      accessibilityLabel="Retour à l'accueil"
+      hitSlop={8}
+      style={({ pressed }) => ({
+        position: "absolute",
+        top,
+        left: spacing.md,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 7,
+        borderRadius: radius.pill,
+        backgroundColor: "rgba(255,255,255,0.16)",
+        opacity: pressed ? 0.8 : 1,
+        zIndex: 2,
+      })}
+    >
+      <Ionicons name="chevron-back" size={16} color="#FFFFFF" />
+      <Text style={[type.footnote, { color: "#FFFFFF", marginLeft: 2, fontFamily: "Inter_600SemiBold" }]}>Accueil</Text>
+    </Pressable>
+  );
+}
+
+// Espace public : les particuliers et entreprises découvrent DEEP CLEAN et
+// demandent un devis, sans compte (aucune inscription : les comptes des
+// collaborateurs restent créés par la RH).
+function DiscoverLink() {
+  const { colors, spacing, radius, type } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();
+  return (
+    <Pressable
+      onPress={() => navigation.navigate("PublicHome", undefined, { pop: true })}
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: spacing.lg,
+        padding: spacing.md,
+        borderRadius: radius.lg,
+        backgroundColor: colors.accentSoft,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <Ionicons name="sparkles-outline" size={20} color={colors.accentText} />
+      <View style={{ flex: 1, marginLeft: spacing.sm }}>
+        <Text style={[type.footnote, { color: colors.inkSecondary }]}>Particulier ou entreprise ?</Text>
+        <Text style={[type.callout, { color: colors.accentText, fontWeight: "600" }]}>Découvrir nos services et demander un devis</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.accentText} />
+    </Pressable>
+  );
+}

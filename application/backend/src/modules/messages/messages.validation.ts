@@ -58,3 +58,20 @@ export const contactIdParamSchema = {
 export const messageIdParamSchema = {
   params: z.object({ id: z.string().uuid() }),
 };
+
+// Signalement d'un message à la RH (règle App Store 1.2).
+export const reportMessageSchema = {
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    reason: z.enum(["HARASSMENT", "INSULT", "INAPPROPRIATE", "SPAM", "OTHER"]),
+    comment: z.string().trim().max(500).optional(),
+  }),
+};
+
+export const blockContactSchema = {
+  body: z.object({ userId: z.string().uuid() }),
+};
+
+export const blockedContactParamSchema = {
+  params: z.object({ userId: z.string().uuid() }),
+};

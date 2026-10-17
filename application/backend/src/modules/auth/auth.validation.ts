@@ -35,3 +35,10 @@ export const changePasswordSchema = {
       path: ["newPassword"],
     }),
 };
+
+// Suppression de compte depuis l'application : mot de passe exigé.
+export const accountDeletionSchema = {
+  body: z.object({
+    password: z.string().min(1, "Mot de passe requis."),
+  }),
+};

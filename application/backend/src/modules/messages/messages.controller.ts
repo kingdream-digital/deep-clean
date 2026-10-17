@@ -141,3 +141,23 @@ export const markThreadReadHandler = asyncHandler(async (req: Request, res: Resp
   await messagesService.markThreadRead(actorOf(req), req.params.id as string);
   res.status(204).send();
 });
+
+export const listBlockedContactsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const items = await messagesService.listBlockedContacts(actorOf(req));
+  res.status(200).json({ items });
+});
+
+export const blockContactHandler = asyncHandler(async (req: Request, res: Response) => {
+  await messagesService.blockContact(actorOf(req), req.body.userId as string);
+  res.status(204).send();
+});
+
+export const unblockContactHandler = asyncHandler(async (req: Request, res: Response) => {
+  await messagesService.unblockContact(actorOf(req), req.params.userId as string);
+  res.status(204).send();
+});
+
+export const reportMessageHandler = asyncHandler(async (req: Request, res: Response) => {
+  const result = await messagesService.reportMessage(actorOf(req), req.params.id as string, req.body);
+  res.status(result.alreadyReported ? 200 : 201).json(result);
+});
