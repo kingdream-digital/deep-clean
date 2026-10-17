@@ -425,12 +425,23 @@ Sur iPhone, la clé de notifications Apple est créée automatiquement par
 
 ## 9. Compiler et envoyer
 
-Depuis `application/mobile` :
+Le projet est prêt à compiler : vérifié le 17/10/2026 (expo-doctor 21/21,
+bundles iOS et Android compilés, projets natifs générés sans erreur, Info.plist
+et manifeste Android contrôlés, cible Android API 36 comme l'exige Google
+Play depuis le 31/08/2026).
+
+**La première fois, depuis un ordinateur** (Windows, Mac ou Linux : la
+compilation se fait dans le cloud Expo, pas besoin de Mac). La première
+compilation iPhone demande de se connecter au compte Apple (identifiant
+Apple + code reçu sur l'iPhone) : c'est ce qui permet à Expo de créer les
+certificats de signature. Depuis `application/mobile` :
 
 ```bash
 npm install -g eas-cli
-eas login                      # compte Expo
-eas init                       # première fois : relie le projet à Expo
+eas login                      # compte Expo boby13
+eas init                       # première fois : crée le projet sur Expo
+                               # (ajoute l'identifiant du projet dans app.json :
+                               # à conserver en le poussant sur GitHub)
 
 # Compilations store (dans le cloud Expo, ~15-30 min chacune)
 eas build --platform ios --profile production
@@ -441,13 +452,26 @@ eas submit --platform ios --profile production       # vers App Store Connect
 eas submit --platform android --profile production   # vers la Play Console
 ```
 
-- Au premier `eas build` iOS, se connecter avec le compte Apple Developer :
-  EAS crée les certificats et la clé de notifications.
-- Au premier build Android, EAS crée la clé de signature et la conserve.
-- Pour Google, le **tout premier** envoi se fait à la main dans la Play
-  Console : télécharger le fichier `.aab` depuis la page du build Expo. Les
-  suivants peuvent passer par `eas submit`, avec une clé de compte de
-  service Google.
+- **iOS** : au premier `eas build`, répondre « oui » à la connexion au
+  compte Apple Developer (identifiant Apple + code à deux facteurs). EAS crée
+  le certificat de distribution, le profil et l'identifiant `fr.deepclean.app`.
+  Accepter aussi la création de la **clé de notifications** (Push Key) : sans
+  elle, aucune notification sur iPhone.
+- **iOS, envoi** : `eas submit` crée lui-même la fiche dans App Store Connect
+  si elle n'existe pas encore (connexion Apple demandée). On peut aussi la
+  créer avant, à la main (§10).
+- **Android** : au premier build, EAS crée et garde la clé de signature.
+  Elle ne doit jamais être perdue : elle reste sur le compte Expo.
+- **Android, premier envoi** : le plus simple est de télécharger le fichier
+  `.aab` depuis la page du build sur expo.dev, puis de l'importer à la main
+  dans la Play Console, dans une version de **test fermé** (c'est ce test qui
+  compte pour la règle des 12 testeurs pendant 14 jours, §2). Ensuite,
+  `eas submit` peut prendre le relais avec une clé de compte de service
+  Google enregistrée sur Expo (`eas credentials`, Android, « Google Service
+  Account »).
+- Avant de publier, Google demande aussi de vérifier, avec l'app « Play
+  Console » sur un vrai téléphone Android (Android 10 ou plus), que vous avez
+  bien accès à un appareil Android.
 
 ---
 
