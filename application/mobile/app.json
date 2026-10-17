@@ -122,7 +122,7 @@
           "locationWhenInUsePermission": "Deep Clean utilise votre position uniquement au moment où vous pointez (et quand vous enregistrez l'emplacement d'un chantier), pour justifier la présence sur le lieu de la mission. Elle n'est jamais suivie en arrière-plan.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
-          "motionUsagePermission": false,
+          "motionUsagePermission": "Deep Clean n'utilise pas les données de mouvement de votre appareil : cette autorisation n'est jamais demandée. Seule votre position est utilisée, au moment du pointage.",
           "isIosBackgroundLocationEnabled": false
         }
       ],
