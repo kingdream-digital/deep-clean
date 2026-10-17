@@ -86,7 +86,7 @@ vérificateur tombe sur des erreurs (règle 2.1).
      (logo, services, « Demander un devis gratuit ») et « Espace équipe »,
      en bas du menu et de la page, mène à la connexion.
 5. **Site officiel `https://deep-clean.fr`** : c'est la version « La
-   Plongée » (dossier `v2/` de ce dépôt, celle dont l'espace « Découvrir » de
+   Plongée » (dossier `v2/` de ce dépôt, celle dont l'accueil public de
    l'app reprend les textes et les photos). Il n'est **pas encore en ligne** :
    le nom de domaine pointe déjà vers le serveur (on y voit pour l'instant le
    certificat par défaut de Traefik et une erreur 503). Pour le publier :
