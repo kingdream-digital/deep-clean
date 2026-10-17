@@ -475,6 +475,24 @@ eas submit --platform android --profile production   # vers la Play Console
   Console » sur un vrai téléphone Android (Android 10 ou plus), que vous avez
   bien accès à un appareil Android.
 
+**Depuis une session Claude Code dans le cloud** (sans ordinateur) : créer
+un jeton sur https://expo.dev/settings/access-tokens (compte `boby13`),
+l'ajouter dans les réglages de l'environnement cloud comme variable
+`EXPO_TOKEN` (jamais dans la conversation ni dans le code), puis ouvrir une
+nouvelle session. Elle peut alors, depuis `application/mobile` :
+
+```bash
+npm ci
+npx eas-cli@latest init --account boby13 --non-interactive   # une fois : identifiant du projet dans app.json, à valider et pousser
+npx eas-cli@latest build --platform android --profile production --non-interactive --no-wait
+```
+
+La compilation iPhone ne peut pas démarrer ainsi la première fois : il faut
+d'abord créer les certificats Apple avec une connexion au compte Apple (code
+à deux facteurs), donc un `eas build --platform ios` lancé une fois depuis un
+ordinateur (ci-dessus). Les compilations iPhone suivantes peuvent ensuite
+partir de la session cloud.
+
 ---
 
 ## 10. Envoi en vérification
