@@ -12,8 +12,7 @@ import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Avatar } from "../../components/Avatar";
 import { useAuth } from "../../auth/AuthContext";
-import { ANNOUNCEMENT_PUBLIC_ROLES, announcementCoverPhotoUrl, deleteAnnouncement, getAnnouncement, setAnnouncementVisibility } from "../../api/announcements.api";
-import { Switch } from "../../components/Switch";
+import { announcementCoverPhotoUrl, deleteAnnouncement, getAnnouncement } from "../../api/announcements.api";
 import type { Announcement } from "../../api/announcements.api";
 import type { Role } from "../../api/auth.api";
 import { Alert } from "../../utils/alert";
@@ -93,20 +92,6 @@ export function AnnouncementDetailScreen() {
   }
 
   const canDelete = !!user && CAN_DELETE_ROLES.includes(user.role);
-  const canManagePublic = !!user && ANNOUNCEMENT_PUBLIC_ROLES.includes(user.role);
-  const [savingVisibility, setSavingVisibility] = useState(false);
-
-  async function toggleVisibility(isPublic: boolean) {
-    if (!announcement) return;
-    setSavingVisibility(true);
-    try {
-      setAnnouncement(await setAnnouncementVisibility(announcement.id, isPublic));
-    } catch (err) {
-      Alert.alert("Accueil public", extractErrorMessage(err, "Modification impossible."));
-    } finally {
-      setSavingVisibility(false);
-    }
-  }
 
   useEffect(() => {
     if (!canDelete) return;
@@ -152,32 +137,12 @@ export function AnnouncementDetailScreen() {
             </View>
           </View>
 
-          {announcement.isPublic && (
-            <View style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", marginTop: spacing.md, paddingHorizontal: spacing.xs, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.accentSoft }}>
-              <Ionicons name="globe-outline" size={13} color={colors.accentText} />
-              <Text style={[type.caption, { color: colors.accentText, marginLeft: 4 }]}>Sur l'accueil public</Text>
-            </View>
-          )}
           <Text style={[type.title2, { color: colors.ink, marginTop: spacing.lg }]}>{announcement.title}</Text>
           <Text style={[type.body, { color: colors.inkSecondary, marginTop: spacing.sm, lineHeight: 24 }]}>
             {announcement.body}
           </Text>
           </View>
         </Card>
-        {canManagePublic && (
-          <Card style={{ marginTop: spacing.md }}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="globe-outline" size={20} color={colors.accent} />
-              <View style={{ flex: 1, marginHorizontal: spacing.sm }}>
-                <Text style={[type.headline, { color: colors.ink }]}>Sur l'accueil public</Text>
-                <Text style={[type.footnote, { color: colors.inkSecondary }]}>
-                  {announcement.isPublic ? "Visible par tous, sans compte, signée « DEEP CLEAN »." : "Réservée à l'équipe."}
-                </Text>
-              </View>
-              <Switch value={announcement.isPublic} onValueChange={(v) => void toggleVisibility(v)} disabled={savingVisibility} accessibilityLabel="Afficher sur l'accueil public" />
-            </View>
-          </Card>
-        )}
       </ScrollView>
       {!!announcement.hasCoverPhoto && (
         <PhotoViewerModal

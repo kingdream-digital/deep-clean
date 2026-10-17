@@ -12,10 +12,9 @@ import { navigationRef } from "./navigationRef";
 import { listenToPushTaps } from "../notifications/push";
 import { startLiveSync } from "../sync/liveSync";
 import { QuoteRequestScreen } from "../screens/public/QuoteRequestScreen";
-import { PublicNewsDetailScreen } from "../screens/public/PublicNewsDetailScreen";
 import { PublicHomeScreen } from "../screens/public/PublicHomeScreen";
-import { PublicNewsScreen } from "../screens/public/PublicNewsScreen";
-import type { PublicService } from "../api/public.api";
+import { PublicServiceScreen } from "../screens/public/PublicServiceScreen";
+import type { PublicService, QuoteRequestInput } from "../api/public.api";
 import { LegalScreen } from "../screens/profile/LegalScreen";
 import { useStackScreenOptions } from "./stackScreenOptions";
 
@@ -26,14 +25,13 @@ export type RootStackParamList = {
 
 // Hors connexion : l'accueil public de DEEP CLEAN (premier écran, sans
 // compte, aucune inscription — règle App Store 3.2), la demande de devis, les
-// actualités, les mentions légales, et l'« Espace équipe » (connexion des
-// collaborateurs, en bas du menu).
+// mentions légales, et l'« Espace équipe » (connexion des collaborateurs, en
+// bas du menu).
 export type PublicStackParamList = {
   PublicHome: undefined;
-  PublicNews: undefined;
+  PublicService: { service: PublicService };
   Login: undefined;
-  QuoteRequest: { service?: PublicService } | undefined;
-  PublicNewsDetail: { newsId: string };
+  QuoteRequest: { service?: PublicService; customerType?: QuoteRequestInput["customerType"] } | undefined;
   Legal: undefined;
 };
 
@@ -78,10 +76,9 @@ export function RootNavigator() {
           initialRouteName={status === "locked" || sessionExpired || !!endMessage ? "Login" : "PublicHome"}
         >
           <PublicStack.Screen name="PublicHome" component={PublicHomeScreen} options={{ headerShown: false, title: "Deep Clean" }} />
-          <PublicStack.Screen name="PublicNews" component={PublicNewsScreen} options={{ title: "Actualités" }} />
+          <PublicStack.Screen name="PublicService" component={PublicServiceScreen} options={{ headerShown: false, title: "Service" }} />
           <PublicStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, title: "Espace équipe" }} />
           <PublicStack.Screen name="QuoteRequest" component={QuoteRequestScreen} options={{ title: "Demander un devis" }} />
-          <PublicStack.Screen name="PublicNewsDetail" component={PublicNewsDetailScreen} options={{ title: "Actualité" }} />
           <PublicStack.Screen name="Legal" component={LegalScreen} options={{ title: "Mentions légales" }} />
         </PublicStack.Navigator>
       ) : user.mustChangePassword ? (

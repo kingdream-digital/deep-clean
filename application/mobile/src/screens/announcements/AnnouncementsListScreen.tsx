@@ -108,10 +108,7 @@ export function AnnouncementsListScreen() {
                       </Text>
                     </View>
                   </View>
-                  {item.isPublic && (
-                    <Text style={[type.caption, { color: colors.accentText, marginTop: spacing.sm }]}>Sur l'accueil public</Text>
-                  )}
-                  <Text style={[type.headline, { color: colors.ink, marginTop: item.isPublic ? spacing.xxs : spacing.md }]}>{item.title}</Text>
+                  <Text style={[type.headline, { color: colors.ink, marginTop: spacing.md }]}>{item.title}</Text>
                   <Text style={[type.callout, { color: colors.inkSecondary, marginTop: spacing.xs }]} numberOfLines={4}>
                     {item.body}
                   </Text>

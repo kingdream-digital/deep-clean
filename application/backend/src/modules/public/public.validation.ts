@@ -53,7 +53,9 @@ export const quoteRequestSchema = {
         .pipe(z.string().regex(/^\d{5}$/, "Code postal invalide.").optional()),
       city: optionalText(80),
       service: z.enum(PUBLIC_SERVICES),
-      message: z.string().trim().min(10, "Décrivez votre besoin en quelques mots (10 caractères au moins).").max(2000),
+      // Description facultative (retour explicite du client : le service
+      // choisi suffit, « peut-être une description »).
+      message: optionalText(2000),
       consent: z.literal(true, { errorMap: () => ({ message: "Votre accord est nécessaire pour que nous puissions vous recontacter." }) }),
       // Champ piège invisible pour les personnes : seul un robot le remplit.
       website: z.string().max(500).optional(),

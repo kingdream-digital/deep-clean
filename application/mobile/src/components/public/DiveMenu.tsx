@@ -15,10 +15,10 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 
-// Menu « plongée » de l'accueil public, comme celui du site deep-clean.fr :
-// l'eau s'ouvre en cercle depuis le bouton du menu, des bulles remontent,
-// chaque partie de la page est repérée par sa profondeur (−8 m, −14 m…).
-// En bas : tous les services ouverts au public, puis « Espace équipe ».
+// Menu de l'accueil public, dans l'ambiance « eau » de la marque : l'eau
+// s'ouvre en cercle depuis le bouton du menu et des bulles remontent. Tous
+// les services (chacun mène à sa page), le devis, deux repères de la page,
+// puis tout en bas « Espace équipe ».
 
 export const DIVE = {
   royal: "#184F91",
@@ -29,30 +29,22 @@ export const DIVE = {
   onDark: "rgba(234,246,251,0.8)",
 };
 
-export interface DiveMenuItem {
-  key: string;
-  depth: number;
-  label: string;
-}
-
 interface Props {
   open: boolean;
   origin: { x: number; y: number };
   topInset: number;
-  items: DiveMenuItem[];
-  services: readonly string[];
-  onSelect: (key: string) => void;
+  services: { service: string; title: string }[];
+  sections: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap }[];
   onService: (service: string) => void;
-  onCall: () => void;
-  onWrite: () => void;
-  onDirections: () => void;
+  onQuote: () => void;
+  onSection: (key: string) => void;
   onTeamSpace: () => void;
   onLegal: () => void;
   onClose: () => void;
 }
 
 export function DiveMenu(props: Props) {
-  const { open, origin, topInset, onClose } = props;
+  const { open, origin, onClose } = props;
   const { width, height } = useWindowDimensions();
   const reduced = useReducedMotion();
   const progress = useSharedValue(0);
@@ -100,43 +92,45 @@ export function DiveMenu(props: Props) {
       </Animated.View>
       {!reduced && <Bubbles progress={progress} width={width} height={height} />}
       <Animated.View style={[StyleSheet.absoluteFill, contentStyle]}>
-        <MenuContent {...props} topInset={topInset} progress={progress} />
+        <MenuContent {...props} progress={progress} />
         {/* Le texte qui défile s'efface sous l'en-tête au lieu d'y passer net. */}
-        <LinearGradient colors={[DIVE.navy, "rgba(31,44,104,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: topInset + 84 }} pointerEvents="none" />
+        <LinearGradient colors={[DIVE.navy, "rgba(31,44,104,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: props.topInset + 84 }} pointerEvents="none" />
       </Animated.View>
     </View>
   );
 }
 
-function MenuContent({ items, services, onSelect, onService, onCall, onWrite, onDirections, onTeamSpace, onLegal, topInset, progress }: Props & { progress: SharedValue<number> }) {
+function MenuContent({ services, sections, onService, onQuote, onSection, onTeamSpace, onLegal, topInset, progress }: Props & { progress: SharedValue<number> }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: topInset + 92, paddingHorizontal: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
-      {items.map((item, index) => (
-        <Rise key={item.key} index={index} progress={progress}>
-          <Pressable onPress={() => onSelect(item.key)} accessibilityRole="link" style={({ pressed }) => ({ flexDirection: "row", alignItems: "baseline", paddingVertical: 7, opacity: pressed ? 0.6 : 1 })}>
-            <Text style={styles.depth}>{item.depth === 0 ? "0 m" : `−${item.depth} m`}</Text>
-            <Text style={styles.link}>{item.label}</Text>
+      <Rise index={0} progress={progress}>
+        <Text style={styles.overline}>NOS SERVICES</Text>
+      </Rise>
+      {services.map((item, index) => (
+        <Rise key={item.service} index={index + 1} progress={progress}>
+          <Pressable onPress={() => onService(item.service)} accessibilityRole="link" style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}>
+            <Text style={styles.link}>{item.title}</Text>
+            <Ionicons name="arrow-forward" size={18} color={DIVE.aquaGlow} />
           </Pressable>
         </Rise>
       ))}
 
-      <Rise index={items.length} progress={progress}>
-        <Text style={styles.overline}>VOS SERVICES — DEVIS GRATUIT</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {services.map((service) => (
-            <Pressable key={service} onPress={() => onService(service)} accessibilityRole="button" style={({ pressed }) => [styles.chip, pressed && { backgroundColor: "rgba(255,255,255,0.2)" }]}>
-              <Text style={styles.chipText}>{service}</Text>
+      <Rise index={services.length + 1} progress={progress}>
+        <Pressable onPress={onQuote} accessibilityRole="button" style={({ pressed }) => [styles.quote, pressed && { opacity: 0.85 }]}>
+          <Ionicons name="document-text-outline" size={19} color="#FFFFFF" />
+          <Text style={styles.quoteText}>Demander un devis gratuit</Text>
+        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+          {sections.map((section) => (
+            <Pressable key={section.key} onPress={() => onSection(section.key)} accessibilityRole="link" style={({ pressed }) => [styles.action, pressed && { backgroundColor: "rgba(255,255,255,0.18)" }]}>
+              <Ionicons name={section.icon} size={18} color={DIVE.aquaGlow} />
+              <Text style={styles.actionText}>{section.label}</Text>
             </Pressable>
           ))}
         </View>
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
-          <Action icon="call-outline" label="Appeler" onPress={onCall} />
-          <Action icon="mail-outline" label="Écrire" onPress={onWrite} />
-          <Action icon="navigate-outline" label="Itinéraire" onPress={onDirections} />
-        </View>
       </Rise>
 
-      <Rise index={items.length + 1} progress={progress}>
+      <Rise index={services.length + 2} progress={progress}>
         <Pressable onPress={onTeamSpace} accessibilityRole="button" style={({ pressed }) => [styles.team, pressed && { opacity: 0.85 }]}>
           <Ionicons name="person-circle-outline" size={22} color={DIVE.navy} />
           <View style={{ flex: 1, marginLeft: 10 }}>
@@ -150,15 +144,6 @@ function MenuContent({ items, services, onSelect, onService, onCall, onWrite, on
         </Pressable>
       </Rise>
     </ScrollView>
-  );
-}
-
-function Action({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.action, pressed && { backgroundColor: "rgba(255,255,255,0.18)" }]}>
-      <Ionicons name={icon} size={18} color={DIVE.aquaGlow} />
-      <Text style={styles.actionText}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -211,28 +196,14 @@ function Bubble({ x, size, duration, delay, width, height }: { x: number; size: 
 }
 
 const styles = StyleSheet.create({
-  depth: { width: 58, fontFamily: "Inter_700Bold", fontSize: 12, color: DIVE.aquaGlow, fontVariant: ["tabular-nums"] },
-  link: { flex: 1, fontFamily: "Inter_700Bold", fontSize: 27, lineHeight: 33, letterSpacing: -0.6, color: "#FFFFFF" },
-  overline: { marginTop: 30, marginBottom: 12, fontFamily: "Inter_600SemiBold", fontSize: 11, letterSpacing: 1.1, color: DIVE.aquaGlow },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.28)" },
-  chipText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#FFFFFF" },
+  overline: { marginBottom: 6, fontFamily: "Inter_600SemiBold", fontSize: 11, letterSpacing: 1.1, color: DIVE.aquaGlow },
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.12)" },
+  link: { flex: 1, fontFamily: "Inter_700Bold", fontSize: 22, lineHeight: 28, letterSpacing: -0.4, color: "#FFFFFF" },
+  quote: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 26, height: 54, borderRadius: 27, backgroundColor: "#0479A3" },
+  quoteText: { marginLeft: 8, fontFamily: "Inter_700Bold", fontSize: 16, color: "#FFFFFF" },
   action: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.08)" },
   actionText: { marginTop: 4, fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#FFFFFF" },
   team: { flexDirection: "row", alignItems: "center", marginTop: 30, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 999, backgroundColor: "#FFFFFF" },
   teamTitle: { fontFamily: "Inter_700Bold", fontSize: 16, color: DIVE.navy },
   teamText: { fontFamily: "Inter_500Medium", fontSize: 12, color: "#46527F", marginTop: 1 },
 });
-
-// Parties de l'accueil, avec leur profondeur (mêmes repères que le site).
-export const DIVE_ITEMS: DiveMenuItem[] = [
-  { key: "surface", depth: 0, label: "Accueil" },
-  { key: "news", depth: 2, label: "Actualités" },
-  { key: "univers", depth: 8, label: "Nos univers" },
-  { key: "pieces", depth: 14, label: "Pièce par pièce" },
-  { key: "methode", depth: 20, label: "Notre méthode" },
-  { key: "engagements", depth: 26, label: "Engagements" },
-  { key: "fondateur", depth: 30, label: "Qui sommes-nous" },
-  { key: "zone", depth: 34, label: "Zone d'intervention" },
-  { key: "faq", depth: 41, label: "Questions" },
-  { key: "contact", depth: 44, label: "Contact & devis" },
-];

@@ -10,8 +10,6 @@ export interface Announcement {
   // blog/journal d'entreprise") — jamais dans cette réponse elle-même, voir
   // announcementCoverPhotoUrl. Même principe que TimeEntry.hasClockInPhoto.
   hasCoverPhoto: boolean;
-  // Affichée aussi sur l'accueil public de l'application (sans compte).
-  isPublic: boolean;
   createdAt: string;
   author: {
     id: string;
@@ -56,13 +54,12 @@ export async function getAnnouncement(id: string): Promise<Announcement> {
 }
 
 export async function createAnnouncement(
-  input: { title: string; body: string; isPublic?: boolean },
+  input: { title: string; body: string },
   photo?: AnnouncementPhotoAsset
 ): Promise<Announcement> {
   const formData = new FormData();
   formData.append("title", input.title);
   formData.append("body", input.body);
-  if (input.isPublic) formData.append("isPublic", "true");
   if (photo) {
     if (Platform.OS === "web" && photo.file) {
       formData.append("photo", photo.file, photo.fileName ?? photo.file.name);
@@ -84,13 +81,4 @@ export async function createAnnouncement(
 // peut publier une actualité mais pas la supprimer.
 export async function deleteAnnouncement(id: string): Promise<void> {
   await apiClient.delete(`/announcements/${id}`);
-}
-
-// Accueil public de l'application : réservé à la RH, la direction et l'admin
-// technique côté serveur (ANNOUNCEMENT_PUBLIC_ROLES).
-export const ANNOUNCEMENT_PUBLIC_ROLES: Role[] = ["HR", "DIRECTOR", "ADMIN"];
-
-export async function setAnnouncementVisibility(id: string, isPublic: boolean): Promise<Announcement> {
-  const { data } = await apiClient.patch<{ announcement: Announcement }>(`/announcements/${id}/visibility`, { isPublic });
-  return data.announcement;
 }

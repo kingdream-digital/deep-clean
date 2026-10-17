@@ -68,13 +68,19 @@ describe("Demande de devis depuis l'espace public", () => {
     expect(prospect.serviceType).toBe("Conciergerie");
   });
 
-  it("exige le consentement, un moyen de contact et un message", async () => {
+  it("exige le consentement et un moyen de contact ; la description est facultative", async () => {
     expect((await post({ ...VALID, consent: false }, "10.0.0.2")).status).toBe(400);
     expect((await post({ ...VALID, phone: undefined, email: undefined }, "10.0.0.2")).status).toBe(400);
-    expect((await post({ ...VALID, message: "court" }, "10.0.0.2")).status).toBe(400);
     expect((await post({ ...VALID, customerType: "BUSINESS" }, "10.0.0.2")).status).toBe(400);
     expect((await post({ ...VALID, service: "Ménage de printemps" }, "10.0.0.2")).status).toBe(400);
     expect(await prisma.prospect.count()).toBe(0);
+  });
+
+  it("accepte une demande sans description : le service suffit", async () => {
+    expect((await post({ ...VALID, message: undefined }, "10.0.0.7")).status).toBe(201);
+    const prospect = await prisma.prospect.findFirstOrThrow();
+    expect(prospect.serviceType).toBe(VALID.service);
+    expect(prospect.need).toBeNull();
   });
 
   it("répond normalement à un robot (champ piège rempli) sans rien enregistrer", async () => {

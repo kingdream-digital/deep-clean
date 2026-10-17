@@ -14,7 +14,7 @@ export interface QuoteRequestInput {
   postalCode?: string;
   city?: string;
   service: string;
-  message: string;
+  message?: string;
   website?: string;
 }
 

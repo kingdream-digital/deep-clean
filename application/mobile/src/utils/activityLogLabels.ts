@@ -52,8 +52,6 @@ const ACTION_LABELS: Record<string, string> = {
   LEAVE_ACCRUAL_VALIDATED: "Congés acquis validés",
   LEAVE_ACCRUAL_CORRECTED: "Congés acquis corrigés",
   ANNOUNCEMENT_POSTED: "Actualité publiée",
-  ANNOUNCEMENT_MADE_PUBLIC: "Actualité mise sur l'accueil public",
-  ANNOUNCEMENT_MADE_INTERNAL: "Actualité retirée de l'accueil public",
   ANNOUNCEMENT_DELETED: "Actualité supprimée",
   CONVERSATION_GROUP_CREATED: "Groupe de discussion créé",
   CONVERSATION_LEFT: "Départ d'un groupe",

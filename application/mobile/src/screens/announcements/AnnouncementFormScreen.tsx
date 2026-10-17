@@ -12,9 +12,7 @@ import { Card } from "../../components/Card";
 import { PressableScale } from "../../components/PressableScale";
 import { useTheme } from "../../theme/ThemeProvider";
 import { extractErrorMessage } from "../../api/client";
-import { ANNOUNCEMENT_PUBLIC_ROLES, createAnnouncement } from "../../api/announcements.api";
-import { useAuth } from "../../auth/AuthContext";
-import { Switch } from "../../components/Switch";
+import { createAnnouncement } from "../../api/announcements.api";
 import type { AnnouncementPhotoAsset } from "../../api/announcements.api";
 import { pickWebImages } from "../../utils/webImagePicker";
 import type { HomeStackParamList } from "../../navigation/HomeStack";
@@ -25,9 +23,6 @@ export function AnnouncementFormScreen() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [photo, setPhoto] = useState<AnnouncementPhotoAsset | null>(null);
-  const { user } = useAuth();
-  const canPublishPublicly = !!user && ANNOUNCEMENT_PUBLIC_ROLES.includes(user.role);
-  const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +72,7 @@ export function AnnouncementFormScreen() {
     setError(null);
     setSaving(true);
     try {
-      const announcement = await createAnnouncement({ title: title.trim(), body: body.trim(), isPublic: canPublishPublicly && isPublic }, photo ?? undefined);
+      const announcement = await createAnnouncement({ title: title.trim(), body: body.trim() }, photo ?? undefined);
       navigation.replace("AnnouncementDetail", { announcementId: announcement.id });
     } catch (err) {
       setError(extractErrorMessage(err, "Impossible de publier cette actualité."));
@@ -133,24 +128,6 @@ export function AnnouncementFormScreen() {
           numberOfLines={6}
           style={{ minHeight: 140, textAlignVertical: "top" }}
         />
-
-        {canPublishPublicly && (
-          <Card style={{ marginBottom: spacing.lg }}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="globe-outline" size={20} color={colors.accent} />
-              <View style={{ flex: 1, marginHorizontal: spacing.sm }}>
-                <Text style={[type.headline, { color: colors.ink }]}>Afficher aussi sur l'accueil public</Text>
-                <Text style={[type.footnote, { color: colors.inkSecondary }]}>Visible par tous ceux qui ouvrent l'application, sans compte.</Text>
-              </View>
-              <Switch value={isPublic} onValueChange={setIsPublic} accessibilityLabel="Afficher aussi sur l'accueil public" />
-            </View>
-            {isPublic && (
-              <Text style={[type.footnote, { color: colors.warning, marginTop: spacing.sm }]}>
-                Publique : n'y mettez ni information interne, ni photo d'une personne sans son accord. Signée « DEEP CLEAN », sans votre nom.
-              </Text>
-            )}
-          </Card>
-        )}
 
         {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 

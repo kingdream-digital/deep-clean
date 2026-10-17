@@ -4,7 +4,6 @@ import { validate } from "../../middleware/validate.middleware";
 import { uploadPhoto } from "../../middleware/upload.middleware";
 import {
   announcementIdParamSchema,
-  announcementVisibilitySchema,
   createAnnouncementSchema,
   listAnnouncementsQuerySchema,
 } from "./announcements.validation";
@@ -33,13 +32,6 @@ announcementsRouter.get(
   "/:id/cover-photo",
   validate(announcementIdParamSchema),
   announcementsController.getAnnouncementCoverPhotoHandler
-);
-// Accueil public : réservé à la RH, la direction et l'admin technique
-// (ANNOUNCEMENT_PUBLIC_ROLES, vérifié dans announcements.service.ts).
-announcementsRouter.patch(
-  "/:id/visibility",
-  validate(announcementVisibilitySchema),
-  announcementsController.setAnnouncementVisibilityHandler
 );
 // Restriction de rôle vérifiée dans announcements.service.ts (ANNOUNCEMENT_DELETE_ROLES),
 // même principe que la restriction de publication ci-dessus.

@@ -6,12 +6,9 @@ import { ApiError } from "../../utils/ApiError";
 import { maintenanceStatus } from "../../config/maintenance";
 import { quoteRequestSchema } from "./public.validation";
 import { submitQuoteRequest } from "./public.service";
-import { announcementIdParamSchema, listAnnouncementsQuerySchema } from "../announcements/announcements.validation";
-import { getPublicNewsCoverPhotoHandler, getPublicNewsHandler, listPublicNewsHandler } from "../announcements/announcements.controller";
 
 // Espace public de l'application (sans compte) : seule la demande de devis
-// écrit en base ; les actualités publiques (choisies par la RH ou la
-// direction) sont en lecture seule. Limite stricte par adresse IP, en plus de la limite générale.
+// écrit en base. Limite stricte par adresse IP, en plus de la limite générale.
 export const publicRouter = Router();
 
 const quoteRequestLimiter = rateLimit({
@@ -19,7 +16,7 @@ const quoteRequestLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: { code: "TOO_MANY_REQUESTS", message: "Vous avez déjà envoyé plusieurs demandes. Réessayez dans une heure ou appelez-nous au 06 81 70 07 51." } },
+  message: { error: { code: "TOO_MANY_REQUESTS", message: "Vous avez déjà envoyé plusieurs demandes. Réessayez dans une heure." } },
 });
 
 publicRouter.post(
@@ -35,7 +32,3 @@ publicRouter.post(
     res.status(201).json({ message: "Votre demande a bien été envoyée. Nous revenons vers vous sous 24 à 48 h." });
   })
 );
-
-publicRouter.get("/news", validate(listAnnouncementsQuerySchema), listPublicNewsHandler);
-publicRouter.get("/news/:id", validate(announcementIdParamSchema), getPublicNewsHandler);
-publicRouter.get("/news/:id/cover-photo", validate(announcementIdParamSchema), getPublicNewsCoverPhotoHandler);

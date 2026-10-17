@@ -1,4 +1,4 @@
-import { apiClient, API_URL } from "./client";
+import { apiClient } from "./client";
 
 // Espace public (sans compte) : demande de devis envoyée par un particulier
 // ou une entreprise — voir backend/src/modules/public.
@@ -27,7 +27,7 @@ export interface QuoteRequestInput {
   postalCode?: string;
   city?: string;
   service: PublicService;
-  message: string;
+  message?: string;
   consent: true;
 }
 
@@ -35,28 +35,3 @@ export async function submitQuoteRequest(input: QuoteRequestInput): Promise<stri
   const { data } = await apiClient.post<{ message: string }>("/public/quote-requests", input);
   return data.message;
 }
-
-// Actualités de l'accueil public : celles que la RH ou la direction a choisi
-// d'afficher pour tout le monde (signées « DEEP CLEAN », sans auteur).
-export interface PublicNews {
-  id: string;
-  title: string;
-  body: string;
-  publishedAt: string;
-  hasCoverPhoto: boolean;
-}
-
-export async function listPublicNews(page = 1, pageSize = 20): Promise<{ items: PublicNews[]; total: number }> {
-  const { data } = await apiClient.get<{ items: PublicNews[]; total: number }>("/public/news", { params: { page, pageSize } });
-  return data;
-}
-
-export async function getPublicNews(id: string): Promise<PublicNews> {
-  const { data } = await apiClient.get<{ news: PublicNews }>(`/public/news/${id}`);
-  return data.news;
-}
-
-export function publicNewsCoverUrl(id: string): string {
-  return `${API_URL}/public/news/${id}/cover-photo`;
-}
-

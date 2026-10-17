@@ -3,15 +3,15 @@
 // Manosque. Sert à répondre tout de suite à « Intervenez-vous chez moi ? »
 // sans rien envoyer au serveur.
 
-export const SERVICE_TOWNS: { name: string; postalCode: string; distance: string }[] = [
+export const SERVICE_TOWNS: { name: string; postalCode: string; distance: string; heading?: string }[] = [
   { name: "Manosque", postalCode: "04100", distance: "Notre base" },
-  { name: "Pierrevert", postalCode: "04860", distance: "3,6 km" },
-  { name: "Sainte-Tulle", postalCode: "04220", distance: "5,6 km" },
-  { name: "Volx", postalCode: "04130", distance: "6,8 km" },
-  { name: "Corbières", postalCode: "04220", distance: "8,5 km" },
-  { name: "Villeneuve", postalCode: "04180", distance: "9,3 km" },
-  { name: "Gréoux-les-Bains", postalCode: "04800", distance: "11,7 km" },
-  { name: "Forcalquier", postalCode: "04300", distance: "13,9 km" },
+  { name: "Pierrevert", postalCode: "04860", distance: "3,6 km", heading: "SO" },
+  { name: "Sainte-Tulle", postalCode: "04220", distance: "5,6 km", heading: "S" },
+  { name: "Volx", postalCode: "04130", distance: "6,8 km", heading: "NE" },
+  { name: "Corbières", postalCode: "04220", distance: "8,5 km", heading: "S" },
+  { name: "Villeneuve", postalCode: "04180", distance: "9,3 km", heading: "NE" },
+  { name: "Gréoux-les-Bains", postalCode: "04800", distance: "11,7 km", heading: "SE" },
+  { name: "Forcalquier", postalCode: "04300", distance: "13,9 km", heading: "N" },
 ];
 
 // Départements voisins de Manosque où une intervention reste envisageable

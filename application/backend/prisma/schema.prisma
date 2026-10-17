@@ -742,15 +742,9 @@ model Announcement {
   // principe que les autres photos de l'app, jamais d'URL publique, servie
   // via une route authentifiée dédiée.
   coverPhotoKey String?
-  // Affichée aussi sur l'accueil public de l'application, sans compte
-  // (retour explicite du client, octobre 2026 : la Direction ou la RH
-  // alimente l'accueil depuis son espace). Choisie par la RH, la Direction ou
-  // l'admin technique ; une actualité interne (par défaut) n'en sort jamais.
-  isPublic      Boolean  @default(false)
   createdAt     DateTime @default(now())
 
   @@index([createdAt])
-  @@index([isPublic, createdAt])
   @@map("announcements")
 }
 
