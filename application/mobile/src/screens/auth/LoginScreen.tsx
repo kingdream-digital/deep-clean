@@ -17,6 +17,7 @@ import { useResponsive } from "../../hooks/useResponsive";
 import { extractErrorMessage } from "../../api/client";
 import { biometricLabel, getAvailableBiometricKind } from "../../auth/biometrics";
 import { PRIVACY_URL, SUPPORT_URL } from "../../config/links";
+import { HAS_PUBLIC_SPACE } from "../../config/publicSpace";
 
 export function LoginScreen() {
   const { colors, spacing, type } = useTheme();
@@ -114,7 +115,7 @@ export function LoginScreen() {
       {!!error && <Text style={[type.footnote, { color: colors.danger, marginBottom: spacing.md }]}>{error}</Text>}
 
       <Button label="Se connecter" onPress={handleSubmit} loading={loading} />
-      <DiscoverLink />
+      {HAS_PUBLIC_SPACE && <DiscoverLink />}
     </>
   );
 
@@ -375,7 +376,8 @@ function BackToHome({ top }: { top: number }) {
 
 // Espace public : les particuliers et entreprises découvrent DEEP CLEAN et
 // demandent un devis, sans compte (aucune inscription : les comptes des
-// collaborateurs restent créés par la RH).
+// collaborateurs restent créés par la RH). Application iPhone/Android
+// seulement : pas dans un navigateur (config/publicSpace).
 function DiscoverLink() {
   const { colors, spacing, radius, type } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<PublicStackParamList>>();

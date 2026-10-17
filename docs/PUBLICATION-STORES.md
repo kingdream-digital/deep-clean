@@ -78,15 +78,17 @@ vérificateur tombe sur des erreurs (règle 2.1).
    signalement), colonne `users.deletionRequestedAt` (suppression de compte
    depuis l'app), `prospects.createdById` facultatif (demandes de devis de
    l'espace public).
-3. **Web** : Redeploy (pages légales mises à jour, espace public).
+3. **Web** : Redeploy (pages légales mises à jour).
 4. Vérifier dans un navigateur :
    - `https://app.deep-clean.fr/confidentialite.html` (mentionne les demandes
      de devis) ;
-   - sur `https://app.deep-clean.fr`, l'accueil public s'affiche en premier
-     (logo, services, « Demander un devis gratuit ») et « Espace équipe »,
-     en bas du menu et de la page, mène à la connexion.
+   - `https://app.deep-clean.fr` s'ouvre directement sur la connexion de
+     l'espace salarié. L'accueil public (logo, services, « Demander un devis
+     gratuit », « Espace équipe » en bas du menu) n'existe que dans
+     l'application iPhone/Android : dans un navigateur, le site de
+     l'entreprise, c'est `deep-clean.fr`.
 5. **Site officiel `https://deep-clean.fr`** : c'est la version « La
-   Plongée » (dossier `v2/` de ce dépôt, celle dont l'espace « Découvrir » de
+   Plongée » (dossier `v2/` de ce dépôt, celle dont l'accueil public de
    l'app reprend les textes et les photos). Il n'est **pas encore en ligne** :
    le nom de domaine pointe déjà vers le serveur (on y voit pour l'instant le
    certificat par défaut de Traefik et une erreur 503). Pour le publier :
@@ -473,6 +475,24 @@ eas submit --platform android --profile production   # vers la Play Console
   Console » sur un vrai téléphone Android (Android 10 ou plus), que vous avez
   bien accès à un appareil Android.
 
+**Depuis une session Claude Code dans le cloud** (sans ordinateur) : créer
+un jeton sur https://expo.dev/settings/access-tokens (compte `boby13`),
+l'ajouter dans les réglages de l'environnement cloud comme variable
+`EXPO_TOKEN` (jamais dans la conversation ni dans le code), puis ouvrir une
+nouvelle session. Elle peut alors, depuis `application/mobile` :
+
+```bash
+npm ci
+npx eas-cli@latest init --account boby13 --non-interactive   # une fois : identifiant du projet dans app.json, à valider et pousser
+npx eas-cli@latest build --platform android --profile production --non-interactive --no-wait
+```
+
+La compilation iPhone ne peut pas démarrer ainsi la première fois : il faut
+d'abord créer les certificats Apple avec une connexion au compte Apple (code
+à deux facteurs), donc un `eas build --platform ios` lancé une fois depuis un
+ordinateur (ci-dessus). Les compilations iPhone suivantes peuvent ensuite
+partir de la session cloud.
+
 ---
 
 ## 10. Envoi en vérification
@@ -556,7 +576,7 @@ Account deletion is available in the app: Menu > Profil > "Supprimer mon compte"
 - [ ] Pages confidentialité, assistance et suppression de compte en ligne
 - [ ] Mode maintenance désactivé
 - [ ] Comptes de démo Employé, Superviseur et Direction créés, mots de passe changés, missions planifiées pendant 10 jours (§6)
-- [ ] L'app s'ouvre sur l'accueil public ; « Espace équipe » mène à la connexion
+- [ ] L'app iPhone/Android s'ouvre sur l'accueil public ; « Espace équipe » mène à la connexion (le navigateur, lui, ouvre directement la connexion)
 - [ ] Une demande de devis de test envoyée depuis l'app arrive bien dans Commercial → Prospects
 - [ ] Autorisation signée de DEEP CLEAN jointe (annexe)
 - [ ] Fiche, mots-clés, catégories, URL et classification renseignés (§4) — aucune mention « interne » ou « louée à des entreprises »
