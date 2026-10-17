@@ -265,16 +265,21 @@ blocage) ; « Accès web non restreint » : Non ; publicité : Non.
 | `application/presentation/store/google-banniere-1024x500.png` | Bannière Google Play (l'App Store n'a pas de bannière) |
 | `application/presentation/store/google-icone-512.png` | Icône Google Play |
 
-Ordre d'import (identique sur les deux stores) :
-1. `01-decouvrir` — Découvrez nos prestations (espace public)
-2. `02-devis` — Votre devis en quelques instants (espace public)
-3. `03-accueil-employe` — Votre journée en un coup d'œil
-4. `04-planning` — Le planning de la semaine
-5. `05-mission` — Consignes et fiche de poste
-6. `06-messagerie` — Toute l'équipe, au même endroit
-7. `07-statistiques` — Pilotez l'activité (compte Direction)
+Ordre d'import (identique sur les deux stores) : quatre affiches côté
+client d'abord (ce que voit un visiteur qui découvre l'app), puis trois côté
+équipe.
+1. `01-accroche` — « Votre devis gratuit en quelques clics. » (accueil public)
+2. `02-services` — « Du sol au canapé. » (tous les services)
+3. `03-service` — « Jusqu'au moindre recoin. » (la page d'un service, pièce par pièce)
+4. `04-devis` — « Demandez, on répond sous 24–48 h. » (demande de devis envoyée)
+5. `05-equipe-journee` — « Votre journée en un coup d'œil. » (Espace équipe : accueil, pointage, consignes)
+6. `06-equipe-planning` — « Le planning, toujours à jour. »
+7. `07-equipe-messagerie` — « Toute l'équipe connectée. » (messagerie, suivi de l'activité)
 
-Elles se refont à l'identique avec `tools/store-screenshots/` (README).
+Ce sont des affiches (titre, étiquettes) autour de **vraies captures** de
+l'app. Les étiquettes ne décrivent que ce que l'app fait réellement. Elles se
+refont à l'identique avec `tools/store-screenshots/` (README) : affiches
+HTML dans `posters/`, rendues par `posters.py`.
 
 Règles suivies pour les captures (règle 2.3.3) :
 - elles montrent l'app **en usage**, sur des données de démonstration

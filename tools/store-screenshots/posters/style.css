@@ -1,0 +1,172 @@
+/* DEEP CLEAN — affiches App Store, direction « VIF & POP » (1290 × 2796) */
+@font-face { font-family: Inter; font-weight: 400; src: url("../fonts/Inter_400Regular.ttf"); }
+@font-face { font-family: Inter; font-weight: 500; src: url("../fonts/Inter_500Medium.ttf"); }
+@font-face { font-family: Inter; font-weight: 600; src: url("../fonts/Inter_600SemiBold.ttf"); }
+@font-face { font-family: Inter; font-weight: 700; src: url("../fonts/Inter_700Bold.ttf"); }
+@font-face { font-family: Inter; font-weight: 800; src: url("../fonts/Inter_800ExtraBold.ttf"); }
+@font-face { font-family: Inter; font-weight: 900; src: url("../fonts/Inter_900Black.ttf"); }
+@font-face { font-family: Inter; font-weight: 700; font-style: italic; src: url("../fonts/Inter_700Bold_Italic.ttf"); }
+@font-face { font-family: Inter; font-weight: 800; font-style: italic; src: url("../fonts/Inter_800ExtraBold_Italic.ttf"); }
+@font-face { font-family: Inter; font-weight: 900; font-style: italic; src: url("../fonts/Inter_900Black_Italic.ttf"); }
+
+:root {
+  --marine: #1F2C68;
+  --abysse: #0C1233;
+  --royal: #184F91;
+  --goutte: #049DC4;
+  --goutte2: #1E9CC6;
+  --aqua: #4FD1F2;
+  --vague: #5A9CC4;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1290px; height: 2796px; overflow: hidden; }
+body {
+  position: relative;
+  font-family: Inter, sans-serif;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(1000px 820px at 88% 6%, rgba(79, 209, 242, .95), rgba(79, 209, 242, 0) 62%),
+    radial-gradient(900px 900px at -5% 34%, rgba(30, 156, 198, .9), rgba(30, 156, 198, 0) 66%),
+    linear-gradient(180deg, #07AEDA 0%, #049DC4 26%, #1D86C0 48%, #184F91 72%, #1F2C68 90%, #16205A 100%);
+}
+
+/* rayons de lumière sous l'eau */
+.rays {
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 150deg at 72% -12%,
+      rgba(255, 255, 255, 0) 0deg 4deg,
+      rgba(255, 255, 255, .11) 5deg 7deg,
+      rgba(255, 255, 255, 0) 8deg 13deg);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .55) 35%, transparent 62%);
+          mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .55) 35%, transparent 62%);
+}
+
+svg.waves { position: absolute; left: 0; top: 0; width: 1290px; height: 2796px; pointer-events: none; }
+
+/* bulles */
+.bubbles { position: absolute; inset: 0; pointer-events: none; }
+.bubble {
+  position: absolute; border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 27%, rgba(255, 255, 255, .95) 0 7%, rgba(255, 255, 255, 0) 15%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .05) 0 56%, rgba(255, 255, 255, .38) 70%, rgba(255, 255, 255, .7) 72%, rgba(255, 255, 255, 0) 73%);
+}
+
+/* éclaboussures */
+svg.splash { position: absolute; pointer-events: none; overflow: visible; }
+
+/* logo officiel sur pastille blanche (jamais recoloré) */
+.logo-pill {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  background: #fff; border-radius: 999px;
+  padding: 30px 56px;
+  box-shadow: 0 22px 50px rgba(12, 18, 51, .28), 0 0 0 10px rgba(255, 255, 255, .22);
+}
+.logo-pill img { display: block; width: 520px; height: auto; }
+
+.kicker {
+  position: absolute; left: 0; right: 0; text-align: center;
+  font-weight: 800; font-size: 46px; letter-spacing: .16em; text-transform: uppercase;
+  color: #fff;
+  display: flex; justify-content: center; align-items: center; gap: 18px;
+}
+.kicker svg { width: 48px; height: 48px; }
+
+/* gros titres */
+.title {
+  position: absolute; left: 60px; right: 60px; margin: 0;
+  text-align: center;
+  font-weight: 900; letter-spacing: -0.05em; line-height: .9;
+  color: #fff;
+  text-shadow: 0 10px 0 rgba(31, 44, 104, .55), 0 24px 50px rgba(12, 18, 51, .35);
+}
+.title .l { display: block; }
+.hl {
+  display: inline-block; position: relative;
+  padding: .02em .16em .1em .12em; margin: .08em 0 .1em;
+  border-radius: .14em;
+  background: var(--aqua); color: var(--abysse);
+  text-shadow: none;
+  transform: rotate(-3deg);
+  box-shadow: 14px 16px 0 var(--marine), 0 30px 60px rgba(12, 18, 51, .35);
+}
+.hl.marine { background: var(--marine); color: #fff; box-shadow: 14px 16px 0 var(--aqua), 0 30px 60px rgba(12, 18, 51, .35); }
+.hl.white { background: #fff; color: var(--marine); }
+.sub {
+  position: absolute; left: 90px; right: 90px; margin: 0; text-align: center;
+  font-weight: 700; font-size: 54px; line-height: 1.22; letter-spacing: -0.01em;
+  color: #fff; text-shadow: 0 4px 18px rgba(12, 18, 51, .35);
+}
+
+/* stickers arrondis légèrement inclinés */
+.sticker {
+  position: absolute; z-index: 20;
+  display: inline-flex; align-items: center; gap: 20px;
+  padding: 24px 42px 24px 26px; border-radius: 999px;
+  font-weight: 800; font-size: 54px; letter-spacing: -0.02em; white-space: nowrap;
+  transform: rotate(var(--r, 0deg));
+  box-shadow: 0 22px 44px rgba(12, 18, 51, .38), inset 0 -7px 0 rgba(12, 18, 51, .12);
+}
+.sticker .ic {
+  flex: none; width: 72px; height: 72px; border-radius: 50%;
+  display: grid; place-items: center;
+}
+.sticker .ic svg { width: 44px; height: 44px; }
+.sticker.white { background: #fff; color: var(--marine); }
+.sticker.white .ic { background: var(--goutte); color: #fff; }
+.sticker.aqua { background: var(--aqua); color: var(--abysse); }
+.sticker.aqua .ic { background: var(--marine); color: var(--aqua); }
+.sticker.marine { background: var(--marine); color: #fff; }
+.sticker.marine .ic { background: var(--aqua); color: var(--marine); }
+
+/* téléphone dessiné en CSS — coins ≈ 13 % de la largeur */
+.phone {
+  position: absolute;
+  width: var(--w);
+  padding: calc(var(--w) * .026);
+  border-radius: calc(var(--w) * .13);
+  background: linear-gradient(150deg, #3a4472 0%, #10152c 22%, #0a0e20 70%, #2a3360 100%);
+  box-shadow:
+    inset 0 0 0 calc(var(--w) * .006) #59649a,
+    inset 0 0 0 calc(var(--w) * .011) #0a0e20,
+    0 80px 140px rgba(8, 12, 40, .55),
+    0 30px 50px rgba(8, 12, 40, .35);
+  transform: rotate(var(--rot, 0deg));
+  transform-origin: 50% 50%;
+}
+.phone img { display: block; width: 100%; height: auto; border-radius: calc(var(--w) * .104); }
+.phone::before, .phone::after {
+  content: ""; position: absolute; width: calc(var(--w) * .012);
+  background: linear-gradient(90deg, #2a3360, #59649a);
+  border-radius: 6px;
+}
+.phone::before { left: calc(var(--w) * -.009); top: 21%; height: 9%; }
+.phone::after { right: calc(var(--w) * -.009); top: 26%; height: 14%; }
+
+/* zoom sur une partie d'une capture (même PNG, simplement agrandi) */
+.zoom {
+  position: absolute; z-index: 15;
+  overflow: hidden;
+  border-radius: 64px;
+  border: 10px solid #fff;
+  box-shadow: 0 40px 80px rgba(8, 12, 40, .45), 0 0 0 2px rgba(12, 18, 51, .08);
+  transform: rotate(var(--r, 0deg));
+  background-repeat: no-repeat;
+}
+
+svg.spark { position: absolute; z-index: 25; overflow: visible; filter: drop-shadow(0 6px 14px rgba(12, 18, 51, .25)); }
+.zoom.photo { border: 12px solid #fff; }
+
+/* flèche dessinée */
+svg.arrow { position: absolute; z-index: 30; overflow: visible; filter: drop-shadow(0 10px 18px rgba(12, 18, 51, .35)); }
+
+/* bandeau signature en bas */
+.signature {
+  position: absolute; left: 60px; right: 60px; z-index: 40;
+  display: flex; align-items: center; justify-content: center; gap: 30px;
+}
+.signature img { width: 130px; height: 130px; display: block; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .3)); }
+.signature .txt { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; line-height: 1; color: #fff; }
+.signature .txt em { font-style: italic; color: var(--aqua); }

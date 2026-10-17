@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Deep Clean — équipe : planning</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /* Côté équipes : même modèle A, fond plus profond (marine → abysse) mais toujours lumineux */
+  body {
+    background:
+      radial-gradient(1000px 820px at 12% 6%, rgba(79, 209, 242, .85), rgba(79, 209, 242, 0) 62%),
+      radial-gradient(900px 900px at 105% 32%, rgba(30, 156, 198, .75), rgba(30, 156, 198, 0) 66%),
+      linear-gradient(180deg, #0A95C8 0%, #1279BA 20%, #184F91 42%, #1F2C68 64%, #151E52 82%, #0C1233 100%);
+  }
+  .glow { position: absolute; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(closest-side, rgba(79, 209, 242, .55), rgba(79, 209, 242, 0)); }
+  .team-badge {
+    position: absolute; left: 50%; top: 92px; z-index: 20;
+    transform: translateX(-50%) rotate(-2deg);
+    display: inline-flex; align-items: center; gap: 22px;
+    padding: 20px 40px 20px 22px; border-radius: 999px;
+    background: #fff; color: var(--marine);
+    font-weight: 900; font-size: 50px; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap;
+    box-shadow: 0 22px 50px rgba(12, 18, 51, .35), 0 0 0 10px rgba(79, 209, 242, .38);
+  }
+  .team-badge .ic { flex: none; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--marine); color: var(--aqua); }
+  .team-badge .ic svg { width: 46px; height: 46px; }
+
+  .t6 { top: 286px; }
+  .t6 .a { font-size: 184px; }
+  .t6 .b { font-size: 140px; }
+  .t6 .hl { margin-top: .42em; }
+</style>
+</head>
+<body>
+  <div class="rays" style="transform:scaleX(-1)"></div>
+  <svg class="waves" viewBox="0 0 1290 2796" aria-hidden="true">
+    <path data-wave="2060,28,1400,3.0" fill="rgba(79,209,242,.28)"/>
+    <path data-wave="2200,30,1050,0.8" fill="rgba(90,156,196,.40)"/>
+    <path data-wave="2360,24,1600,2.2" fill="rgba(24,79,145,.80)"/>
+    <path data-wave="2530,22,1250,4.6" fill="rgba(12,18,51,.88)"/>
+  </svg>
+  <div class="bubbles" data-seed="73" data-n="32" data-zone="40,860,1250,2760" data-min="12" data-max="66" data-avoid="400,860,1260,2600;60,2080,720,2480"></div>
+  <div class="bubbles" data-seed="14" data-n="14" data-zone="40,40,1250,860" data-min="8" data-max="34" data-avoid="100,80,1190,720"></div>
+
+  <div class="glow" style="left:300px;top:1000px;width:1150px;height:1150px"></div>
+  <svg class="splash" data-seed="21" data-spikes="6" data-color="rgba(255,255,255,.12)" style="left:120px;top:160px;width:1050px;height:1050px"></svg>
+  <svg class="splash" data-seed="33" data-spikes="7" data-color="#4FD1F2" style="left:-120px;top:1180px;width:520px;height:520px"></svg>
+
+  <div class="team-badge">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.6 14.2c2.9.2 5.4 2.5 5.4 5.8"/></svg></span>
+    Espace équipe
+  </div>
+
+  <h1 class="title t6">
+    <span class="l a">Le planning,</span>
+    <span class="l"><span class="hl b">toujours à jour.</span></span>
+  </h1>
+
+  <svg class="spark" style="left:1110px;top:690px;width:84px;height:84px"></svg>
+  <svg class="spark" style="left:1180px;top:640px;width:40px;height:40px"></svg>
+  <svg class="spark" data-color="#4FD1F2" style="left:120px;top:236px;width:58px;height:58px"></svg>
+
+  <div class="phone" style="--w:800px;left:370px;top:880px;--rot:4deg">
+    <img src="../screens/equipe-planning.png" alt="">
+  </div>
+
+  <div class="zoom" style="left:84px;top:2250px;--r:-5deg" data-zoom="../screens/equipe-mission.png|50|1260|1190|200|0.72|60"></div>
+
+  <div class="sticker white" style="left:74px;top:724px;--r:-4deg">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2H4.4z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg></span>
+    Notifié à chaque changement
+  </div>
+  <div class="sticker aqua" style="left:74px;top:2526px;--r:-3deg">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span>
+    Itinéraire en un geste
+  </div>
+  <script src="fx.js"></script>
+</body></html>
