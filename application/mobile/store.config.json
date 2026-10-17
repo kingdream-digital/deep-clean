@@ -1,0 +1,87 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "1.0",
+    "copyright": "2026 Boris Corsiez — KingDream Digital",
+    "categories": [
+      "BUSINESS",
+      "LIFESTYLE"
+    ],
+    "release": {
+      "automaticRelease": true
+    },
+    "info": {
+      "fr-FR": {
+        "title": "Deep Clean",
+        "subtitle": "Nettoyage, devis et planning",
+        "promoText": "Le propre, en profondeur : nettoyage, entretien et conciergerie à Manosque. Devis gratuit en quelques instants. Équipes : planning, missions et pointage.",
+        "description": "Deep Clean, c'est l'application officielle de DEEP CLEAN, entreprise de nettoyage, d'entretien et de conciergerie à Manosque et alentours. Le propre, en profondeur.\n\nPOUR NOS CLIENTS — SANS COMPTE\n• Découvrez nos prestations : nettoyage en profondeur, entretien régulier, bureaux et espaces professionnels, conciergerie, et nos soins spécifiques (canapés et fauteuils, matelas, textiles, sols et vitres)\n• Chaque service détaillé, et notre méthode en quatre étapes : diagnostic, protocole adapté, exécution soignée, contrôle qualité\n• Notre zone d'intervention : Manosque, Forcalquier, Volx, Pierrevert, Gréoux-les-Bains, Sainte-Tulle et alentours\n• Demandez un devis gratuit en quelques instants (particulier, professionnel ou propriétaire) : nous revenons vers vous sous 24 à 48 h\n\nPOUR LES ÉQUIPES DEEP CLEAN\nVotre compte est créé par le service RH, qui vous remet vos identifiants (pas d'inscription dans l'application).\n• Planning du jour et de la semaine, missions à venir et terminées\n• Adresse du chantier et itinéraire, consignes et fiche de poste de chaque mission\n• Pointage de l'arrivée et du départ, avec photo et position comme justificatif\n• Signalement d'un problème sur chantier, avec photos\n• Notification dès qu'une mission est créée, modifiée ou annulée\n• Messagerie d'équipe, avec signalement d'un message à la RH et blocage d'un contact\n• Heures du mois, congés, absences et documents\n\nPOUR LES RESPONSABLES\n• Planning et affectation des équipes, validation des missions et des heures\n• Fiches chantier : équipe, consignes, photos, problèmes, historique\n• Devis avec signature du client sur place, factures, demandes de devis reçues\n• Gestion des comptes, statistiques et vue d'ensemble de l'activité\n\nSÉCURITÉ ET CONFIDENTIALITÉ\nChacun ne voit que ce qui le concerne, contrôlé par le serveur. Mots de passe chiffrés, connexions sécurisées, reconnexion par Face ID. La position n'est utilisée qu'au moment du pointage, jamais en arrière-plan. Suppression du compte possible directement depuis l'application.\n\nUn problème de connexion ? Contactez le service RH de DEEP CLEAN.",
+        "keywords": [
+          "nettoyage",
+          "ménage",
+          "conciergerie",
+          "manosque",
+          "devis",
+          "planning",
+          "pointage",
+          "chantier",
+          "équipe",
+          "entretien",
+          "vitres"
+        ],
+        "releaseNotes": "Première version de Deep Clean.",
+        "supportUrl": "https://app.deep-clean.fr/support.html",
+        "privacyPolicyUrl": "https://app.deep-clean.fr/confidentialite.html",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "../presentation/store/ios-01-accroche.png",
+            "../presentation/store/ios-02-services.png",
+            "../presentation/store/ios-03-service.png",
+            "../presentation/store/ios-04-devis.png",
+            "../presentation/store/ios-05-equipe-journee.png",
+            "../presentation/store/ios-06-equipe-planning.png",
+            "../presentation/store/ios-07-equipe-messagerie.png"
+          ]
+        }
+      }
+    },
+    "review": {
+      "firstName": "Boris",
+      "lastName": "Corsiez",
+      "email": "kingdreamdigital@gmail.com",
+      "demoUsername": "lpetit",
+      "demoPassword": "DemoClean2026!",
+      "demoRequired": true,
+      "notes": "Deep Clean is the official app of DEEP CLEAN, a cleaning and concierge company in Manosque, France. The app is in French.\n\nIt has two audiences:\n1) The general public, WITHOUT any account: the app opens on the company's public home. It presents every service as a tile; each opens its own page (what it is, who it is for, what it includes, the company's method) with a \"Demander un devis gratuit\" button. The quote request (service, optional description, contact details) goes to the company's sales team; feel free to send a test request. The home also explains how a request works, checks instantly whether a town is in the service area (\"Intervenez-vous chez moi ?\", e.g. postal code 04100) and answers common questions.\nStaff sign in through \"Espace équipe\", at the bottom of the menu and of the home page.\n2) DEEP CLEAN's staff (employees, team leaders, supervisors, HR, management), with credentials provided by the company's HR department. There is no public sign-up by design: staff accounts are created by HR. Employees use the app on their personal iPhones.\n\nThe app was custom-built for DEEP CLEAN and is published by Boris Corsiez (KingDream Digital) under a license from DEEP CLEAN SAS (SIREN 942 773 375), which owns the \"Deep Clean\" name and logo. The written authorization signed by the company's president can be provided on request.\n\nDemo accounts (staff area):\n- Employee: lpetit / DemoClean2026! — missions scheduled every day (9:00-12:00, 14:00-17:00 and 18:00-23:00, Paris time), schedule, clock-in/out, problem reporting, notifications, messaging.\n- Supervisor: ytraore / DemoClean2026! — schedule management, validation of missions and timesheets.\n- Management: jlefevre / DemoClean2026! — company overview, statistics, quotes and invoices, and the quote requests sent from the public home (Commercial > Prospects).\n\nPrivacy and safety:\n- Camera and location are requested only when the user clocks in or out, as proof of presence on the job site (and when a manager records a job site's location). Location is never used in the background.\n- Face ID is optional, for quick re-login.\n- Messaging: long-press any message to report it to HR (HR and the admin are notified immediately and can deactivate the author's account); any user can block a contact from the contact's profile.\n- Account deletion: Menu > Profil > \"Supprimer mon compte\" (password confirmation; the account is deactivated immediately and HR deletes the data within one month, except data the employer must legally retain).\n- Privacy policy: https://app.deep-clean.fr/confidentialite.html"
+    },
+    "advisory": {
+      "ageRatingOverride": "NONE",
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "kidsAgeBand": null,
+      "koreaAgeRatingOverride": "NONE",
+      "lootBox": false,
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "unrestrictedWebAccess": false,
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "advertising": false,
+      "ageAssurance": false,
+      "ageRatingOverrideV2": "NONE",
+      "developerAgeRatingInfoUrl": null,
+      "gunsOrOtherWeapons": "NONE",
+      "healthOrWellnessTopics": false,
+      "messagingAndChat": true,
+      "parentalControls": false,
+      "userGeneratedContent": true
+    }
+  }
+}
