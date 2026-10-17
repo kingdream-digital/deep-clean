@@ -1,13 +1,9 @@
-"""Met en page les captures brutes de l'application pour l'App Store et Google Play.
+"""Outils d'image pour les captures des stores (utilisés par posters.py).
 
-Usage (depuis la racine du dépôt) :
-    python3 tools/store-screenshots/compose.py <dossier des captures brutes>
-
-Chaque capture brute (430 × 844 pt à @3x, produite par capture.mjs) est posée
-dans un cadre d'iPhone — barre d'état et indicateur d'accueil recomposés —
-sur un fond aux couleurs de la charte Deep Clean, avec un titre court.
-Sortie : application/presentation/store/ios-NN-*.png (1290 × 2796, iPhone
-6,9") et android-NN-*.png (1080 × 2160).
+phone_screen() : écran d'iPhone complet à partir d'une capture brute (430 ×
+844 pt à @3x, produite par capture.mjs) — barre d'état et indicateur
+d'accueil recomposés. compose() : mise en page simple (titre + téléphone)
+pour des aperçus rapides. Les captures publiées sont faites par posters.py.
 """
 import os
 import sys
@@ -21,17 +17,6 @@ NAVY = (31, 45, 105)
 MID = (42, 79, 142)
 DROP = (30, 156, 198)
 SKY = (191, 227, 244)
-
-# Ordre de la fiche : le volet public d'abord (clients), puis les équipes.
-SHOTS = [
-    ("04-decouvrir", "decouvrir", "Le propre, en profondeur", "Qui nous sommes, nos services, nos actualités"),
-    ("05-devis", "devis", "Un devis gratuit, sans compte", "Réponse sous 24 à 48 h"),
-    ("01-accueil-employe", "accueil-employe", "Votre journée en un coup d'œil", "Mission en cours, pointage, heures"),
-    ("02-planning", "planning", "Le planning de la semaine", "Chaque mission, son lieu, son équipe"),
-    ("03-mission", "mission", "Consignes et fiche de poste", "Tout savoir avant d'arriver sur place"),
-    ("06-messagerie-liste", "messagerie", "Toute l'équipe, au même endroit", "Messages, groupes et notifications"),
-    ("07-statistiques", "statistiques", "Pilotez l'activité", "Missions, chantiers, signalements"),
-]
 
 STATUS_PT, HOME_PT = 54, 34  # barre d'état et indicateur d'accueil d'un iPhone 6,9"
 
@@ -130,21 +115,3 @@ def compose(raw_path, title, subtitle, W, H):
     frame.paste(screen, (bezel, bezel), mask)
     canvas.paste(frame, (x, y), frame)
     return canvas
-
-
-def main():
-    raw_dir = sys.argv[1]
-    for name in os.listdir(OUT):
-        if name.startswith(("ios-", "android-")) and name.endswith(".png"):
-            os.remove(os.path.join(OUT, name))
-    for i, (raw, slug, title, subtitle) in enumerate(SHOTS, start=1):
-        src = os.path.join(raw_dir, f"{raw}.png")
-        for prefix, (W, H) in (("ios", (1290, 2796)), ("android", (1080, 2160))):
-            img = compose(src, title, subtitle, W, H)
-            path = os.path.join(OUT, f"{prefix}-{i:02d}-{slug}.png")
-            img.save(path, optimize=True)
-            print("✓", os.path.relpath(path, ROOT), img.size)
-
-
-if __name__ == "__main__":
-    main()

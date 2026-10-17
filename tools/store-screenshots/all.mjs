@@ -28,38 +28,65 @@ if (want("1") || want("2") || want("3") || want("6")) {
   await context.close();
 }
 
-// Volet public : l'accueil public (onglets Accueil, Services, Actualités,
-// Contact) est le premier écran de l'application. Aucun prix ni aucune
-// remise dans les captures (App Store, règle 2.3.7).
-if (want("4")) {
-  const { page, context } = await session(browser, null);
-  await page.waitForTimeout(1200);
-  await shot(page, "04-decouvrir");
-  await context.close();
+// Volet public (accueil sans compte, premier écran de l'application) : les
+// captures utilisées par les affiches (posters/). La demande de devis est
+// réellement envoyée au serveur de démonstration. Aucun prix ni aucune remise
+// dans les captures (App Store, règle 2.3.7).
+async function scrollToText(page, text, offset) {
+  await page.evaluate(({ text, offset }) => {
+    const el = [...document.querySelectorAll("div,span")].find((e) => e.children.length === 0 && (e.textContent || "").trim() === text && e.getBoundingClientRect().width > 0);
+    if (!el) return;
+    let p = el.parentElement;
+    while (p && !(p.scrollHeight > p.clientHeight + 50 && getComputedStyle(p).overflowY !== "visible")) p = p.parentElement;
+    if (p) p.scrollTop += el.getBoundingClientRect().top - offset;
+  }, { text, offset });
+  await page.waitForTimeout(900);
 }
 
-if (want("5")) {
-  const { page, context } = await session(browser, null);
-  await tapVisible(page, "Demander un devis gratuit");
-  await page.waitForTimeout(1500);
-  await page.getByText("Professionnel", { exact: true }).last().click({ force: true });
-  await page.waitForTimeout(400);
-  const inputs = page.locator("input:visible");
-  const values = ["Cabinet Martin & Associés", "Claire", "Martin", "06 12 34 56 78", "c.martin@cabinet-martin.fr", "04100", "Manosque"];
-  for (let i = 0; i < values.length; i++) await inputs.nth(i).fill(values[i]);
-  await page.getByText("Bureaux & espaces pro", { exact: true }).last().click({ force: true });
-  await page.locator("textarea:visible").first().fill("Entretien de nos bureaux (180 m²) trois soirs par semaine, à partir de novembre.");
-  await page.getByText(/J'accepte que DEEP CLEAN/).last().click({ force: true });
-  await page.evaluate(() => {
-    document.querySelectorAll("input,textarea").forEach((e) => { e.spellcheck = false; e.blur(); });
-    // Cadre la capture du nom au bouton d'envoi.
-    const scrollers = [...document.querySelectorAll("div")].filter((d) => d.scrollHeight > d.clientHeight + 50 && getComputedStyle(d).overflowY !== "visible");
-    const main = scrollers.sort((a, b) => b.clientHeight - a.clientHeight)[0];
-    if (main) main.scrollTop = 122;
-  });
-  await page.waitForTimeout(800);
-  await shot(page, "05-devis");
-  await context.close();
+if (want("P")) {
+  {
+    const { page, context } = await session(browser, null);
+    await page.waitForTimeout(1200);
+    await shot(page, "public-accueil");
+    await page.mouse.move(215, 500);
+    await page.mouse.wheel(0, 470);
+    await page.waitForTimeout(1000);
+    await shot(page, "public-services");
+    await page.mouse.wheel(0, 560);
+    await page.waitForTimeout(1000);
+    await shot(page, "public-services-bas");
+    await context.close();
+  }
+  {
+    const { page, context } = await session(browser, null);
+    await page.mouse.move(215, 500);
+    await page.mouse.wheel(0, 470);
+    await page.waitForTimeout(1000);
+    await page.getByLabel(/^Nettoyage en profondeur :/).first().click();
+    await page.waitForTimeout(1500);
+    await shot(page, "public-service");
+    await scrollToText(page, "Pièce par pièce", 80);
+    await shot(page, "public-service-pieces");
+    await tapVisible(page, "Demander un devis pour ce service");
+    await page.waitForTimeout(800);
+    await page.getByPlaceholder("Surface, état, disponibilités…").fill("Appartement de 70 m², avant un état des lieux.");
+    for (const [placeholder, value] of [["06 12 34 56 78", "06 12 34 56 78"], ["vous@exemple.fr", "claire.martin@exemple.fr"], ["04100", "04100"], ["Manosque", "Manosque"]]) {
+      await page.getByPlaceholder(placeholder, { exact: true }).last().fill(value);
+    }
+    const unnamed = page.locator("input:visible:not([placeholder])");
+    await unnamed.nth(0).fill("Claire");
+    await unnamed.nth(1).fill("Martin");
+    await page.getByText(/J'accepte que DEEP CLEAN/).last().click({ force: true });
+    await page.evaluate(() => document.querySelectorAll("input,textarea").forEach((e) => { e.spellcheck = false; e.blur(); }));
+    await page.mouse.move(215, 500);
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(700);
+    await shot(page, "public-devis-rempli");
+    await tapVisible(page, "Envoyer ma demande");
+    await page.waitForTimeout(2500);
+    await shot(page, "public-envoye");
+    await context.close();
+  }
 }
 
 if (want("7")) {

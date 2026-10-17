@@ -1,13 +1,18 @@
 # Captures App Store et Google Play
 
-Captures de l'application **réelle** (vrai serveur, vraie base, données de
-démonstration), mises en page aux couleurs de la charte Deep Clean.
+Des **affiches** vives et vendeuses (modèle « A — vif », choisi par le
+client) autour de captures de l'application **réelle** (vrai serveur, vraie
+base, données de démonstration) : 4 côté clients, 3 côté équipes.
 Résultat : `application/presentation/store/ios-NN-*.png` (1290 × 2796,
 iPhone 6,9") et `android-NN-*.png` (1080 × 2160).
 
-Règles respectées (App Store, règle 2.3.3) : l'app est montrée en usage,
-l'écran de connexion n'est pas une capture, aucune vraie personne (initiales
-à la place des photos), chaque écran est accessible avec les comptes de démo.
+Règles respectées (App Store, règles 2.3.3 et 2.3.7) : l'app est montrée en
+usage (vraies captures, non retouchées), l'écran de connexion n'est pas une
+capture, aucun prix, aucune remise, aucune note ni étoile, aucun chiffre
+inventé — seulement des arguments vrais (devis gratuit, sans compte, réponse
+sous 24 à 48 h, activité assurée…) ; pas de photo de vraies personnes côté
+équipes (initiales à la place des photos) ; chaque écran est accessible avec
+les comptes de démo.
 
 ## 1. Monter la démo
 
@@ -48,17 +53,23 @@ python3 -m http.server 8099 --directory /tmp/dc-web &
 
 cd tools/store-screenshots
 npm init -y && npm install playwright@1.56.0     # Chromium déjà présent : ne pas lancer « playwright install »
-OUT=/tmp/dc-raw node all.mjs                     # ONLY=1,4 pour ne refaire que certains écrans
+OUT=/tmp/dc-raw node all.mjs                     # ONLY=1,P pour ne refaire que certains écrans
 ```
+
+`P` = volet public (accueil, services, page d'un service, demande de devis
+remplie puis **réellement envoyée** au serveur de démonstration).
 
 `capture.mjs` fige l'heure du navigateur (`NOW`), le fuseau (Europe/Paris)
 et la taille d'écran utile d'un iPhone 6,9" (430 × 844 pt, sans barre d'état
 ni indicateur d'accueil).
 
-## 3. Mise en page
+## 3. Affiches
 
 ```bash
-python3 tools/store-screenshots/compose.py /tmp/dc-raw
+python3 tools/store-screenshots/posters.py /tmp/dc-raw
 ```
 
-Titres, ordre et fichiers produits : liste `SHOTS` de `compose.py`.
+Les affiches sont des pages HTML/CSS (`posters/NN-*.html`, styles communs
+`posters/style.css`, décor `posters/fx.js`) : textes, ordre et mise en page
+se modifient là. Polices : `application/presentation/fonts` (Inter, licence
+OFL) ; logos : `v2/assets/img`. Rendu par Chromium (`render-posters.mjs`).
