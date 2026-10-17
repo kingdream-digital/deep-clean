@@ -240,8 +240,8 @@ export function PublicHomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Le devis, toujours à portée de pouce. */}
-      {!menuOpen && (
+      {/* Le devis, toujours à portée de pouce — dès que le bouton de l'ouverture n'est plus visible. */}
+      {!menuOpen && !onHero && (
         <View style={[s.bar, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
           <PressableScale onPress={() => requestQuote()} accessibilityRole="button">
             <View style={s.barButton}>
